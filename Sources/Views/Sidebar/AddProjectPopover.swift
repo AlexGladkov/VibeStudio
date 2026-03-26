@@ -19,14 +19,22 @@ struct AddProjectPopover: View {
     /// Called when the user wants to create a new project. `nil` hides the button.
     let onCreateNew: (() -> Void)?
 
-    @State private var openError: String?
+    @State private var vm: AddProjectViewModel?
+
+    private var viewModel: AddProjectViewModel {
+        if let existing = vm { return existing }
+        let created = AddProjectViewModel(projectManager: projectManager)
+        DispatchQueue.main.async { vm = created }
+        return created
+    }
 
     var body: some View {
+        let model = viewModel
         VStack(alignment: .leading, spacing: 0) {
             if projectManager.recentHistory.isEmpty {
                 emptyState
             } else {
-                recentsList
+                recentsList(model: model)
             }
 
             if !projectManager.recentHistory.isEmpty {
@@ -41,6 +49,11 @@ struct AddProjectPopover: View {
         .padding(.vertical, DSSpacing.sm)
         .frame(width: 300)
         .background(DSColor.surfaceOverlay)
+        .onAppear {
+            if vm == nil {
+                vm = AddProjectViewModel(projectManager: projectManager)
+            }
+        }
     }
 
     // MARK: - Empty State
@@ -71,7 +84,7 @@ struct AddProjectPopover: View {
 
     // MARK: - Recents List
 
-    private var recentsList: some View {
+    private func recentsList(model: AddProjectViewModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("RECENT")
                 .font(DSFont.sidebarSection)
@@ -80,11 +93,13 @@ struct AddProjectPopover: View {
 
             ForEach(projectManager.recentHistory) { project in
                 RecentRow(project: project) {
-                    openRecentProject(project)
+                    if model.openRecentProject(project) {
+                        dismiss()
+                    }
                 }
             }
 
-            if let err = openError {
+            if let err = model.openError {
                 Text(err)
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.gitDeleted)
@@ -115,23 +130,6 @@ struct AddProjectPopover: View {
                     dismiss()
                 }
             }
-        }
-    }
-
-    // MARK: - Open Recent Project
-
-    private func openRecentProject(_ project: Project) {
-        openError = nil
-        do {
-            let opened = try projectManager.addProject(at: project.path)
-            projectManager.activeProjectId = opened.id
-            dismiss()
-        } catch ProjectManagerError.duplicate(let existingId, _) {
-            projectManager.activeProjectId = existingId
-            dismiss()
-        } catch {
-            openError = "Cannot open \"\(project.name)\": \(error.localizedDescription)"
-            Logger.ui.error("AddProjectPopover: failed to open recent project: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

@@ -41,7 +41,7 @@ final class GitStatusPoller: GitStatusPolling {
 
     // MARK: - Private State
 
-    private let gitService: GitService
+    private let gitService: any GitServicing
     // nonisolated(unsafe): deinit is nonisolated and must cancel this task.
     // Safe because deinit only runs when no other references exist.
     nonisolated(unsafe) private var pollingTask: Task<Void, Never>?
@@ -50,7 +50,7 @@ final class GitStatusPoller: GitStatusPolling {
 
     // MARK: - Init
 
-    init(gitService: GitService) {
+    init(gitService: any GitServicing) {
         self.gitService = gitService
     }
 

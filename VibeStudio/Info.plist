@@ -35,6 +35,13 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
 
+    <!-- App icon -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+
     <!-- Application category — Developer Tools -->
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.developer-tools</string>
@@ -61,6 +68,10 @@
 
     <!-- Dark/light appearance support -->
     <!-- Remove this key to support both; set to "NSAppearanceNameDarkAqua" to force dark -->
+
+    <!-- Privacy: explain why Documents access is needed -->
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>VibeStudio needs access to open and monitor projects stored in your Documents folder.</string>
 
     <!-- Human-readable copyright -->
     <key>NSHumanReadableCopyright</key>

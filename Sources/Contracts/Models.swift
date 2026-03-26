@@ -73,13 +73,15 @@ struct HexColor: Codable, Hashable, Sendable {
 /// Defined here (not in a SwiftUI view) so that both `TerminalService`
 /// (AppKit-only) and SwiftUI views can reference it.
 enum TabActivityState: Sendable {
-    /// Terminal idle, awaiting input.
+    /// Tab is open but nothing has happened (or user already looked at it).
     case idle
-    /// Process is running / has output activity.
+    /// Output is actively flowing right now.
     case running
+    /// Output appeared since user last checked — shell awaiting user reaction.
+    case waitingForInput
     /// Process exited with non-zero exit code.
     case error
-    /// Active tab -- indicator hidden.
+    /// Active tab — indicator hidden.
     case hidden
 }
 

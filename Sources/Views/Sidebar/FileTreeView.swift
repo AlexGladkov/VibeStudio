@@ -24,9 +24,7 @@ struct FileTreeView: View {
 
     @Environment(\.fileSystemWatcher) private var fileSystemWatcher
 
-    @State private var tree: [FileTreeNode] = []
-    @State private var expandedDirs: Set<String> = []
-    @State private var rebuildTask: Task<Void, Never>?
+    @State private var vm = FileTreeViewModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,27 +33,14 @@ struct FileTreeView: View {
             }
             fileTreeContent
         }
-        .onAppear {
-            rebuildTree()
-        }
         .onDisappear {
-            rebuildTask?.cancel()
+            vm.cancelRebuild()
         }
         .task(id: projectPath) {
-            // Rebuild immediately when projectPath changes.
-            rebuildTree()
-            // Then watch for file system events inside this project directory.
-            let projectPrefix = projectPath.path
-            var debounceTask: Task<Void, Never>?
-            for await event in fileSystemWatcher.events {
-                guard event.path.path.hasPrefix(projectPrefix) else { continue }
-                debounceTask?.cancel()
-                debounceTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(500))
-                    guard !Task.isCancelled else { return }
-                    rebuildTree()
-                }
-            }
+            await vm.observeFileSystemEvents(
+                projectPath: projectPath,
+                fileSystemWatcher: fileSystemWatcher
+            )
         }
     }
 
@@ -68,7 +53,7 @@ struct FileTreeView: View {
                 .foregroundStyle(DSColor.textSecondary)
             Spacer()
             Button {
-                rebuildTree()
+                vm.rebuildTree(at: projectPath)
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11))
@@ -83,31 +68,20 @@ struct FileTreeView: View {
     // MARK: - Tree Content
 
     private var fileTreeContent: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(tree) { node in
+        let expandedBinding = Binding<Set<String>>(
+            get: { vm.expandedDirs },
+            set: { vm.expandedDirs = $0 }
+        )
+        return LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(vm.tree) { node in
                 FileTreeNodeView(
                     node: node,
                     depth: 0,
                     projectPath: projectPath,
-                    expandedDirs: $expandedDirs,
+                    expandedDirs: expandedBinding,
                     onFileDoubleTapped: onFileDoubleTapped
                 )
             }
-        }
-    }
-
-    // MARK: - Tree Building
-
-    private func rebuildTree() {
-        rebuildTask?.cancel()
-        let path = projectPath
-        rebuildTask = Task {
-            let nodes = await Task.detached(priority: .utility) {
-                guard !Task.isCancelled else { return [FileTreeNode]() }
-                return FileTreeBuilder.buildTree(at: path)
-            }.value
-            guard !Task.isCancelled else { return }
-            tree = nodes
         }
     }
 }
@@ -182,6 +156,9 @@ private struct DirectoryRowView: View {
                 Button("Reveal in Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([entry.path])
                 }
+            }
+            .onDrag {
+                NSItemProvider(object: entry.path as NSURL)
             }
 
             if isExpanded {
@@ -258,6 +235,9 @@ private struct FileRowView: View {
         .frame(height: DSLayout.treeRowHeight)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onDoubleTap?(entry) }
+        .onDrag {
+            NSItemProvider(object: entry.path as NSURL)
+        }
         .contextMenu {
             Button("Copy Path") {
                 NSPasteboard.general.clearContents()
@@ -292,7 +272,7 @@ private struct FileRowView: View {
     private var fileIconColor: Color {
         let ext = entry.path.pathExtension.lowercased()
         switch ext {
-        case "swift": return Color(hex: "#F05138")
+        case "swift": return DSColor.swiftOrange
         default: return DSColor.textSecondary
         }
     }

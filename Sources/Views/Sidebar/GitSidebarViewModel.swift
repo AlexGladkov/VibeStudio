@@ -141,7 +141,7 @@ final class GitSidebarViewModel {
     /// Open the project's remote origin in the default browser.
     func openInRemote(project: Project) {
         guard let rawURL = projectRemoteURLs[project.id],
-              let browserURL = GitService.browserURL(from: rawURL) else {
+              let browserURL = GitURLConverter.browserURL(from: rawURL) else {
             return
         }
         NSWorkspace.shared.open(browserURL)
@@ -323,7 +323,7 @@ final class GitSidebarViewModel {
         defer { generatingAIProjects.remove(project.id) }
 
         do {
-            let truncated = String(diff.prefix(AICommitService.maxDiffLength))
+            let truncated = String(diff.prefix(AIConstants.maxDiffLength))
             let result = try await aiCommitService.generateCommitMessage(for: truncated)
 
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)

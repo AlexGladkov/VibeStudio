@@ -23,11 +23,20 @@ import SwiftUI
 struct RootView: View {
 
     @Environment(\.projectManager) private var projectManager
+    @Environment(AppReadyState.self) private var appReady
     @State private var showSidebar = true
 
     var body: some View {
         Group {
-            if projectManager.projects.isEmpty {
+            if !appReady.tccGranted {
+                // Hold off rendering until TCC consent is obtained.
+                // Any SwiftUI view that accesses ~/Documents (FileTreeView,
+                // GitSidebarViewModel, etc.) must NOT render before this gate
+                // opens — their .task modifiers spawn git child processes that
+                // trigger independent TCC dialogs even if the parent already
+                // has a pending consent dialog.
+                DSColor.surfaceBase
+            } else if projectManager.projects.isEmpty {
                 WelcomeView()
             } else {
                 HSplitView {
@@ -61,17 +70,19 @@ struct RootView: View {
                 }
             }
         }
+        .toolbar {
+            // Invisible 1 pt spacer — keeps the unified toolbar area alive so that
+            // SwiftUI sets the correct top safe-area inset for the content below.
+            // The actual controls (claude selector, run, globe) are mounted as an
+            // NSHostingView on the trailing side via WindowToolbarRemover.
+            ToolbarItem(placement: .automatic) {
+                Color.clear.frame(width: 1, height: 1)
+            }
+        }
         .frame(
             minWidth: DSLayout.windowMinWidth,
             minHeight: DSLayout.windowMinHeight
         )
-        .toolbar {
-            if !projectManager.projects.isEmpty {
-                ToolbarItem(placement: .primaryAction) {
-                    ToolbarView()
-                }
-            }
-        }
         .background(DSColor.surfaceBase)
     }
 }

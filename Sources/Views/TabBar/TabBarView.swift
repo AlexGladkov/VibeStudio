@@ -15,26 +15,23 @@ import SwiftUI
 struct TabBarView: View {
 
     @Environment(\.projectManager) private var projectManager
+    @Environment(\.terminalSessionManager) private var terminalManager
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Tab list.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: DSSpacing.xxs) {
-                    ForEach(projectManager.projects) { project in
-                        TabItemView(
-                            project: project,
-                            isActive: project.id == projectManager.activeProjectId
-                        )
-                        .onTapGesture {
-                            projectManager.activeProjectId = project.id
-                        }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DSSpacing.xxs) {
+                ForEach(projectManager.projects) { project in
+                    TabItemView(
+                        project: project,
+                        isActive: project.id == projectManager.activeProjectId
+                    )
+                    .onTapGesture {
+                        terminalManager.markProjectSeen(project.id)
+                        projectManager.activeProjectId = project.id
                     }
                 }
-                .padding(.horizontal, DSSpacing.sm)
             }
-
-            Spacer()
+            .padding(.horizontal, DSSpacing.sm)
         }
         .frame(height: DSLayout.tabBarHeight)
         .background(DSColor.surfaceTabBar)

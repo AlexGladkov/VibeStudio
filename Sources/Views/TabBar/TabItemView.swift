@@ -6,13 +6,6 @@
 import SwiftUI
 
 /// A single tab in the tab bar representing one project.
-///
-/// Layout:
-/// ```
-/// ┌─ 12pt ─┬──────────────────────────────────┬── 4pt ──┬──────┬─ 8pt ─┐
-/// │        │  [dot] project-name  branch       │         │  x   │       │
-/// └────────┴──────────────────────────────────┴─────────┴──────┴───────┘
-/// ```
 struct TabItemView: View {
 
     let project: Project
@@ -20,33 +13,45 @@ struct TabItemView: View {
 
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
+    /// Concrete TerminalService for @Observable-tracked property access.
+    ///
+    /// `terminalManager` is typed `any TerminalSessionManaging` — Swift's
+    /// @Observable tracking doesn't work through existentials, so SwiftUI
+    /// would never re-render the view when projectActivityStates changes.
+    /// Injecting the concrete type allows withObservationTracking to register
+    /// the subscription correctly.
+    @Environment(TerminalService.self) private var terminalService
     @State private var isHovering = false
     @State private var pulseOpacity: Double = 1.0
+    @State private var attentionOpacity: Double = 1.0
     @State private var showErrorGlow = false
+    @State private var vm: TabItemViewModel?
 
-    /// Reads reactive `@Observable` state from `TerminalService`.
-    /// Multicast-safe: every `TabItemView` sees the same value.
+    private var viewModel: TabItemViewModel {
+        if let existing = vm { return existing }
+        let created = TabItemViewModel(projectManager: projectManager, terminalManager: terminalManager)
+        DispatchQueue.main.async { vm = created }
+        return created
+    }
+
     private var activityState: TabActivityState {
-        terminalManager.projectActivityStates[project.id] ?? .idle
+        terminalService.projectActivityStates[project.id] ?? .idle
     }
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
-            // Activity indicator.
             if !isActive {
                 activityIndicator
             }
 
-            // Project name.
             Text(project.name)
                 .font(DSFont.tabTitle)
                 .foregroundStyle(isActive || isHovering ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
 
-            // Close button.
             if isActive || isHovering {
                 Button {
-                    closeProject()
+                    viewModel.closeProject(project.id)
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: DSLayout.tabCloseIconSize))
@@ -72,7 +77,6 @@ struct TabItemView: View {
         .clipShape(RoundedRectangle(cornerRadius: DSRadius.md))
         .overlay(alignment: .bottom) {
             if isActive {
-                // Active tab accent line.
                 Rectangle()
                     .fill(DSColor.accentPrimary)
                     .frame(height: 2)
@@ -83,11 +87,13 @@ struct TabItemView: View {
                 isHovering = hovering
             }
         }
+        .onAppear {
+            if vm == nil {
+                vm = TabItemViewModel(projectManager: projectManager, terminalManager: terminalManager)
+            }
+        }
     }
 
-    // MARK: - Subviews
-
-    /// Tab background color based on state.
     private var tabBackground: Color {
         if isActive {
             return DSColor.surfaceTabActive
@@ -98,7 +104,6 @@ struct TabItemView: View {
         }
     }
 
-    /// Activity indicator dot (6pt circle).
     @ViewBuilder
     private var activityIndicator: some View {
         switch activityState {
@@ -124,6 +129,24 @@ struct TabItemView: View {
                     pulseOpacity = 1.0
                 }
 
+        case .waitingForInput:
+            Circle()
+                .fill(DSColor.indicatorWaiting)
+                .frame(width: DSLayout.indicatorSize, height: DSLayout.indicatorSize)
+                .opacity(attentionOpacity)
+                .scaleEffect(attentionOpacity > 0.5 ? 1.0 : 1.25)
+                .onAppear {
+                    withAnimation(
+                        .easeInOut(duration: 0.35)
+                        .repeatForever(autoreverses: true)
+                    ) {
+                        attentionOpacity = 0.1
+                    }
+                }
+                .onDisappear {
+                    attentionOpacity = 1.0
+                }
+
         case .error:
             Circle()
                 .fill(DSColor.indicatorError)
@@ -137,7 +160,6 @@ struct TabItemView: View {
                 }
                 .task(id: showErrorGlow) {
                     guard showErrorGlow else { return }
-                    // Remove glow after 2 seconds.
                     try? await Task.sleep(for: .seconds(2))
                     guard !Task.isCancelled else { return }
                     withAnimation(.easeOut(duration: 0.3)) {
@@ -148,12 +170,5 @@ struct TabItemView: View {
         case .hidden:
             EmptyView()
         }
-    }
-
-    // MARK: - Actions
-
-    private func closeProject() {
-        terminalManager.killAllSessions(for: project.id)
-        try? projectManager.removeProject(project.id)
     }
 }

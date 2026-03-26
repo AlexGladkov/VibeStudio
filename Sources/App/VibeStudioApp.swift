@@ -22,7 +22,7 @@ struct VibeStudioApp: App {
         WindowGroup {
             RootView()
                 .injectServices(from: appDelegate.container)
-                .background(WindowToolbarRemover())
+                .background(WindowToolbarRemover(container: appDelegate.container))
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified(showsTitle: false))

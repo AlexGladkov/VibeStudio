@@ -4,17 +4,41 @@
 
 import Foundation
 
+// MARK: - Private Codable Structs
+
+private struct AnthropicRequest: Encodable {
+    let model: String
+    let maxTokens: Int
+    let messages: [Message]
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case maxTokens = "max_tokens"
+        case messages
+    }
+
+    struct Message: Encodable {
+        let role: String
+        let content: String
+    }
+}
+
+private struct AnthropicResponse: Decodable {
+    let content: [ContentBlock]
+
+    struct ContentBlock: Decodable {
+        let text: String
+    }
+}
+
 // MARK: - Implementation
 
 /// Background actor that calls the Anthropic Messages API to generate
 /// a conventional commit message from a git diff.
 ///
 /// Uses `URLSession.shared` for networking. The diff is truncated to
-/// 8 000 characters before being sent to keep token usage low.
+/// `AIConstants.maxDiffLength` characters before being sent to keep token usage low.
 actor AICommitService: AICommitServicing {
-
-    /// Maximum number of diff characters sent to the API.
-    static let maxDiffLength = 8_000
 
     func generateCommitMessage(for diff: String) async throws -> String {
         let apiKey = try resolveAPIKey()
@@ -34,29 +58,35 @@ actor AICommitService: AICommitServicing {
     }
 
     private func buildRequest(apiKey: String, diff: String) throws -> URLRequest {
-        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+        guard let url = URL(string: AIConstants.anthropicAPIURL) else {
+            throw AICommitServiceError.invalidConfiguration
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue(AIConstants.anthropicVersion, forHTTPHeaderField: "anthropic-version")
 
-        let truncatedDiff = String(diff.prefix(Self.maxDiffLength))
-        let body: [String: Any] = [
-            "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 200,
-            "messages": [
-                [
-                    "role": "user",
-                    "content": """
+        let truncatedDiff = String(diff.prefix(AIConstants.maxDiffLength))
+        let body = AnthropicRequest(
+            model: AIConstants.commitModel,
+            maxTokens: AIConstants.commitMaxTokens,
+            messages: [
+                AnthropicRequest.Message(
+                    role: "user",
+                    content: """
                     Write a concise conventional commit message for this git diff. \
-                    Output ONLY the commit message, nothing else:\n\n\(truncatedDiff)
-                    """
-                ]
-            ]
-        ]
+                    Output ONLY the commit message, nothing else:
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    <diff>
+                    \(truncatedDiff)
+                    </diff>
+                    """
+                )
+            ]
+        )
+
+        request.httpBody = try JSONEncoder().encode(body)
         return request
     }
 
@@ -67,9 +97,8 @@ actor AICommitService: AICommitServicing {
             throw AICommitServiceError.apiError(statusCode: statusCode)
         }
 
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let content = (json["content"] as? [[String: Any]])?.first,
-              let text = content["text"] as? String else {
+        let decoded = try JSONDecoder().decode(AnthropicResponse.self, from: data)
+        guard let text = decoded.content.first?.text else {
             throw AICommitServiceError.invalidResponseFormat
         }
 

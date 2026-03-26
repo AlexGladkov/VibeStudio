@@ -116,6 +116,8 @@ enum AICommitServiceError: LocalizedError, Sendable {
     case apiError(statusCode: Int)
     /// The API response body could not be parsed.
     case invalidResponseFormat
+    /// The Anthropic API URL constant is malformed (should never happen in production).
+    case invalidConfiguration
 
     var errorDescription: String? {
         switch self {
@@ -125,6 +127,8 @@ enum AICommitServiceError: LocalizedError, Sendable {
             return "Anthropic API returned status \(statusCode)"
         case .invalidResponseFormat:
             return "Invalid API response format"
+        case .invalidConfiguration:
+            return "Invalid AI service configuration"
         }
     }
 }

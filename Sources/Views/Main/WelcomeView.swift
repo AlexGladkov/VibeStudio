@@ -14,9 +14,17 @@ struct WelcomeView: View {
     @Environment(\.projectManager) private var projectManager
     @State private var showFileImporter = false
     @State private var showCreateNewSheet = false
-    @State private var openError: String?
+    @State private var vm: AddProjectViewModel?
+
+    private var viewModel: AddProjectViewModel {
+        if let existing = vm { return existing }
+        let created = AddProjectViewModel(projectManager: projectManager)
+        DispatchQueue.main.async { vm = created }
+        return created
+    }
 
     var body: some View {
+        let model = viewModel
         VStack(spacing: 0) {
             Spacer()
 
@@ -89,7 +97,7 @@ struct WelcomeView: View {
 
                     ForEach(projectManager.recentProjects) { project in
                         RecentProjectRow(project: project) {
-                            openRecentProject(project)
+                            _ = model.openRecentProject(project)
                         }
                     }
                 }
@@ -97,7 +105,7 @@ struct WelcomeView: View {
             }
 
             // Inline error (e.g. path no longer exists)
-            if let err = openError {
+            if let err = model.openError {
                 Spacer().frame(height: DSSpacing.sm)
                 Text(err)
                     .font(DSFont.sidebarItemSmall)
@@ -115,34 +123,16 @@ struct WelcomeView: View {
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
-            handleFileImport(result)
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            model.openProject(at: url)
         }
         .sheet(isPresented: $showCreateNewSheet) {
             CreateNewProjectSheet()
         }
-    }
-
-    // MARK: - Private
-
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result, let url = urls.first else { return }
-        do {
-            let project = try projectManager.addProject(at: url)
-            projectManager.activeProjectId = project.id
-        } catch {
-            Logger.ui.error("Failed to add project: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    private func openRecentProject(_ project: Project) {
-        openError = nil
-        do {
-            let opened = try projectManager.addProject(at: project.path)
-            projectManager.activeProjectId = opened.id
-        } catch ProjectManagerError.duplicate(let existingId, _) {
-            projectManager.activeProjectId = existingId
-        } catch {
-            openError = "Cannot open \"\(project.name)\": \(error.localizedDescription)"
+        .onAppear {
+            if vm == nil {
+                vm = AddProjectViewModel(projectManager: projectManager)
+            }
         }
     }
 }

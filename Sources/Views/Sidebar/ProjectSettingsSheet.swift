@@ -11,9 +11,17 @@ struct ProjectSettingsSheet: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var productionURL: String = ""
+    @State private var vm: ProjectSettingsViewModel?
+
+    private var viewModel: ProjectSettingsViewModel {
+        if let existing = vm { return existing }
+        let created = ProjectSettingsViewModel(projectManager: projectManager, project: project)
+        DispatchQueue.main.async { vm = created }
+        return created
+    }
 
     var body: some View {
+        let model = viewModel
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             // Header
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
@@ -33,9 +41,14 @@ struct ProjectSettingsSheet: View {
                 Text("Production URL")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textSecondary)
-                TextField("https://example.com", text: $productionURL)
-                    .styledInput()
-                    .onSubmit { saveSettings() }
+                TextField("https://example.com", text: Binding(
+                    get: { model.productionURL },
+                    set: { model.productionURL = $0 }
+                ))
+                .styledInput()
+                .onSubmit {
+                    if model.saveSettings() { dismiss() }
+                }
                 Text("Used for the \"Open in Browser\" toolbar action")
                     .font(.system(size: 10))
                     .foregroundStyle(DSColor.textMuted)
@@ -43,11 +56,12 @@ struct ProjectSettingsSheet: View {
 
             Spacer()
 
-            // Action buttons
             SheetActionButtons(
                 onCancel: { dismiss() },
                 actionLabel: "Save",
-                onAction: { saveSettings() }
+                onAction: {
+                    if model.saveSettings() { dismiss() }
+                }
             )
             .keyboardShortcut(.return, modifiers: .command)
         }
@@ -55,19 +69,9 @@ struct ProjectSettingsSheet: View {
         .frame(width: 360, height: 260)
         .background(DSColor.surfaceOverlay)
         .onAppear {
-            productionURL = project.productionURL ?? ""
+            if vm == nil {
+                vm = ProjectSettingsViewModel(projectManager: projectManager, project: project)
+            }
         }
-    }
-
-    private func saveSettings() {
-        var trimmed = productionURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Auto-prepend https:// if user forgot the scheme
-        if !trimmed.isEmpty, !trimmed.hasPrefix("http://"), !trimmed.hasPrefix("https://") {
-            trimmed = "https://" + trimmed
-        }
-        try? projectManager.updateProject(project.id) {
-            $0.productionURL = trimmed.isEmpty ? nil : trimmed
-        }
-        dismiss()
     }
 }

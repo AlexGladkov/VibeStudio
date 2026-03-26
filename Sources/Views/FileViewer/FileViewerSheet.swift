@@ -12,35 +12,29 @@ struct FileViewerSheet: View {
     let projectPath: URL
 
     @Environment(\.dismiss) private var dismiss
-    @State private var files: [ViewedFile] = []
+    @State private var vm: FileViewerViewModel?
     @State private var showFilePicker = false
 
-    private var sheetWidth: CGFloat {
-        switch files.count {
-        case 2: return 1100
-        case 3: return 1280
-        default: return 600
-        }
-    }
-
-    private var titleText: String {
-        if files.count == 1 {
-            return files.first?.fileName ?? initialFile.fileName
-        }
-        return "Comparing \(files.count) files"
+    private var viewModel: FileViewerViewModel {
+        if let existing = vm { return existing }
+        let created = FileViewerViewModel(initialFile: initialFile)
+        DispatchQueue.main.async { vm = created }
+        return created
     }
 
     var body: some View {
+        let model = viewModel
         VStack(spacing: 0) {
-            toolbar
+            toolbar(model: model)
             Divider().background(DSColor.borderDefault)
-            fileColumns
+            fileColumns(model: model)
         }
-        .frame(width: sheetWidth, height: 600)
+        .frame(width: model.sheetWidth, height: FileViewerConstants.sheetHeight)
         .background(DSColor.surfaceOverlay)
         .onAppear {
-            files = [initialFile]
-            loadContent(for: initialFile)
+            if vm == nil {
+                vm = FileViewerViewModel(initialFile: initialFile)
+            }
         }
         .fileImporter(
             isPresented: $showFilePicker,
@@ -48,26 +42,23 @@ struct FileViewerSheet: View {
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
-                let entry = FileEntry(path: url, gitStatus: nil)
-                let newFile = ViewedFile(entry: entry)
-                files.append(newFile)
-                loadContent(for: newFile)
+                model.addFile(at: url)
             }
         }
     }
 
     // MARK: - Toolbar
 
-    private var toolbar: some View {
+    private func toolbar(model: FileViewerViewModel) -> some View {
         HStack(spacing: DSSpacing.sm) {
-            Text(titleText)
+            Text(model.titleText)
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
 
             Spacer()
 
-            if files.count < 3 {
+            if model.canAddMoreFiles {
                 Button {
                     showFilePicker = true
                 } label: {
@@ -83,7 +74,7 @@ struct FileViewerSheet: View {
             }
 
             Button {
-                copyAllContent()
+                model.copyAllContent()
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 12))
@@ -109,58 +100,20 @@ struct FileViewerSheet: View {
 
     // MARK: - File Columns
 
-    private var fileColumns: some View {
+    private func fileColumns(model: FileViewerViewModel) -> some View {
         HStack(spacing: 0) {
-            ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+            ForEach(Array(model.files.enumerated()), id: \.element.id) { index, file in
                 if index > 0 {
                     Divider()
                         .background(DSColor.borderDefault)
                 }
                 FileColumnView(
                     file: file,
-                    canClose: files.count > 1,
-                    onClose: { removeFile(id: file.id) }
+                    canClose: model.files.count > 1,
+                    onClose: { model.removeFile(id: file.id) }
                 )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - Actions
-
-    private func loadContent(for file: ViewedFile) {
-        let fileId = file.id
-        let url = file.entry.path
-        Task.detached(priority: .userInitiated) {
-            let state = FileLoader.loadContent(at: url)
-            await MainActor.run {
-                if let idx = files.firstIndex(where: { $0.id == fileId }) {
-                    files[idx].contentState = state
-                }
-            }
-        }
-    }
-
-    private func removeFile(id: UUID) {
-        files.removeAll { $0.id == id }
-    }
-
-    private func copyAllContent() {
-        var parts: [String] = []
-        for file in files {
-            var section = "// === \(file.fileName) ===\n"
-            switch file.contentState {
-            case .loaded(let text):
-                section += text
-            case .tooLarge(let truncated, _) where !truncated.isEmpty:
-                section += truncated
-            default:
-                section += "// (no text content)"
-            }
-            parts.append(section)
-        }
-        let combined = parts.joined(separator: "\n\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(combined, forType: .string)
     }
 }

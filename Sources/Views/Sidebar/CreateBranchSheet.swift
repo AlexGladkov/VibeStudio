@@ -4,8 +4,6 @@
 
 import SwiftUI
 
-// MARK: - CreateBranchSheet
-
 struct CreateBranchSheet: View {
 
     let project: Project
@@ -15,11 +13,21 @@ struct CreateBranchSheet: View {
     @Environment(\.gitService) private var gitService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var branchName: String = ""
-    @State private var isCreating = false
-    @State private var errorMessage: String?
+    @State private var vm: CreateBranchViewModel?
+
+    private var viewModel: CreateBranchViewModel {
+        if let existing = vm { return existing }
+        let created = CreateBranchViewModel(
+            gitService: gitService,
+            project: project,
+            fromBranch: fromBranch
+        )
+        DispatchQueue.main.async { vm = created }
+        return created
+    }
 
     var body: some View {
+        let model = viewModel
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("New Branch")
@@ -53,12 +61,22 @@ struct CreateBranchSheet: View {
                 Text("Branch name")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textSecondary)
-                TextField("feature/my-feature", text: $branchName)
-                    .styledInput()
-                    .onSubmit { Task { await create() } }
+                TextField("feature/my-feature", text: Binding(
+                    get: { model.branchName },
+                    set: { model.branchName = $0 }
+                ))
+                .styledInput()
+                .onSubmit {
+                    Task {
+                        if await model.create() {
+                            dismiss()
+                            onCreated?()
+                        }
+                    }
+                }
             }
 
-            if let error = errorMessage {
+            if let error = model.errorMessage {
                 Text(error)
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.gitDeleted)
@@ -70,28 +88,29 @@ struct CreateBranchSheet: View {
             SheetActionButtons(
                 onCancel: { dismiss() },
                 actionLabel: "Create",
-                isDisabled: branchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                isLoading: isCreating,
-                onAction: { Task { await create() } }
+                isDisabled: !model.canCreate,
+                isLoading: model.isCreating,
+                onAction: {
+                    Task {
+                        if await model.create() {
+                            dismiss()
+                            onCreated?()
+                        }
+                    }
+                }
             )
         }
         .padding(DSSpacing.lg)
         .frame(width: 320, height: 240)
         .background(DSColor.surfaceOverlay)
-    }
-
-    private func create() async {
-        let name = branchName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        isCreating = true
-        errorMessage = nil
-        do {
-            try await gitService.createBranch(name: name, from: fromBranch, at: project.path)
-            dismiss()
-            onCreated?()
-        } catch {
-            errorMessage = error.localizedDescription
-            isCreating = false
+        .onAppear {
+            if vm == nil {
+                vm = CreateBranchViewModel(
+                    gitService: gitService,
+                    project: project,
+                    fromBranch: fromBranch
+                )
+            }
         }
     }
 }

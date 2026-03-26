@@ -131,6 +131,14 @@ protocol TerminalSessionManaging: AnyObject, Observable {
     /// - Returns: Текст scrollback-буфера.
     func scrollbackContent(for sessionId: UUID) -> String?
 
+    // MARK: - Activity
+
+    /// Mark a project's tab as seen by the user.
+    ///
+    /// Resets the activity state to `.idle` so the yellow indicator clears.
+    /// Call this when the user switches to a tab.
+    func markProjectSeen(_ projectId: UUID)
+
     // MARK: - Input
 
     /// Send text input to a terminal session (as if the user typed it).

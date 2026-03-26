@@ -294,8 +294,9 @@ struct SidebarView: View {
     private var vm: GitSidebarViewModel {
         if let existing = gitVM { return existing }
         let created = GitSidebarViewModel(gitService: gitService, aiCommitService: aiCommitService)
-        // Deferred assignment to avoid modifying state during view update.
-        DispatchQueue.main.async { gitVM = created }
+        // Deferred assignment: Task { @MainActor } schedules the state mutation
+        // after the current body evaluation cycle, satisfying SwiftUI's invariant.
+        Task { @MainActor in gitVM = created }
         return created
     }
 

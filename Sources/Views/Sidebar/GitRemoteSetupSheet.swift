@@ -4,8 +4,6 @@
 
 import SwiftUI
 
-// MARK: - GitRemoteSetupSheet
-
 struct GitRemoteSetupSheet: View {
 
     let project: Project
@@ -13,13 +11,17 @@ struct GitRemoteSetupSheet: View {
     @Environment(\.gitService) private var gitService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var remoteName = "origin"
-    @State private var remoteUrl = ""
-    @State private var isAdding = false
-    @State private var errorMessage: String?
-    @State private var successMessage: String?
+    @State private var vm: GitRemoteSetupViewModel?
+
+    private var viewModel: GitRemoteSetupViewModel {
+        if let existing = vm { return existing }
+        let created = GitRemoteSetupViewModel(gitService: gitService, project: project)
+        DispatchQueue.main.async { vm = created }
+        return created
+    }
 
     var body: some View {
+        let model = viewModel
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Remote Repository")
@@ -37,22 +39,28 @@ struct GitRemoteSetupSheet: View {
                 Text("Remote name")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textSecondary)
-                TextField("origin", text: $remoteName)
-                    .styledInput()
+                TextField("origin", text: Binding(
+                    get: { model.remoteName },
+                    set: { model.remoteName = $0 }
+                ))
+                .styledInput()
             }
 
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Repository URL")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textSecondary)
-                TextField("https://github.com/user/repo.git", text: $remoteUrl)
-                    .styledInput()
+                TextField("https://github.com/user/repo.git", text: Binding(
+                    get: { model.remoteUrl },
+                    set: { model.remoteUrl = $0 }
+                ))
+                .styledInput()
             }
 
-            if let error = errorMessage {
+            if let error = model.errorMessage {
                 Text(error).font(DSFont.sidebarItemSmall).foregroundStyle(DSColor.gitDeleted)
             }
-            if let success = successMessage {
+            if let success = model.successMessage {
                 Text(success).font(DSFont.sidebarItemSmall).foregroundStyle(DSColor.gitAdded)
             }
 
@@ -61,34 +69,24 @@ struct GitRemoteSetupSheet: View {
             SheetActionButtons(
                 onCancel: { dismiss() },
                 actionLabel: "Add Remote",
-                isDisabled: remoteUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                isLoading: isAdding,
-                onAction: { Task { await addRemote() } }
+                isDisabled: !model.canAdd,
+                isLoading: model.isAdding,
+                onAction: {
+                    Task {
+                        if await model.addRemote() {
+                            dismiss()
+                        }
+                    }
+                }
             )
         }
         .padding(DSSpacing.lg)
         .frame(width: 380, height: 320)
         .background(DSColor.surfaceOverlay)
-    }
-
-    private func addRemote() async {
-        let url = remoteUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = remoteName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = trimmedName.isEmpty ? "origin" : trimmedName
-        guard !url.isEmpty else { return }
-
-        isAdding = true
-        errorMessage = nil
-        successMessage = nil
-        defer { isAdding = false }
-
-        do {
-            try await gitService.addRemote(name: name, url: url, at: project.path)
-            successMessage = "Remote '\(name)' added"
-            try? await Task.sleep(for: .milliseconds(800))
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+        .onAppear {
+            if vm == nil {
+                vm = GitRemoteSetupViewModel(gitService: gitService, project: project)
+            }
         }
     }
 }

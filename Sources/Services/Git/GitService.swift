@@ -395,8 +395,13 @@ actor GitService: GitServicing {
         return try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: gitBinary)
-            process.arguments = args
-            process.currentDirectoryURL = dir
+            // Use `git -C <dir>` instead of setting currentDirectoryURL.
+            // Setting currentDirectoryURL causes the forked child process to call
+            // chdir(dir) BEFORE execve — while it still carries VibeStudio's process
+            // identity. That chdir into ~/Documents triggers a TCC dialog on every
+            // git subprocess call. With `-C dir` git itself (an Apple-signed binary)
+            // handles the chdir internally after exec, which does not trigger TCC.
+            process.arguments = ["-C", dir.path] + args
 
             var env = ProcessInfo.processInfo.environment
             if suppressCredentials {

@@ -23,11 +23,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ServiceContainer(
             projectManager: projectStore,
             terminalSessionManager: terminalService,
+            terminalService: terminalService,
             gitService: gitService,
             fileSystemWatcher: fileSystemWatcher,
             sessionPersistence: sessionStore,
             aiCommitService: aiCommitService,
-            gitStatusPoller: gitStatusPoller
+            gitStatusPoller: gitStatusPoller,
+            appReadyState: appReadyState
         )
     }()
 
@@ -40,6 +42,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var sessionStore = SessionStore()
     private lazy var aiCommitService = AICommitService()
     private lazy var gitStatusPoller = GitStatusPoller(gitService: gitService)
+    private let appReadyState = AppReadyState()
+
+    // MARK: - Session UseCases
+
+    private lazy var saveSessionUseCase = SaveSessionUseCase(
+        projectManager: projectStore,
+        terminalManager: terminalService,
+        sessionPersistence: sessionStore
+    )
+
+    private lazy var restoreSessionUseCase = RestoreSessionUseCase(
+        projectManager: projectStore,
+        terminalManager: terminalService,
+        sessionPersistence: sessionStore
+    )
+
+    private lazy var activateFirstProjectUseCase = ActivateFirstProjectUseCase(
+        projectManager: projectStore,
+        terminalManager: terminalService
+    )
 
     /// Long-running tasks for observation (cancelled on termination).
     private var activeProjectObservation: Task<Void, Never>?
@@ -47,24 +69,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - NSApplicationDelegate
 
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Intentionally empty.
+        //
+        // Previous approach: call contentsOfDirectory(~/Documents) here as a
+        // TCC preflight. This was incorrect — FileManager calls are non-blocking
+        // with respect to TCC: the call returns immediately with a permission error
+        // while the dialog is shown asynchronously. Because applicationWillFinishLaunching
+        // runs before the main runloop starts, macOS may not be able to present the
+        // TCC dialog at all at this point, making the preflight entirely ineffective.
+        //
+        // The correct approach (below, in applicationDidFinishLaunching) is to
+        // run the TCC trigger on a background thread and await its completion
+        // before spawning any child processes (PTY shells, git subprocesses).
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Load persisted project list.
+        // Load persisted project list (reads ~/Library/Application Support — no TCC).
         do {
             try projectStore.load()
         } catch {
             Logger.session.error("Failed to load projects: \(error.localizedDescription, privacy: .public)")
         }
 
-        // Restore previous session asynchronously.
-        Task { @MainActor in
-            await restoreSession()
+        // Obtain TCC consent for ~/Documents, then start all services that
+        // spawn child processes in project directories.
+        //
+        // WHY THIS ORDER MATTERS:
+        //   `FileManager.contentsOfDirectory` is non-blocking: it returns an
+        //   error immediately and shows the TCC dialog asynchronously. If we
+        //   start services first, each service (TerminalService, GitService,
+        //   FileTreeBuilder) independently accesses ~/Documents before the user
+        //   has responded — producing one TCC dialog per service (5+ dialogs).
+        //
+        // HOW THIS FIXES IT:
+        //   Task.detached runs on a background thread. The background thread
+        //   BLOCKS on the kernel-level TCC check until the user clicks Allow/
+        //   Deny, while the main thread's run loop continues running so macOS
+        //   can present the TCC dialog UI. After `await` returns, TCC is
+        //   resolved for this process and all subsequently spawned child
+        //   processes (forkpty, Process) inherit the grant — no more dialogs.
+        Task { @MainActor [weak self] in
+            await self?.acquireTCCConsentThenStart()
         }
-
-        // Start observing active project changes to drive git status polling.
-        startActiveProjectObservation()
-
-        // Forward file system watcher events to git status poller for immediate refresh.
-        startFileEventForwarding()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -99,95 +146,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    // MARK: - Session Management
+    // MARK: - TCC Consent + Startup Sequencing
 
-    /// Restore the application session from persisted snapshot.
-    private func restoreSession() async {
-        do {
-            guard let snapshot = try await sessionStore.restore() else {
-                // No saved session — activate first project automatically.
-                activateFirstProjectIfNeeded()
-                return
-            }
+    /// Obtain TCC consent for ~/Documents, then start all services that touch it.
+    ///
+    /// Runs the filesystem access on a background thread so the background thread
+    /// can block on the kernel TCC gate while the main-thread run loop stays live
+    /// to present the consent dialog. Awaiting ensures services start only after
+    /// the grant (or denial) is recorded — child processes then inherit the grant.
+    private func acquireTCCConsentThenStart() async {
+        await Task.detached(priority: .userInitiated) {
+            let documentsURL = FileManager.default.urls(
+                for: .documentDirectory, in: .userDomainMask
+            ).first!
+            _ = try? FileManager.default.contentsOfDirectory(
+                at: documentsURL, includingPropertiesForKeys: nil
+            )
+        }.value
 
-            // Restore active project selection.
-            if let activeId = snapshot.activeProjectId,
-               projectStore.project(for: activeId) != nil {
-                projectStore.activeProjectId = activeId
-            }
+        // TCC is now resolved. Flip the gate so RootView renders the full UI.
+        // This unblocks SwiftUI views (FileTreeView, GitSidebarViewModel, etc.)
+        // which were holding off on their .task modifiers.
+        appReadyState.tccGranted = true
 
-            // Restore terminal sessions for each project.
-            for projectSession in snapshot.projectSessions {
-                guard let project = projectStore.project(for: projectSession.projectId) else {
-                    continue
-                }
-
-                for layout in projectSession.terminalLayouts {
-                    do {
-                        try terminalService.createSession(
-                            for: project.id,
-                            shell: project.shellPath,
-                            workingDirectory: layout.workingDirectory ?? project.path
-                        )
-                    } catch {
-                        Logger.terminal.error("Failed to restore terminal session: \(error.localizedDescription, privacy: .public)")
-                    }
-                }
-            }
-        } catch {
-            Logger.session.error("Failed to restore session: \(error.localizedDescription, privacy: .public)")
-        }
-
-        // Fallback: if still no active project after restore, activate the first one.
-        activateFirstProjectIfNeeded()
+        // Safe to spawn PTY and git child processes — they inherit the TCC grant.
+        await restoreSession()
+        startActiveProjectObservation()
+        startFileEventForwarding()
     }
 
-    /// Activates the first available project and opens a terminal session for it.
-    /// Called when no session was saved or the saved active project is missing.
-    private func activateFirstProjectIfNeeded() {
-        guard projectStore.activeProjectId == nil,
-              let first = projectStore.projects.first else { return }
-        projectStore.activeProjectId = first.id
-        try? terminalService.createSession(
-            for: first.id,
-            shell: first.shellPath,
-            workingDirectory: first.path
-        )
+    // MARK: - Session Management
+
+    /// Restore the application session, then ensure at least one project is active.
+    private func restoreSession() async {
+        await restoreSessionUseCase.execute()
+        // Fallback: if no active project after restore (first launch or missing
+        // project), activate the first available project.
+        activateFirstProjectUseCase.execute()
     }
 
     /// Save current application state to disk.
     private func saveSession() async {
-        let projectSessions = projectStore.projects.map { project in
-            let sessions = terminalService.sessions(for: project.id)
-            let layouts = sessions.map { session in
-                TerminalLayoutSnapshot(
-                    sessionId: session.id,
-                    title: session.title,
-                    splitDirection: session.splitDirection,
-                    workingDirectory: project.path
-                )
-            }
-            return ProjectSessionSnapshot(
-                projectId: project.id,
-                terminalLayouts: layouts,
-                scrollbackFile: nil,
-                sidebarVisible: true,
-                sidebarWidth: Double(DSLayout.sidebarDefaultWidth)
-            )
-        }
-
-        let snapshot = AppSessionSnapshot(
-            version: sessionStore.currentSnapshotVersion,
-            capturedAt: .now,
-            activeProjectId: projectStore.activeProjectId,
-            projectSessions: projectSessions
-        )
-
-        do {
-            try await sessionStore.save(snapshot: snapshot)
-        } catch {
-            Logger.session.error("Failed to save session: \(error.localizedDescription, privacy: .public)")
-        }
+        await saveSessionUseCase.execute()
     }
 
     // MARK: - Git Status Polling

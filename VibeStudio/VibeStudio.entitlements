@@ -19,11 +19,10 @@
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
 
-    <!-- PLACEHOLDER: Hardened Runtime — required for notarization.
-         Uncomment when Apple Developer account is available.
+    <!-- Hardened Runtime — required for stable TCC identity across builds.
+         Without this, macOS resets permissions on every rebuild. -->
     <key>com.apple.security.cs.runtime</key>
     <true/>
-    -->
 
     <!-- PLACEHOLDER: Apple Events — uncomment if automation/scripting
          support is needed in future versions.

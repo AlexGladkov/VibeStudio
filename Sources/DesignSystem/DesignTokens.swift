@@ -148,10 +148,12 @@ enum DSColor {
 
     // MARK: Activity Indicators
 
-    /// Terminal idle, awaiting input.
-    static let indicatorIdle = Color(hex: "#3FB950")
-    /// Process running (compilation, tests, etc.).
-    static let indicatorRunning = Color(hex: "#E2B93D")
+    /// Tab is open but nothing has happened (or user already checked it).
+    static let indicatorIdle = Color(hex: "#6E7681")
+    /// Output is actively flowing right now.
+    static let indicatorRunning = Color(hex: "#3FB950")
+    /// Output appeared since user last looked — waiting for reaction.
+    static let indicatorWaiting = Color(hex: "#E2B93D")
     /// Process exited with non-zero code.
     static let indicatorError = Color(hex: "#F85149")
 
@@ -186,6 +188,11 @@ enum DSColor {
     static let buttonDangerText = Color(hex: "#F85149")
     /// Danger button hover background.
     static let buttonDangerHoverBg = Color(hex: "#4D1719")
+
+    // MARK: Language Icons
+
+    /// Swift language icon color (official Swift orange).
+    static let swiftOrange = Color(hex: "#F05138")
 }
 
 // MARK: - Spacing Tokens

@@ -1,27 +1,38 @@
 // MARK: - WindowToolbarRemover
-// Configures the NSWindow titlebar so our custom ToolbarView content
-// sits flush with the traffic lights row.
+// Configures the NSWindow titlebar and mounts ToolbarView inside the
+// NSTitlebarContainerView — the system-managed strip that always sits
+// at the visual top of the window regardless of coordinate system quirks.
 // macOS 14+, Swift 5.10
 
 import AppKit
 import SwiftUI
 
-/// Zero-size NSViewRepresentable that removes NSToolbar reserved space
-/// and configures the window titlebar for full-bleed content layout.
-///
-/// Insert via `.background(WindowToolbarRemover())` on the root view.
 struct WindowToolbarRemover: NSViewRepresentable {
 
+    let container: ServiceContainer
+
     func makeNSView(context: Context) -> ConfiguringView {
-        ConfiguringView()
+        ConfiguringView(container: container)
     }
 
     func updateNSView(_ nsView: ConfiguringView, context: Context) {
         nsView.configure()
     }
 
+    // MARK: - ConfiguringView
+
     final class ConfiguringView: NSView {
+
         private var didConfigureWindow = false
+        private let container: ServiceContainer
+        private var toolbarHostingView: NSView?
+
+        init(container: ServiceContainer) {
+            self.container = container
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -29,55 +40,63 @@ struct WindowToolbarRemover: NSViewRepresentable {
         }
 
         func configure() {
-            guard let window else { return }
+            guard let window, !didConfigureWindow else { return }
+            didConfigureWindow = true
 
-            // One-time window chrome setup.
-            if !didConfigureWindow {
-                didConfigureWindow = true
+            // ── Window chrome ────────────────────────────────────────────
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.titlebarSeparatorStyle = .none
+            window.backgroundColor = DSColor.surfaceBaseNS
 
-                // Full-size content view so SwiftUI fills behind the toolbar.
-                window.styleMask.insert(.fullSizeContentView)
-                window.titlebarAppearsTransparent = true
-                window.titleVisibility = .hidden
-
-                // Remove the separator line between toolbar and content.
-                window.titlebarSeparatorStyle = .none
-
-                // Paint the window background to match surfaceBase (#1A1B1E)
-                // so the transparent toolbar inherits the correct dark color.
-                window.backgroundColor = DSColor.surfaceBaseNS
+            // ── Trailing toolbar ─────────────────────────────────────────
+            // Deferred one runloop so SwiftUI finishes building its toolbar
+            // view hierarchy before we traverse it.
+            DispatchQueue.main.async { [weak self, weak window] in
+                guard let self, let window else { return }
+                self.installTrailingToolbar(in: window)
             }
-
-            // Re-apply toolbar layout on every update so items added later
-            // (e.g. when transitioning from Welcome → project open) also get
-            // the correct position and no bordered-capsule background.
-            fixToolbarItems(in: window)
         }
 
-        /// Ensures flexible-space sits at index 0 (pushing items to trailing
-        /// edge) and strips the macOS bordered-capsule style from every item.
-        /// Deferred one runloop so SwiftUI finishes registering its items first.
-        private func fixToolbarItems(in window: NSWindow) {
-            DispatchQueue.main.async { [weak window] in
-                guard let toolbar = window?.toolbar else { return }
+        /// Finds `NSTitlebarContainerView` — the system view that occupies the
+        /// visual top strip of the window (titlebar + toolbar row) — and adds
+        /// `ToolbarView` as a trailing `NSHostingView` anchored to its center.
+        ///
+        /// Using `NSTitlebarContainerView` as the anchor parent eliminates all
+        /// coordinate-system confusion: its coordinate origin is always at the
+        /// top of the window chrome, so `centerYAnchor` and `trailingAnchor`
+        /// behave predictably regardless of whether the parent is flipped.
+        private func installTrailingToolbar(in window: NSWindow) {
+            guard let themeFrame = window.contentView?.superview,
+                  let titlebarContainer = titlebarContainerView(in: themeFrame)
+            else { return }
 
-                // Guarantee flexible space is at position 0.
-                // If it drifted (SwiftUI inserted items before it), move it back.
-                if let existingIdx = toolbar.items.firstIndex(where: {
-                    $0.itemIdentifier == .flexibleSpace
-                }) {
-                    if existingIdx != 0 {
-                        toolbar.removeItem(at: existingIdx)
-                        toolbar.insertItem(withItemIdentifier: .flexibleSpace, at: 0)
-                    }
-                } else {
-                    toolbar.insertItem(withItemIdentifier: .flexibleSpace, at: 0)
-                }
+            let toolbarView = ToolbarView().injectServices(from: container)
+            let hosting = NSHostingView(rootView: toolbarView)
+            hosting.translatesAutoresizingMaskIntoConstraints = false
+            hosting.wantsLayer = true
 
-                // Strip bordered-capsule background from all items.
-                for item in toolbar.items {
-                    item.isBordered = false
-                }
+            titlebarContainer.addSubview(hosting)
+            NSLayoutConstraint.activate([
+                hosting.trailingAnchor.constraint(
+                    equalTo: titlebarContainer.trailingAnchor,
+                    constant: -12
+                ),
+                hosting.centerYAnchor.constraint(
+                    equalTo: titlebarContainer.centerYAnchor
+                ),
+            ])
+
+            toolbarHostingView = hosting
+        }
+
+        /// Walks `NSThemeFrame`'s direct subviews to find the view whose class
+        /// name contains "TitlebarContainer". This is the private system view
+        /// that wraps the traffic lights + toolbar strip.
+        private func titlebarContainerView(in themeFrame: NSView) -> NSView? {
+            themeFrame.subviews.first {
+                String(describing: type(of: $0)).contains("TitlebarContainer")
             }
         }
     }
