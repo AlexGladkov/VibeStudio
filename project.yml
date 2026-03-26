@@ -30,7 +30,7 @@ targets:
         INFOPLIST_FILE: VibeStudio/Info.plist
         CODE_SIGN_ENTITLEMENTS: VibeStudio/VibeStudio.entitlements
         CODE_SIGN_IDENTITY: "-"
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.0.1"
         CURRENT_PROJECT_VERSION: "1"
         COMBINE_HIDPI_IMAGES: true
         ENABLE_HARDENED_RUNTIME: true
