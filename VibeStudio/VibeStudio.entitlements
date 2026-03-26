@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- ============================================================
+         VibeStudio Entitlements
+         No App Sandbox — required for PTY subprocess spawning,
+         arbitrary shell execution, and full filesystem access.
+         ============================================================ -->
+
+    <!-- SANDBOX DISABLED — direct distribution via DMG, not Mac App Store.
+         PTY (forkpty/posix_spawn) and git subprocess require unrestricted
+         process creation which is incompatible with App Sandbox. -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!-- Disable library validation — allows loading of non-Apple-signed
+         dynamic libraries (e.g., user's shell plugins, git hooks). -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- PLACEHOLDER: Hardened Runtime — required for notarization.
+         Uncomment when Apple Developer account is available.
+    <key>com.apple.security.cs.runtime</key>
+    <true/>
+    -->
+
+    <!-- PLACEHOLDER: Apple Events — uncomment if automation/scripting
+         support is needed in future versions.
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    -->
+</dict>
+</plist>

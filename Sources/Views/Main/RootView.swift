@@ -1,0 +1,77 @@
+// MARK: - RootView
+// Top-level view composing Sidebar, TabBar, and Terminal area.
+// macOS 14+, Swift 5.10
+
+import SwiftUI
+
+/// Root content view for VibeStudio.
+///
+/// Layout:
+/// ```
+/// ┌─────────────────────────────────────────────┐
+/// │  [traffic lights]  [ToolbarView items]       │  ← native NSToolbar row
+/// ├──────────────┬──────────────────────────────┤
+/// │              │        TabBarView             │
+/// │  SidebarView ├──────────────────────────────┤
+/// │              │  TerminalAreaView / Welcome   │
+/// └──────────────┴──────────────────────────────┘
+/// ```
+///
+/// ToolbarView content lives in `.toolbar { }` so macOS places it in the
+/// unified toolbar row at the same level as the traffic-light buttons,
+/// identical to Android Studio / IntelliJ on macOS.
+struct RootView: View {
+
+    @Environment(\.projectManager) private var projectManager
+    @State private var showSidebar = true
+
+    var body: some View {
+        Group {
+            if projectManager.projects.isEmpty {
+                WelcomeView()
+            } else {
+                HSplitView {
+                    SidebarView()
+                        .frame(
+                            minWidth: showSidebar ? DSLayout.sidebarMinWidth : 0,
+                            idealWidth: showSidebar ? DSLayout.sidebarDefaultWidth : 0,
+                            maxWidth: showSidebar ? DSLayout.sidebarMaxWidth : 0
+                        )
+                        .clipped()
+
+                    VStack(spacing: 0) {
+                        TabBarView()
+
+                        if projectManager.activeProjectId != nil {
+                            TerminalAreaView()
+                        } else {
+                            WelcomeView()
+                        }
+                    }
+                    .frame(minWidth: 300)
+                }
+                .background {
+                    Button("") {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            showSidebar.toggle()
+                        }
+                    }
+                    .keyboardShortcut("b", modifiers: .command)
+                    .hidden()
+                }
+            }
+        }
+        .frame(
+            minWidth: DSLayout.windowMinWidth,
+            minHeight: DSLayout.windowMinHeight
+        )
+        .toolbar {
+            if !projectManager.projects.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    ToolbarView()
+                }
+            }
+        }
+        .background(DSColor.surfaceBase)
+    }
+}

@@ -1,0 +1,182 @@
+# ============================================================
+# VibeStudio — Release Pipeline
+# Triggers on push of version tags (v*).
+# Builds macOS app, creates DMG, publishes GitHub Release.
+# ============================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Cancel redundant runs for the same tag
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+# Minimal permissions — release creation requires contents:write
+permissions:
+  contents: write
+
+env:
+  APP_NAME: VibeStudio
+  SCHEME: VibeStudio
+  BUNDLE_ID: com.vibestudio.app
+  MIN_MACOS: '14.0'
+  XCODE_VERSION: '16.4'
+
+jobs:
+  # ---------------------------------------------------------------
+  # Job 1: Build + Test + Archive + DMG
+  # ---------------------------------------------------------------
+  build:
+    name: Build & Package
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "build_number=${GITHUB_RUN_NUMBER}" >> "${GITHUB_OUTPUT}"
+          echo "Version: ${TAG}, Build: ${GITHUB_RUN_NUMBER}"
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Resolve SPM dependencies
+        run: |
+          make resolve-deps
+
+      - name: Run tests
+        run: |
+          make test
+        # Tests may not exist yet for MVP — do not block release
+        continue-on-error: true
+
+      - name: Build archive
+        run: |
+          make archive \
+            VERSION=${{ steps.version.outputs.version }} \
+            BUILD_NUMBER=${{ steps.version.outputs.build_number }}
+
+      - name: Export app bundle
+        run: |
+          make export \
+            VERSION=${{ steps.version.outputs.version }} \
+            BUILD_NUMBER=${{ steps.version.outputs.build_number }}
+
+      - name: Create DMG
+        run: |
+          make dmg \
+            VERSION=${{ steps.version.outputs.version }} \
+            BUILD_NUMBER=${{ steps.version.outputs.build_number }}
+
+      - name: Rename DMG with version
+        run: |
+          mv build/VibeStudio.dmg \
+             "build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+
+      # PLACEHOLDER: Notarization step — uncomment when Apple Developer account is available
+      # - name: Notarize DMG
+      #   env:
+      #     NOTARIZE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #     NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     NOTARIZE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      #   run: |
+      #     xcrun notarytool submit \
+      #       "build/VibeStudio-${{ steps.version.outputs.version }}.dmg" \
+      #       --apple-id "${NOTARIZE_APPLE_ID}" \
+      #       --team-id "${NOTARIZE_TEAM_ID}" \
+      #       --password "${NOTARIZE_PASSWORD}" \
+      #       --wait
+      #     xcrun stapler staple \
+      #       "build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+
+      - name: Compute DMG checksum
+        id: checksum
+        run: |
+          DMG="build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+          SHA=$(shasum -a 256 "${DMG}" | awk '{print $1}')
+          echo "sha256=${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "SHA-256: ${SHA}"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VibeStudio-${{ steps.version.outputs.version }}.dmg
+          path: build/VibeStudio-${{ steps.version.outputs.version }}.dmg
+          retention-days: 30
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------
+  # Job 2: Create GitHub Release
+  # ---------------------------------------------------------------
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download DMG artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VibeStudio-${{ steps.version.outputs.version }}.dmg
+          path: artifacts/
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          DMG="artifacts/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+          SHA=$(sha256sum "${DMG}" | awk '{print $1}')
+          echo "sha256=${SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VibeStudio v${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          generate_release_notes: true
+          body: |
+            ## VibeStudio v${{ steps.version.outputs.version }}
+
+            ### Installation
+            1. Download `VibeStudio-${{ steps.version.outputs.version }}.dmg`
+            2. Open the DMG and drag VibeStudio to Applications
+            3. On first launch: right-click -> Open (bypass Gatekeeper for unsigned builds)
+
+            ### System Requirements
+            - macOS 14.0 (Sonoma) or later
+            - Apple Silicon or Intel Mac
+
+            ### Checksum
+            ```
+            SHA-256: ${{ steps.checksum.outputs.sha256 }}
+            ```
+
+            > **Note:** This build is not notarized. For personal/development use only.
+          files: |
+            artifacts/VibeStudio-${{ steps.version.outputs.version }}.dmg

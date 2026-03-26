@@ -1,0 +1,71 @@
+name: VibeStudio
+options:
+  bundleIdPrefix: com.vibestudio
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  createIntermediateGroups: true
+  defaultConfig: Release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    GENERATE_INFOPLIST_FILE: false
+
+packages:
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    from: "1.12.0"
+
+targets:
+  VibeStudio:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vibestudio.app
+        INFOPLIST_FILE: VibeStudio/Info.plist
+        CODE_SIGN_ENTITLEMENTS: VibeStudio/VibeStudio.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        COMBINE_HIDPI_IMAGES: true
+        ENABLE_HARDENED_RUNTIME: true
+        SWIFT_STRICT_CONCURRENCY: targeted
+    dependencies:
+      - package: SwiftTerm
+
+  VibeStudioTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: VibeStudio
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VibeStudio.app/Contents/MacOS/VibeStudio"
+        SWIFT_VERSION: "5.10"
+        GENERATE_INFOPLIST_FILE: true
+
+schemes:
+  VibeStudio:
+    build:
+      targets:
+        VibeStudio: all
+        VibeStudioTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VibeStudioTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug

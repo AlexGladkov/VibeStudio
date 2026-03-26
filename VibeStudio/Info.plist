@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- ============================================================
+         VibeStudio — Info.plist
+         macOS desktop application, direct distribution (DMG).
+         ============================================================ -->
+
+    <!-- Bundle metadata -->
+    <key>CFBundleName</key>
+    <string>VibeStudio</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>VibeStudio</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+
+    <!-- Application category — Developer Tools -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+
+    <!-- macOS 14.0 Sonoma minimum -->
+    <key>LSMinimumSystemVersion</key>
+    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+
+    <!-- Main storyboard / SwiftUI lifecycle — no storyboard, SwiftUI App -->
+    <key>NSMainStoryboardFile</key>
+    <string></string>
+
+    <!-- Principal class for AppKit integration -->
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+
+    <!-- High-resolution capable -->
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!-- Supports automatic graphics switching (for MacBooks with dual GPU) -->
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+
+    <!-- Dark/light appearance support -->
+    <!-- Remove this key to support both; set to "NSAppearanceNameDarkAqua" to force dark -->
+
+    <!-- Human-readable copyright -->
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright (c) 2026 VibeStudio Contributors. All rights reserved.</string>
+
+    <!-- Secure coding required -->
+    <key>NSRequiresAquaSystemAppearance</key>
+    <false/>
+
+    <!-- PLACEHOLDER: URL schemes for deep linking (future)
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.vibestudio.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>vibestudio</string>
+            </array>
+        </dict>
+    </array>
+    -->
+
+    <!-- PLACEHOLDER: Document types — file associations (future)
+    <key>CFBundleDocumentTypes</key>
+    <array/>
+    -->
+</dict>
+</plist>
