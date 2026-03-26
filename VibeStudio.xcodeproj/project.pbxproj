@@ -714,8 +714,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vibestudio.app;
+				MARKETING_VERSION = 0.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;
 			};
@@ -733,7 +733,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vibestudio.VibeStudioTests;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.VibeStudioTests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeStudio.app/Contents/MacOS/VibeStudio";
@@ -754,8 +754,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vibestudio.app;
+				MARKETING_VERSION = 0.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;
 			};
@@ -773,7 +773,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.vibestudio.VibeStudioTests;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.VibeStudioTests;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.10;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/VibeStudio.app/Contents/MacOS/VibeStudio";

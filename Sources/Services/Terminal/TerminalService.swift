@@ -116,7 +116,13 @@ final class TerminalService: TerminalSessionManaging {
         // args must be empty for an interactive shell — SwiftTerm prepends execName
         // as argv[0] automatically. Passing [shellName] would set argv[1] = "zsh",
         // which zsh interprets as a script filename → "can't open input file: zsh".
-        let shellName = (shellPath as NSString).lastPathComponent
+        //
+        // Prefix execName with "-" so the shell treats itself as a login shell
+        // (Unix convention: argv[0][0] == '-' → login shell). This ensures
+        // ~/.zprofile is sourced, which adds Homebrew, nvm, cargo etc. to PATH.
+        // Without this, apps launched from Finder/DMG get launchd's minimal PATH
+        // and cannot find tools like `claude`, `node`, `cargo`.
+        let shellName = "-" + (shellPath as NSString).lastPathComponent
         let env = buildEnvironment()
         terminalView.startProcess(
             executable: shellPath,

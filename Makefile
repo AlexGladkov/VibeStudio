@@ -6,7 +6,7 @@
 # --- Configuration -----------------------------------------------------------
 
 APP_NAME        := VibeStudio
-BUNDLE_ID       := com.vibestudio.app
+BUNDLE_ID       := tech.mobiledeveloper.vibestudio
 SCHEME          := VibeStudio
 CONFIGURATION   := Release
 PLATFORM        := macosx

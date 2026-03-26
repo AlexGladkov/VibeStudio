@@ -36,9 +36,14 @@ echo "Creating DMG for ${APP_NAME} v${VERSION}..."
 # create-dmg returns exit code 2 if it cannot set custom icon (non-fatal)
 # We allow that specific exit code
 set +e
+VOLICON=""
+if [ -f "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" ]; then
+    VOLICON="${APP_BUNDLE}/Contents/Resources/AppIcon.icns"
+fi
+
 create-dmg \
     --volname "${APP_NAME} ${VERSION}" \
-    --volicon "${APP_BUNDLE}/Contents/Resources/AppIcon.icns" \
+    ${VOLICON:+--volicon "${VOLICON}"} \
     --window-pos 200 120 \
     --window-size 600 400 \
     --icon-size 100 \
