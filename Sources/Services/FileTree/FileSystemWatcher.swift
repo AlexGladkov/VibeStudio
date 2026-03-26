@@ -37,7 +37,7 @@ final class FileSystemWatcher: FileSystemWatching, @unchecked Sendable {
 
     // MARK: - State
 
-    private let queue = DispatchQueue(label: "com.vibestudio.fswatcher", qos: .utility)
+    private let queue = DispatchQueue(label: "tech.mobiledeveloper.vibestudio.fswatcher", qos: .utility)
     private var watches: [WatchToken: WatchEntry] = [:]
     private let continuation: AsyncStream<FileChangeEvent>.Continuation
     private let _events: AsyncStream<FileChangeEvent>

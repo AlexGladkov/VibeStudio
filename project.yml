@@ -1,6 +1,6 @@
 name: VibeStudio
 options:
-  bundleIdPrefix: com.vibestudio
+  bundleIdPrefix: tech.mobiledeveloper
   deploymentTarget:
     macOS: "14.0"
   xcodeVersion: "16.0"
@@ -26,7 +26,7 @@ targets:
       - path: Sources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.vibestudio.app
+        PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio
         INFOPLIST_FILE: VibeStudio/Info.plist
         CODE_SIGN_ENTITLEMENTS: VibeStudio/VibeStudio.entitlements
         CODE_SIGN_IDENTITY: "-"

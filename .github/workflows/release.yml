@@ -23,7 +23,7 @@ permissions:
 env:
   APP_NAME: VibeStudio
   SCHEME: VibeStudio
-  BUNDLE_ID: com.vibestudio.app
+  BUNDLE_ID: tech.mobiledeveloper.vibestudio
   MIN_MACOS: '14.0'
   XCODE_VERSION: '16.4'
 

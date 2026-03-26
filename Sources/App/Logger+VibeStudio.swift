@@ -7,7 +7,7 @@ import OSLog
 extension Logger {
 
     /// Subsystem identifier derived from the app's bundle ID.
-    private static let subsystem = Bundle.main.bundleIdentifier ?? "com.vibestudio.app"
+    private static let subsystem = Bundle.main.bundleIdentifier ?? "tech.mobiledeveloper.vibestudio"
 
     // MARK: - Category Loggers
 
