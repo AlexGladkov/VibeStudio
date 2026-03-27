@@ -32,9 +32,12 @@ final class ServiceContainer {
     let sessionPersistence: any SessionPersisting
     let aiCommitService: any AICommitServicing
     let gitStatusPoller: any GitStatusPolling
+    let agentAvailability: any AgentAvailabilityChecking
     /// Startup readiness gate — prevents SwiftUI views from accessing TCC-protected
     /// directories before the user has granted consent.
     let appReadyState: AppReadyState
+    /// App-wide theme/appearance service.
+    let themeService: ThemeService
 
     init(
         projectManager: any ProjectManaging,
@@ -45,7 +48,9 @@ final class ServiceContainer {
         sessionPersistence: any SessionPersisting,
         aiCommitService: any AICommitServicing,
         gitStatusPoller: any GitStatusPolling,
-        appReadyState: AppReadyState
+        agentAvailability: any AgentAvailabilityChecking,
+        appReadyState: AppReadyState,
+        themeService: ThemeService
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -55,7 +60,9 @@ final class ServiceContainer {
         self.sessionPersistence = sessionPersistence
         self.aiCommitService = aiCommitService
         self.gitStatusPoller = gitStatusPoller
+        self.agentAvailability = agentAvailability
         self.appReadyState = appReadyState
+        self.themeService = themeService
     }
 }
 
@@ -90,6 +97,14 @@ private struct AICommitServiceKey: EnvironmentKey {
 
 private struct GitStatusPollerKey: EnvironmentKey {
     @MainActor static let defaultValue: any GitStatusPolling = PreviewGitStatusPoller()
+}
+
+private struct AgentAvailabilityKey: EnvironmentKey {
+    @MainActor static let defaultValue: any AgentAvailabilityChecking = PreviewAgentAvailability()
+}
+
+private struct ThemeServiceKey: EnvironmentKey {
+    @MainActor static let defaultValue: ThemeService = ThemeService()
 }
 
 extension EnvironmentValues {
@@ -127,6 +142,16 @@ extension EnvironmentValues {
         get { self[GitStatusPollerKey.self] }
         set { self[GitStatusPollerKey.self] = newValue }
     }
+
+    var agentAvailability: any AgentAvailabilityChecking {
+        get { self[AgentAvailabilityKey.self] }
+        set { self[AgentAvailabilityKey.self] = newValue }
+    }
+
+    var themeService: ThemeService {
+        get { self[ThemeServiceKey.self] }
+        set { self[ThemeServiceKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -162,7 +187,9 @@ extension View {
             .environment(\.sessionPersistence, container.sessionPersistence)
             .environment(\.aiCommitService, container.aiCommitService)
             .environment(\.gitStatusPoller, container.gitStatusPoller)
+            .environment(\.agentAvailability, container.agentAvailability)
             .environment(container.appReadyState)
+            .environment(\.themeService, container.themeService)
     }
 }
 
@@ -241,6 +268,13 @@ private final class PreviewTerminalSessionManager: TerminalSessionManaging {
     func scrollbackContent(for sessionId: UUID) -> String? { nil }
     func sendInput(_ text: String, to sessionId: UUID) {}
     func markProjectSeen(_ projectId: UUID) {}
+    @discardableResult
+    func startAgentSession(
+        agent: AIAssistant,
+        for projectId: UUID,
+        workingDirectory: String,
+        apiKeyValue: String?
+    ) -> TerminalSession? { nil }
 }
 
 private final class PreviewGitService: GitServicing {
@@ -309,4 +343,21 @@ private final class PreviewGitStatusPoller: GitStatusPolling {
     func startPolling(for repository: URL, isActive: Bool) {}
     func stopPolling() {}
     func refreshNow() {}
+}
+
+@Observable
+@MainActor
+private final class PreviewAgentAvailability: AgentAvailabilityChecking {
+    var availability: [AIAssistant: AgentAvailabilityStatus] = {
+        var dict: [AIAssistant: AgentAvailabilityStatus] = [:]
+        for agent in AIAssistant.allCases {
+            dict[agent] = .notInstalled(installHint: agent.installHint)
+        }
+        return dict
+    }()
+    func refreshAll() {}
+    func check(_ agent: AIAssistant) -> AgentAvailabilityStatus {
+        availability[agent] ?? .notInstalled(installHint: agent.installHint)
+    }
+    func canLaunch(_ agent: AIAssistant) -> Bool { false }
 }

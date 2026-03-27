@@ -10,7 +10,8 @@ import OSLog
 ///
 /// Per-project state:
 /// - selected assistant (defaults to `.claude`)
-/// - running flag (disables picker, switches ▶ → ■)
+/// - running flag (disables picker, switches play to stop)
+/// - agent session tracking (dedicated PTY per agent launch)
 @Observable
 @MainActor
 final class ToolbarViewModel {
@@ -19,17 +20,25 @@ final class ToolbarViewModel {
 
     private var runningAssistants: [UUID: Bool] = [:]
     private var selectedAssistants: [UUID: AIAssistant] = [:]
+    /// Maps projectId -> sessionId of the agent's dedicated PTY.
+    private var agentSessionIds: [UUID: UUID] = [:]
 
     // MARK: - Dependencies
 
     private let projectManager: any ProjectManaging
     private let terminalManager: any TerminalSessionManaging
+    let agentAvailability: any AgentAvailabilityChecking
 
     // MARK: - Init
 
-    init(projectManager: any ProjectManaging, terminalManager: any TerminalSessionManaging) {
+    init(
+        projectManager: any ProjectManaging,
+        terminalManager: any TerminalSessionManaging,
+        agentAvailability: any AgentAvailabilityChecking
+    ) {
         self.projectManager = projectManager
         self.terminalManager = terminalManager
+        self.agentAvailability = agentAvailability
     }
 
     // MARK: - Computed Properties
@@ -63,27 +72,90 @@ final class ToolbarViewModel {
     }
 
     func startAssistant() {
-        let id = activeId
-        let sessions = id.map { terminalManager.sessions(for: $0) } ?? []
-        Logger.ui.debug("ToolbarViewModel.startAssistant: activeId=\(String(describing: id), privacy: .public), sessions=\(sessions.count)")
-        guard let id, let session = sessions.first else {
-            Logger.ui.debug("ToolbarViewModel.startAssistant: guard failed — no active project or no terminal sessions")
+        guard let id = activeId else {
+            Logger.ui.debug("ToolbarViewModel.startAssistant: no active project")
             return
         }
-        Logger.ui.debug("ToolbarViewModel.startAssistant: launching \(self.currentAssistant.displayName, privacy: .public) in session \(session.id)")
-        runningAssistants[id] = true
-        terminalManager.sendInput(currentAssistant.launchCommand, to: session.id)
+
+        let agent = currentAssistant
+
+        // Check if agent can be launched.
+        guard agentAvailability.canLaunch(agent) else {
+            Logger.ui.warning("ToolbarViewModel.startAssistant: agent \(agent.displayName, privacy: .public) cannot be launched (not installed or missing API key)")
+            return
+        }
+
+        // Resolve working directory from active project.
+        guard let project = projectManager.projects.first(where: { $0.id == id }) else {
+            Logger.ui.debug("ToolbarViewModel.startAssistant: project not found for id \(id)")
+            return
+        }
+        let workingDirectory = project.path.path
+
+        // Resolve API key: Keychain first, then environment fallback.
+        let apiKeyValue: String? = {
+            guard let envVar = agent.apiKeyEnvironmentVariable else { return nil }
+            if let keychainValue = KeychainHelper.load(account: envVar), !keychainValue.isEmpty {
+                return keychainValue
+            }
+            return ProcessInfo.processInfo.environment[envVar]
+        }()
+
+        Logger.ui.debug("ToolbarViewModel.startAssistant: launching \(agent.displayName, privacy: .public) for project \(id)")
+
+        // Launch agent in a dedicated PTY.
+        if let session = terminalManager.startAgentSession(
+            agent: agent,
+            for: id,
+            workingDirectory: workingDirectory,
+            apiKeyValue: apiKeyValue
+        ) {
+            runningAssistants[id] = true
+            agentSessionIds[id] = session.id
+            Logger.ui.info("ToolbarViewModel.startAssistant: agent session \(session.id) created")
+        } else {
+            Logger.ui.error("ToolbarViewModel.startAssistant: failed to create agent session")
+        }
     }
 
     func stopAssistant() {
-        guard let id = activeId,
-              let session = terminalManager.sessions(for: id).first else { return }
-        terminalManager.sendInput("\u{03}", to: session.id)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let self else { return }
-            terminalManager.sendInput("/exit\n", to: session.id)
+        guard let id = activeId else { return }
+
+        // Find the agent's dedicated session, or fall back to the first session.
+        let sessionId: UUID? = agentSessionIds[id]
+            ?? terminalManager.sessions(for: id).first?.id
+
+        guard let targetSessionId = sessionId else { return }
+
+        let agent = currentAssistant
+
+        switch agent.exitSequence {
+        case .ctrlC:
+            terminalManager.sendInput("\u{03}", to: targetSessionId)
             runningAssistants[id] = false
+            agentSessionIds.removeValue(forKey: id)
+
+        case .ctrlCThenCommand(let command):
+            terminalManager.sendInput("\u{03}", to: targetSessionId)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard let self else { return }
+                self.terminalManager.sendInput(command + "\n", to: targetSessionId)
+                self.runningAssistants[id] = false
+                self.agentSessionIds.removeValue(forKey: id)
+            }
         }
+    }
+
+    // MARK: - Agent Availability
+
+    /// Refresh the cached availability status for all agents.
+    func refreshAgentAvailability() {
+        agentAvailability.refreshAll()
+    }
+
+    /// Get the availability status for a specific agent.
+    func statusForAssistant(_ assistant: AIAssistant) -> AgentAvailabilityStatus {
+        agentAvailability.check(assistant)
     }
 }

@@ -71,123 +71,162 @@ extension NSColor {
     }
 }
 
+// MARK: - Adaptive Color Helper
+
+/// Creates a SwiftUI `Color` that automatically switches between dark and light
+/// hex values based on the current `NSAppearance` at render time.
+///
+/// Uses `NSColor(name:dynamicProvider:)` which is evaluated lazily on each
+/// draw pass — meaning the color responds to live `NSApp.appearance` changes
+/// without requiring a view redraw trigger.
+///
+/// - Parameters:
+///   - dark:  Hex string for dark appearance (e.g. `"#1A1B1E"`).
+///   - light: Hex string for light appearance (e.g. `"#FFFFFF"`).
+/// - Returns: Adaptive SwiftUI `Color`.
+private func adaptiveColor(dark: String, light: String) -> Color {
+    Color(NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(
+            from: [.darkAqua, .accessibilityHighContrastDarkAqua]
+        ) != nil
+        return isDark ? NSColor(hex: dark) : NSColor(hex: light)
+    })
+}
+
 // MARK: - Color Tokens
 
-/// All color tokens for the VibeStudio dark theme.
+/// All color tokens for VibeStudio — adaptive for light/dark appearance.
 ///
 /// Naming follows the pattern `category` + `variant`:
 /// surfaces, text, borders, accent, git statuses, indicators, buttons.
+///
+/// Every token is backed by `NSColor(name:dynamicProvider:)` so it
+/// automatically switches when `NSApp.appearance` changes without
+/// requiring SwiftUI to redraw views.
 enum DSColor {
 
     // MARK: Surfaces
 
     /// Terminal area background.
-    static let surfaceBase = Color(hex: "#1A1B1E")
+    static let surfaceBase      = adaptiveColor(dark: "#1A1B1E", light: "#FFFFFF")
     /// Sidebar background.
-    static let surfaceRaised = Color(hex: "#212225")
+    static let surfaceRaised    = adaptiveColor(dark: "#212225", light: "#F5F5F7")
     /// Dropdown, popover, context menu background.
-    static let surfaceOverlay = Color(hex: "#2A2B2F")
+    static let surfaceOverlay   = adaptiveColor(dark: "#2A2B2F", light: "#EBEBED")
     /// Tab bar background (darker than base).
-    static let surfaceTabBar = Color(hex: "#17181B")
+    static let surfaceTabBar    = adaptiveColor(dark: "#17181B", light: "#EBEBED")
     /// Active tab background (matches terminal area).
-    static let surfaceTabActive = Color(hex: "#1A1B1E")
+    static let surfaceTabActive = adaptiveColor(dark: "#1A1B1E", light: "#FFFFFF")
     /// Inactive tab background (matches tab bar).
-    static let surfaceTabInactive = Color(hex: "#17181B")
+    static let surfaceTabInactive = adaptiveColor(dark: "#17181B", light: "#EBEBED")
     /// Hover state for inactive tab.
-    static let surfaceTabHover = Color(hex: "#1F2023")
+    static let surfaceTabHover  = adaptiveColor(dark: "#1F2023", light: "#E0E0E5")
     /// Text field background (commit message, search).
-    static let surfaceInput = Color(hex: "#16171A")
+    static let surfaceInput     = adaptiveColor(dark: "#16171A", light: "#F0F0F2")
     /// Text selection highlight in terminal.
-    static let surfaceSelection = Color(hex: "#264F78")
+    static let surfaceSelection = adaptiveColor(dark: "#264F78", light: "#BDD5FB")
     /// Quick-action toolbar background (slightly darker than tab bar).
-    static let surfaceToolbar = Color(hex: "#1C1C1E")
+    static let surfaceToolbar   = adaptiveColor(dark: "#1C1C1E", light: "#F5F5F7")
 
     // MARK: Text
 
     /// Primary text: filenames, terminal content.
-    static let textPrimary = Color(hex: "#D4D4D8")
+    static let textPrimary   = adaptiveColor(dark: "#D4D4D8", light: "#1D1D1F")
     /// Secondary text: labels, paths, timestamps.
-    static let textSecondary = Color(hex: "#8B8B93")
+    static let textSecondary = adaptiveColor(dark: "#8B8B93", light: "#6E6E73")
     /// Muted text: placeholders, disabled elements.
-    static let textMuted = Color(hex: "#55565C")
+    static let textMuted     = adaptiveColor(dark: "#55565C", light: "#AEAEB2")
     /// Inverse text: on bright backgrounds (badges).
-    static let textInverse = Color(hex: "#1A1B1E")
+    static let textInverse   = adaptiveColor(dark: "#1A1B1E", light: "#FFFFFF")
 
     // MARK: Borders
 
     /// Default border: sidebar/terminal divider, split divider.
-    static let borderDefault = Color(hex: "#2E2F33")
+    static let borderDefault = adaptiveColor(dark: "#2E2F33", light: "#D1D1D6")
     /// Subtle border: section separators inside sidebar.
-    static let borderSubtle = Color(hex: "#252629")
+    static let borderSubtle  = adaptiveColor(dark: "#252629", light: "#E5E5EA")
     /// Focus ring for keyboard navigation.
-    static let borderFocus = Color(hex: "#4A9EFF")
+    static let borderFocus   = adaptiveColor(dark: "#4A9EFF", light: "#0066FF")
 
     // MARK: Accent
 
     /// Primary accent: active tab indicator, selected items.
-    static let accentPrimary = Color(hex: "#4A9EFF")
+    static let accentPrimary      = adaptiveColor(dark: "#4A9EFF", light: "#0066FF")
     /// Hover state for primary accent.
-    static let accentPrimaryHover = Color(hex: "#5BABFF")
+    static let accentPrimaryHover = adaptiveColor(dark: "#5BABFF", light: "#0055EE")
     /// Secondary accent (reserved for future use).
-    static let accentSecondary = Color(hex: "#7C3AED")
+    static let accentSecondary    = adaptiveColor(dark: "#7C3AED", light: "#7C3AED")
 
     // MARK: Git Statuses
 
     /// Modified files (M).
-    static let gitModified = Color(hex: "#E2B93D")
+    static let gitModified   = adaptiveColor(dark: "#E2B93D", light: "#B59400")
     /// Added files (A).
-    static let gitAdded = Color(hex: "#3FB950")
+    static let gitAdded      = adaptiveColor(dark: "#3FB950", light: "#28843B")
     /// Deleted files (D).
-    static let gitDeleted = Color(hex: "#F85149")
+    static let gitDeleted    = adaptiveColor(dark: "#F85149", light: "#C42B2B")
     /// Untracked files (?).
-    static let gitUntracked = Color(hex: "#8B8B93")
+    static let gitUntracked  = adaptiveColor(dark: "#8B8B93", light: "#6E6E73")
     /// Conflicted files (U).
-    static let gitConflicted = Color(hex: "#F09000")
+    static let gitConflicted = adaptiveColor(dark: "#F09000", light: "#C06000")
     /// Renamed files (R).
-    static let gitRenamed = Color(hex: "#58A6FF")
+    static let gitRenamed    = adaptiveColor(dark: "#58A6FF", light: "#1E64C8")
 
     // MARK: Activity Indicators
 
     /// Tab is open but nothing has happened (or user already checked it).
-    static let indicatorIdle = Color(hex: "#6E7681")
+    static let indicatorIdle    = adaptiveColor(dark: "#6E7681", light: "#8E8E93")
     /// Output is actively flowing right now.
-    static let indicatorRunning = Color(hex: "#3FB950")
+    static let indicatorRunning = adaptiveColor(dark: "#3FB950", light: "#28843B")
     /// Output appeared since user last looked — waiting for reaction.
-    static let indicatorWaiting = Color(hex: "#E2B93D")
+    static let indicatorWaiting = adaptiveColor(dark: "#E2B93D", light: "#B59400")
     /// Process exited with non-zero code.
-    static let indicatorError = Color(hex: "#F85149")
+    static let indicatorError   = adaptiveColor(dark: "#F85149", light: "#C42B2B")
 
     // MARK: Toolbar Actions
 
     /// Toolbar picker/control background.
-    static let toolbarControlBackground = Color(hex: "#252629")
+    static let toolbarControlBackground = adaptiveColor(dark: "#252629", light: "#E5E5EA")
     /// Toolbar picker/control border.
-    static let toolbarControlBorder = Color(hex: "#3C3F41")
+    static let toolbarControlBorder     = adaptiveColor(dark: "#3C3F41", light: "#C7C7CC")
     /// Stop action (terminate process).
-    static let actionStop = Color(hex: "#F85149")
+    static let actionStop = adaptiveColor(dark: "#F85149", light: "#C42B2B")
     /// Run/play action (start process).
-    static let actionRun = Color(hex: "#3FB950")
+    static let actionRun  = adaptiveColor(dark: "#3FB950", light: "#28843B")
 
     // MARK: Buttons
 
     /// Primary button background (Commit, Push).
-    static let buttonPrimaryBg = Color(hex: "#4A9EFF")
+    static let buttonPrimaryBg      = adaptiveColor(dark: "#4A9EFF", light: "#0066FF")
     /// Primary button text.
-    static let buttonPrimaryText = Color.white
+    static let buttonPrimaryText    = Color.white
     /// Primary button hover background.
-    static let buttonPrimaryHoverBg = Color(hex: "#5BABFF")
+    static let buttonPrimaryHoverBg = adaptiveColor(dark: "#5BABFF", light: "#0055EE")
     /// Secondary button background (Stage All, Pull).
-    static let buttonSecondaryBg = Color(hex: "#2A2B2F")
+    static let buttonSecondaryBg      = adaptiveColor(dark: "#2A2B2F", light: "#EBEBED")
     /// Secondary button text.
-    static let buttonSecondaryText = Color(hex: "#D4D4D8")
+    static let buttonSecondaryText    = adaptiveColor(dark: "#D4D4D8", light: "#1D1D1F")
     /// Secondary button hover background.
-    static let buttonSecondaryHoverBg = Color(hex: "#333438")
+    static let buttonSecondaryHoverBg = adaptiveColor(dark: "#333438", light: "#E0E0E5")
     /// Danger button background (Discard Changes).
-    static let buttonDangerBg = Color(hex: "#3D1214")
+    static let buttonDangerBg      = adaptiveColor(dark: "#3D1214", light: "#FFE4E4")
     /// Danger button text.
-    static let buttonDangerText = Color(hex: "#F85149")
+    static let buttonDangerText    = adaptiveColor(dark: "#F85149", light: "#C42B2B")
     /// Danger button hover background.
-    static let buttonDangerHoverBg = Color(hex: "#4D1719")
+    static let buttonDangerHoverBg = adaptiveColor(dark: "#4D1719", light: "#FFD0D0")
+
+    // MARK: Agent Brand Colors (same in both themes)
+
+    /// Claude (Anthropic copper).
+    static let agentClaude    = Color(hex: "#CC7847")
+    /// OpenCode (blue-violet).
+    static let agentOpenCode  = Color(hex: "#6189F2")
+    /// Codex (OpenAI green).
+    static let agentCodex     = Color(hex: "#10A37F")
+    /// Gemini (Google blue).
+    static let agentGemini    = Color(hex: "#4285F4")
+    /// Qwen Code (purple).
+    static let agentQwen      = Color(hex: "#6B3FA0")
 
     // MARK: Language Icons
 
@@ -390,15 +429,21 @@ enum DSLayout {
 
 /// ANSI color palette for SwiftTerm integration.
 ///
+/// Provides separate dark and light palettes. The `palette` computed property
+/// resolves the correct one from `NSApp.effectiveAppearance` at the call site,
+/// so terminal views always receive theme-appropriate colors.
+///
 /// 16 colors: Normal (0-7) + Bright (8-15),
 /// plus foreground, background, cursor, and selection colors.
-/// Matches the dark theme of VibeStudio design system.
 enum DSTerminalColors {
-    /// ANSI palette as `NSColor` array for SwiftTerm `installColors`.
+
+    // MARK: - Dark Palette
+
+    /// ANSI 16-color palette for dark theme.
     ///
     /// Index 0-7: Normal colors (Black, Red, Green, Yellow, Blue, Magenta, Cyan, White).
     /// Index 8-15: Bright variants.
-    static let palette: [NSColor] = [
+    static let darkPalette: [NSColor] = [
         // Normal (0-7)
         NSColor(hex: "#1A1B1E"),  // Black
         NSColor(hex: "#F85149"),  // Red
@@ -408,7 +453,6 @@ enum DSTerminalColors {
         NSColor(hex: "#BC8CFF"),  // Magenta
         NSColor(hex: "#39C5CF"),  // Cyan
         NSColor(hex: "#D4D4D8"),  // White
-
         // Bright (8-15)
         NSColor(hex: "#55565C"),  // Bright Black
         NSColor(hex: "#FF7B72"),  // Bright Red
@@ -420,21 +464,109 @@ enum DSTerminalColors {
         NSColor(hex: "#FFFFFF"),  // Bright White
     ]
 
-    /// Default terminal foreground color.
-    static let foreground = NSColor(hex: "#D4D4D8")
-    /// Default terminal background color.
-    static let background = NSColor(hex: "#1A1B1E")
-    /// Cursor color.
-    static let cursor = NSColor(hex: "#D4D4D8")
-    /// Selection highlight color.
-    static let selection = NSColor(hex: "#264F78")
+    // MARK: - Light Palette
+
+    /// ANSI 16-color palette for light theme.
+    static let lightPalette: [NSColor] = [
+        // Normal (0-7)
+        NSColor(hex: "#FFFFFF"),  // Black (background)
+        NSColor(hex: "#C42B2B"),  // Red
+        NSColor(hex: "#28843B"),  // Green
+        NSColor(hex: "#B59400"),  // Yellow
+        NSColor(hex: "#0066FF"),  // Blue
+        NSColor(hex: "#9C37CC"),  // Magenta
+        NSColor(hex: "#0E8C8C"),  // Cyan
+        NSColor(hex: "#1D1D1F"),  // White (foreground)
+        // Bright (8-15)
+        NSColor(hex: "#AEAEB2"),  // Bright Black
+        NSColor(hex: "#FF3A30"),  // Bright Red
+        NSColor(hex: "#34C759"),  // Bright Green
+        NSColor(hex: "#D4A017"),  // Bright Yellow
+        NSColor(hex: "#1E90FF"),  // Bright Blue
+        NSColor(hex: "#AF52DE"),  // Bright Magenta
+        NSColor(hex: "#5AC8FA"),  // Bright Cyan
+        NSColor(hex: "#000000"),  // Bright White
+    ]
+
+    /// ANSI palette appropriate for the current effective appearance.
+    ///
+    /// Reads `NSApp.effectiveAppearance` at the call site — call this
+    /// whenever you need to install colors into a terminal view.
+    static var palette: [NSColor] {
+        let isDark = NSApp.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+        return isDark ? darkPalette : lightPalette
+    }
+
+    // MARK: - Dark Special Colors
+
+    /// Default foreground for dark theme.
+    static let darkForeground = NSColor(hex: "#D4D4D8")
+    /// Default background for dark theme.
+    static let darkBackground = NSColor(hex: "#1A1B1E")
+    /// Cursor color for dark theme.
+    static let darkCursor     = NSColor(hex: "#D4D4D8")
+    /// Selection highlight for dark theme.
+    static let darkSelection  = NSColor(hex: "#264F78")
+
+    // MARK: - Light Special Colors
+
+    /// Default foreground for light theme.
+    static let lightForeground = NSColor(hex: "#1D1D1F")
+    /// Default background for light theme.
+    static let lightBackground = NSColor(hex: "#FFFFFF")
+    /// Cursor color for light theme.
+    static let lightCursor     = NSColor(hex: "#1D1D1F")
+    /// Selection highlight for light theme.
+    static let lightSelection  = NSColor(hex: "#BDD5FB")
+
+    // MARK: - Effective Colors
+
+    /// Terminal foreground resolved from current effective appearance.
+    static var foreground: NSColor {
+        let isDark = NSApp.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+        return isDark ? darkForeground : lightForeground
+    }
+
+    /// Terminal background resolved from current effective appearance.
+    static var background: NSColor {
+        let isDark = NSApp.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+        return isDark ? darkBackground : lightBackground
+    }
+
+    /// Cursor color resolved from current effective appearance.
+    static var cursor: NSColor {
+        let isDark = NSApp.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+        return isDark ? darkCursor : lightCursor
+    }
+
+    /// Selection color resolved from current effective appearance.
+    static var selection: NSColor {
+        let isDark = NSApp.effectiveAppearance
+            .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+        return isDark ? darkSelection : lightSelection
+    }
 }
 
 // MARK: - NSColor Surface Tokens
 
 extension DSColor {
     /// `surfaceBase` as `NSColor` for AppKit layers and window backgrounds.
-    static let surfaceBaseNS = NSColor(hex: "#1A1B1E")
+    ///
+    /// Uses a dynamic provider so it adapts to appearance changes.
+    static var surfaceBaseNS: NSColor {
+        NSColor(name: nil) { appearance in
+            let isDark = appearance
+                .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+            return isDark ? NSColor(hex: "#1A1B1E") : NSColor(hex: "#FFFFFF")
+        }
+    }
+
+    /// Alias for `surfaceBase` — adaptive base surface color.
+    static let surfaceDefault = adaptiveColor(dark: "#1A1B1E", light: "#FFFFFF")
 }
 
 // MARK: - GitFileStatus Color Mapping
@@ -443,11 +575,11 @@ extension GitFileStatus {
     /// Design-system color for this git file status.
     var color: Color {
         switch self {
-        case .modified: return DSColor.gitModified
-        case .added:    return DSColor.gitAdded
-        case .deleted:  return DSColor.gitDeleted
-        case .renamed:  return DSColor.gitRenamed
-        case .copied:   return DSColor.gitRenamed
+        case .modified:  return DSColor.gitModified
+        case .added:     return DSColor.gitAdded
+        case .deleted:   return DSColor.gitDeleted
+        case .renamed:   return DSColor.gitRenamed
+        case .copied:    return DSColor.gitRenamed
         case .untracked: return DSColor.gitUntracked
         }
     }

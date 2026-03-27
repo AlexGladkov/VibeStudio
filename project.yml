@@ -32,7 +32,7 @@ targets:
         INFOPLIST_FILE: VibeStudio/Info.plist
         CODE_SIGN_ENTITLEMENTS: VibeStudio/VibeStudio.entitlements
         CODE_SIGN_IDENTITY: "-"
-        MARKETING_VERSION: "0.0.4"
+        MARKETING_VERSION: "0.0.5"
         CURRENT_PROJECT_VERSION: "1"
         COMBINE_HIDPI_IMAGES: true
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

@@ -92,6 +92,27 @@ protocol TerminalSessionManaging: AnyObject, Observable {
     /// Завершить все сессии проекта (при закрытии таба).
     func killAllSessions(for projectId: UUID)
 
+    // MARK: - Agent Launch
+
+    /// Launch an AI CLI agent in a dedicated PTY session.
+    ///
+    /// Unlike `createSession`, this does not start a shell -- it runs the
+    /// agent binary directly with an allowlist-based environment.
+    ///
+    /// - Parameters:
+    ///   - agent: The AI assistant to launch.
+    ///   - projectId: ID of the project to associate the session with.
+    ///   - workingDirectory: Absolute path for the agent's working directory.
+    ///   - apiKeyValue: API key to inject into the agent's environment.
+    /// - Returns: The created session, or `nil` if the agent could not be launched.
+    @discardableResult
+    func startAgentSession(
+        agent: AIAssistant,
+        for projectId: UUID,
+        workingDirectory: String,
+        apiKeyValue: String?
+    ) -> TerminalSession?
+
     // MARK: - Split Panels
 
     /// Создать split рядом с существующей сессией.
