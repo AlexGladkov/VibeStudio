@@ -68,13 +68,17 @@ final class TerminalService: TerminalSessionManaging {
         eventContinuation = continuation
 
         // Observe theme changes and re-apply colors to all live terminal views.
+        // `notification.object` carries the new `AppAppearance` — use it directly
+        // so we never race against `NSApp.effectiveAppearance` which may still
+        // reflect the *previous* appearance at the time the handler fires.
         themeObserver = NotificationCenter.default.addObserver(
             forName: .themeDidChange,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            let appearance = notification.object as? AppAppearance
             Task { @MainActor [weak self] in
-                self?.refreshTerminalColors()
+                self?.refreshTerminalColors(for: appearance)
             }
         }
     }
@@ -236,12 +240,14 @@ final class TerminalService: TerminalSessionManaging {
             currentDirectory: workingDirectory
         )
 
-        // Create session model.
+        // Create session model — marked as agent session so TerminalAreaView
+        // shows only this panel while the agent is running.
         let session = TerminalSession(
             id: sessionId,
             projectId: projectId,
             title: agent.displayName,
-            state: .running
+            state: .running,
+            isAgentSession: true
         )
 
         // Store state.
@@ -391,22 +397,43 @@ final class TerminalService: TerminalSessionManaging {
 
     /// Re-apply theme colors to all currently live terminal views.
     ///
-    /// Called when `Notification.Name.themeDidChange` is posted by `ThemeService`.
-    /// Uses `DSTerminalColors.palette` which resolves from `NSApp.effectiveAppearance`
-    /// at the call site, so the new appearance is already set when this runs.
-    func refreshTerminalColors() {
-        for view in terminalViews.values {
-            view.nativeForegroundColor = DSTerminalColors.foreground
-            view.nativeBackgroundColor = DSTerminalColors.background
-            view.caretColor = DSTerminalColors.cursor
-            view.selectedTextBackgroundColor = DSTerminalColors.selection
+    /// - Parameter appearance: The new `AppAppearance` from the theme-change
+    ///   notification.  When provided as `.dark` or `.light` the palette is
+    ///   chosen deterministically without reading `NSApp.effectiveAppearance`,
+    ///   avoiding a race condition where the system appearance may not yet
+    ///   match the requested one.  `.system` (and `nil`) fall back to reading
+    ///   `NSApp.effectiveAppearance` at call time, which is correct because
+    ///   the system controls the actual dark/light decision.
+    func refreshTerminalColors(for appearance: AppAppearance? = nil) {
+        let isDark: Bool
+        switch appearance {
+        case .dark:
+            isDark = true
+        case .light:
+            isDark = false
+        case .system, nil:
+            isDark = NSApp.effectiveAppearance
+                .bestMatch(from: [.darkAqua, .accessibilityHighContrastDarkAqua]) != nil
+        }
 
-            let swiftTermPalette = DSTerminalColors.palette.map { nsColor -> SwiftTerm.Color in
+        let fg        = isDark ? DSTerminalColors.darkForeground  : DSTerminalColors.lightForeground
+        let bg        = isDark ? DSTerminalColors.darkBackground  : DSTerminalColors.lightBackground
+        let cursorClr = isDark ? DSTerminalColors.darkCursor      : DSTerminalColors.lightCursor
+        let selection = isDark ? DSTerminalColors.darkSelection   : DSTerminalColors.lightSelection
+        let palette   = isDark ? DSTerminalColors.darkPalette     : DSTerminalColors.lightPalette
+
+        for view in terminalViews.values {
+            view.nativeForegroundColor = fg
+            view.nativeBackgroundColor = bg
+            view.caretColor = cursorClr
+            view.selectedTextBackgroundColor = selection
+
+            let swiftTermPalette = palette.map { nsColor -> SwiftTerm.Color in
                 let c = nsColor.usingColorSpace(.sRGB) ?? nsColor
                 return SwiftTerm.Color(
-                    red: UInt16(c.redComponent * 65535),
+                    red:   UInt16(c.redComponent   * 65535),
                     green: UInt16(c.greenComponent * 65535),
-                    blue: UInt16(c.blueComponent * 65535)
+                    blue:  UInt16(c.blueComponent  * 65535)
                 )
             }
             view.installColors(swiftTermPalette)

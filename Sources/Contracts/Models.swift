@@ -92,19 +92,27 @@ struct TerminalSession: Identifiable, Sendable {
     var title: String
     var state: TerminalSessionState
     var splitDirection: SplitDirection?
+    /// `true` when this session was launched by the AI agent runner (▶ button).
+    ///
+    /// `TerminalAreaView` uses this flag to show only the agent session when one
+    /// is active, hiding regular shell sessions without killing them.  When the
+    /// agent session exits the shell sessions reappear automatically.
+    var isAgentSession: Bool
 
     init(
         id: UUID = UUID(),
         projectId: UUID,
         title: String = "zsh",
         state: TerminalSessionState = .running,
-        splitDirection: SplitDirection? = nil
+        splitDirection: SplitDirection? = nil,
+        isAgentSession: Bool = false
     ) {
         self.id = id
         self.projectId = projectId
         self.title = title
         self.state = state
         self.splitDirection = splitDirection
+        self.isAgentSession = isAgentSession
     }
 }
 

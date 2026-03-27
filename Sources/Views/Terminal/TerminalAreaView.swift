@@ -27,7 +27,13 @@ struct TerminalAreaView: View {
     var body: some View {
         Group {
             if let projectId = projectManager.activeProjectId {
-                let sessions = terminalManager.sessions(for: projectId)
+                let allSessions = terminalManager.sessions(for: projectId)
+                // When an AI agent session is running, show only that session so
+                // it takes over the full terminal area instead of creating a split
+                // with the shell.  The shell PTYs remain alive in the background
+                // and reappear automatically once the agent session is removed.
+                let agentSessions = allSessions.filter { $0.isAgentSession }
+                let sessions = agentSessions.isEmpty ? allSessions : agentSessions
 
                 if sessions.isEmpty {
                     emptyTerminalView(projectId: projectId)

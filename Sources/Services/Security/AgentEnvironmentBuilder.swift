@@ -46,6 +46,29 @@ enum AgentEnvironmentBuilder {
         result["COLORTERM"] = "truecolor"
         result["LANG"] = result["LANG"] ?? "en_US.UTF-8"
 
+        // Agent subprocesses run without a login shell and don't benefit from
+        // .zprofile PATH augmentation. When VibeStudio is launched from Finder/Dock,
+        // launchd provides a minimal PATH (/usr/bin:/bin:/usr/sbin:/sbin) that
+        // excludes Homebrew, npm-global, cargo, etc.
+        //
+        // We prepend the same trusted directories used by CLIAgentPathResolver so
+        // the agent binary can locate itself (for self-invocation, updates) and
+        // other tools (git, node) without relying on the parent process PATH.
+        let trustedBins = [
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "\(NSHomeDirectory())/.local/bin",
+            "\(NSHomeDirectory())/.npm-global/bin",
+            "\(NSHomeDirectory())/.cargo/bin",
+        ]
+        let currentPath = result["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let existingParts = currentPath.split(separator: ":").map(String.init)
+        let missingBins = trustedBins.filter { !existingParts.contains($0) }
+        if !missingBins.isEmpty {
+            result["PATH"] = (missingBins + existingParts).joined(separator: ":")
+        }
+
         // Inject the agent-specific API key if provided.
         if let envVar = assistant.apiKeyEnvironmentVariable,
            let key = apiKeyValue,

@@ -29,12 +29,15 @@ struct RootView: View {
     @State private var showSidebar = true
     @State private var agentToInstall: AIAssistant? = nil
 
-    private var preferredScheme: ColorScheme? {
-        switch themeService.selectedAppearance {
-        case .dark:   return .dark
-        case .light:  return .light
-        case .system: return nil
-        }
+    /// The concrete color scheme to apply to the entire window.
+    ///
+    /// Delegates to `themeService.resolvedColorScheme` which always returns
+    /// `.dark` or `.light` — never `nil`. This avoids a one-frame race where
+    /// passing `nil` would cause SwiftUI to inherit the color scheme from the
+    /// NSWindow, whose KVO-based effective-appearance update fires asynchronously
+    /// and can lag behind the synchronous `NSApp.appearance` change in ThemeService.
+    private var preferredScheme: ColorScheme {
+        themeService.resolvedColorScheme
     }
 
     var body: some View {
@@ -70,6 +73,12 @@ struct RootView: View {
                     }
                     .frame(minWidth: 300)
                 }
+                // Force SwiftUI to fully re-evaluate all child views when the theme
+                // changes. Without this, views whose body doesn't read colorScheme
+                // (e.g. TabBarView) are skipped by SwiftUI's diffing algorithm and
+                // keep their stale Color renders. Terminal sessions are stored in
+                // TerminalService — re-creating the visual layer is safe.
+                .id(themeService.selectedAppearance)
                 .background {
                     Button("") {
                         withAnimation(.easeOut(duration: 0.2)) {

@@ -19,13 +19,20 @@ struct TerminalHostView: NSViewRepresentable {
     let sessionId: UUID
 
     @Environment(\.terminalSessionManager) private var terminalManager
+    /// Observed so SwiftUI calls `updateNSView` whenever the color scheme changes.
+    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - NSViewRepresentable
 
     func makeNSView(context: Context) -> NSView {
         let container = NSView()
         container.wantsLayer = true
-        container.layer?.backgroundColor = DSColor.surfaceBaseNS.cgColor
+        // `NSColor.cgColor` must be resolved inside a drawing-appearance context;
+        // outside one it returns a concrete (non-dynamic) CGColor locked to whatever
+        // appearance was current at call time — causing wrong colours on theme switch.
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            container.layer?.backgroundColor = DSColor.surfaceBaseNS.cgColor
+        }
 
         do {
             let terminalView = try terminalManager.attachView(to: sessionId)
@@ -71,8 +78,13 @@ struct TerminalHostView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        // SwiftTerm handles resize automatically via Auto Layout constraints.
-        // No manual TIOCSWINSZ needed.
+        // Re-resolve the container background on every appearance change.
+        // `colorScheme` is observed above, so this is called whenever the theme
+        // switches. Without this the padding area stays the wrong colour because
+        // a plain CGColor captured outside a drawing context is never dynamic.
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            nsView.layer?.backgroundColor = DSColor.surfaceBaseNS.cgColor
+        }
     }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: ()) {

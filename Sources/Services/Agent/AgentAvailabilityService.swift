@@ -65,16 +65,13 @@ final class AgentAvailabilityService: AgentAvailabilityChecking {
 
     func canLaunch(_ agent: AIAssistant) -> Bool {
         let status = check(agent)
-        switch status {
-        case .available(_, let hasAPIKey):
-            // If the agent doesn't require an API key, it can always launch.
-            if agent.apiKeyEnvironmentVariable == nil {
-                return true
-            }
-            return hasAPIKey
-        case .notInstalled, .checking:
-            return false
-        }
+        // An agent can launch whenever its binary is found, regardless of whether
+        // an API key is pre-configured.  Agents that require a key (codex, gemini,
+        // qwen) handle the missing-key case themselves by prompting the user
+        // interactively inside the terminal session.  The "API key not set" badge
+        // in the picker is informational only — it does not block execution.
+        if case .available = status { return true }
+        return false
     }
 
     // MARK: - Private

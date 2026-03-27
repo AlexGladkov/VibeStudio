@@ -33,6 +33,7 @@ struct VibeStudioApp: App {
 
         Settings {
             SettingsView()
+                .injectServices(from: appDelegate.container)
         }
     }
 }

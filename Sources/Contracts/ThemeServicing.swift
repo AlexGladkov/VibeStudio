@@ -3,6 +3,7 @@
 // macOS 14+, Swift 5.10
 
 import AppKit
+import SwiftUI
 
 // MARK: - AppAppearance
 
@@ -42,6 +43,18 @@ enum AppAppearance: Int, CaseIterable {
 protocol ThemeServicing: AnyObject {
     /// The currently selected appearance preference.
     var selectedAppearance: AppAppearance { get }
+
+    /// The resolved SwiftUI `ColorScheme` for the current effective appearance.
+    ///
+    /// Unlike `selectedAppearance`, this always returns a concrete `.dark` or
+    /// `.light` value — never `nil` — so SwiftUI views can use it directly in
+    /// `.preferredColorScheme(_:)` without relying on asynchronous window-KVO
+    /// propagation. When `selectedAppearance == .system` the value is derived
+    /// from `NSApp.effectiveAppearance`, which is already up-to-date by the time
+    /// the view re-renders. When the macOS system theme changes while the app is
+    /// in System mode, implementations must update this value reactively so that
+    /// SwiftUI re-renders automatically.
+    var resolvedColorScheme: ColorScheme { get }
 
     /// Change the selected appearance and apply it immediately.
     func setAppearance(_ appearance: AppAppearance)
