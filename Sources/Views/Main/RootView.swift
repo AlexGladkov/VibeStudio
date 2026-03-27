@@ -24,7 +24,18 @@ struct RootView: View {
 
     @Environment(\.projectManager) private var projectManager
     @Environment(AppReadyState.self) private var appReady
+    @Environment(\.openSettings) private var openSettings
+    @Environment(\.themeService) private var themeService
     @State private var showSidebar = true
+    @State private var agentToInstall: AIAssistant? = nil
+
+    private var preferredScheme: ColorScheme? {
+        switch themeService.selectedAppearance {
+        case .dark:   return .dark
+        case .light:  return .light
+        case .system: return nil
+        }
+    }
 
     var body: some View {
         Group {
@@ -84,5 +95,15 @@ struct RootView: View {
             minHeight: DSLayout.windowMinHeight
         )
         .background(DSColor.surfaceBase)
+        .preferredColorScheme(preferredScheme)
+        .sheet(item: $agentToInstall) { assistant in
+            InstallAgentSheet(assistant: assistant)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showInstallAgentWizard)) { notification in
+            agentToInstall = notification.object as? AIAssistant
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showAppSettings)) { _ in
+            openSettings()
+        }
     }
 }

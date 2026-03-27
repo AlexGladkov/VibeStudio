@@ -52,16 +52,38 @@ final class TerminalService: TerminalSessionManaging {
     /// The session events stream.
     let sessionEvents: AsyncStream<TerminalSessionEvent>
 
+    /// Retained observer token for the theme-change notification.
+    ///
+    /// Marked `nonisolated(unsafe)` so `deinit` (which is non-isolated) can
+    /// remove the observer without a concurrency error. Assignment happens only
+    /// once in `init` on the main actor; removal happens in `deinit`. There is
+    /// no concurrent access, so the unsafe annotation is safe here.
+    nonisolated(unsafe) private var themeObserver: NSObjectProtocol?
+
     // MARK: - Init
 
     init() {
         let (stream, continuation) = AsyncStream<TerminalSessionEvent>.makeStream()
         sessionEvents = stream
         eventContinuation = continuation
+
+        // Observe theme changes and re-apply colors to all live terminal views.
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: .themeDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshTerminalColors()
+            }
+        }
     }
 
     deinit {
         eventContinuation.finish()
+        if let observer = themeObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     // MARK: - TerminalSessionManaging: Lifecycle
@@ -149,6 +171,85 @@ final class TerminalService: TerminalSessionManaging {
         sessionsByProject[projectId, default: []].append(session)
         sessionProjectIndex[sessionId] = projectId
 
+        return session
+    }
+
+    // MARK: - TerminalSessionManaging: Agent Launch
+
+    @discardableResult
+    func startAgentSession(
+        agent: AIAssistant,
+        for projectId: UUID,
+        workingDirectory: String,
+        apiKeyValue: String?
+    ) -> TerminalSession? {
+        // Enforce session limit per project.
+        let existing = sessionsByProject[projectId] ?? []
+        guard existing.count < maxSessionsPerProject else {
+            Logger.terminal.warning("startAgentSession: session limit reached for project \(projectId)")
+            return nil
+        }
+
+        // Resolve the agent binary from trusted directories.
+        guard let resolvedPath = CLIAgentPathResolver.resolve(agent.executableName) else {
+            Logger.terminal.error("startAgentSession: executable not found for \(agent.executableName, privacy: .public)")
+            return nil
+        }
+
+        let sessionId = UUID()
+
+        // Create the SwiftTerm view.
+        let terminalView = TaggedTerminalView(
+            sessionId: sessionId,
+            projectId: projectId,
+            frame: NSRect(x: 0, y: 0, width: 800, height: 600)
+        )
+
+        // Configure terminal appearance.
+        configureTerminalAppearance(terminalView)
+
+        // Set up activity detection callback.
+        terminalView.onRangeChanged = { [weak self] sid in
+            Task { @MainActor in
+                self?.handleActivity(sessionId: sid, projectId: projectId)
+            }
+        }
+
+        // Set up process exit callback.
+        terminalView.onProcessExited = { [weak self] sid, exitCode in
+            Task { @MainActor in
+                self?.handleProcessExit(sessionId: sid, projectId: projectId, exitCode: exitCode)
+            }
+        }
+
+        // Build allowlist-based environment for the agent.
+        let agentEnv = AgentEnvironmentBuilder.build(for: agent, apiKeyValue: apiKeyValue)
+
+        // Start the agent process in a dedicated PTY.
+        // Unlike shell sessions, agent sessions run the CLI tool directly --
+        // no shell wrapping. The PTY provides terminal emulation for the agent's TUI.
+        terminalView.startProcess(
+            executable: resolvedPath,
+            args: agent.launchArguments,
+            environment: agentEnv,
+            execName: agent.executableName,
+            currentDirectory: workingDirectory
+        )
+
+        // Create session model.
+        let session = TerminalSession(
+            id: sessionId,
+            projectId: projectId,
+            title: agent.displayName,
+            state: .running
+        )
+
+        // Store state.
+        terminalViews[sessionId] = terminalView
+        sessionsByProject[projectId, default: []].append(session)
+        sessionProjectIndex[sessionId] = projectId
+
+        Logger.terminal.info("startAgentSession: launched \(agent.displayName, privacy: .public) at \(resolvedPath, privacy: .public)")
         return session
     }
 
@@ -287,6 +388,33 @@ final class TerminalService: TerminalSessionManaging {
     }
 
     // MARK: - Private: Terminal Configuration
+
+    /// Re-apply theme colors to all currently live terminal views.
+    ///
+    /// Called when `Notification.Name.themeDidChange` is posted by `ThemeService`.
+    /// Uses `DSTerminalColors.palette` which resolves from `NSApp.effectiveAppearance`
+    /// at the call site, so the new appearance is already set when this runs.
+    func refreshTerminalColors() {
+        for view in terminalViews.values {
+            view.nativeForegroundColor = DSTerminalColors.foreground
+            view.nativeBackgroundColor = DSTerminalColors.background
+            view.caretColor = DSTerminalColors.cursor
+            view.selectedTextBackgroundColor = DSTerminalColors.selection
+
+            let swiftTermPalette = DSTerminalColors.palette.map { nsColor -> SwiftTerm.Color in
+                let c = nsColor.usingColorSpace(.sRGB) ?? nsColor
+                return SwiftTerm.Color(
+                    red: UInt16(c.redComponent * 65535),
+                    green: UInt16(c.greenComponent * 65535),
+                    blue: UInt16(c.blueComponent * 65535)
+                )
+            }
+            view.installColors(swiftTermPalette)
+            view.setNeedsDisplay(view.bounds)
+        }
+        let count = terminalViews.count
+        Logger.terminal.info("TerminalService: refreshed colors for \(count) views")
+    }
 
     /// Apply VibeStudio design tokens to a terminal view.
     private func configureTerminalAppearance(_ view: TaggedTerminalView) {

@@ -31,4 +31,7 @@ extension Logger {
 
     /// Project persistence: save, load, migration.
     static let persistence = Logger(subsystem: subsystem, category: "Persistence")
+
+    /// Service-layer events: agent availability, keychain, path resolution.
+    static let services = Logger(subsystem: subsystem, category: "Services")
 }

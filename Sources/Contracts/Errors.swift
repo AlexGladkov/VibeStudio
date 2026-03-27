@@ -133,6 +133,25 @@ enum AICommitServiceError: LocalizedError, Sendable {
     }
 }
 
+// MARK: - AgentError
+
+/// Errors related to AI CLI agent lifecycle.
+enum AgentError: LocalizedError, Sendable {
+    /// The agent's CLI executable was not found in trusted directories.
+    case executableNotFound(agent: String)
+    /// The agent requires an API key but none was provided.
+    case missingAPIKey(agent: String, envVar: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .executableNotFound(let agent):
+            return "CLI executable not found for agent: \(agent)"
+        case .missingAPIKey(let agent, let envVar):
+            return "API key \(envVar) not set for agent: \(agent)"
+        }
+    }
+}
+
 // MARK: - FileSystemWatcherError
 
 enum FileSystemWatcherError: LocalizedError, Sendable {

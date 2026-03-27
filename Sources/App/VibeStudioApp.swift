@@ -30,5 +30,9 @@ struct VibeStudioApp: App {
             width: DSLayout.windowDefaultWidth,
             height: DSLayout.windowDefaultHeight
         )
+
+        Settings {
+            SettingsView()
+        }
     }
 }

@@ -29,7 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sessionPersistence: sessionStore,
             aiCommitService: aiCommitService,
             gitStatusPoller: gitStatusPoller,
-            appReadyState: appReadyState
+            agentAvailability: agentAvailabilityService,
+            appReadyState: appReadyState,
+            themeService: themeService
         )
     }()
 
@@ -42,7 +44,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var sessionStore = SessionStore()
     private lazy var aiCommitService = AICommitService()
     private lazy var gitStatusPoller = GitStatusPoller(gitService: gitService)
+    private lazy var agentAvailabilityService = AgentAvailabilityService()
     private let appReadyState = AppReadyState()
+    private lazy var themeService = ThemeService()
 
     // MARK: - Session UseCases
 
@@ -85,6 +89,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Apply the stored appearance before any view renders to avoid a flash
+        // of the wrong theme on launch.
+        themeService.applyStoredAppearance()
+
         // Load persisted project list (reads ~/Library/Application Support — no TCC).
         do {
             try projectStore.load()
@@ -168,6 +176,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // This unblocks SwiftUI views (FileTreeView, GitSidebarViewModel, etc.)
         // which were holding off on their .task modifiers.
         appReadyState.tccGranted = true
+
+        // Resolve agent availability now that PATH is fully inherited.
+        agentAvailabilityService.refreshAll()
 
         // Safe to spawn PTY and git child processes — they inherit the TCC grant.
         await restoreSession()
