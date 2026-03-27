@@ -3,14 +3,18 @@
 // macOS 14+, Swift 5.10
 
 import Foundation
+import Observation
 
 /// Abstraction over periodic git status polling.
 ///
 /// Implementations observe a git repository and periodically refresh
 /// the ``GitStatus``. Used by the AppDelegate to drive the git panel
 /// and by views to display current repository state.
+///
+/// Inherits `Observable` so that SwiftUI views subscribed via `@Environment`
+/// or direct access receive automatic re-renders when `status` changes.
 @MainActor
-protocol GitStatusPolling: AnyObject {
+protocol GitStatusPolling: AnyObject, Observable {
 
     /// Current git status for the observed repository.
     var status: GitStatus { get }

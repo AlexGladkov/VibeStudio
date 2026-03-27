@@ -36,7 +36,22 @@ final class ServiceContainer {
     /// Startup readiness gate — prevents SwiftUI views from accessing TCC-protected
     /// directories before the user has granted consent.
     let appReadyState: AppReadyState
+    /// Type-safe coordinator for global navigation events (install wizard, settings).
+    ///
+    /// Replaces `NotificationCenter` posts for `.showInstallAgentWizard` and
+    /// `.showAppSettings` with direct `@Observable` property mutations that
+    /// SwiftUI can observe without hidden string-keyed coupling.
+    let navigationCoordinator: AppNavigationCoordinator
+
     /// App-wide theme/appearance service.
+    ///
+    /// Stored as the concrete `ThemeService` (not `any ThemeServicing`) for the same
+    /// reason as `terminalService`: SwiftUI's `@Observable` tracking does not work
+    /// through `any Protocol` existentials. Views observing `selectedAppearance` or
+    /// `resolvedColorScheme` need direct access to the concrete `@Observable` type so
+    /// that `withObservationTracking` registers property-level subscriptions and
+    /// triggers automatic re-renders. To inject a test double, create a concrete class
+    /// that inherits from `ThemeService` or use `PreviewThemeService` below.
     let themeService: ThemeService
 
     init(
@@ -50,6 +65,7 @@ final class ServiceContainer {
         gitStatusPoller: any GitStatusPolling,
         agentAvailability: any AgentAvailabilityChecking,
         appReadyState: AppReadyState,
+        navigationCoordinator: AppNavigationCoordinator,
         themeService: ThemeService
     ) {
         self.projectManager = projectManager
@@ -62,6 +78,7 @@ final class ServiceContainer {
         self.gitStatusPoller = gitStatusPoller
         self.agentAvailability = agentAvailability
         self.appReadyState = appReadyState
+        self.navigationCoordinator = navigationCoordinator
         self.themeService = themeService
     }
 }
@@ -101,6 +118,10 @@ private struct GitStatusPollerKey: EnvironmentKey {
 
 private struct AgentAvailabilityKey: EnvironmentKey {
     @MainActor static let defaultValue: any AgentAvailabilityChecking = PreviewAgentAvailability()
+}
+
+private struct NavigationCoordinatorKey: EnvironmentKey {
+    @MainActor static let defaultValue: AppNavigationCoordinator = AppNavigationCoordinator()
 }
 
 private struct ThemeServiceKey: EnvironmentKey {
@@ -148,6 +169,11 @@ extension EnvironmentValues {
         set { self[AgentAvailabilityKey.self] = newValue }
     }
 
+    var navigationCoordinator: AppNavigationCoordinator {
+        get { self[NavigationCoordinatorKey.self] }
+        set { self[NavigationCoordinatorKey.self] = newValue }
+    }
+
     var themeService: ThemeService {
         get { self[ThemeServiceKey.self] }
         set { self[ThemeServiceKey.self] = newValue }
@@ -189,6 +215,7 @@ extension View {
             .environment(\.gitStatusPoller, container.gitStatusPoller)
             .environment(\.agentAvailability, container.agentAvailability)
             .environment(container.appReadyState)
+            .environment(\.navigationCoordinator, container.navigationCoordinator)
             .environment(\.themeService, container.themeService)
     }
 }
@@ -361,3 +388,4 @@ private final class PreviewAgentAvailability: AgentAvailabilityChecking {
     }
     func canLaunch(_ agent: AIAssistant) -> Bool { false }
 }
+

@@ -91,7 +91,13 @@ struct TerminalHostView: NSViewRepresentable {
         // IMPORTANT: Do NOT kill the PTY here.
         // Only detach the view -- the PTY continues running in the background.
         // The TerminalService manages PTY lifecycle independently.
+        //
+        // Deactivate constraints before removing to prevent AutoLayout from
+        // retaining stale references to the old container, which would cause
+        // unsatisfiable constraint warnings and potential layout loops when the
+        // same terminal view is re-attached to a new container.
         for subview in nsView.subviews {
+            NSLayoutConstraint.deactivate(subview.constraints)
             subview.removeFromSuperview()
         }
     }

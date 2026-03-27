@@ -75,6 +75,9 @@ struct TerminalAreaView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            // Guard against duplicate creation: after a SwiftUI identity reset
+            // (e.g. via .id()) the view is recreated but sessions already exist.
+            guard terminalManager.sessions(for: projectId).isEmpty else { return }
             viewModel.createTerminal(for: projectId)
         }
     }
@@ -115,14 +118,20 @@ private struct DroppableTerminalPanel: View {
 
     /// Extracts file paths from dropped item providers and sends them to the PTY.
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        // NSItemProvider completion handlers fire on arbitrary background threads,
+        // so mutating a shared array without synchronisation is a data race.
+        // Protect with NSLock; reads only happen after group.notify on main.
         var paths: [String] = []
+        let lock = NSLock()
         let group = DispatchGroup()
         for provider in providers {
             guard provider.canLoadObject(ofClass: URL.self) else { continue }
             group.enter()
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 if let url = url {
+                    lock.lock()
                     paths.append(url.path(percentEncoded: false))
+                    lock.unlock()
                 }
                 group.leave()
             }

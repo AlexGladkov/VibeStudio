@@ -39,6 +39,40 @@ final class ToolbarViewModel {
         self.projectManager = projectManager
         self.terminalManager = terminalManager
         self.agentAvailability = agentAvailability
+        startProjectCleanupObservation()
+    }
+
+    // MARK: - Cleanup
+
+    /// Release all per-project cached state for a removed project.
+    func cleanupProject(_ projectId: UUID) {
+        runningAssistants.removeValue(forKey: projectId)
+        selectedAssistants.removeValue(forKey: projectId)
+        agentSessionIds.removeValue(forKey: projectId)
+    }
+
+    /// Observe the projects list and auto-cleanup entries for removed projects.
+    private func startProjectCleanupObservation() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            var knownIds = Set(self.projectManager.projects.map(\.id))
+
+            while !Task.isCancelled {
+                await withUnsafeContinuation { (c: UnsafeContinuation<Void, Never>) in
+                    withObservationTracking {
+                        _ = self.projectManager.projects
+                    } onChange: {
+                        c.resume()
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                let currentIds = Set(self.projectManager.projects.map(\.id))
+                for removed in knownIds.subtracting(currentIds) {
+                    self.cleanupProject(removed)
+                }
+                knownIds = currentIds
+            }
+        }
     }
 
     // MARK: - Computed Properties

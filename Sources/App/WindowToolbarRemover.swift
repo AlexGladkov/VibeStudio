@@ -5,6 +5,7 @@
 // macOS 14+, Swift 5.10
 
 import AppKit
+import OSLog
 import SwiftUI
 
 struct WindowToolbarRemover: NSViewRepresentable {
@@ -94,10 +95,21 @@ struct WindowToolbarRemover: NSViewRepresentable {
         /// Walks `NSThemeFrame`'s direct subviews to find the view whose class
         /// name contains "TitlebarContainer". This is the private system view
         /// that wraps the traffic lights + toolbar strip.
+        ///
+        /// ⚠️ FRAGILE PRIVATE API — depends on Apple's internal AppKit view hierarchy.
+        /// Class name search is the only viable approach; no public API exposes this view.
+        /// Verified on macOS 14 Sonoma + macOS 15 Sequoia.
+        /// If this returns `nil` on a future macOS version, the toolbar items will not
+        /// appear (the app remains functional but the toolbar area will be empty).
+        /// Monitor: `Logger.ui.error("titlebarContainerView: NSTitlebarContainerView not found")`
         private func titlebarContainerView(in themeFrame: NSView) -> NSView? {
-            themeFrame.subviews.first {
+            let result = themeFrame.subviews.first {
                 String(describing: type(of: $0)).contains("TitlebarContainer")
             }
+            if result == nil {
+                Logger.ui.error("WindowToolbarRemover: NSTitlebarContainerView not found — private AppKit API may have changed")
+            }
+            return result
         }
     }
 }

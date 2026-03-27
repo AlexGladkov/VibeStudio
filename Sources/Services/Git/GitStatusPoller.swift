@@ -45,6 +45,8 @@ final class GitStatusPoller: GitStatusPolling {
     // nonisolated(unsafe): deinit is nonisolated and must cancel this task.
     // Safe because deinit only runs when no other references exist.
     nonisolated(unsafe) private var pollingTask: Task<Void, Never>?
+    /// Stored handle for the last refreshNow() task so rapid calls cancel the prior one.
+    private var refreshTask: Task<Void, Never>?
     private var currentRepository: URL?
     private var consecutiveErrors: Int = 0
 
@@ -91,8 +93,12 @@ final class GitStatusPoller: GitStatusPolling {
     }
 
     /// Trigger an immediate refresh (e.g., on file system change).
+    ///
+    /// Cancels any pending refresh task so rapid file-save bursts coalesce
+    /// into a single poll instead of accumulating Tasks on the MainActor.
     func refreshNow() {
-        Task { @MainActor [weak self] in
+        refreshTask?.cancel()
+        refreshTask = Task { @MainActor [weak self] in
             await self?.poll()
         }
     }

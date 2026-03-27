@@ -11,7 +11,12 @@ import Foundation
 /// argument-array invocation to prevent command injection.
 /// Branch names are validated before use. File paths are
 /// always preceded by `--` to prevent option injection.
-actor GitService: GitServicing {
+///
+/// Implemented as a `final class` (not `actor`) because all stored properties
+/// are immutable (`let`) — the actor executor added `await` overhead on every
+/// call without providing any isolation benefit. All methods are safe to call
+/// concurrently since they only read constants and spawn independent subprocesses.
+final class GitService: GitServicing, @unchecked Sendable {
 
     // MARK: - Constants
 
@@ -681,81 +686,4 @@ actor GitService: GitServicing {
         }
     }
 
-    // MARK: - Browser URL Conversion
-
-    /// Convert a git remote URL to an HTTPS browser URL.
-    ///
-    /// Handles:
-    /// - SCP syntax: `git@github.com:user/repo.git` -> `https://github.com/user/repo`
-    /// - ssh:// URLs: `ssh://git@github.com/user/repo.git` -> `https://github.com/user/repo`
-    /// - git:// URLs: `git://github.com/org/repo.git` -> `https://github.com/org/repo`
-    /// - https:// with tokens: `https://token@github.com/user/repo.git` -> `https://github.com/user/repo`
-    /// - Plain https:// URLs: strips `.git` suffix
-    ///
-    /// - Parameter gitURL: Raw git remote URL string.
-    /// - Returns: HTTPS browser URL, or nil if conversion fails.
-    static func browserURL(from gitURL: String) -> URL? {
-        var urlString = gitURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !urlString.isEmpty else { return nil }
-
-        // SCP syntax: git@host:user/repo.git
-        // Detect by: contains "@" and ":" but no "://"
-        if urlString.contains("@") && urlString.contains(":") && !urlString.contains("://") {
-            // Remove user@ prefix
-            if let atIndex = urlString.firstIndex(of: "@") {
-                urlString = String(urlString[urlString.index(after: atIndex)...])
-            }
-            // Replace first ":" with "/"
-            if let colonIndex = urlString.firstIndex(of: ":") {
-                urlString.replaceSubrange(colonIndex...colonIndex, with: "/")
-            }
-            urlString = "https://\(urlString)"
-        }
-
-        // ssh:// -> https://, remove user@
-        if urlString.lowercased().hasPrefix("ssh://") {
-            urlString = "https://" + urlString.dropFirst("ssh://".count)
-            // Remove user@ after scheme
-            if let schemeEnd = urlString.range(of: "://"),
-               let atRange = urlString[schemeEnd.upperBound...].range(of: "@") {
-                let beforeAt = urlString[schemeEnd.upperBound..<atRange.lowerBound]
-                // Only strip if it looks like a username (no dots suggesting it's part of host)
-                if !beforeAt.contains(".") {
-                    urlString.removeSubrange(schemeEnd.upperBound...atRange.lowerBound)
-                }
-            }
-        }
-
-        // git:// -> https://
-        if urlString.lowercased().hasPrefix("git://") {
-            urlString = "https://" + urlString.dropFirst("git://".count)
-        }
-
-        // Handle https:// with token/user in URL: https://token@host/... -> https://host/...
-        if urlString.lowercased().hasPrefix("https://") || urlString.lowercased().hasPrefix("http://") {
-            if let schemeEnd = urlString.range(of: "://"),
-               let atRange = urlString[schemeEnd.upperBound...].range(of: "@") {
-                let beforeAt = urlString[schemeEnd.upperBound..<atRange.lowerBound]
-                // Strip user/token (no dots -- not part of hostname)
-                if !beforeAt.contains(".") {
-                    urlString.removeSubrange(schemeEnd.upperBound...atRange.lowerBound)
-                }
-            }
-        }
-
-        // Remove .git suffix
-        if urlString.hasSuffix(".git") {
-            urlString = String(urlString.dropLast(4))
-        }
-
-        // Validate result is a proper HTTPS URL
-        guard let url = URL(string: urlString),
-              let scheme = url.scheme?.lowercased(),
-              (scheme == "https" || scheme == "http"),
-              url.host != nil else {
-            return nil
-        }
-
-        return url
-    }
 }

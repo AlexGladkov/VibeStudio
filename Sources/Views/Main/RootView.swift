@@ -26,8 +26,8 @@ struct RootView: View {
     @Environment(AppReadyState.self) private var appReady
     @Environment(\.openSettings) private var openSettings
     @Environment(\.themeService) private var themeService
+    @Environment(\.navigationCoordinator) private var navigationCoordinator
     @State private var showSidebar = true
-    @State private var agentToInstall: AIAssistant? = nil
 
     /// The concrete color scheme to apply to the entire window.
     ///
@@ -73,12 +73,6 @@ struct RootView: View {
                     }
                     .frame(minWidth: 300)
                 }
-                // Force SwiftUI to fully re-evaluate all child views when the theme
-                // changes. Without this, views whose body doesn't read colorScheme
-                // (e.g. TabBarView) are skipped by SwiftUI's diffing algorithm and
-                // keep their stale Color renders. Terminal sessions are stored in
-                // TerminalService — re-creating the visual layer is safe.
-                .id(themeService.selectedAppearance)
                 .background {
                     Button("") {
                         withAnimation(.easeOut(duration: 0.2)) {
@@ -105,14 +99,21 @@ struct RootView: View {
         )
         .background(DSColor.surfaceBase)
         .preferredColorScheme(preferredScheme)
-        .sheet(item: $agentToInstall) { assistant in
-            InstallAgentSheet(assistant: assistant)
+        .sheet(
+            isPresented: Binding(
+                get: { navigationCoordinator.agentToInstall != nil },
+                set: { if !$0 { navigationCoordinator.agentToInstall = nil } }
+            )
+        ) {
+            if let assistant = navigationCoordinator.agentToInstall {
+                InstallAgentSheet(assistant: assistant)
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .showInstallAgentWizard)) { notification in
-            agentToInstall = notification.object as? AIAssistant
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .showAppSettings)) { _ in
-            openSettings()
+        .onChange(of: navigationCoordinator.showingSettings) { _, newValue in
+            if newValue {
+                openSettings()
+                navigationCoordinator.showingSettings = false
+            }
         }
     }
 }

@@ -109,8 +109,9 @@ final class FileSystemWatcher: FileSystemWatching, @unchecked Sendable {
             throw FileSystemWatcherError.streamCreationFailed(path: directory)
         }
 
-        // Atomic check-and-insert: duplicate check + dictionary write
-        // in a single barrier block to prevent TOCTOU race.
+        // Atomic check-and-insert + stream start: all inside a single barrier block
+        // so a concurrent unwatch() barrier cannot interleave between dictionary
+        // mutation and FSEventStreamStart, which would call Stop on an unstarted stream.
         let token = try queue.sync(flags: .barrier) { () throws -> WatchToken in
             let isDuplicate = watches.values.contains { $0.info.directory == directory }
             if isDuplicate {
@@ -128,11 +129,15 @@ final class FileSystemWatcher: FileSystemWatching, @unchecked Sendable {
                 startedAt: .now
             )
             watches[token] = WatchEntry(info: info, streamRef: streamRef)
+
+            // Start the stream inside the barrier so that any concurrent unwatch()
+            // barriers that follow will see an already-started (or already-stopped)
+            // stream, never an in-between partially-configured one.
+            FSEventStreamSetDispatchQueue(streamRef, queue)
+            FSEventStreamStart(streamRef)
+
             return token
         }
-
-        FSEventStreamSetDispatchQueue(streamRef, queue)
-        FSEventStreamStart(streamRef)
 
         return token
     }
@@ -162,6 +167,10 @@ final class FileSystemWatcher: FileSystemWatching, @unchecked Sendable {
                 FSEventStreamRelease(stream)
             }
             self.watches.removeAll()
+            // Finish the AsyncStream so consumers (startFileEventForwarding Task)
+            // terminate cleanly when called during app shutdown. Safe to call
+            // multiple times — AsyncStream.Continuation.finish() is idempotent.
+            self.continuation.finish()
         }
     }
 

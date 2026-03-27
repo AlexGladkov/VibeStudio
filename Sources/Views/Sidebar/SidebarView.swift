@@ -394,7 +394,9 @@ struct SidebarView: View {
             }
             Button("Remove", role: .destructive) {
                 if let project = projectToRemove {
-                    try? projectManager.removeProject(project.id)
+                    let id = project.id
+                    try? projectManager.removeProject(id)
+                    vm.cleanupProject(id)
                     projectToRemove = nil
                 }
             }

@@ -15,6 +15,7 @@ struct ToolbarView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
     @Environment(\.agentAvailability) private var agentAvailability
+    @Environment(\.navigationCoordinator) private var navigationCoordinator
     @Environment(\.openURL) private var openURL
 
     @State private var vm: ToolbarViewModel?
@@ -92,10 +93,7 @@ struct ToolbarView: View {
                 Button {
                     if isNotInstalled {
                         showingPicker = false
-                        NotificationCenter.default.post(
-                            name: .showInstallAgentWizard,
-                            object: assistant
-                        )
+                        navigationCoordinator.agentToInstall = assistant
                     } else {
                         model.selectAssistant(assistant)
                         showingPicker = false
@@ -198,7 +196,7 @@ struct ToolbarView: View {
 
     private func settingsButton() -> some View {
         Button {
-            NotificationCenter.default.post(name: .showAppSettings, object: nil)
+            navigationCoordinator.showingSettings = true
         } label: {
             Image(systemName: "gear")
                 .font(.system(size: 13, weight: .medium))

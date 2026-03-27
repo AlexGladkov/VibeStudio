@@ -77,6 +77,28 @@ final class GitSidebarViewModel {
         self.aiCommitService = aiCommitService
     }
 
+    // MARK: - Cleanup
+
+    /// Release all cached data for a removed project.
+    ///
+    /// Must be called whenever a project is removed from VibeStudio so that
+    /// per-project dictionaries (statuses, branches, commit text, etc.) don't
+    /// accumulate indefinitely in memory.
+    func cleanupProject(_ projectId: UUID) {
+        gitExpandedProjects.remove(projectId)
+        projectGitStatuses.removeValue(forKey: projectId)
+        projectBranches.removeValue(forKey: projectId)
+        nonGitProjects.remove(projectId)
+        remoteUnavailableProjects.remove(projectId)
+        projectBranchErrors.removeValue(forKey: projectId)
+        projectRemoteURLs.removeValue(forKey: projectId)
+        commitSummaries.removeValue(forKey: projectId)
+        commitDescriptions.removeValue(forKey: projectId)
+        generatingAIProjects.remove(projectId)
+        committingProjects.remove(projectId)
+        commitPanelErrors.removeValue(forKey: projectId)
+    }
+
     // MARK: - Git Info Loading
 
     /// Load git status + branches for a single project.

@@ -39,24 +39,45 @@ final class AgentAvailabilityService: AgentAvailabilityChecking {
     // MARK: - AgentAvailabilityChecking
 
     func refreshAll() {
+        // Stamp immediately to prevent concurrent calls from queueing duplicate Tasks.
         lastRefreshDate = Date()
 
-        for agent in AIAssistant.allCases {
-            let resolvedPath = CLIAgentPathResolver.resolve(agent.executableName)
+        // Capture all needed data before leaving MainActor.
+        let agents = AIAssistant.allCases
+        let installHints = Dictionary(uniqueKeysWithValues: agents.map { ($0, $0.installHint) })
+        let executableNames = Dictionary(uniqueKeysWithValues: agents.map { ($0, $0.executableName) })
+        let envVars = Dictionary(uniqueKeysWithValues: agents.map { ($0, $0.apiKeyEnvironmentVariable) })
 
-            if let path = resolvedPath {
-                let hasKey = resolveAPIKeyAvailability(for: agent)
-                availability[agent] = .available(path: path, hasAPIKey: hasKey)
-            } else {
-                availability[agent] = .notInstalled(installHint: agent.installHint)
+        // Filesystem + Keychain checks block the calling thread.
+        // Run them detached so the MainActor queue stays free.
+        Task.detached(priority: .userInitiated) { [weak self] in
+            var results: [AIAssistant: AgentAvailabilityStatus] = [:]
+
+            for agent in agents {
+                guard let name = executableNames[agent] else { continue }
+                if let path = CLIAgentPathResolver.resolve(name) {
+                    let hasKey = AgentAvailabilityService.resolveAPIKeyAvailability(envVar: envVars[agent] ?? nil)
+                    results[agent] = .available(path: path, hasAPIKey: hasKey)
+                } else {
+                    results[agent] = .notInstalled(installHint: installHints[agent] ?? "")
+                }
+            }
+
+            // Shadow as `let` to avoid capturing a `var` across actor boundaries.
+            let finalResults = results
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                for (agent, status) in finalResults {
+                    self.availability[agent] = status
+                }
+                Logger.services.debug("AgentAvailabilityService: refreshed all agents")
             }
         }
-
-        Logger.services.debug("AgentAvailabilityService: refreshed all agents")
     }
 
     func check(_ agent: AIAssistant) -> AgentAvailabilityStatus {
-        // Refresh if cache is stale.
+        // Kick off a background refresh if cache is stale.
+        // Returns the current cached value immediately (may be .checking on first call).
         if Date().timeIntervalSince(lastRefreshDate) > cacheTTL {
             refreshAll()
         }
@@ -76,9 +97,13 @@ final class AgentAvailabilityService: AgentAvailabilityChecking {
 
     // MARK: - Private
 
-    /// Check whether the agent's API key is available in Keychain or environment.
-    private func resolveAPIKeyAvailability(for agent: AIAssistant) -> Bool {
-        guard let envVar = agent.apiKeyEnvironmentVariable else {
+    /// Check whether an API key is available in Keychain or environment.
+    ///
+    /// `nonisolated` + `static` so it can be called from `Task.detached` without
+    /// hopping back to `@MainActor`. Both `KeychainHelper.load` and
+    /// `ProcessInfo.processInfo.environment` are thread-safe.
+    nonisolated private static func resolveAPIKeyAvailability(envVar: String?) -> Bool {
+        guard let envVar else {
             // Agent doesn't need an API key.
             return true
         }
