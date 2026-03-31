@@ -32,7 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             agentAvailability: agentAvailabilityService,
             appReadyState: appReadyState,
             navigationCoordinator: navigationCoordinator,
-            themeService: themeService
+            themeService: themeService,
+            freeTabStore: freeTabStore
         )
     }()
 
@@ -49,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let appReadyState = AppReadyState()
     private let navigationCoordinator = AppNavigationCoordinator()
     private lazy var themeService = ThemeService()
+    private lazy var freeTabStore = FreeTabStore()
 
     /// Lifecycle coordinator — manages TCC, session restore/save, polling, events.
     private lazy var lifecycleCoordinator = AppLifecycleCoordinator(

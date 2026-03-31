@@ -50,11 +50,17 @@ actor AICommitService: AICommitServicing {
     // MARK: - Private Helpers
 
     private func resolveAPIKey() throws -> String {
-        guard let apiKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"],
-              !apiKey.isEmpty else {
+        // Keychain first (consistent with ToolbarViewModel.startAssistant).
+        if let keychainKey = KeychainHelper.load(account: "ANTHROPIC_API_KEY"),
+           !keychainKey.isEmpty {
+            return keychainKey
+        }
+        // Fallback: environment variable.
+        guard let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"],
+              !envKey.isEmpty else {
             throw AICommitServiceError.missingAPIKey
         }
-        return apiKey
+        return envKey
     }
 
     private func buildRequest(apiKey: String, diff: String) throws -> URLRequest {

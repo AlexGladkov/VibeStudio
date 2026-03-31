@@ -61,6 +61,19 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Whether to launch this agent by sending its `launchCommand` into the
+    /// existing shell session rather than creating a dedicated PTY.
+    ///
+    /// Use for agents whose authentication relies on env vars sourced by the
+    /// login shell (`.zprofile`) that are not available in VibeStudio's own
+    /// process environment when launched from Finder / Dock / launchd.
+    var launchViaShellInput: Bool {
+        switch self {
+        case .opencode: return true
+        default:        return false
+        }
+    }
+
     /// Shell command to start this assistant in the terminal.
     ///
     /// Used by the legacy `sendInput`-based launch path (opencode).

@@ -3,6 +3,7 @@
 // macOS 14+, Swift 5.10
 
 import Foundation
+import OSLog
 
 /// Persists application session state (active project, terminal layouts, scrollback).
 ///
@@ -35,11 +36,11 @@ actor SessionStore: SessionPersisting {
         let appDir: URL
         if let overrideDir {
             appDir = overrideDir
-        } else {
-            guard let systemDir = try? PathConstants.appSupportDirectory else {
-                fatalError("[VibeStudio] Application Support directory not found")
-            }
+        } else if let systemDir = try? PathConstants.appSupportDirectory {
             appDir = systemDir
+        } else {
+            Logger.session.error("Application Support directory not found, using temp directory")
+            appDir = FileManager.default.temporaryDirectory.appendingPathComponent("VibeStudio")
         }
 
         self.storageDirectory = appDir

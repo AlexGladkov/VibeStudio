@@ -22,6 +22,7 @@ enum AgentEnvironmentBuilder {
         "PATH", "SSH_AUTH_SOCK",
         "SHELL", "TMPDIR",
         "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+        "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
     ]
 
     /// Build an environment array (`["KEY=VALUE", ...]`) for the given agent.
@@ -54,14 +55,8 @@ enum AgentEnvironmentBuilder {
         // We prepend the same trusted directories used by CLIAgentPathResolver so
         // the agent binary can locate itself (for self-invocation, updates) and
         // other tools (git, node) without relying on the parent process PATH.
-        let trustedBins = [
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            "/usr/local/bin",
-            "\(NSHomeDirectory())/.local/bin",
-            "\(NSHomeDirectory())/.npm-global/bin",
-            "\(NSHomeDirectory())/.cargo/bin",
-        ]
+        // Sourced from SecurityConstants.trustedBinDirectories — single source of truth.
+        let trustedBins = SecurityConstants.trustedBinDirectories
         let currentPath = result["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
         let existingParts = currentPath.split(separator: ":").map(String.init)
         let missingBins = trustedBins.filter { !existingParts.contains($0) }

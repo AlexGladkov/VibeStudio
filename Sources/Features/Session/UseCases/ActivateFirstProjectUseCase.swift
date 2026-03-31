@@ -44,6 +44,12 @@ struct ActivateFirstProjectUseCase {
         guard projectManager.activeProjectId == nil,
               let first = projectManager.projects.first else { return }
         projectManager.activeProjectId = first.id
+        // Guard: RestoreSessionUseCase may have already created a terminal for this
+        // project. This happens when the snapshot's activeProjectId was a FreeTab
+        // UUID (not persisted across restarts), leaving activeProjectId unset while
+        // still restoring sessions for all real projects. Creating another session
+        // here would produce an unwanted HSplitView with two duplicate terminals.
+        guard terminalManager.sessions(for: first.id).isEmpty else { return }
         try? terminalManager.createSession(
             for: first.id,
             shell: first.shellPath,

@@ -13,6 +13,7 @@ import SwiftUI
 /// items; the content pane renders the selected ``SettingsItem``.
 struct SettingsView: View {
 
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedItem: SettingsItem = .appearance
 
     var body: some View {
@@ -21,8 +22,15 @@ struct SettingsView: View {
             Divider()
             contentPane
         }
-        .frame(width: 680, height: 460)
+        .frame(minWidth: 860, idealWidth: 960, minHeight: 680, idealHeight: 760)
         .background(DSColor.surfaceDefault)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Закрыть") {
+                    dismiss()
+                }
+            }
+        }
     }
 
     // MARK: - Sidebar
@@ -89,19 +97,8 @@ struct SettingsView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(isSelected ? DSColor.accentPrimary : DSColor.textSecondary)
         case .llmAssistant(let assistant):
-            assistantIcon(assistant, size: 14)
+            AIAssistantIconView(assistant: assistant, size: 14)
                 .opacity(isSelected ? 1.0 : 0.6)
-        }
-    }
-
-    @ViewBuilder
-    private func assistantIcon(_ assistant: AIAssistant, size: CGFloat) -> some View {
-        switch assistant {
-        case .claude:    ClaudeLogoView(size: size)
-        case .opencode:  OpenCodeLogoView(size: size)
-        case .codex:     CodexLogoView(size: size)
-        case .gemini:    GeminiLogoView(size: size)
-        case .qwenCode:  QwenLogoView(size: size)
         }
     }
 

@@ -4,13 +4,6 @@
 
 import SwiftUI
 
-// MARK: - Notification
-
-extension Notification.Name {
-    static let showInstallAgentWizard = Notification.Name("showInstallAgentWizard")
-    static let showAppSettings = Notification.Name("showAppSettings")
-}
-
 // MARK: - InstallAgentSheet
 
 /// Step-by-step installation guide for a specific AI CLI agent.

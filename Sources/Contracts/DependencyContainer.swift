@@ -54,6 +54,12 @@ final class ServiceContainer {
     /// that inherits from `ThemeService` or use `PreviewThemeService` below.
     let themeService: ThemeService
 
+    /// Store for project-free terminal tabs.
+    ///
+    /// Concrete `@Observable` type for the same reason as `terminalService` and
+    /// `themeService`: SwiftUI observation tracking requires direct access.
+    let freeTabStore: FreeTabStore
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -66,7 +72,8 @@ final class ServiceContainer {
         agentAvailability: any AgentAvailabilityChecking,
         appReadyState: AppReadyState,
         navigationCoordinator: AppNavigationCoordinator,
-        themeService: ThemeService
+        themeService: ThemeService,
+        freeTabStore: FreeTabStore
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -80,6 +87,7 @@ final class ServiceContainer {
         self.appReadyState = appReadyState
         self.navigationCoordinator = navigationCoordinator
         self.themeService = themeService
+        self.freeTabStore = freeTabStore
     }
 }
 
@@ -126,6 +134,10 @@ private struct NavigationCoordinatorKey: EnvironmentKey {
 
 private struct ThemeServiceKey: EnvironmentKey {
     @MainActor static let defaultValue: ThemeService = ThemeService()
+}
+
+private struct FreeTabStoreKey: EnvironmentKey {
+    @MainActor static let defaultValue: FreeTabStore = FreeTabStore()
 }
 
 extension EnvironmentValues {
@@ -178,6 +190,11 @@ extension EnvironmentValues {
         get { self[ThemeServiceKey.self] }
         set { self[ThemeServiceKey.self] = newValue }
     }
+
+    var freeTabStore: FreeTabStore {
+        get { self[FreeTabStoreKey.self] }
+        set { self[FreeTabStoreKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -217,6 +234,7 @@ extension View {
             .environment(container.appReadyState)
             .environment(\.navigationCoordinator, container.navigationCoordinator)
             .environment(\.themeService, container.themeService)
+            .environment(\.freeTabStore, container.freeTabStore)
     }
 }
 

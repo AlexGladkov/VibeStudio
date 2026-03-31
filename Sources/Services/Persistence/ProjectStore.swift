@@ -80,11 +80,11 @@ final class ProjectStore: ProjectManaging {
         let baseDir: URL
         if let storageDirectory {
             baseDir = storageDirectory
-        } else {
-            guard let appDir = try? PathConstants.appSupportDirectory else {
-                fatalError("[VibeStudio] Application Support directory not found on this system")
-            }
+        } else if let appDir = try? PathConstants.appSupportDirectory {
             baseDir = appDir
+        } else {
+            Logger.persistence.error("Application Support directory not found, using temp directory")
+            baseDir = FileManager.default.temporaryDirectory.appendingPathComponent("VibeStudio")
         }
 
         // Ensure directory exists (important for test directories).

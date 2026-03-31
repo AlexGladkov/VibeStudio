@@ -8,36 +8,6 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - SidebarHoverModifier
-
-/// Adds a subtle background highlight on mouse hover for sidebar interactive rows.
-private struct SidebarHoverModifier: ViewModifier {
-    let cornerRadius: CGFloat
-
-    @State private var isHovering = false
-
-    init(cornerRadius: CGFloat = 4) {
-        self.cornerRadius = cornerRadius
-    }
-
-    func body(content: Content) -> some View {
-        content
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(isHovering ? DSColor.textPrimary.opacity(0.07) : Color.clear)
-            )
-            .onHover { hovering in
-                isHovering = hovering
-            }
-    }
-}
-
-extension View {
-    /// Applies a sidebar hover highlight effect.
-    fileprivate func sidebarHover(cornerRadius: CGFloat = 4) -> some View {
-        modifier(SidebarHoverModifier(cornerRadius: cornerRadius))
-    }
-}
 
 // MARK: - SidebarSection
 
@@ -50,7 +20,7 @@ enum SidebarSection {
 // MARK: - BranchCreationContext
 
 /// Payload for "Create branch here" context menu — identifies the source branch.
-private struct BranchCreationContext: Identifiable {
+struct BranchCreationContext: Identifiable {
     let id = UUID()
     let project: Project
     let fromBranch: String
@@ -145,7 +115,7 @@ private struct ProjectFileHeaderView: View {
 
 /// Header row for a project in the Git section.
 /// Extracted as a standalone View so `.contextMenu` gets proper SwiftUI identity.
-private struct ProjectGitHeaderView: View {
+struct ProjectGitHeaderView: View {
     let project: Project
     let isActive: Bool
     let isExpanded: Bool
@@ -570,7 +540,16 @@ struct SidebarView: View {
                     .frame(height: DSLayout.gitSectionHeaderHeight)
 
                     ForEach(projectManager.projects) { project in
-                        gitProjectSection(project: project)
+                        GitProjectSectionView(
+                            project: project,
+                            isActiveProject: project.id == projectManager.activeProjectId,
+                            gitSidebarVM: vm,
+                            projectForRemoteModal: $projectForRemoteModal,
+                            projectToRemove: $projectToRemove,
+                            projectForCreateBranch: $projectForCreateBranch,
+                            branchCreationContext: $branchCreationContext,
+                            onSetActiveProject: { projectManager.activeProjectId = $0 }
+                        )
                     }
                 }
                 .padding(.horizontal, DSLayout.sidebarHorizontalPadding)
@@ -581,7 +560,7 @@ struct SidebarView: View {
                 Rectangle()
                     .fill(DSColor.borderDefault)
                     .frame(height: 1)
-                commitPanel(project: project)
+                CommitPanelView(project: project, gitSidebarVM: vm)
             }
         }
         .task {
@@ -589,432 +568,6 @@ struct SidebarView: View {
         }
     }
 
-    /// Project row in git panel. Header shows name + current branch + ahead/behind + gear.
-    /// Expanded: local branches list, or "Initialize Git" if not a repo.
-    private func gitProjectSection(project: Project) -> some View {
-        let isActive = project.id == projectManager.activeProjectId
-        let isExpanded = vm.gitExpandedProjects.contains(project.id)
-        let gitStatus = vm.projectGitStatuses[project.id]
-        let isNonGit = vm.nonGitProjects.contains(project.id)
-
-        return VStack(alignment: .leading, spacing: 0) {
-            ProjectGitHeaderView(
-                project: project,
-                isActive: isActive,
-                isExpanded: isExpanded,
-                remoteURL: vm.projectRemoteURLs[project.id],
-                branch: gitStatus?.branch,
-                aheadCount: gitStatus?.aheadCount ?? 0,
-                behindCount: gitStatus?.behindCount ?? 0,
-                onTap: {
-                    if isExpanded {
-                        vm.gitExpandedProjects.remove(project.id)
-                    } else {
-                        vm.gitExpandedProjects.insert(project.id)
-                        Task { await vm.loadGitInfo(for: project) }
-                    }
-                    projectManager.activeProjectId = project.id
-                },
-                onSettings: { projectForRemoteModal = project },
-                onRevealInFinder: {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.path.path)
-                },
-                onOpenInBrowser: { Task { await vm.openInRemote(project: project) } },
-                onRemove: { projectToRemove = project }
-            )
-
-            // Expanded content
-            if isExpanded {
-                if isNonGit {
-                    // Not a git repository — show init button
-                    notARepositoryContent(project: project)
-                } else if let branches = vm.projectBranches[project.id] {
-                    // Branch list
-                    branchListContent(
-                        branches: branches,
-                        currentBranch: gitStatus?.branch ?? "",
-                        aheadCount: gitStatus?.aheadCount ?? 0,
-                        behindCount: gitStatus?.behindCount ?? 0,
-                        project: project,
-                        branchError: vm.projectBranchErrors[project.id]
-                    )
-                } else {
-                    // Loading
-                    HStack {
-                        ProgressView().scaleEffect(0.6)
-                        Text("Loading…")
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.textMuted)
-                    }
-                    .padding(.leading, DSSpacing.md)
-                    .padding(.vertical, DSSpacing.xs)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    // MARK: - Expanded: Not a Repository
-
-    private func notARepositoryContent(project: Project) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Not a git repository")
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted)
-
-            Button {
-                Task { await vm.initRepository(for: project) }
-            } label: {
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 11))
-                    Text("Initialize Git")
-                        .font(DSFont.buttonLabel)
-                }
-                .foregroundStyle(DSColor.buttonPrimaryText)
-                .frame(maxWidth: .infinity)
-                .frame(height: DSLayout.gitButtonHeight)
-                .background(DSColor.buttonPrimaryBg, in: RoundedRectangle(cornerRadius: DSRadius.md))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.leading, DSSpacing.md)
-        .padding(.vertical, DSSpacing.xs)
-        .padding(.trailing, DSSpacing.xs)
-    }
-
-    // MARK: - Expanded: Branch List
-
-    private func branchListContent(
-        branches: [GitBranch],
-        currentBranch: String,
-        aheadCount: Int,
-        behindCount: Int,
-        project: Project,
-        branchError: String? = nil
-    ) -> some View {
-        let localBranches = branches.filter { !$0.isRemote }
-        let remoteBranches = branches.filter { $0.isRemote && !$0.name.hasSuffix("/HEAD") }
-        let remoteUnavailable = vm.remoteUnavailableProjects.contains(project.id)
-
-        return VStack(alignment: .leading, spacing: 0) {
-            if localBranches.isEmpty && remoteBranches.isEmpty {
-                // Empty state: error or genuinely no branches
-                if let error = branchError {
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Text("Could not load branches")
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.textMuted)
-                        Text(error)
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.gitDeleted)
-                            .lineLimit(2)
-                    }
-                    .padding(.leading, DSSpacing.md)
-                    .padding(.vertical, DSSpacing.xs)
-                } else {
-                    HStack(spacing: DSSpacing.sm) {
-                        Text("No local branches")
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.textMuted)
-                        Button("New branch") {
-                            projectForCreateBranch = project
-                        }
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.accentPrimary)
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.leading, DSSpacing.md)
-                    .padding(.vertical, DSSpacing.xs)
-                }
-            }
-
-            // Local branches — double-click to checkout
-            ForEach(localBranches) { branch in
-                let isCurrent = branch.name == currentBranch
-                let isOperating = vm.branchOperationsInProgress.contains("\(project.id):\(branch.name)")
-
-                HStack(spacing: DSSpacing.xs) {
-                    // Current / loading indicator
-                    if isOperating {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(width: 12, height: 12)
-                    } else {
-                        Image(systemName: isCurrent ? "checkmark" : "circle")
-                            .font(.system(size: isCurrent ? 9 : 6, weight: isCurrent ? .semibold : .regular))
-                            .foregroundStyle(isCurrent ? DSColor.gitAdded : DSColor.textMuted.opacity(0.5))
-                            .frame(width: 12)
-                    }
-
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 10))
-                        .foregroundStyle(isCurrent ? DSColor.accentPrimary : DSColor.textSecondary)
-
-                    Text(branch.name)
-                        .font(DSFont.sidebarItem)
-                        .foregroundStyle(isCurrent ? DSColor.textPrimary : DSColor.textSecondary)
-                        .fontWeight(isCurrent ? .medium : .regular)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    Spacer()
-
-                    // Ahead/behind only for current branch
-                    if isCurrent && (aheadCount > 0 || behindCount > 0) {
-                        HStack(spacing: 3) {
-                            if aheadCount > 0 {
-                                HStack(spacing: 1) {
-                                    Image(systemName: "arrow.up").font(.system(size: 8))
-                                    Text("\(aheadCount)").font(.system(size: 10))
-                                }.foregroundStyle(DSColor.gitAdded)
-                            }
-                            if behindCount > 0 {
-                                HStack(spacing: 1) {
-                                    Image(systemName: "arrow.down").font(.system(size: 8))
-                                    Text("\(behindCount)").font(.system(size: 10))
-                                }.foregroundStyle(DSColor.gitDeleted)
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, 3)
-                .contentShape(Rectangle())
-                .frame(height: DSLayout.gitFileRowHeight)
-                .sidebarHover()
-                .onTapGesture(count: 2) {
-                    guard !isCurrent else { return }
-                    Task { await vm.checkout(branch: branch.name, project: project) }
-                }
-                .contextMenu {
-                    Button {
-                        Task { await vm.gitBranchPull(branch.name, isCurrent: isCurrent, project: project) }
-                    } label: {
-                        Label("Pull", systemImage: "arrow.down.circle")
-                    }
-
-                    Button {
-                        Task { await vm.gitBranchPush(branch.name, project: project) }
-                    } label: {
-                        Label("Push", systemImage: "arrow.up.circle")
-                    }
-
-                    Divider()
-
-                    Button {
-                        branchCreationContext = BranchCreationContext(project: project, fromBranch: branch.name)
-                    } label: {
-                        Label("Create branch here", systemImage: "plus.circle")
-                    }
-                }
-            }
-
-            // New branch row (always visible below local branches)
-            Button {
-                projectForCreateBranch = project
-            } label: {
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(DSColor.accentPrimary)
-                        .frame(width: 12)
-                    Text("New branch")
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.accentPrimary)
-                    Spacer()
-                }
-                .frame(height: DSLayout.gitFileRowHeight)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .sidebarHover()
-
-            // Remote section separator + content
-            if remoteUnavailable || !remoteBranches.isEmpty {
-                // Shared origin separator — rendered once
-                HStack(spacing: DSSpacing.xs) {
-                    Rectangle().fill(DSColor.borderSubtle).frame(height: 1)
-                    Text("origin")
-                        .font(.system(size: 10))
-                        .foregroundStyle(DSColor.textMuted)
-                        .fixedSize()
-                    Rectangle().fill(DSColor.borderSubtle).frame(height: 1)
-                }
-                .padding(.vertical, DSSpacing.xs)
-
-                if remoteUnavailable {
-                    HStack(spacing: DSSpacing.xs) {
-                        Image(systemName: "cloud.slash")
-                            .font(.system(size: 9))
-                            .foregroundStyle(DSColor.textMuted)
-                            .frame(width: 12)
-                        Text("unavailable")
-                            .font(.system(size: 10))
-                            .foregroundStyle(DSColor.textMuted)
-                        Spacer()
-                    }
-                    .frame(height: 20)
-                } else {
-                    ForEach(remoteBranches) { branch in
-                        HStack(spacing: DSSpacing.xs) {
-                            Image(systemName: "cloud")
-                                .font(.system(size: 9))
-                                .foregroundStyle(DSColor.textMuted)
-                                .frame(width: 12)
-
-                            Text(branch.name.replacingOccurrences(of: "origin/", with: ""))
-                                .font(DSFont.sidebarItemSmall)
-                                .foregroundStyle(DSColor.textMuted)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-
-                            Spacer()
-                        }
-                        .frame(height: 22)
-                    }
-                }
-            }
-        }
-        .padding(.leading, DSSpacing.md)
-        .padding(.trailing, DSSpacing.xs)
-        .padding(.bottom, DSSpacing.xs)
-    }
-
-    // MARK: - Commit Panel
-
-    @ViewBuilder
-    private func commitPanel(project: Project) -> some View {
-        let gitStatus = vm.projectGitStatuses[project.id]
-        let hasChanges = !(gitStatus?.stagedFiles.isEmpty ?? true)
-            || !(gitStatus?.unstagedFiles.isEmpty ?? true)
-            || !(gitStatus?.untrackedFiles.isEmpty ?? true)
-        let isGenerating = vm.generatingAIProjects.contains(project.id)
-        let isCommitting = vm.committingProjects.contains(project.id)
-        let summaryText = vm.commitSummaries[project.id] ?? ""
-        let charCount = summaryText.count
-        let isOverLimit = charCount > 72
-
-        VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Rectangle()
-                .fill(DSColor.borderSubtle)
-                .frame(height: 1)
-                .padding(.vertical, 2)
-
-            // Input area
-            VStack(alignment: .leading, spacing: 0) {
-                // Summary + AI button
-                HStack(alignment: .top, spacing: DSSpacing.xs) {
-                    TextField(
-                        "Commit summary",
-                        text: Binding(
-                            get: { vm.commitSummaries[project.id] ?? "" },
-                            set: { vm.commitSummaries[project.id] = $0 }
-                        ),
-                        axis: .vertical
-                    )
-                    .font(DSFont.sidebarItem)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1...3)
-                    .disabled(!hasChanges || isCommitting)
-                    .opacity(hasChanges ? 1 : 0.35)
-
-                    Button {
-                        Task { await vm.generateAICommitMessage(for: project) }
-                    } label: {
-                        if isGenerating {
-                            ProgressView().scaleEffect(0.5).frame(width: 20, height: 20)
-                        } else {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 12))
-                                .foregroundStyle(hasChanges ? DSColor.accentPrimary : DSColor.textMuted)
-                                .frame(width: 20, height: 20)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!hasChanges || isGenerating || isCommitting)
-                    .help("Generate commit message with AI")
-                }
-
-                // Char count (only when typing)
-                if !summaryText.isEmpty {
-                    Text("\(charCount)/72")
-                        .font(.system(size: 9))
-                        .foregroundStyle(isOverLimit ? DSColor.gitDeleted : DSColor.textMuted)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.top, 2)
-                }
-
-                Rectangle()
-                    .fill(DSColor.borderSubtle)
-                    .frame(height: 1)
-                    .padding(.vertical, DSSpacing.xs)
-
-                // Description
-                TextField(
-                    "Description (optional)",
-                    text: Binding(
-                        get: { vm.commitDescriptions[project.id] ?? "" },
-                        set: { vm.commitDescriptions[project.id] = $0 }
-                    ),
-                    axis: .vertical
-                )
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textSecondary)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .disabled(!hasChanges || isCommitting)
-                .opacity(hasChanges ? 1 : 0.35)
-            }
-            .padding(DSSpacing.sm)
-            .background(DSColor.surfaceInput)
-            .clipShape(RoundedRectangle(cornerRadius: DSRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: DSRadius.md)
-                    .stroke(DSColor.borderDefault, lineWidth: 1)
-            )
-
-            // Inline error
-            if let error = vm.commitPanelErrors[project.id] {
-                Text(error)
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.gitDeleted)
-                    .lineLimit(2)
-            }
-
-            // Commit button
-            Button {
-                Task { await vm.performCommit(for: project) }
-            } label: {
-                ZStack {
-                    if isCommitting {
-                        ProgressView().scaleEffect(0.65)
-                    } else {
-                        HStack(spacing: DSSpacing.xs) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 11))
-                            Text("Commit All Changes")
-                                .font(DSFont.buttonLabel)
-                        }
-                    }
-                }
-                .foregroundStyle(hasChanges ? DSColor.buttonPrimaryText : DSColor.textMuted.opacity(0.5))
-                .frame(maxWidth: .infinity)
-                .frame(height: DSLayout.gitButtonHeight)
-                .background(
-                    hasChanges
-                        ? DSColor.buttonPrimaryBg.opacity(isCommitting ? 0.6 : 1.0)
-                        : DSColor.surfaceOverlay,
-                    in: RoundedRectangle(cornerRadius: DSRadius.md)
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasChanges || isCommitting)
-        }
-        .padding(.leading, DSSpacing.md)
-        .padding(.trailing, DSSpacing.xs)
-        .padding(.bottom, DSSpacing.sm)
-    }
 
     // MARK: - No Project View
 

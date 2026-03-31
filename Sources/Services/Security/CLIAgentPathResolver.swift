@@ -13,13 +13,9 @@ import Foundation
 enum CLIAgentPathResolver {
 
     /// Directories trusted for CLI agent binaries, searched in order.
-    private static let trustedDirectories: [String] = [
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "\(NSHomeDirectory())/.local/bin",
-        "\(NSHomeDirectory())/.npm-global/bin",
-        "/usr/bin",
-    ]
+    ///
+    /// Sourced from ``SecurityConstants/trustedBinDirectories`` — single source of truth.
+    private static let trustedDirectories: [String] = SecurityConstants.trustedBinDirectories
 
     /// Resolve an executable name to its absolute path within trusted directories.
     ///

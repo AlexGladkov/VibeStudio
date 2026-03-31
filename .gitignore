@@ -25,7 +25,6 @@ xcuserdata/
 # --- Swift Package Manager ---
 .build/
 .swiftpm/
-Package.resolved
 Packages/
 
 # --- macOS ---
@@ -48,8 +47,13 @@ Packages/
 *.mobileprovision
 *.provisionprofile
 AuthKey_*.p8
+.env
+.env.*
+.env.local
+*.env
 
 # --- Misc ---
 *.log
 *.tmp
 swarm-report/
+cat

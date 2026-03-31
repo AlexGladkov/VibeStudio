@@ -39,7 +39,9 @@ final class TerminalService: TerminalSessionManaging {
 
     private let store = TerminalSessionStore()
     private let appearance = TerminalAppearanceManager()
-    private var activityTracker: TerminalActivityTracker!
+    @ObservationIgnored private lazy var activityTracker = TerminalActivityTracker { [weak self] projectId, state in
+        self?.projectActivityStates[projectId] = state
+    }
 
     // MARK: - Private State
 
@@ -59,11 +61,8 @@ final class TerminalService: TerminalSessionManaging {
         sessionEvents = stream
         eventContinuation = continuation
 
-        // Activity tracker writes back to our stored property via callback
-        // so @Observable tracking propagates to SwiftUI.
-        activityTracker = TerminalActivityTracker { [weak self] projectId, state in
-            self?.projectActivityStates[projectId] = state
-        }
+        // Force lazy var initialization so the activity tracker is ready.
+        _ = activityTracker
 
         // Observe theme changes via @Observable directly -- no NotificationCenter.
         themeObservationTask = Task { @MainActor [weak self, weak themeService] in
@@ -168,6 +167,13 @@ final class TerminalService: TerminalSessionManaging {
         workingDirectory: String,
         apiKeyValue: String?
     ) -> TerminalSession? {
+        // Remove any lingering exited agent sessions before launching a new one
+        // to avoid HSplitView showing a dead panel alongside the new session.
+        let exitedIds = (sessionsByProject[projectId] ?? [])
+            .filter { s in s.isAgentSession && { if case .exited = s.state { return true }; return false }() }
+            .map(\.id)
+        exitedIds.forEach { removeSession($0) }
+
         // Enforce session limit per project.
         let existing = sessionsByProject[projectId] ?? []
         guard existing.count < maxSessionsPerProject else {
@@ -193,7 +199,9 @@ final class TerminalService: TerminalSessionManaging {
         appearance.configure(terminalView)
         installCallbacks(on: terminalView, sessionId: sessionId, projectId: projectId)
 
-        // Build allowlist-based environment for the agent.
+        // Build environment for the agent via the allowlist-based builder.
+        // All agents use the same restricted environment -- agent-specific API
+        // keys are injected explicitly from Keychain or settings.
         let agentEnv = AgentEnvironmentBuilder.build(for: agent, apiKeyValue: apiKeyValue)
 
         // Start the agent process in a dedicated PTY.
@@ -391,22 +399,28 @@ final class TerminalService: TerminalSessionManaging {
         store.removeView(for: sessionId)
         activityTracker.removeSession(sessionId)
 
-        if let projectId = store.removeProjectIndex(for: sessionId) {
-            if let index = sessionsByProject[projectId]?.firstIndex(where: { $0.id == sessionId }) {
-                sessionsByProject[projectId]!.remove(at: index)
-                if sessionsByProject[projectId]!.isEmpty {
-                    sessionsByProject.removeValue(forKey: projectId)
-                    activityTracker.removeProject(projectId)
-                }
-            }
+        guard let projectId = store.removeProjectIndex(for: sessionId) else { return }
+        guard var sessions = sessionsByProject[projectId],
+              let index = sessions.firstIndex(where: { $0.id == sessionId }) else {
+            Logger.terminal.warning("removeSession: session \(sessionId) not found in sessionsByProject")
+            return
+        }
+        sessions.remove(at: index)
+        if sessions.isEmpty {
+            sessionsByProject.removeValue(forKey: projectId)
+            activityTracker.removeProject(projectId)
+        } else {
+            sessionsByProject[projectId] = sessions
         }
     }
 
     /// Update a session's state in the internal model.
     private func updateSessionState(_ sessionId: UUID, _ mutate: (inout TerminalSession) -> Void) {
         guard let projectId = store.projectId(for: sessionId),
-              let index = sessionsByProject[projectId]?.firstIndex(where: { $0.id == sessionId }) else { return }
-        mutate(&sessionsByProject[projectId]![index])
+              var sessions = sessionsByProject[projectId],
+              let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        mutate(&sessions[index])
+        sessionsByProject[projectId] = sessions
     }
 
     // MARK: - Private: Activity Handling
@@ -442,24 +456,49 @@ final class TerminalService: TerminalSessionManaging {
 
     /// Handle process exit from a terminal view.
     private func handleProcessExit(sessionId: UUID, projectId: UUID, exitCode: Int32) {
-        // Release the SwiftTerm NSView and nil its callbacks immediately.
-        if let view = store.removeView(for: sessionId) {
+        let isAgent = sessionsByProject[projectId]?.first(where: { $0.id == sessionId })?.isAgentSession ?? false
+        Logger.terminal.warning("handleProcessExit: session=\(sessionId) exitCode=\(exitCode) isAgent=\(isAgent, privacy: .public)")
+
+        // Capture terminal buffer so we can see what the agent printed before exiting.
+        if isAgent, let view = store.view(for: sessionId) {
+            let data = view.getTerminal().getBufferAsData(kind: .active, encoding: .utf8)
+            if let raw = String(data: data, encoding: .utf8) {
+                // Strip ANSI escape codes for readability in Console.app.
+                let clean = raw.replacingOccurrences(
+                    of: #"\x1B\[[0-9;]*[mGKHJABCDEFG]|\x1B\][^\x07]*\x07"#,
+                    with: "", options: .regularExpression
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !clean.isEmpty {
+                    Logger.terminal.warning("Agent exit output (exitCode=\(exitCode)):\n\(clean.prefix(3000), privacy: .private)")
+                }
+            }
+        }
+
+        // Nil callbacks immediately to stop further updates.
+        if let view = store.view(for: sessionId) {
             view.onRangeChanged = nil
             view.onProcessExited = nil
         }
         activityTracker.removeSession(sessionId)
 
-        // Emit event for backward compatibility.
+        // Emit event so ToolbarViewModel clears the running state.
         eventContinuation.yield(
             .processExited(sessionId: sessionId, projectId: projectId, exitCode: exitCode)
         )
-
-        // Update activity state via tracker.
         activityTracker.handleProcessExit(projectId: projectId, exitCode: exitCode)
 
-        // Update session state.
-        updateSessionState(sessionId) { session in
-            session.state = .exited(code: exitCode)
+        if isAgent {
+            // Keep agent session visible for 10 s so the user can read any error
+            // output (e.g. "$PATH does not contain…"). Mark state as exited so
+            // TerminalAreaView keeps displaying it. Actual cleanup is deferred.
+            updateSessionState(sessionId) { s in s.state = .exited(code: exitCode) }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(10))
+                self?.removeSession(sessionId)
+            }
+        } else {
+            // Shell sessions are removed immediately on exit.
+            removeSession(sessionId)
         }
     }
 }

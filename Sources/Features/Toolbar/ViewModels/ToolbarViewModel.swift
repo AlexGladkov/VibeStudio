@@ -40,6 +40,7 @@ final class ToolbarViewModel {
         self.terminalManager = terminalManager
         self.agentAvailability = agentAvailability
         startProjectCleanupObservation()
+        startSessionEventObservation()
     }
 
     // MARK: - Cleanup
@@ -51,6 +52,24 @@ final class ToolbarViewModel {
         agentSessionIds.removeValue(forKey: projectId)
     }
 
+    /// Subscribe to terminal session events and clear the running state
+    /// when an agent's dedicated PTY process exits (e.g. the user exits the agent
+    /// or it crashes). Without this the stop button stays red forever.
+    private func startSessionEventObservation() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            for await event in self.terminalManager.sessionEvents {
+                if case .processExited(let sessionId, let projectId, let exitCode) = event {
+                    if self.agentSessionIds[projectId] == sessionId {
+                        Logger.ui.info("ToolbarViewModel: agent session \(sessionId) exited with code \(exitCode), clearing running state")
+                        self.runningAssistants[projectId] = false
+                        self.agentSessionIds.removeValue(forKey: projectId)
+                    }
+                }
+            }
+        }
+    }
+
     /// Observe the projects list and auto-cleanup entries for removed projects.
     private func startProjectCleanupObservation() {
         Task { @MainActor [weak self] in
@@ -58,12 +77,18 @@ final class ToolbarViewModel {
             var knownIds = Set(self.projectManager.projects.map(\.id))
 
             while !Task.isCancelled {
-                await withUnsafeContinuation { (c: UnsafeContinuation<Void, Never>) in
-                    withObservationTracking {
-                        _ = self.projectManager.projects
-                    } onChange: {
-                        c.resume()
+                let holder = ContinuationHolder()
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                        holder.set(c)
+                        withObservationTracking {
+                            _ = self.projectManager.projects
+                        } onChange: {
+                            holder.resume()
+                        }
                     }
+                } onCancel: {
+                    holder.resume()
                 }
                 guard !Task.isCancelled else { return }
                 let currentIds = Set(self.projectManager.projects.map(\.id))
@@ -120,11 +145,11 @@ final class ToolbarViewModel {
         }
 
         // Resolve working directory from active project.
-        guard let project = projectManager.projects.first(where: { $0.id == id }) else {
-            Logger.ui.debug("ToolbarViewModel.startAssistant: project not found for id \(id)")
-            return
-        }
-        let workingDirectory = project.path.path
+        // For free tabs the ID doesn't exist in projectManager.projects, so fall
+        // back to the home directory — the terminal session already runs there.
+        let workingDirectory = projectManager.projects
+            .first(where: { $0.id == id })?.path.path
+            ?? NSHomeDirectory()
 
         // Resolve API key: Keychain first, then environment fallback.
         let apiKeyValue: String? = {
@@ -137,18 +162,35 @@ final class ToolbarViewModel {
 
         Logger.ui.debug("ToolbarViewModel.startAssistant: launching \(agent.displayName, privacy: .public) for project \(id)")
 
-        // Launch agent in a dedicated PTY.
-        if let session = terminalManager.startAgentSession(
-            agent: agent,
-            for: id,
-            workingDirectory: workingDirectory,
-            apiKeyValue: apiKeyValue
-        ) {
+        if agent.launchViaShellInput {
+            // Send the launch command to the existing shell session.
+            // This gives the agent the full login-shell environment (.zprofile
+            // is already sourced), which is required for agents whose API keys
+            // live in env vars set by the user's shell profile.
+            guard let shellSession = terminalManager.sessions(for: id)
+                    .first(where: { !$0.isAgentSession }) else {
+                Logger.ui.warning("ToolbarViewModel.startAssistant: no shell session available for \(agent.displayName, privacy: .public)")
+                return
+            }
+            terminalManager.sendInput(agent.launchCommand, to: shellSession.id)
             runningAssistants[id] = true
-            agentSessionIds[id] = session.id
-            Logger.ui.info("ToolbarViewModel.startAssistant: agent session \(session.id) created")
+            // Track the shell session so stopAssistant can send the exit sequence.
+            agentSessionIds[id] = shellSession.id
+            Logger.ui.info("ToolbarViewModel.startAssistant: sent launch command to shell session \(shellSession.id)")
         } else {
-            Logger.ui.error("ToolbarViewModel.startAssistant: failed to create agent session")
+            // Launch agent in a dedicated PTY.
+            if let session = terminalManager.startAgentSession(
+                agent: agent,
+                for: id,
+                workingDirectory: workingDirectory,
+                apiKeyValue: apiKeyValue
+            ) {
+                runningAssistants[id] = true
+                agentSessionIds[id] = session.id
+                Logger.ui.info("ToolbarViewModel.startAssistant: agent session \(session.id) created")
+            } else {
+                Logger.ui.error("ToolbarViewModel.startAssistant: failed to create agent session")
+            }
         }
     }
 

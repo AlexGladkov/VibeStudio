@@ -24,10 +24,11 @@ struct RootView: View {
 
     @Environment(\.projectManager) private var projectManager
     @Environment(AppReadyState.self) private var appReady
-    @Environment(\.openSettings) private var openSettings
     @Environment(\.themeService) private var themeService
     @Environment(\.navigationCoordinator) private var navigationCoordinator
+    @Environment(\.freeTabStore) private var freeTabStore
     @State private var showSidebar = true
+    @State private var showSettings = false
 
     /// The concrete color scheme to apply to the entire window.
     ///
@@ -50,7 +51,7 @@ struct RootView: View {
                 // trigger independent TCC dialogs even if the parent already
                 // has a pending consent dialog.
                 DSColor.surfaceBase
-            } else if projectManager.projects.isEmpty {
+            } else if projectManager.projects.isEmpty && freeTabStore.freeTabs.isEmpty {
                 WelcomeView()
             } else {
                 HSplitView {
@@ -109,9 +110,12 @@ struct RootView: View {
                 InstallAgentSheet(assistant: assistant)
             }
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
         .onChange(of: navigationCoordinator.showingSettings) { _, newValue in
             if newValue {
-                openSettings()
+                showSettings = true
                 navigationCoordinator.showingSettings = false
             }
         }

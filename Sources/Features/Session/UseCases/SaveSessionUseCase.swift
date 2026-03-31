@@ -63,10 +63,19 @@ struct SaveSessionUseCase {
             )
         }
 
+        // Resolve the active ID: only persist it when it belongs to a real project.
+        // If a FreeTab was active at quit, its UUID is not a real project ID and
+        // would not survive the next RestoreSessionUseCase lookup — leaving
+        // activeProjectId unresolved on startup and causing ActivateFirstProjectUseCase
+        // to create an extra session on top of the already-restored ones.
+        let resolvedActiveId: UUID? = projectManager.activeProjectId.flatMap { id in
+            projectManager.project(for: id) != nil ? id : nil
+        }
+
         let snapshot = AppSessionSnapshot(
             version: sessionPersistence.currentSnapshotVersion,
             capturedAt: .now,
-            activeProjectId: projectManager.activeProjectId,
+            activeProjectId: resolvedActiveId,
             projectSessions: projectSessions
         )
 

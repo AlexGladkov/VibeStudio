@@ -19,8 +19,8 @@ EXPORT_DIR      := $(BUILD_DIR)/export
 APP_BUNDLE      := $(EXPORT_DIR)/$(APP_NAME).app
 DMG_OUTPUT      := $(BUILD_DIR)/$(APP_NAME).dmg
 
-# Version — override from CI: make build VERSION=1.0.0 BUILD_NUMBER=42
-VERSION         ?= 0.1.0
+# Version — read from project.yml (single source of truth); override from CI: make build VERSION=1.0.0 BUILD_NUMBER=42
+VERSION         ?= $(shell grep 'MARKETING_VERSION:' project.yml | head -1 | sed 's/.*: *"\(.*\)"/\1/' | tr -d ' ')
 BUILD_NUMBER    ?= 1
 
 # Signing — for unsigned MVP builds
@@ -68,7 +68,7 @@ test: ## Run unit tests
 		-resultBundlePath $(BUILD_DIR)/TestResults.xcresult \
 		MACOSX_DEPLOYMENT_TARGET=$(MIN_MACOS) \
 		PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) \
-		| xcpretty --color || true
+		| xcpretty --color
 
 archive: ## Create xcarchive for distribution
 	$(XCODEBUILD) archive \

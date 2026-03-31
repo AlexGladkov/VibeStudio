@@ -31,9 +31,5 @@ struct VibeStudioApp: App {
             height: DSLayout.windowDefaultHeight
         )
 
-        Settings {
-            SettingsView()
-                .injectServices(from: appDelegate.container)
-        }
     }
 }

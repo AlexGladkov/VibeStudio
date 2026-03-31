@@ -65,8 +65,6 @@ jobs:
       - name: Run tests
         run: |
           make test
-        # Tests may not exist yet for MVP — do not block release
-        continue-on-error: true
 
       - name: Build archive
         run: |

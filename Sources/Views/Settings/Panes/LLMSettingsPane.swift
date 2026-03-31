@@ -1,20 +1,33 @@
 // MARK: - LLMSettingsPane
-// Placeholder pane for per-assistant LLM settings.
+// Dispatches to the appropriate settings pane for each AI assistant.
 // macOS 14+, Swift 5.10
 
 import SwiftUI
 
 // MARK: - LLMSettingsPane
 
-/// Placeholder pane displayed when an LLM assistant is selected in settings.
+/// Routes to the correct settings pane based on the selected ``AIAssistant``.
 ///
-/// Shows an "under construction" state until per-assistant configuration
-/// is implemented in a future release.
+/// Each assistant has a dedicated settings pane:
+/// Claude → ``ClaudeSettingsPane``, Opencode → ``OpencodeSettingsPane``,
+/// Codex → ``CodexSettingsPane``, Gemini → ``GeminiSettingsPane``,
+/// Qwen → ``QwenSettingsPane``.
 struct LLMSettingsPane: View {
 
     let assistant: AIAssistant
 
     var body: some View {
-        UnderConstructionPane(title: assistant.displayName)
+        switch assistant {
+        case .claude:
+            ClaudeSettingsPane()
+        case .opencode:
+            OpencodeSettingsPane()
+        case .codex:
+            CodexSettingsPane()
+        case .gemini:
+            GeminiSettingsPane()
+        case .qwenCode:
+            QwenSettingsPane()
+        }
     }
 }
