@@ -54,34 +54,54 @@ struct RootView: View {
             } else if projectManager.projects.isEmpty && freeTabStore.freeTabs.isEmpty {
                 WelcomeView()
             } else {
-                HSplitView {
-                    SidebarView()
-                        .frame(
-                            minWidth: showSidebar ? DSLayout.sidebarMinWidth : 0,
-                            idealWidth: showSidebar ? DSLayout.sidebarDefaultWidth : 0,
-                            maxWidth: showSidebar ? DSLayout.sidebarMaxWidth : 0
-                        )
-                        .clipped()
+                HStack(spacing: 0) {
+                    HSplitView {
+                        SidebarView()
+                            .frame(
+                                minWidth: showSidebar ? DSLayout.sidebarMinWidth : 0,
+                                idealWidth: showSidebar ? DSLayout.sidebarDefaultWidth : 0,
+                                maxWidth: showSidebar ? DSLayout.sidebarMaxWidth : 0
+                            )
+                            .clipped()
 
-                    VStack(spacing: 0) {
-                        TabBarView()
+                        VStack(spacing: 0) {
+                            TabBarView()
 
-                        if projectManager.activeProjectId != nil {
-                            TerminalAreaView()
-                        } else {
-                            WelcomeView()
+                            if projectManager.activeProjectId != nil {
+                                TerminalAreaView()
+                            } else {
+                                WelcomeView()
+                            }
                         }
+                        .frame(minWidth: 300)
                     }
-                    .frame(minWidth: 300)
+
+                    // Right-side changes panel
+                    if navigationCoordinator.showingChangesPanel && projectManager.activeProjectId != nil {
+                        Divider()
+                        GitChangesPanelView()
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
                 .background {
-                    Button("") {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            showSidebar.toggle()
+                    // Hidden keyboard shortcut buttons
+                    VStack {
+                        Button("") {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showSidebar.toggle()
+                            }
                         }
+                        .keyboardShortcut("b", modifiers: .command)
+                        .hidden()
+
+                        Button("") {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                navigationCoordinator.showingChangesPanel.toggle()
+                            }
+                        }
+                        .keyboardShortcut("g", modifiers: [.command, .shift])
+                        .hidden()
                     }
-                    .keyboardShortcut("b", modifiers: .command)
-                    .hidden()
                 }
             }
         }

@@ -48,6 +48,7 @@
 		443B61933659FBB3F580AFB7 /* CreateBranchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FCA30A6F9404865A57376D /* CreateBranchViewModel.swift */; };
 		44D02EE6AE590C8E33A12435 /* MockProjectManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1E6DAAE393BED9BA9DC0CB /* MockProjectManager.swift */; };
 		46B5FD27CF2CD2454194B8FB /* SidebarHoverModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B594EDFD37420A40771A34BE /* SidebarHoverModifier.swift */; };
+		492C46D4141CAB9A9CB5A88A /* DiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE3A907EC50BB959FA9B7B /* DiffView.swift */; };
 		4BDD03D4343FF8C21FBD0A8A /* SkillViewerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082E8033B21C63D5BEBFD52E /* SkillViewerSheet.swift */; };
 		4BE0BD3CCD230C39CE4BCA00 /* AICommitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41A0250CD48257B99C273AC5 /* AICommitService.swift */; };
 		4CFC9C955C987005AEFB5F78 /* CreateBranchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7CFD253A3D2778D91E055 /* CreateBranchSheet.swift */; };
@@ -92,11 +93,14 @@
 		A67875E8D20272D171BE7A7B /* AddProjectPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604FFEB16C4E1819715AD0B9 /* AddProjectPopover.swift */; };
 		A7F36B11FB0884B707EDA08E /* GitBranchValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6097750939363FB52042A9D6 /* GitBranchValidationTests.swift */; };
 		A832A9506039B340E6310F2A /* GitStatusPolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF474238A8C2D84BBD35489 /* GitStatusPolling.swift */; };
+		AA2F9ACD9FDE98E57B21C11C /* GitChangesPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A06FBA06D054BA92162EFB /* GitChangesPanelViewModel.swift */; };
+		B0D364AE979225B10A4A31A1 /* FileDiffSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792DE9B3E657958826F28470 /* FileDiffSheetView.swift */; };
 		B1F017B004B29B08566E325A /* CLIAgentPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C4442D41A15125E8561B01 /* CLIAgentPathResolver.swift */; };
 		B46850F147A68B3C4F951B8E /* AddProjectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F301F5F84EBE1EB4E4EBB2DF /* AddProjectViewModel.swift */; };
 		B4D7827110E843C0501E99E8 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB31C7B54D77FFE30473D40D /* SettingsSection.swift */; };
 		B5416F54C3D7953837DF24CF /* FileSystemWatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81A7D100A75DE8B897E44DB /* FileSystemWatching.swift */; };
 		B86C84E5DF7A85529CD3FB19 /* TerminalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398ECE8649FC89E6E44390CA /* TerminalService.swift */; };
+		B957B64A31CC9D01AFE6A974 /* GitChangesPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B404F9944AF2A0C9682AE72 /* GitChangesPanelView.swift */; };
 		B95A6550067433C172B129B4 /* MarkdownEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2861FE347690C71FAF9B6CBB /* MarkdownEditorView.swift */; };
 		BE16D2AE5BCF126B439EC570 /* TerminalSessionManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE7FB6400C135E9A5438B8B /* TerminalSessionManaging.swift */; };
 		BE84E355C6B7F632A56A43FE /* AgentEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782B1AF04CCC9DE9AC75363E /* AgentEditorSheet.swift */; };
@@ -183,6 +187,7 @@
 		34D68FCAAFE55EA7775F2014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		37901A7BDC86CA199A3B9491 /* LLMSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMSettingsPane.swift; sourceTree = "<group>"; };
 		398ECE8649FC89E6E44390CA /* TerminalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalService.swift; sourceTree = "<group>"; };
+		3B404F9944AF2A0C9682AE72 /* GitChangesPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitChangesPanelView.swift; sourceTree = "<group>"; };
 		3F2A0126658D15DDC65BB524 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4003614DBDFCACEF0E138B20 /* ViewedFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewedFile.swift; sourceTree = "<group>"; };
 		40C4442D41A15125E8561B01 /* CLIAgentPathResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIAgentPathResolver.swift; sourceTree = "<group>"; };
@@ -218,6 +223,7 @@
 		7655A4ABBF755653E9C14BB1 /* InstallAgentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallAgentSheet.swift; sourceTree = "<group>"; };
 		77FD41015A7C1B3FB24253DC /* AgentAvailabilityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAvailabilityService.swift; sourceTree = "<group>"; };
 		782B1AF04CCC9DE9AC75363E /* AgentEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEditorSheet.swift; sourceTree = "<group>"; };
+		792DE9B3E657958826F28470 /* FileDiffSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDiffSheetView.swift; sourceTree = "<group>"; };
 		7BFACAE0C3BE4964D7072E26 /* FreeTabItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTabItemView.swift; sourceTree = "<group>"; };
 		7E82ECC14367AF605FBD8DC0 /* ProjectManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectManaging.swift; sourceTree = "<group>"; };
 		80BC923781455F26405F3A9D /* ThemeServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeServicing.swift; sourceTree = "<group>"; };
@@ -277,6 +283,7 @@
 		DE2E5D7C3DC4E8C064261824 /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
 		DFAA51FBA36F836A6E872587 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		E0818C8FD48BA7A4750D67A7 /* ActivateFirstProjectUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivateFirstProjectUseCase.swift; sourceTree = "<group>"; };
+		E0A06FBA06D054BA92162EFB /* GitChangesPanelViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitChangesPanelViewModel.swift; sourceTree = "<group>"; };
 		E51CB0AE25A5EE6F7DC459B5 /* RestoreSessionUseCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestoreSessionUseCase.swift; sourceTree = "<group>"; };
 		E7A9861565F03EEC5D3DEC79 /* FileViewerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileViewerViewModel.swift; sourceTree = "<group>"; };
 		E94752B04F28E876871026A1 /* TerminalAreaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAreaView.swift; sourceTree = "<group>"; };
@@ -284,6 +291,7 @@
 		EAECD98B20469729B69D2695 /* FileTreeBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTreeBuilder.swift; sourceTree = "<group>"; };
 		EC6CBC85C12986B3296CF21D /* GitSidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitSidebarViewModel.swift; sourceTree = "<group>"; };
 		EC7C5F17DBC3386F3AC60DE2 /* FreeTabStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTabStore.swift; sourceTree = "<group>"; };
+		EFFE3A907EC50BB959FA9B7B /* DiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffView.swift; sourceTree = "<group>"; };
 		F301F5F84EBE1EB4E4EBB2DF /* AddProjectViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddProjectViewModel.swift; sourceTree = "<group>"; };
 		F692B4BD06857E954C89FEA4 /* GitStatusPollerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusPollerTests.swift; sourceTree = "<group>"; };
 		F813AC18FAFDD9295B87292A /* SheetActionButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetActionButtons.swift; sourceTree = "<group>"; };
@@ -492,6 +500,14 @@
 			path = Persistence;
 			sourceTree = "<group>";
 		};
+		56DCBD84A3B3A889D19EEA95 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				E0A06FBA06D054BA92162EFB /* GitChangesPanelViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
 		5827EBFC63608AD72897FA19 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -652,6 +668,16 @@
 			path = FreeTab;
 			sourceTree = "<group>";
 		};
+		8B4A626EB8539A6DB91ACDA4 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				EFFE3A907EC50BB959FA9B7B /* DiffView.swift */,
+				792DE9B3E657958826F28470 /* FileDiffSheetView.swift */,
+				3B404F9944AF2A0C9682AE72 /* GitChangesPanelView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
 		8EA25B6BB1D077F112302FB4 /* UseCases */ = {
 			isa = PBXGroup;
 			children = (
@@ -698,12 +724,22 @@
 			);
 			sourceTree = "<group>";
 		};
+		9D08995BFE9058CA309122FA /* GitChanges */ = {
+			isa = PBXGroup;
+			children = (
+				56DCBD84A3B3A889D19EEA95 /* ViewModels */,
+				8B4A626EB8539A6DB91ACDA4 /* Views */,
+			);
+			path = GitChanges;
+			sourceTree = "<group>";
+		};
 		A3FFA674FAF7100FE4765B52 /* Features */ = {
 			isa = PBXGroup;
 			children = (
 				B407210D7E1D48E23B5C749D /* FileTree */,
 				CE1C7218A0F9CACFC765D69A /* FileViewer */,
 				A8C29B2C3F66FFB9E37E11D0 /* Git */,
+				9D08995BFE9058CA309122FA /* GitChanges */,
 				166382C2B28FA6E25A0BD978 /* Projects */,
 				FF73578B9C5A57C8083F1C7A /* Session */,
 				CFAF4F7F94013C2DAAB50C64 /* Settings */,
@@ -1076,8 +1112,10 @@
 				443B61933659FBB3F580AFB7 /* CreateBranchViewModel.swift in Sources */,
 				3D69A6E2F3C542DF7F187A37 /* DependencyContainer.swift in Sources */,
 				FFEC61D2B8C01E446E4C4355 /* DesignTokens.swift in Sources */,
+				492C46D4141CAB9A9CB5A88A /* DiffView.swift in Sources */,
 				38E4D97623C8E6846A7F5B61 /* Errors.swift in Sources */,
 				A454FB9A846059BECC9C8485 /* FileColumnView.swift in Sources */,
+				B0D364AE979225B10A4A31A1 /* FileDiffSheetView.swift in Sources */,
 				8F421BD9E898C1115C9776B0 /* FileSystemWatcher.swift in Sources */,
 				B5416F54C3D7953837DF24CF /* FileSystemWatching.swift in Sources */,
 				C5F82B55AD679B5C5468699B /* FileTreeBuilder.swift in Sources */,
@@ -1094,6 +1132,8 @@
 				39A31F56398E5A5A181D44AE /* GeminiSettingsPane.swift in Sources */,
 				DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */,
 				FF954AE43ADA18597C77920A /* GitBranching.swift in Sources */,
+				B957B64A31CC9D01AFE6A974 /* GitChangesPanelView.swift in Sources */,
+				AA2F9ACD9FDE98E57B21C11C /* GitChangesPanelViewModel.swift in Sources */,
 				D0B946C830DFF3F859FDF6DD /* GitCommitting.swift in Sources */,
 				15774751E8D136A07A4FED06 /* GitProjectSectionView.swift in Sources */,
 				5306BC60493E06F371CCEF9E /* GitRemoteOperating.swift in Sources */,
@@ -1313,7 +1353,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.0.6;
+				MARKETING_VERSION = 0.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -1353,7 +1393,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.0.6;
+				MARKETING_VERSION = 0.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;

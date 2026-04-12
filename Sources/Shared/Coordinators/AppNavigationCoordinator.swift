@@ -25,4 +25,10 @@ final class AppNavigationCoordinator {
     ///
     /// `RootView` observes this and calls `openSettings()`, then resets to `false`.
     var showingSettings: Bool = false
+
+    /// Controls the right-side git changes panel visibility.
+    ///
+    /// Toggled from the toolbar button (sidebar.right icon) or ⌘⇧G shortcut.
+    /// `RootView` observes this to conditionally render `GitChangesPanelView`.
+    var showingChangesPanel: Bool = false
 }

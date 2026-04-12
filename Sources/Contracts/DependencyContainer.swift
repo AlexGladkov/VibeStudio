@@ -348,6 +348,7 @@ private final class PreviewGitService: GitServicing {
     func addRemote(name: String, url: String, at repository: URL) async throws {}
     func remoteURL(name: String, at repository: URL) async -> String? { nil }
     func aheadBehind(at repository: URL) async throws -> (ahead: Int, behind: Int) { (0, 0) }
+    func diffStats(at repository: URL) async throws -> [String: GitDiffStat] { [:] }
 }
 
 private final class PreviewFileSystemWatcher: FileSystemWatching {

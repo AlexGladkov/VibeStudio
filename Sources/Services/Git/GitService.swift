@@ -90,6 +90,52 @@ final class GitService: GitServicing, @unchecked Sendable {
         }
     }
 
+    func diffStats(at repository: URL) async throws -> [String: GitDiffStat] {
+        // Merge unstaged and staged numstat results.
+        var result: [String: (added: Int, deleted: Int)] = [:]
+
+        func merge(_ output: String) {
+            for (path, stat) in parseNumstat(output) {
+                if let existing = result[path] {
+                    result[path] = (existing.added + stat.added, existing.deleted + stat.deleted)
+                } else {
+                    result[path] = stat
+                }
+            }
+        }
+
+        // Unstaged diff (vs index)
+        if let unstaged = try? await runGit(["diff", "--numstat"], in: repository) {
+            merge(unstaged)
+        }
+        // Staged diff (index vs HEAD, with fallback for empty repos)
+        let staged: String
+        do {
+            staged = try await runGit(["diff", "--cached", "--numstat"], in: repository)
+        } catch {
+            staged = (try? await runGit(["diff", "--numstat"], in: repository)) ?? ""
+        }
+        merge(staged)
+
+        return result.mapValues { GitDiffStat(added: $0.added, deleted: $0.deleted) }
+    }
+
+    /// Parse `git diff --numstat` output into a path→(added, deleted) dictionary.
+    ///
+    /// Each line has the form: `<added>\t<deleted>\t<path>`
+    /// Binary files show `-` for both counts and are skipped.
+    private func parseNumstat(_ output: String) -> [String: (added: Int, deleted: Int)] {
+        var dict: [String: (added: Int, deleted: Int)] = [:]
+        for line in output.split(separator: "\n", omittingEmptySubsequences: true) {
+            let parts = line.split(separator: "\t", maxSplits: 2)
+            guard parts.count == 3 else { continue }
+            guard let added = Int(parts[0]), let deleted = Int(parts[1]) else { continue }
+            let path = String(parts[2])
+            dict[path] = (added, deleted)
+        }
+        return dict
+    }
+
     func initRepository(at path: URL) async throws {
         try await runGit(["init"], in: path)
     }

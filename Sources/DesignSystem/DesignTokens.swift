@@ -172,6 +172,15 @@ enum DSColor {
     /// Renamed files (R).
     static let gitRenamed    = adaptiveColor(dark: "#58A6FF", light: "#1E64C8")
 
+    // MARK: Diff
+
+    /// Background for added lines in diff view.
+    static let diffAddedBg   = adaptiveColor(dark: "#143D1F", light: "#DAFBE1")
+    /// Background for deleted lines in diff view.
+    static let diffDeletedBg = adaptiveColor(dark: "#3D1214", light: "#FFE4E4")
+    /// Line number / gutter text in diff view.
+    static let diffGutter    = adaptiveColor(dark: "#55565C", light: "#AEAEB2")
+
     // MARK: Activity Indicators
 
     /// Tab is open but nothing has happened (or user already checked it).
@@ -412,6 +421,19 @@ enum DSLayout {
 
     /// Activity indicator dot diameter.
     static let indicatorSize: CGFloat = 6
+
+    // MARK: Changes Panel
+
+    /// Default width for the right-side git changes panel.
+    static let changesPanelDefaultWidth: CGFloat = 280
+    /// Minimum width for the changes panel.
+    static let changesPanelMinWidth: CGFloat = 220
+    /// Maximum width for the changes panel.
+    static let changesPanelMaxWidth: CGFloat = 450
+    /// Row height for a file entry in the changes list.
+    static let changesFileRowHeight: CGFloat = 26
+    /// Line height for diff view rows.
+    static let diffLineHeight: CGFloat = 18
 
     // MARK: Window
 

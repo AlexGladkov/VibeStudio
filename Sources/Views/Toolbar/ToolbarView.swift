@@ -39,6 +39,7 @@ struct ToolbarView: View {
             playStopButton(model: model)
             openInBrowserButton(model: model)
             settingsButton()
+            changesToggleButton()
         }
         .padding(.horizontal, 12)
         .onAppear {
@@ -174,6 +175,28 @@ struct ToolbarView: View {
         }
         .buttonStyle(.plain)
         .disabled(model.activeId == nil)
+    }
+
+    // MARK: - Changes Panel Toggle
+
+    private func changesToggleButton() -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                navigationCoordinator.showingChangesPanel.toggle()
+            }
+        } label: {
+            Image(systemName: "sidebar.right")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(
+                    navigationCoordinator.showingChangesPanel
+                        ? DSColor.accentPrimary
+                        : DSColor.textSecondary
+                )
+                .frame(width: 26, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Toggle Changes Panel (\u{2318}\u{21E7}G)")
     }
 
     // MARK: - Settings Button
