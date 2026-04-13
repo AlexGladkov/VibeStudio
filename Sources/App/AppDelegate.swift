@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             navigationCoordinator: navigationCoordinator,
             themeService: themeService,
             freeTabStore: freeTabStore,
-            codeSpeak: codeSpeakService
+            codeSpeak: codeSpeakService,
+            syntaxParserRegistry: syntaxParserRegistry
         )
     }()
 
@@ -53,6 +54,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var themeService = ThemeService()
     private lazy var freeTabStore = FreeTabStore()
     private lazy var codeSpeakService = CodeSpeakService()
+    private lazy var syntaxParserRegistry: SyntaxParserRegistry = {
+        let registry = SyntaxParserRegistry()
+        registry.register(CodeSpeakParser())
+        registry.register(MarkdownParser())
+        return registry
+    }()
 
     /// Lifecycle coordinator — manages TCC, session restore/save, polling, events.
     private lazy var lifecycleCoordinator = AppLifecycleCoordinator(

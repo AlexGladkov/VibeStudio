@@ -7,14 +7,15 @@ import AppKit
 
 /// Modal sheet for editing a `.cs.md` spec file.
 ///
-/// Left pane: NSTextView-based markdown editor (reuses `MarkdownEditorView`).
+/// Left pane: Syntax-highlighted editor (``CodeSpeakEditorView``).
 /// Right pane: rendered Text preview.
-/// Sheet size: 900 × 600.
+/// Sheet size: 900 x 600.
 struct SpecEditorSheet: View {
 
     let specFile: SpecFile
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.syntaxParserRegistry) private var syntaxParserRegistry
 
     @State private var vm: SpecEditorViewModel?
 
@@ -59,14 +60,17 @@ struct SpecEditorSheet: View {
                         .padding(.vertical, DSSpacing.xs)
                         .background(DSColor.surfaceOverlay)
                     Divider()
-                    MarkdownEditorView(
+                    CodeSpeakEditorView(
                         text: Binding(
                             get: { model.content },
                             set: { newVal in
                                 model.content = newVal
                                 model.markDirty()
                             }
-                        )
+                        ),
+                        isEditable: true,
+                        parserRegistry: syntaxParserRegistry,
+                        fileExtension: "cs.md"
                     )
                     .background(DSColor.surfaceBase)
                 }

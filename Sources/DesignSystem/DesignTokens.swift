@@ -243,6 +243,39 @@ enum DSColor {
 
     /// Swift language icon color (official Swift orange).
     static let swiftOrange = Color(hex: "#F05138")
+
+    // MARK: Syntax Highlighting
+
+    /// Heading text (# through ######).
+    static let syntaxHeading              = adaptiveColor(dark: "#79C0FF", light: "#0550AE")
+    /// Bold text (**bold**).
+    static let syntaxBold                 = adaptiveColor(dark: "#E3C04B", light: "#9A6700")
+    /// Italic text (*italic*).
+    static let syntaxItalic               = adaptiveColor(dark: "#D2A8FF", light: "#8250DF")
+    /// Inline code (`code`).
+    static let syntaxInlineCode           = adaptiveColor(dark: "#FF7B72", light: "#CF222E")
+    /// Code fence delimiter (``` or ~~~).
+    static let syntaxCodeFence            = adaptiveColor(dark: "#8B949E", light: "#6E7781")
+    /// Code block body text.
+    static let syntaxCodeBody             = adaptiveColor(dark: "#C9D1D9", light: "#24292F")
+    /// Link text [text].
+    static let syntaxLink                 = adaptiveColor(dark: "#58A6FF", light: "#0969DA")
+    /// Link URL (url).
+    static let syntaxLinkURL              = adaptiveColor(dark: "#8B949E", light: "#6E7781")
+    /// Blockquote prefix (>).
+    static let syntaxBlockquote           = adaptiveColor(dark: "#8B949E", light: "#6E7781")
+    /// List marker (-, *, +, 1.).
+    static let syntaxListMarker           = adaptiveColor(dark: "#FF7B72", light: "#CF222E")
+    /// YAML frontmatter delimiter (---).
+    static let syntaxFrontmatterDelimiter = adaptiveColor(dark: "#BC8CFF", light: "#8250DF")
+    /// YAML frontmatter key.
+    static let syntaxFrontmatterKey       = adaptiveColor(dark: "#79C0FF", light: "#0550AE")
+    /// YAML frontmatter value.
+    static let syntaxFrontmatterValue     = adaptiveColor(dark: "#A5D6FF", light: "#0A3069")
+    /// CodeSpeak directive (@spec, @assert, etc.).
+    static let syntaxCSDirective          = adaptiveColor(dark: "#FFA657", light: "#953800")
+    /// CodeSpeak file reference (@file:).
+    static let syntaxCSFileRef            = adaptiveColor(dark: "#7EE787", light: "#116329")
 }
 
 // MARK: - Spacing Tokens
@@ -329,6 +362,17 @@ enum DSFont {
             return Font.custom("SF Mono", size: size)
         }
         return Font.custom("Menlo", size: size)
+    }
+
+    /// Monospaced `NSFont` for the syntax-highlighted code editor.
+    ///
+    /// Uses the system monospaced font (SF Mono on macOS). Suitable for
+    /// `NSTextStorage` attribute application in `SyntaxHighlightTextStorage`.
+    ///
+    /// - Parameter size: Font size in points (default 13).
+    /// - Returns: Monospaced `NSFont` instance.
+    static func codeEditorNSFont(size: CGFloat = 13) -> NSFont {
+        NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
     }
 
     /// NSFont variant of the terminal font for SwiftTerm configuration.
@@ -454,6 +498,11 @@ enum DSLayout {
     // MARK: CodeSpeak
 
     static let codeSpeakAccentLineHeight: CGFloat = 2
+
+    // MARK: Code Editor
+
+    /// Width of the line number gutter in the syntax-highlighted editor.
+    static let lineNumberGutterWidth: CGFloat = 44
 
     // MARK: Window
 
@@ -609,6 +658,47 @@ extension DSColor {
 
     /// Alias for `surfaceBase` — adaptive base surface color.
     static let surfaceDefault = adaptiveColor(dark: "#1A1B1E", light: "#FFFFFF")
+}
+
+// MARK: - Syntax Color Map
+
+extension DSColor {
+
+    /// Maps ``SyntaxTokenKind`` to an adaptive `NSColor` for `NSTextStorage` highlighting.
+    ///
+    /// Returns `nil` for unknown/plain kinds so the caller can fall back to the
+    /// default text color.
+    @MainActor
+    static func syntaxNSColor(for kind: SyntaxTokenKind) -> NSColor? {
+        switch kind {
+        case .heading:              return nsAdaptiveColor(dark: "#79C0FF", light: "#0550AE")
+        case .bold:                 return nsAdaptiveColor(dark: "#E3C04B", light: "#9A6700")
+        case .italic:               return nsAdaptiveColor(dark: "#D2A8FF", light: "#8250DF")
+        case .inlineCode:           return nsAdaptiveColor(dark: "#FF7B72", light: "#CF222E")
+        case .codeBlockFence:       return nsAdaptiveColor(dark: "#8B949E", light: "#6E7781")
+        case .codeBlockBody:        return nsAdaptiveColor(dark: "#C9D1D9", light: "#24292F")
+        case .link:                 return nsAdaptiveColor(dark: "#58A6FF", light: "#0969DA")
+        case .linkURL:              return nsAdaptiveColor(dark: "#8B949E", light: "#6E7781")
+        case .blockquote:           return nsAdaptiveColor(dark: "#8B949E", light: "#6E7781")
+        case .listMarker:           return nsAdaptiveColor(dark: "#FF7B72", light: "#CF222E")
+        case .frontmatterDelimiter: return nsAdaptiveColor(dark: "#BC8CFF", light: "#8250DF")
+        case .frontmatterKey:       return nsAdaptiveColor(dark: "#79C0FF", light: "#0550AE")
+        case .frontmatterValue:     return nsAdaptiveColor(dark: "#A5D6FF", light: "#0A3069")
+        case .csDirective:          return nsAdaptiveColor(dark: "#FFA657", light: "#953800")
+        case .csFileRef:            return nsAdaptiveColor(dark: "#7EE787", light: "#116329")
+        default:                    return nil
+        }
+    }
+
+    /// Creates an `NSColor` with a dynamic provider for dark/light appearance.
+    private static func nsAdaptiveColor(dark: String, light: String) -> NSColor {
+        NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(
+                from: [.darkAqua, .accessibilityHighContrastDarkAqua]
+            ) != nil
+            return isDark ? NSColor(hex: dark) : NSColor(hex: light)
+        }
+    }
 }
 
 // MARK: - GitFileStatus Color Mapping

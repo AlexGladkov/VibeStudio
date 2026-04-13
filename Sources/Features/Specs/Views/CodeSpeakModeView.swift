@@ -21,6 +21,7 @@ struct CodeSpeakModeView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.navigationCoordinator) private var navigationCoordinator
+    @Environment(\.syntaxParserRegistry) private var syntaxParserRegistry
 
     @State private var showWizard = false
 
@@ -274,11 +275,14 @@ struct CodeSpeakModeView: View {
             Divider()
 
             if let spec = vm.selectedSpec {
-                MarkdownEditorView(
+                CodeSpeakEditorView(
                     text: Binding(
                         get: { vm.editorContent },
                         set: { vm.editorContent = $0; vm.isEditorDirty = true }
-                    )
+                    ),
+                    isEditable: true,
+                    parserRegistry: syntaxParserRegistry,
+                    fileExtension: "cs.md"
                 )
                 .id(spec.id)
             } else {

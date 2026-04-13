@@ -66,6 +66,12 @@ final class ServiceContainer {
     /// `withObservationTracking` requires the concrete type for property-level subscriptions.
     let codeSpeak: CodeSpeakService
 
+    /// Syntax parser registry for syntax-highlighted editors.
+    ///
+    /// Concrete `@Observable` type — same reason as `terminalService`: SwiftUI
+    /// `withObservationTracking` requires the concrete type for property-level subscriptions.
+    let syntaxParserRegistry: SyntaxParserRegistry
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -80,7 +86,8 @@ final class ServiceContainer {
         navigationCoordinator: AppNavigationCoordinator,
         themeService: ThemeService,
         freeTabStore: FreeTabStore,
-        codeSpeak: CodeSpeakService
+        codeSpeak: CodeSpeakService,
+        syntaxParserRegistry: SyntaxParserRegistry
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -96,6 +103,7 @@ final class ServiceContainer {
         self.themeService = themeService
         self.freeTabStore = freeTabStore
         self.codeSpeak = codeSpeak
+        self.syntaxParserRegistry = syntaxParserRegistry
     }
 }
 
@@ -150,6 +158,10 @@ private struct FreeTabStoreKey: EnvironmentKey {
 
 private struct CodeSpeakServiceKey: EnvironmentKey {
     @MainActor static let defaultValue: CodeSpeakService = CodeSpeakService()
+}
+
+private struct SyntaxParserRegistryKey: EnvironmentKey {
+    @MainActor static let defaultValue: SyntaxParserRegistry = SyntaxParserRegistry()
 }
 
 extension EnvironmentValues {
@@ -212,6 +224,11 @@ extension EnvironmentValues {
         get { self[CodeSpeakServiceKey.self] }
         set { self[CodeSpeakServiceKey.self] = newValue }
     }
+
+    var syntaxParserRegistry: SyntaxParserRegistry {
+        get { self[SyntaxParserRegistryKey.self] }
+        set { self[SyntaxParserRegistryKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -253,6 +270,7 @@ extension View {
             .environment(\.themeService, container.themeService)
             .environment(\.freeTabStore, container.freeTabStore)
             .environment(\.codeSpeak, container.codeSpeak)
+            .environment(\.syntaxParserRegistry, container.syntaxParserRegistry)
     }
 }
 
