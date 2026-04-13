@@ -74,6 +74,15 @@ struct CodeSpeakModeView: View {
                 .hidden()
             }
         }
+        .sheet(isPresented: $showWizard) {
+            if let project = activeProject {
+                SpecWizardSheet(projectPath: project.path) {
+                    if let project = activeProject {
+                        Task { await vm.specsVM.refresh(at: project.path) }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Left Column: Spec List
