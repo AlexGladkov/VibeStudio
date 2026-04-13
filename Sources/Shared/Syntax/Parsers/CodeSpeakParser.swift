@@ -10,8 +10,7 @@ import Foundation
 /// ``MarkdownParser`` for standard markdown, then adds CodeSpeak-specific
 /// tokens:
 ///
-/// - `@file:` references (``SyntaxTokenKind/csFileRef``)
-/// - `@spec`, `@assert`, `@module` directives (``SyntaxTokenKind/csDirective``)
+/// - `//` single-line comments (``SyntaxTokenKind/comment``)
 struct CodeSpeakParser: SyntaxParsing, Sendable {
 
     let supportedExtensions: [String] = ["cs.md"]
@@ -40,19 +39,9 @@ struct CodeSpeakParser: SyntaxParsing, Sendable {
             )
         }
 
-        // CodeSpeak @file: reference
-        if trimmed.hasPrefix("@file:") {
-            let token = SyntaxToken(kind: .csFileRef, range: lineRange)
-            return ([token], context)
-        }
-
-        // CodeSpeak @-directives
-        let csDirectives = [
-            "@spec", "@assert", "@describe",
-            "@module", "@require", "@ensure"
-        ]
-        if csDirectives.contains(where: { trimmed.hasPrefix($0) }) {
-            let token = SyntaxToken(kind: .csDirective, range: lineRange)
+        // CodeSpeak // single-line comment
+        if trimmed.hasPrefix("//") {
+            let token = SyntaxToken(kind: .comment, range: lineRange)
             return ([token], context)
         }
 

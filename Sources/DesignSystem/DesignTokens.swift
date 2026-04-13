@@ -684,8 +684,7 @@ extension DSColor {
         case .frontmatterDelimiter: return nsAdaptiveColor(dark: "#BC8CFF", light: "#8250DF")
         case .frontmatterKey:       return nsAdaptiveColor(dark: "#79C0FF", light: "#0550AE")
         case .frontmatterValue:     return nsAdaptiveColor(dark: "#A5D6FF", light: "#0A3069")
-        case .csDirective:          return nsAdaptiveColor(dark: "#FFA657", light: "#953800")
-        case .csFileRef:            return nsAdaptiveColor(dark: "#7EE787", light: "#116329")
+        case .comment:              return nsAdaptiveColor(dark: "#6E7681", light: "#6E7781")
         default:                    return nil
         }
     }
