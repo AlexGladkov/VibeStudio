@@ -104,17 +104,12 @@ struct CodeSpeakEditorView: NSViewRepresentable {
         textView.isEditable = isEditable
 
         // Sync text (skip when equal — user is actively editing).
-        guard !text.isEmpty, textView.string != text else { return }
+        guard textView.string != text else { return }
 
-        let sel = textView.selectedRanges
         textView.string = text
-        let newLength = (text as NSString).length
-        textView.selectedRanges = sel.compactMap { value -> NSValue? in
-            let range = value.rangeValue
-            guard range.location <= newLength else { return nil }
-            let clampedLength = min(range.length, newLength - range.location)
-            return NSValue(range: NSRange(location: range.location, length: clampedLength))
-        }
+        // Reset cursor to start — avoids NSSelectionArray crash when new text
+        // is shorter than current selection (selectedRanges = [] is illegal).
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
         context.coordinator.scheduleHighlighting(for: textView, text: text)
     }
 
