@@ -174,12 +174,17 @@ final class AppLifecycleCoordinator {
         guard let activeId = activeProjectId,
               let project = container.projectManager.project(for: activeId) else {
             container.gitStatusPoller.stopPolling()
+            container.navigationCoordinator.syncMode(isCodeSpeak: false)
             Logger.git.debug("Git status polling stopped — no active project")
             return
         }
 
         container.gitStatusPoller.startPolling(for: project.path, isActive: true)
         Logger.git.info("Git status polling started for \(project.name, privacy: .public)")
+        container.codeSpeak.checkConfig(for: project)
+        container.navigationCoordinator.syncMode(
+            isCodeSpeak: container.codeSpeak.isCodeSpeakProject(activeId)
+        )
     }
 
     // MARK: - Private: File Event Forwarding

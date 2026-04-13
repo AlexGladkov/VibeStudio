@@ -15,6 +15,7 @@ import UniformTypeIdentifiers
 enum SidebarSection {
     case files
     case git
+    case specs
 }
 
 // MARK: - BranchCreationContext
@@ -34,6 +35,7 @@ private struct ProjectFileHeaderView: View {
     let project: Project
     let isActive: Bool
     let isExpanded: Bool
+    let isCodeSpeakProject: Bool
     let remoteURL: String?
     let onTap: () -> Void
     let onSettings: () -> Void
@@ -53,9 +55,13 @@ private struct ProjectFileHeaderView: View {
                         .rotationEffect(isExpanded ? .degrees(90) : .zero)
                         .animation(.easeOut(duration: 0.15), value: isExpanded)
 
-                    Image(systemName: "folder.fill")
+                    Image(systemName: isCodeSpeakProject ? "doc.text.magnifyingglass" : "folder.fill")
                         .font(.system(size: 13))
-                        .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.gitModified)
+                        .foregroundStyle(
+                            isCodeSpeakProject
+                                ? DSColor.agentCodeSpeak
+                                : (isActive ? DSColor.accentPrimary : DSColor.gitModified)
+                        )
 
                     Text(project.name)
                         .font(DSFont.sidebarItem)
@@ -232,6 +238,7 @@ struct SidebarView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.gitService) private var gitService
     @Environment(\.aiCommitService) private var aiCommitService
+    @Environment(\.codeSpeak) private var codeSpeak
 
     @State private var activeSection: SidebarSection = .files
     @State private var expandedProjects: Set<UUID> = []
@@ -384,6 +391,7 @@ struct SidebarView: View {
         VStack(spacing: DSSpacing.sm) {
             iconButton(section: .files, symbol: "folder.fill")
             iconButton(section: .git, symbol: "arrow.triangle.branch")
+            iconButton(section: .specs, symbol: "doc.text.magnifyingglass")
             Spacer()
 
             Button {
@@ -441,6 +449,8 @@ struct SidebarView: View {
         Group {
             if activeSection == .files {
                 multiProjectFileTree()
+            } else if activeSection == .specs {
+                SpecsPanelView()
             } else {
                 if projectManager.projects.isEmpty {
                     noProjectView()
@@ -484,6 +494,7 @@ struct SidebarView: View {
                 project: project,
                 isActive: isActive,
                 isExpanded: isExpanded,
+                isCodeSpeakProject: codeSpeak.isCodeSpeakProject(project.id),
                 remoteURL: vm.projectRemoteURLs[project.id],
                 onTap: {
                     if isExpanded {

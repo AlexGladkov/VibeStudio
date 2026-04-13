@@ -60,6 +60,12 @@ final class ServiceContainer {
     /// `themeService`: SwiftUI observation tracking requires direct access.
     let freeTabStore: FreeTabStore
 
+    /// CodeSpeak config detection and build stats cache.
+    ///
+    /// Concrete `@Observable` type — same reason as `terminalService`: SwiftUI
+    /// `withObservationTracking` requires the concrete type for property-level subscriptions.
+    let codeSpeak: CodeSpeakService
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -73,7 +79,8 @@ final class ServiceContainer {
         appReadyState: AppReadyState,
         navigationCoordinator: AppNavigationCoordinator,
         themeService: ThemeService,
-        freeTabStore: FreeTabStore
+        freeTabStore: FreeTabStore,
+        codeSpeak: CodeSpeakService
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -88,6 +95,7 @@ final class ServiceContainer {
         self.navigationCoordinator = navigationCoordinator
         self.themeService = themeService
         self.freeTabStore = freeTabStore
+        self.codeSpeak = codeSpeak
     }
 }
 
@@ -138,6 +146,10 @@ private struct ThemeServiceKey: EnvironmentKey {
 
 private struct FreeTabStoreKey: EnvironmentKey {
     @MainActor static let defaultValue: FreeTabStore = FreeTabStore()
+}
+
+private struct CodeSpeakServiceKey: EnvironmentKey {
+    @MainActor static let defaultValue: CodeSpeakService = CodeSpeakService()
 }
 
 extension EnvironmentValues {
@@ -195,6 +207,11 @@ extension EnvironmentValues {
         get { self[FreeTabStoreKey.self] }
         set { self[FreeTabStoreKey.self] = newValue }
     }
+
+    var codeSpeak: CodeSpeakService {
+        get { self[CodeSpeakServiceKey.self] }
+        set { self[CodeSpeakServiceKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -235,6 +252,7 @@ extension View {
             .environment(\.navigationCoordinator, container.navigationCoordinator)
             .environment(\.themeService, container.themeService)
             .environment(\.freeTabStore, container.freeTabStore)
+            .environment(\.codeSpeak, container.codeSpeak)
     }
 }
 

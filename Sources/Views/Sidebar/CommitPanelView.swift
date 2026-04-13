@@ -11,6 +11,8 @@ struct CommitPanelView: View {
     let project: Project
     let gitSidebarVM: GitSidebarViewModel
 
+    @Environment(\.codeSpeak) private var codeSpeak
+
     var body: some View {
         let gitStatus = gitSidebarVM.projectGitStatuses[project.id]
         let hasChanges = !(gitStatus?.stagedFiles.isEmpty ?? true)
@@ -27,6 +29,23 @@ struct CommitPanelView: View {
                 .fill(DSColor.borderSubtle)
                 .frame(height: 1)
                 .padding(.vertical, 2)
+
+            // CodeSpeak drift warning
+            if let stats = codeSpeak.projectStats[project.id], stats.failing > 0 {
+                HStack(spacing: DSSpacing.xs) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DSColor.gitModified)
+                    Text("\(stats.failing) spec\(stats.failing == 1 ? "" : "s") failing — consider running CodeSpeak before committing")
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(DSColor.diffDeletedBg, in: RoundedRectangle(cornerRadius: DSRadius.sm))
+            }
 
             // Input area
             VStack(alignment: .leading, spacing: 0) {

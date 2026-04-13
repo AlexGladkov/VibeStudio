@@ -85,7 +85,26 @@ struct WelcomeView: View {
                 .keyboardShortcut("o", modifiers: .command)
             }
 
-            // Recent projects
+            // Open projects (shown when returning from CodeSpeak mode — projects exist but none active)
+            if !projectManager.projects.isEmpty {
+                Spacer().frame(height: DSSpacing.xl)
+
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    Text("PROJECTS")
+                        .font(DSFont.sidebarSection)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .padding(.bottom, 2)
+
+                    ForEach(projectManager.projects.sorted { $0.lastOpened > $1.lastOpened }) { project in
+                        RecentProjectRow(project: project) {
+                            projectManager.activeProjectId = project.id
+                        }
+                    }
+                }
+                .frame(maxWidth: 420)
+            }
+
+            // Recent projects (previously added but since removed)
             if !projectManager.recentProjects.isEmpty {
                 Spacer().frame(height: DSSpacing.xl)
 

@@ -236,6 +236,8 @@ enum DSColor {
     static let agentGemini    = Color(hex: "#4285F4")
     /// Qwen Code (purple).
     static let agentQwen      = Color(hex: "#6B3FA0")
+    /// CodeSpeak (Kotlin orange).
+    static let agentCodeSpeak = Color(hex: "#E85D29")
 
     // MARK: Language Icons
 
@@ -434,6 +436,24 @@ enum DSLayout {
     static let changesFileRowHeight: CGFloat = 26
     /// Line height for diff view rows.
     static let diffLineHeight: CGFloat = 18
+
+    // MARK: Spec Panel
+
+    /// Default width for the right-side CodeSpeak spec build panel.
+    static let specPanelDefaultWidth: CGFloat = 320
+    /// Minimum width for the spec panel.
+    static let specPanelMinWidth: CGFloat = 240
+    /// Maximum width for the spec panel.
+    static let specPanelMaxWidth: CGFloat = 500
+
+    // MARK: Traceability Panel
+
+    /// Default width for the traceability panel.
+    static let traceabilityPanelDefaultWidth: CGFloat = 280
+
+    // MARK: CodeSpeak
+
+    static let codeSpeakAccentLineHeight: CGFloat = 2
 
     // MARK: Window
 

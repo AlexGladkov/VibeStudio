@@ -1,5 +1,5 @@
 // MARK: - ToolbarView
-// Android Studio–style run-configuration bar above the tab bar.
+// Android Studio-style run-configuration bar above the tab bar.
 // macOS 14+, Swift 5.10
 
 import OSLog
@@ -7,19 +7,24 @@ import SwiftUI
 
 // MARK: - ToolbarView
 
-/// Android Studio–style run-configuration toolbar above the tab bar.
+/// Android Studio-style run-configuration toolbar above the tab bar.
 ///
-/// Layout: `[ 🤖 claude ▾ ]  [ ▶ / ■ ]  ···`
+/// Layout switches based on `AppMode`:
+/// - Regular:   `[ claude v ]  [ > / # ]  [ globe ]  [ gear ]  [ CS ]  [ sidebar.right ]`
+/// - CodeSpeak: `[ magnifier ProjectName v ]  [ > Build ]  [ gear ]  [ <- Regular ]`
 struct ToolbarView: View {
 
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
     @Environment(\.agentAvailability) private var agentAvailability
     @Environment(\.navigationCoordinator) private var navigationCoordinator
+    @Environment(\.codeSpeak) private var codeSpeak
+    @Environment(\.freeTabStore) private var freeTabStore
     @Environment(\.openURL) private var openURL
 
     @State private var vm: ToolbarViewModel?
     @State private var showingPicker = false
+    @State private var showingProjectPicker = false
 
     private var viewModel: ToolbarViewModel {
         if let existing = vm { return existing }
@@ -32,14 +37,29 @@ struct ToolbarView: View {
         return created
     }
 
+    private var activeProject: Project? {
+        projectManager.projects.first { $0.id == projectManager.activeProjectId }
+    }
+
     var body: some View {
         let model = viewModel
+        let isWelcomeScreen = (projectManager.projects.isEmpty || projectManager.activeProjectId == nil)
+            && freeTabStore.freeTabs.isEmpty
         HStack(spacing: 6) {
-            configPicker(model: model)
-            playStopButton(model: model)
-            openInBrowserButton(model: model)
-            settingsButton()
-            changesToggleButton()
+            if !isWelcomeScreen {
+                if navigationCoordinator.currentMode == .codeSpeak {
+                    codeSpeakProjectPicker()
+                    codeSpeakStatsBadge()
+                    codeSpeakBuildButton()
+                    settingsButton()
+                } else {
+                    configPicker(model: model)
+                    playStopButton(model: model)
+                    openInBrowserButton(model: model)
+                    settingsButton()
+                    changesToggleButton()
+                }
+            }
         }
         .padding(.horizontal, 12)
         .onAppear {
@@ -177,6 +197,133 @@ struct ToolbarView: View {
         .disabled(model.activeId == nil)
     }
 
+    // MARK: - CodeSpeak Project Picker (Breadcrumb)
+
+    /// Breadcrumb: [Projects  ›  🔍 ProjectName ▾]
+    /// Tapping "Projects" deactivates the current project → start screen.
+    /// Tapping the project name opens the CS-project switcher popover.
+    private func codeSpeakProjectPicker() -> some View {
+        HStack(spacing: 0) {
+            // "Projects" root — taps go to start screen
+            Button {
+                projectManager.activeProjectId = nil
+            } label: {
+                Text("Projects")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textMuted)
+            }
+            .buttonStyle(.plain)
+            .help("All Projects")
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(DSColor.textMuted.opacity(0.5))
+                .padding(.horizontal, 4)
+
+            // Project name + dropdown
+            Button {
+                showingProjectPicker.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DSColor.agentCodeSpeak)
+
+                    Text(activeProject?.name ?? "CodeSpeak")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DSColor.textPrimary)
+                        .lineLimit(1)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9))
+                        .foregroundStyle(DSColor.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showingProjectPicker, arrowEdge: .bottom) {
+                projectPickerPopover
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(DSColor.agentCodeSpeak.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+    }
+
+    private var projectPickerPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(projectManager.projects.filter { codeSpeak.isCodeSpeakProject($0.id) }) { project in
+                Button {
+                    projectManager.activeProjectId = project.id
+                    showingProjectPicker = false
+                } label: {
+                    HStack(spacing: 8) {
+                        if project.id == projectManager.activeProjectId {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(DSColor.accentPrimary)
+                        } else {
+                            Color.clear.frame(width: 11)
+                        }
+
+                        Text(project.name)
+                            .font(.system(size: 13))
+                            .foregroundStyle(DSColor.textPrimary)
+                            .lineLimit(1)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+        }
+        .frame(minWidth: 200)
+        .padding(.vertical, 4)
+        .background(DSColor.surfaceOverlay)
+    }
+
+    // MARK: - CodeSpeak Stats Badge
+
+    @ViewBuilder
+    private func codeSpeakStatsBadge() -> some View {
+        if let id = projectManager.activeProjectId,
+           let stats = codeSpeak.projectStats[id] {
+            Text("\(stats.passing)/\(stats.total)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(
+                    stats.allPassing ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
+                    in: RoundedRectangle(cornerRadius: 3)
+                )
+        }
+    }
+
+    // MARK: - CodeSpeak Build Button
+
+    private func codeSpeakBuildButton() -> some View {
+        Button {
+            navigationCoordinator.codeSpeakBuildRequested = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DSColor.actionRun)
+                Text("Build")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(DSColor.textPrimary)
+            }
+            .frame(height: 22)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Run CodeSpeak Build")
+    }
+
     // MARK: - Changes Panel Toggle
 
     private func changesToggleButton() -> some View {
@@ -234,4 +381,3 @@ struct ToolbarView: View {
         .help(model.activeProductionURL.map { "Open \($0.absoluteString) in browser" } ?? "No production URL set")
     }
 }
-

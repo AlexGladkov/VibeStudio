@@ -28,6 +28,8 @@ struct LLMSettingsPane: View {
             GeminiSettingsPane()
         case .qwenCode:
             QwenSettingsPane()
+        case .codeSpeak:
+            CodeSpeakSettingsPane()
         }
     }
 }

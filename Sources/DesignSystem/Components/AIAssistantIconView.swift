@@ -30,6 +30,11 @@ struct AIAssistantIconView: View {
             GeminiLogoView(size: size)
         case .qwenCode:
             QwenLogoView(size: size)
+        case .codeSpeak:
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: size * 0.85))
+                .foregroundStyle(DSColor.agentCodeSpeak)
+                .frame(width: size, height: size)
         }
     }
 }

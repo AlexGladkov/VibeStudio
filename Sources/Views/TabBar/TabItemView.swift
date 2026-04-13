@@ -13,6 +13,7 @@ struct TabItemView: View {
 
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
+    @Environment(\.codeSpeak) private var codeSpeak
     /// Concrete TerminalService for @Observable-tracked property access.
     ///
     /// `terminalManager` is typed `any TerminalSessionManaging` — Swift's
@@ -48,6 +49,15 @@ struct TabItemView: View {
                 .font(DSFont.tabTitle)
                 .foregroundStyle(isActive || isHovering ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
+
+            if let stats = codeSpeak.projectStats[project.id] {
+                Text("CS:\(stats.passing)/\(stats.total)")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitDeleted)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(DSColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: 3))
+            }
 
             if isActive || isHovering {
                 Button {
