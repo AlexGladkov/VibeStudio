@@ -9,6 +9,17 @@ import SwiftUI
 /// Header shows aggregate stats + build/new-spec action buttons.
 /// Each row shows spec name + status indicator.
 /// Tapping a row opens the spec in `SpecEditorSheet`.
+private enum SpecsSheet: Identifiable {
+    case editor(SpecFile)
+    case wizard
+    var id: String {
+        switch self {
+        case .editor(let s): return "editor-\(s.id)"
+        case .wizard:        return "wizard"
+        }
+    }
+}
+
 struct SpecsPanelView: View {
 
     @Environment(\.projectManager) private var projectManager
@@ -16,8 +27,7 @@ struct SpecsPanelView: View {
     @Environment(\.navigationCoordinator) private var navigationCoordinator
 
     @State private var vm: SpecsViewModel?
-    @State private var selectedSpec: SpecFile?
-    @State private var showWizard = false
+    @State private var activeSheet: SpecsSheet?
 
     private var viewModel: SpecsViewModel {
         if let existing = vm { return existing }
@@ -66,14 +76,16 @@ struct SpecsPanelView: View {
                 }
             }
         }
-        .sheet(item: $selectedSpec) { spec in
-            SpecEditorSheet(specFile: spec)
-        }
-        .sheet(isPresented: $showWizard) {
-            if let project = activeProject {
-                SpecWizardSheet(projectPath: project.path) {
-                    if let project = activeProject {
-                        Task { await model.refresh(at: project.path) }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .editor(let spec):
+                SpecEditorSheet(specFile: spec)
+            case .wizard:
+                if let project = activeProject {
+                    SpecWizardSheet(projectPath: project.path) {
+                        if let project = activeProject {
+                            Task { await model.refresh(at: project.path) }
+                        }
                     }
                 }
             }
@@ -111,7 +123,7 @@ struct SpecsPanelView: View {
 
             // New spec button
             Button {
-                showWizard = true
+                activeSheet = .wizard
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 13))
@@ -140,7 +152,7 @@ struct SpecsPanelView: View {
 
     private func specRow(spec: SpecFile) -> some View {
         Button {
-            selectedSpec = spec
+            activeSheet = .editor(spec)
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 // Status dot
