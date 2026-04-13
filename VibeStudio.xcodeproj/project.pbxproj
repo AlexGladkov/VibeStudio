@@ -99,7 +99,6 @@
 		8F7B8BC5FF98205E658148E7 /* URLExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99278091F7398A29BC89213A /* URLExtensions.swift */; };
 		91358488E087F84FACFA1FB7 /* ClaudeEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F601168AA86A8D5E3D6E0E /* ClaudeEditorSheet.swift */; };
 		915F31D8DA270AFC76946E9A /* FrontmatterParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF56F800B16699F0FFC46E4 /* FrontmatterParser.swift */; };
-		922C772D967F5A65AE1EC3EF /* SpecWizardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA4207CF83E284549E401F1A /* SpecWizardViewModel.swift */; };
 		952809027D6F957532FD4848 /* ThemeServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BC923781455F26405F3A9D /* ThemeServicing.swift */; };
 		9789C16411C5F8084B26B37C /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A3C3AB8FBA04005BE8BDB4 /* WelcomeView.swift */; };
 		99AADD756F0812C0F351A88B /* OpencodeSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E69BACD8D19081B81E721D /* OpencodeSettingsPane.swift */; };
@@ -300,7 +299,6 @@
 		A3344185FCE91D8FB33DBA35 /* AICommitServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommitServicing.swift; sourceTree = "<group>"; };
 		A690F2F12639186A82C7FB29 /* AIAssistantIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAssistantIconView.swift; sourceTree = "<group>"; };
 		A941CD6A6798519D62A44CE9 /* SecurityConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityConstants.swift; sourceTree = "<group>"; };
-		AA4207CF83E284549E401F1A /* SpecWizardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecWizardViewModel.swift; sourceTree = "<group>"; };
 		AB8703AF4225B1BF0A3D67EB /* GitStatusPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusPoller.swift; sourceTree = "<group>"; };
 		ADCCD8956CD865E5ED975BDE /* TerminalAppearanceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAppearanceManager.swift; sourceTree = "<group>"; };
 		ADD471DD9342CADF8C534281 /* SettingsCardModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCardModifier.swift; sourceTree = "<group>"; };
@@ -872,7 +870,6 @@
 				FD888CC3237D90F2AEDA06F2 /* SpecBuildPanelViewModel.swift */,
 				CABDC2BC698BEE18F83E4532 /* SpecEditorViewModel.swift */,
 				E486A1509B60C886CB8CB9A8 /* SpecsViewModel.swift */,
-				AA4207CF83E284549E401F1A /* SpecWizardViewModel.swift */,
 				3A3D056A68AD93C20A822127 /* TraceabilityPanelViewModel.swift */,
 			);
 			path = ViewModels;
@@ -1346,7 +1343,6 @@
 				5133E061EEA20AA486DB19DE /* SpecFile.swift in Sources */,
 				6178EBD948943A7551803121 /* SpecStats.swift in Sources */,
 				7423FCA2DB6F7D50DE2FE7F6 /* SpecWizardSheet.swift in Sources */,
-				922C772D967F5A65AE1EC3EF /* SpecWizardViewModel.swift in Sources */,
 				19DB055CA651DE3DE5DA9F40 /* SpecsPanelView.swift in Sources */,
 				C5D466140BCF346CBE2CA2C1 /* SpecsViewModel.swift in Sources */,
 				EB2A6716D93140A143EEAB97 /* StyledInputModifier.swift in Sources */,
