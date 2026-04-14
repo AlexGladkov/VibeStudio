@@ -45,23 +45,22 @@ struct ToolbarView: View {
         let model = viewModel
         let isWelcomeScreen = (projectManager.projects.isEmpty || projectManager.activeProjectId == nil)
             && freeTabStore.freeTabs.isEmpty
-        HStack(spacing: 6) {
+        Group {
             if !isWelcomeScreen {
                 if navigationCoordinator.currentMode == .codeSpeak {
-                    codeSpeakProjectPicker()
-                    codeSpeakStatsBadge()
-                    codeSpeakBuildButton()
-                    settingsButton()
+                    codeSpeakThreeSectionToolbar()
                 } else {
-                    configPicker(model: model)
-                    playStopButton(model: model)
-                    openInBrowserButton(model: model)
-                    settingsButton()
-                    changesToggleButton()
+                    HStack(spacing: 6) {
+                        configPicker(model: model)
+                        playStopButton(model: model)
+                        openInBrowserButton(model: model)
+                        settingsButton()
+                        changesToggleButton()
+                    }
+                    .padding(.horizontal, 12)
                 }
             }
         }
-        .padding(.horizontal, 12)
         .onAppear {
             if vm == nil {
                 vm = ToolbarViewModel(
@@ -70,6 +69,54 @@ struct ToolbarView: View {
                     agentAvailability: agentAvailability
                 )
             }
+        }
+    }
+
+    // MARK: - CodeSpeak Three-Section Toolbar
+    //
+    // The ToolbarView NSHostingView starts at trafficLightsEnd ≈ 84pt from the
+    // window's left edge. The content area has three columns:
+    //   Left   (specs sidebar): starts at x=0, width = specsColumnWidth (dynamic)
+    //   Center (editor):        starts at x=specsColumnWidth
+    //   Right  (build output):  trailing portion
+    //
+    // Three boxes mirror this layout inside the hosting view:
+    //   Box 1 — invisible spacer: width = specsColumnWidth - 84 (the part of the
+    //           sidebar that is RIGHT OF the traffic lights)
+    //   Box 2 — breadcrumb + stats badge, left-aligned in center column
+    //   Box 3 — run bar + settings, right-aligned
+    //
+    // specsColumnWidth is dynamically updated by CodeSpeakModeView via GeometryReader
+    // so the breadcrumb tracks sidebar resize automatically.
+
+    private func codeSpeakThreeSectionToolbar() -> some View {
+        // trafficLightsEnd ≈ 84pt — the standard macOS value used in WindowToolbarRemover.
+        // The hosting view's leading anchor is set to this value, so subtracting it gives
+        // the offset within the hosting view where the specs column ends.
+        let trafficLightsEnd: CGFloat = 84
+        let specsWidth = navigationCoordinator.specsColumnWidth
+        let box1Width = max(0, specsWidth - trafficLightsEnd)
+
+        return HStack(spacing: 0) {
+            // Box 1 — left panel placeholder (transparent)
+            Color.clear
+                .frame(width: box1Width)
+
+            // Box 2 — center: breadcrumb pinned to left of center column
+            HStack(spacing: 6) {
+                codeSpeakBreadcrumb()
+                    .padding(.leading, 8)
+                codeSpeakStatsBadge()
+            }
+
+            Spacer(minLength: 8)
+
+            // Box 3 — right: run controls
+            HStack(spacing: 6) {
+                codeSpeakRunBar()
+                settingsButton()
+            }
+            .padding(.trailing, 12)
         }
     }
 
@@ -303,25 +350,175 @@ struct ToolbarView: View {
         }
     }
 
-    // MARK: - CodeSpeak Build Button
+    // MARK: - CodeSpeak Breadcrumb
 
-    private func codeSpeakBuildButton() -> some View {
-        Button {
-            navigationCoordinator.codeSpeakBuildRequested = true
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(DSColor.actionRun)
-                Text("Build")
+    /// Static breadcrumb on the leading side of the titlebar:
+    /// `Projects  ›  projectName  ›  spec.cs.md`
+    ///
+    /// "Projects" is clickable (returns to welcome screen).
+    /// Project and spec names are plain text — no dropdown, one project at a time.
+    private func codeSpeakBreadcrumb() -> some View {
+        HStack(spacing: 0) {
+            Button {
+                projectManager.activeProjectId = nil
+            } label: {
+                Text("Projects")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textMuted)
+            }
+            .buttonStyle(.plain)
+            .help("All Projects")
+
+            if let project = activeProject {
+                Text(" \u{203A} ")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textMuted.opacity(0.5))
+
+                Text(project.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(DSColor.textSecondary)
+                    .lineLimit(1)
+            }
+
+            if !navigationCoordinator.codeSpeakCurrentSpecName.isEmpty {
+                Text(" \u{203A} ")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSColor.textMuted.opacity(0.5))
+
+                Text(navigationCoordinator.codeSpeakCurrentSpecName)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(DSColor.textPrimary)
+                    .lineLimit(1)
+
+                // Dirty indicator
+                if navigationCoordinator.codeSpeakIsEditorDirty {
+                    Circle()
+                        .fill(DSColor.gitModified)
+                        .frame(width: 5, height: 5)
+                        .padding(.leading, 3)
+                }
             }
-            .frame(height: 22)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .help("Run CodeSpeak Build")
+    }
+
+    // MARK: - CodeSpeak Run Bar
+
+    /// Returns `true` if the current command can be launched (non-empty required inputs).
+    private var codeSpeakCanRun: Bool {
+        switch navigationCoordinator.codeSpeakCommand {
+        case .task:   return !navigationCoordinator.codeSpeakTaskName.trimmingCharacters(in: .whitespaces).isEmpty
+        case .change: return !navigationCoordinator.codeSpeakChangeMessage.trimmingCharacters(in: .whitespaces).isEmpty
+        default:      return true
+        }
+    }
+
+    /// Toolbar run bar: `[Command ▼] [optional text field] [▶/■]`
+    ///
+    /// Replaces the old hardcoded `▶ Build` button.
+    /// Command state lives in `AppNavigationCoordinator` so the toolbar
+    /// and `CodeSpeakModeView` share the same source of truth.
+    private func codeSpeakRunBar() -> some View {
+        HStack(spacing: 6) {
+            // CodeSpeak icon (moved here from the right panel header)
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(DSColor.agentCodeSpeak)
+
+            // Command dropdown
+            Menu {
+                ForEach(CodeSpeakCommand.allCases) { cmd in
+                    Button(cmd.displayName) {
+                        navigationCoordinator.codeSpeakCommand = cmd
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(navigationCoordinator.codeSpeakCommand.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(
+                            navigationCoordinator.codeSpeakIsRunning
+                                ? DSColor.textMuted
+                                : DSColor.textPrimary
+                        )
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(DSColor.textSecondary)
+                }
+                .frame(height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .disabled(navigationCoordinator.codeSpeakIsRunning)
+
+            // Inline text field for commands that require input
+            if navigationCoordinator.codeSpeakCommand == .task {
+                TextField(
+                    "Task name...",
+                    text: Binding(
+                        get: { navigationCoordinator.codeSpeakTaskName },
+                        set: { navigationCoordinator.codeSpeakTaskName = $0 }
+                    )
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(DSColor.textPrimary)
+                .frame(width: 140, height: 20)
+                .padding(.horizontal, 6)
+                .background(
+                    DSColor.surfaceInput,
+                    in: RoundedRectangle(cornerRadius: 4)
+                )
+                .disabled(navigationCoordinator.codeSpeakIsRunning)
+            } else if navigationCoordinator.codeSpeakCommand == .change {
+                TextField(
+                    "Describe the change...",
+                    text: Binding(
+                        get: { navigationCoordinator.codeSpeakChangeMessage },
+                        set: { navigationCoordinator.codeSpeakChangeMessage = $0 }
+                    )
+                )
+                .textFieldStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(DSColor.textPrimary)
+                .frame(width: 180, height: 20)
+                .padding(.horizontal, 6)
+                .background(
+                    DSColor.surfaceInput,
+                    in: RoundedRectangle(cornerRadius: 4)
+                )
+                .disabled(navigationCoordinator.codeSpeakIsRunning)
+            }
+
+            // Play / Stop button (triangle on the RIGHT)
+            Button {
+                if navigationCoordinator.codeSpeakIsRunning {
+                    navigationCoordinator.codeSpeakStopRequested = true
+                } else {
+                    navigationCoordinator.codeSpeakBuildRequested = true
+                }
+            } label: {
+                Image(
+                    systemName: navigationCoordinator.codeSpeakIsRunning
+                        ? "stop.fill"
+                        : "play.fill"
+                )
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(
+                    navigationCoordinator.codeSpeakIsRunning
+                        ? DSColor.actionStop
+                        : (codeSpeakCanRun ? DSColor.actionRun : DSColor.textMuted)
+                )
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!navigationCoordinator.codeSpeakIsRunning && !codeSpeakCanRun)
+            .help(
+                navigationCoordinator.codeSpeakIsRunning
+                    ? "Stop codespeak"
+                    : "Run codespeak \(navigationCoordinator.codeSpeakCommand.displayName.lowercased())"
+            )
+        }
     }
 
     // MARK: - Changes Panel Toggle

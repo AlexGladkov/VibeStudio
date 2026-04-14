@@ -24,6 +24,7 @@ struct CodeSpeakModeView: View {
     @Environment(\.syntaxParserRegistry) private var syntaxParserRegistry
 
     @State private var showWizard = false
+    @State private var showingProjectPicker = false
 
     private var activeProject: Project? {
         projectManager.projects.first { $0.id == projectManager.activeProjectId }
@@ -34,6 +35,15 @@ struct CodeSpeakModeView: View {
             HSplitView {
                 specListColumn()
                     .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
+                    // Report column width so ToolbarView can align breadcrumb
+                    // exactly above the center column's left edge.
+                    .background(GeometryReader { geo in
+                        Color.clear
+                            .onAppear { navigationCoordinator.specsColumnWidth = geo.size.width }
+                            .onChange(of: geo.size.width) { _, w in
+                                navigationCoordinator.specsColumnWidth = w
+                            }
+                    })
 
                 editorColumn()
                     .frame(minWidth: 300)
@@ -46,16 +56,42 @@ struct CodeSpeakModeView: View {
         .onChange(of: projectManager.activeProjectId) { _, _ in
             if let project = activeProject {
                 Task { await vm.specsVM.loadSpecs(at: project.path) }
+                Task { await vm.scanGenerated(at: project.path) }
                 vm.selectedSpec = nil
+                vm.selectedGenerated = nil
                 vm.editorContent = ""
                 vm.isEditorDirty = false
             }
         }
+        // Run triggered by toolbar ▶ button
         .onChange(of: navigationCoordinator.codeSpeakBuildRequested) { _, requested in
             if requested, let project = activeProject {
                 navigationCoordinator.codeSpeakBuildRequested = false
-                Task { await vm.buildVM.runBuild(at: project.path) }
+                // Sync command state from coordinator (toolbar is source of truth)
+                vm.buildVM.selectedCommand = navigationCoordinator.codeSpeakCommand
+                vm.buildVM.taskName = navigationCoordinator.codeSpeakTaskName
+                vm.buildVM.changeMessage = navigationCoordinator.codeSpeakChangeMessage
+                Task { await vm.buildVM.run(at: project.path, specPath: vm.selectedSpec?.url) }
             }
+        }
+        // Stop triggered by toolbar ■ button
+        .onChange(of: navigationCoordinator.codeSpeakStopRequested) { _, requested in
+            if requested {
+                navigationCoordinator.codeSpeakStopRequested = false
+                vm.buildVM.stop()
+            }
+        }
+        // Mirror isRunning back to coordinator so toolbar can show ■ vs ▶
+        .onChange(of: vm.buildVM.isRunning) { _, running in
+            navigationCoordinator.codeSpeakIsRunning = running
+        }
+        // Sync selected spec name to titlebar breadcrumb
+        .onChange(of: vm.selectedSpec) { _, spec in
+            navigationCoordinator.codeSpeakCurrentSpecName = spec?.name ?? ""
+        }
+        // Sync dirty state to titlebar dirty indicator
+        .onChange(of: vm.isEditorDirty) { _, dirty in
+            navigationCoordinator.codeSpeakIsEditorDirty = dirty
         }
         .background {
             VStack {
@@ -67,7 +103,14 @@ struct CodeSpeakModeView: View {
 
                 Button("") {
                     if let project = activeProject {
-                        Task { await vm.buildVM.runBuild(at: project.path) }
+                        if vm.buildVM.isRunning {
+                            vm.buildVM.stop()
+                        } else {
+                            vm.buildVM.selectedCommand = navigationCoordinator.codeSpeakCommand
+                            vm.buildVM.taskName = navigationCoordinator.codeSpeakTaskName
+                            vm.buildVM.changeMessage = navigationCoordinator.codeSpeakChangeMessage
+                            Task { await vm.buildVM.run(at: project.path, specPath: vm.selectedSpec?.url) }
+                        }
                     }
                 }
                 .keyboardShortcut(.return, modifiers: .command)
@@ -79,32 +122,33 @@ struct CodeSpeakModeView: View {
                 SpecWizardSheet(projectPath: project.path) {
                     if let project = activeProject {
                         Task { await vm.specsVM.refresh(at: project.path) }
+                        Task { await vm.scanGenerated(at: project.path) }
                     }
                 }
             }
         }
     }
 
-    // MARK: - Left Column: Spec List
+    // MARK: - Left Column: File Tree
+
+    @State private var specsExpanded = true
+    @State private var generatedExpanded = true
 
     private func specListColumn() -> some View {
         VStack(spacing: 0) {
-            specListHeader()
-            Divider()
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    specTreeSection()
 
-            if let project = activeProject {
-                if vm.specsVM.isLoading {
-                    specListLoading
-                } else if vm.specsVM.specFiles.isEmpty {
-                    specListEmpty
-                } else {
-                    specListRows()
+                    if !vm.generatedFiles.isEmpty {
+                        generatedTreeSection()
+                    }
                 }
-            } else {
-                specListNoProject
+                .padding(.vertical, DSSpacing.xs)
             }
 
             Spacer(minLength: 0)
+
             Divider()
             Button {
                 showWizard = true
@@ -126,17 +170,28 @@ struct CodeSpeakModeView: View {
         .task(id: activeProject?.id) {
             guard let project = activeProject else { return }
             await vm.specsVM.loadSpecs(at: project.path)
-            // Auto-select first spec so the editor isn't blank on open
+            await vm.scanGenerated(at: project.path)
             if vm.selectedSpec == nil, let first = vm.specsVM.specFiles.first {
                 vm.selectSpec(first)
             }
         }
     }
 
-    private func specListHeader() -> some View {
-        HStack(spacing: DSSpacing.xs) {
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: DSSpacing.xs) {
+    // MARK: - Specs Tree Section
+
+    private func specTreeSection() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header row
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { specsExpanded.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DSColor.textMuted)
+                        .rotationEffect(.degrees(specsExpanded ? 90 : 0))
+                        .frame(width: 14)
+
                     Text("SPECS")
                         .font(DSFont.sidebarSection)
                         .foregroundStyle(DSColor.textSecondary)
@@ -146,43 +201,47 @@ struct CodeSpeakModeView: View {
                             .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
                     }
-                }
 
-                if let project = activeProject {
-                    Text(project.name)
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.textMuted)
-                        .lineLimit(1)
-                }
-            }
+                    Spacer()
 
-            Spacer()
-
-            Button {
-                if let project = activeProject {
-                    Task { await vm.specsVM.refresh(at: project.path) }
+                    Button {
+                        if let project = activeProject {
+                            Task { await vm.specsVM.refresh(at: project.path) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DSColor.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh specs")
                 }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12))
-                    .foregroundStyle(DSColor.textMuted)
+                .padding(.leading, DSSpacing.sm)
+                .padding(.trailing, DSSpacing.md)
+                .frame(height: DSLayout.gitSectionHeaderHeight)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Refresh specs")
-        }
-        .padding(.horizontal, DSSpacing.md)
-        .frame(height: DSLayout.gitSectionHeaderHeight)
-    }
 
-    private func specListRows() -> some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(vm.specsVM.specFiles) { spec in
-                    specRow(spec: spec)
+            if specsExpanded {
+                if vm.specsVM.isLoading {
+                    HStack { Spacer(); ProgressView().scaleEffect(0.6); Spacer() }
+                        .frame(height: 32)
+                } else if vm.specsVM.specFiles.isEmpty {
+                    Text("No specs found")
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textMuted)
+                        .padding(.leading, 28)
+                        .padding(.vertical, DSSpacing.xs)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(vm.specsVM.specFiles) { spec in
+                            specRow(spec: spec)
+                        }
+                    }
+                    .padding(.horizontal, DSSpacing.sm)
                 }
             }
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.xs)
         }
     }
 
@@ -192,6 +251,9 @@ struct CodeSpeakModeView: View {
             vm.selectSpec(spec)
         } label: {
             HStack(spacing: DSSpacing.xs) {
+                // indent to align with section label
+                Color.clear.frame(width: 14)
+
                 Circle()
                     .fill(specStatusColor(spec.status))
                     .frame(width: DSLayout.indicatorSize, height: DSLayout.indicatorSize)
@@ -243,47 +305,109 @@ struct CodeSpeakModeView: View {
         }
     }
 
-    private var specListLoading: some View {
-        VStack { Spacer(); ProgressView().scaleEffect(0.7); Spacer() }
-            .frame(maxWidth: .infinity)
+    // MARK: - Generated Tree Section
+
+    private func generatedTreeSection() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { generatedExpanded.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DSColor.textMuted)
+                        .rotationEffect(.degrees(generatedExpanded ? 90 : 0))
+                        .frame(width: 14)
+
+                    Text("GENERATED")
+                        .font(DSFont.sidebarSection)
+                        .foregroundStyle(DSColor.textSecondary)
+
+                    Text("\(vm.generatedFiles.count)")
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textMuted)
+
+                    Spacer()
+
+                    Button {
+                        if let project = activeProject {
+                            Task { await vm.scanGenerated(at: project.path) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DSColor.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh generated files")
+                }
+                .padding(.leading, DSSpacing.sm)
+                .padding(.trailing, DSSpacing.md)
+                .frame(height: DSLayout.gitSectionHeaderHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if generatedExpanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(vm.generatedFiles) { file in
+                        generatedRow(file: file)
+                    }
+                }
+                .padding(.horizontal, DSSpacing.sm)
+            }
+        }
     }
 
-    private var specListEmpty: some View {
-        VStack(spacing: DSSpacing.sm) {
-            Spacer()
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 24))
-                .foregroundStyle(DSColor.textMuted)
-            Text("No specs found")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-            Text("spec/*.cs.md")
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted.opacity(0.6))
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-    }
+    private func generatedRow(file: GeneratedFile) -> some View {
+        let isSelected = vm.selectedGenerated?.id == file.id
+        return Button {
+            vm.selectGeneratedFile(file)
+        } label: {
+            HStack(spacing: DSSpacing.xs) {
+                Color.clear.frame(width: 14)
 
-    private var specListNoProject: some View {
-        VStack {
-            Spacer()
-            Text("No project selected")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-            Spacer()
+                Image(systemName: "doc.text")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DSColor.textMuted)
+
+                Text(file.name)
+                    .font(DSFont.sidebarItem)
+                    .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+            }
+            .padding(.horizontal, DSSpacing.xs)
+            .frame(height: DSLayout.gitFileRowHeight)
+            .contentShape(Rectangle())
+            .background(
+                isSelected
+                    ? DSColor.accentPrimary.opacity(0.12)
+                    : Color.clear,
+                in: RoundedRectangle(cornerRadius: DSRadius.sm)
+            )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .buttonStyle(.plain)
     }
 
     // MARK: - Center Column: Editor
 
     private func editorColumn() -> some View {
         VStack(spacing: 0) {
-            editorHeader()
-            Divider()
-
-            if let spec = vm.selectedSpec {
+            if let generated = vm.selectedGenerated {
+                // Read-only: show file name in a minimal bar
+                generatedFileHeader(file: generated)
+                Divider()
+                CodeSpeakEditorView(
+                    text: .constant(vm.editorContent),
+                    isEditable: false,
+                    parserRegistry: syntaxParserRegistry,
+                    fileExtension: generated.url.pathExtension
+                )
+                .id(generated.id)
+            } else if let spec = vm.selectedSpec {
                 CodeSpeakEditorView(
                     text: Binding(
                         get: { vm.editorContent },
@@ -301,32 +425,27 @@ struct CodeSpeakModeView: View {
         .background(DSColor.surfaceBase)
     }
 
-    private func editorHeader() -> some View {
+    private func generatedFileHeader(file: GeneratedFile) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "doc.text")
                 .font(.system(size: 11))
                 .foregroundStyle(DSColor.textMuted)
 
-            Text(vm.selectedSpec?.name ?? "Editor")
+            Text(file.name)
                 .font(DSFont.sidebarSection)
                 .foregroundStyle(DSColor.textPrimary)
 
-            if vm.isEditorDirty {
-                Circle()
-                    .fill(DSColor.gitModified)
-                    .frame(width: 6, height: 6)
-            }
+            Text("read-only")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(DSColor.textMuted)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(
+                    DSColor.textMuted.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 3)
+                )
 
             Spacer()
-
-            if vm.isEditorDirty {
-                Button("Save") {
-                    Task { await vm.saveCurrentSpec() }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(DSColor.accentPrimary)
-            }
         }
         .padding(.horizontal, DSSpacing.md)
         .frame(height: DSLayout.gitSectionHeaderHeight)
@@ -348,12 +467,8 @@ struct CodeSpeakModeView: View {
     // MARK: - Right Column: Build Output
 
     private func buildColumn() -> some View {
-        VStack(spacing: 0) {
-            buildHeader()
-            Divider()
-            buildOutput()
-        }
-        .background(DSColor.surfaceRaised)
+        buildOutput()
+            .background(DSColor.surfaceRaised)
     }
 
     private func buildHeader() -> some View {
@@ -362,48 +477,33 @@ struct CodeSpeakModeView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DSColor.agentCodeSpeak)
 
-            Text("CodeSpeak Build")
+            // Show current command name (read-only — controlled from toolbar)
+            Text(navigationCoordinator.codeSpeakCommand.displayName)
                 .font(DSFont.sidebarSection)
-                .foregroundStyle(DSColor.textPrimary)
+                .foregroundStyle(DSColor.textSecondary)
 
             Spacer()
 
-            if let code = vm.buildVM.exitCode {
-                Text(code == 0 ? "PASS" : "FAIL")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(
-                        code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                        in: RoundedRectangle(cornerRadius: 3)
-                    )
-            }
+            // PASS/FAIL badge + stats (build command only)
+            if navigationCoordinator.codeSpeakCommand.supportsStatsParsing {
+                if let code = vm.buildVM.exitCode {
+                    Text(code == 0 ? "PASS" : "FAIL")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
+                            in: RoundedRectangle(cornerRadius: 3)
+                        )
+                }
 
-            if let stats = vm.buildVM.stats {
-                Text("\(stats.passing)/\(stats.total)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
-            }
-
-            Button {
-                guard let project = activeProject else { return }
-                Task { await vm.buildVM.runBuild(at: project.path) }
-            } label: {
-                if vm.buildVM.isRunning {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(DSColor.actionRun)
-                        .frame(width: 16, height: 16)
+                if let stats = vm.buildVM.stats {
+                    Text("\(stats.passing)/\(stats.total)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
                 }
             }
-            .buttonStyle(.plain)
-            .disabled(vm.buildVM.isRunning || activeProject == nil)
-            .help("Run codespeak build")
         }
         .padding(.horizontal, DSSpacing.md)
         .frame(height: DSLayout.gitSectionHeaderHeight)
@@ -450,7 +550,7 @@ struct CodeSpeakModeView: View {
             Text("Run CodeSpeak to see output")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
-            Text("Press > to build specs")
+            Text("Press \u{25B6} to \(vm.buildVM.selectedCommand.displayName.lowercased())")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted.opacity(0.6))
         }

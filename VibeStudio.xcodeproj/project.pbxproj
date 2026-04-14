@@ -59,6 +59,7 @@
 		46B5FD27CF2CD2454194B8FB /* SidebarHoverModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B594EDFD37420A40771A34BE /* SidebarHoverModifier.swift */; };
 		46C53B0BB1221CAA5801ADFA /* TraceabilityPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 695959C2877E2011DA4ED384 /* TraceabilityPanelView.swift */; };
 		472FC76493A5266103838AAD /* CodeSpeakPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A372E521A7E297CA82B888D /* CodeSpeakPromptSheet.swift */; };
+		4811909358F89A3554BF6FF7 /* CodeSpeakCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA616F1C6E83EB8E2DAABA63 /* CodeSpeakCommand.swift */; };
 		492C46D4141CAB9A9CB5A88A /* DiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFFE3A907EC50BB959FA9B7B /* DiffView.swift */; };
 		4AE65B182D744D6C77BB823B /* SyntaxToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D90213D392EF4680F03BF42 /* SyntaxToken.swift */; };
 		4BDD03D4343FF8C21FBD0A8A /* SkillViewerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 082E8033B21C63D5BEBFD52E /* SkillViewerSheet.swift */; };
@@ -112,6 +113,7 @@
 		A7F36B11FB0884B707EDA08E /* GitBranchValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6097750939363FB52042A9D6 /* GitBranchValidationTests.swift */; };
 		A832A9506039B340E6310F2A /* GitStatusPolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF474238A8C2D84BBD35489 /* GitStatusPolling.swift */; };
 		AA2F9ACD9FDE98E57B21C11C /* GitChangesPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A06FBA06D054BA92162EFB /* GitChangesPanelViewModel.swift */; };
+		AEDAD0C1992DD642767C4522 /* GeneratedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEFEDA26B2ED499A8B5AB8B /* GeneratedFile.swift */; };
 		B0D364AE979225B10A4A31A1 /* FileDiffSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792DE9B3E657958826F28470 /* FileDiffSheetView.swift */; };
 		B1F017B004B29B08566E325A /* CLIAgentPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C4442D41A15125E8561B01 /* CLIAgentPathResolver.swift */; };
 		B3C5A6D320582EEFF10216F4 /* SyntaxParserRegistering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF54CF4299CA0EF519CFF85 /* SyntaxParserRegistering.swift */; };
@@ -146,6 +148,7 @@
 		E02F4D88B327E5B9C3976A78 /* AppNavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F5EDDA260D3D2E53BCBF86 /* AppNavigationCoordinator.swift */; };
 		E069BD69A1F4951BF9FFA746 /* ContinuationHolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDAA7773FB14FCE4F533334E /* ContinuationHolder.swift */; };
 		E0B76E12C17D16FF428E0D94 /* GitStatusQuerying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0FE979401445A63E64D595 /* GitStatusQuerying.swift */; };
+		E4EBC5D980F6FC11FBF74BDC /* CommandSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F23BE33A47C1BC714CDDD2 /* CommandSelectorView.swift */; };
 		E4F09CC09A65CC148BA65C51 /* TerminalAreaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D28064992901E91A7D0A5EB /* TerminalAreaViewModel.swift */; };
 		E627750CBB6947F06A096375 /* SpecBuildPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD888CC3237D90F2AEDA06F2 /* SpecBuildPanelViewModel.swift */; };
 		E6AB7216BEA23B3B995172E9 /* CodeSpeakService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F95544C1BFABEEDBFD8B4AA3 /* CodeSpeakService.swift */; };
@@ -203,6 +206,7 @@
 		0FFE360B8A493CC3B7FA4BDF /* ClaudeSettingsPaneViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSettingsPaneViewModel.swift; sourceTree = "<group>"; };
 		11350E52FA33333905FF06BA /* CommandEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandEditorSheet.swift; sourceTree = "<group>"; };
 		11E69BACD8D19081B81E721D /* OpencodeSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpencodeSettingsPane.swift; sourceTree = "<group>"; };
+		11F23BE33A47C1BC714CDDD2 /* CommandSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandSelectorView.swift; sourceTree = "<group>"; };
 		17ED02C629023773CE643F0C /* AppReadyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReadyState.swift; sourceTree = "<group>"; };
 		1C14BB4E1B0F42A1DB0D3A62 /* FreeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTab.swift; sourceTree = "<group>"; };
 		1C515625DC84FC37E461C699 /* CodeSpeakSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakSettingsPane.swift; sourceTree = "<group>"; };
@@ -330,6 +334,7 @@
 		D84F2227A474AF4A519DACB2 /* QwenSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QwenSettingsPane.swift; sourceTree = "<group>"; };
 		D8F234EE05DA9FC0066D4261 /* VibeStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeStudioApp.swift; sourceTree = "<group>"; };
 		DB04352B65EB81DE7B6AF29B /* GitStaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStaging.swift; sourceTree = "<group>"; };
+		DCEFEDA26B2ED499A8B5AB8B /* GeneratedFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedFile.swift; sourceTree = "<group>"; };
 		DDB5B6663DBCFBCF0EE7CDB8 /* CommitPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitPanelView.swift; sourceTree = "<group>"; };
 		DE2E5D7C3DC4E8C064261824 /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
 		DFAA51FBA36F836A6E872587 /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
@@ -349,6 +354,7 @@
 		F692B4BD06857E954C89FEA4 /* GitStatusPollerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusPollerTests.swift; sourceTree = "<group>"; };
 		F813AC18FAFDD9295B87292A /* SheetActionButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetActionButtons.swift; sourceTree = "<group>"; };
 		F95544C1BFABEEDBFD8B4AA3 /* CodeSpeakService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakService.swift; sourceTree = "<group>"; };
+		FA616F1C6E83EB8E2DAABA63 /* CodeSpeakCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakCommand.swift; sourceTree = "<group>"; };
 		FD888CC3237D90F2AEDA06F2 /* SpecBuildPanelViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecBuildPanelViewModel.swift; sourceTree = "<group>"; };
 		FDFE45A1A341D6F6F3A3E348 /* CodeSpeakParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -768,6 +774,8 @@
 		93FADA87D55FD8D043A15E42 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				FA616F1C6E83EB8E2DAABA63 /* CodeSpeakCommand.swift */,
+				DCEFEDA26B2ED499A8B5AB8B /* GeneratedFile.swift */,
 				4003EB2E0C49CB11220571EE /* SpecFile.swift */,
 				39ED2B20858970168A6BA6FD /* SpecStats.swift */,
 			);
@@ -1021,6 +1029,7 @@
 				542EBA71E9DCDAA71EC1BEBB /* CodeSpeakEditorView.swift */,
 				E5643EBE9DEF46B1640D2696 /* CodeSpeakModeView.swift */,
 				0A372E521A7E297CA82B888D /* CodeSpeakPromptSheet.swift */,
+				11F23BE33A47C1BC714CDDD2 /* CommandSelectorView.swift */,
 				36BAA8C93B438D96557F3D95 /* SpecBuildPanelView.swift */,
 				83C4ECAF13A364E7EE3F5685 /* SpecEditorSheet.swift */,
 				0BACD8DB07884C4BACBCEDF5 /* SpecsPanelView.swift */,
@@ -1252,6 +1261,7 @@
 				2B23814FED59538255EDE987 /* ClaudeSettingsPane.swift in Sources */,
 				DAE882752156324BB158C0D8 /* ClaudeSettingsPaneViewModel.swift in Sources */,
 				66DAE73C0C890A849A233ABA /* CodeContentView.swift in Sources */,
+				4811909358F89A3554BF6FF7 /* CodeSpeakCommand.swift in Sources */,
 				451C6377F30651FFFD0C66FC /* CodeSpeakEditorView.swift in Sources */,
 				1EDDB24FB283C91215EA55BB /* CodeSpeakModeView.swift in Sources */,
 				FB253C0D4564A83AE279DDA7 /* CodeSpeakModeViewModel.swift in Sources */,
@@ -1262,6 +1272,7 @@
 				D84B2D07FED6FCBF893A8771 /* CodeSpeakSettingsPane.swift in Sources */,
 				2C30DF403DE6807029ABE1A8 /* CodexSettingsPane.swift in Sources */,
 				4384DEFBCDFD0014C829F25C /* CommandEditorSheet.swift in Sources */,
+				E4EBC5D980F6FC11FBF74BDC /* CommandSelectorView.swift in Sources */,
 				D2EA04C57CC746156B87D8D2 /* CommitPanelView.swift in Sources */,
 				E069BD69A1F4951BF9FFA746 /* ContinuationHolder.swift in Sources */,
 				4CFC9C955C987005AEFB5F78 /* CreateBranchSheet.swift in Sources */,
@@ -1287,6 +1298,7 @@
 				915F31D8DA270AFC76946E9A /* FrontmatterParser.swift in Sources */,
 				39A31F56398E5A5A181D44AE /* GeminiSettingsPane.swift in Sources */,
 				DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */,
+				AEDAD0C1992DD642767C4522 /* GeneratedFile.swift in Sources */,
 				FF954AE43ADA18597C77920A /* GitBranching.swift in Sources */,
 				B957B64A31CC9D01AFE6A974 /* GitChangesPanelView.swift in Sources */,
 				AA2F9ACD9FDE98E57B21C11C /* GitChangesPanelViewModel.swift in Sources */,

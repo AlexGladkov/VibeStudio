@@ -30,6 +30,39 @@ final class AppNavigationCoordinator {
 
     var codeSpeakBuildRequested: Bool = false
 
+    // MARK: - CodeSpeak Run Bar State
+    // Source of truth for the toolbar run bar; observed by CodeSpeakModeView.
+
+    /// Selected command for the toolbar run bar.
+    var codeSpeakCommand: CodeSpeakCommand = .build
+
+    /// Task name input (used when `codeSpeakCommand == .task`).
+    var codeSpeakTaskName: String = ""
+
+    /// Change message input (used when `codeSpeakCommand == .change`).
+    var codeSpeakChangeMessage: String = ""
+
+    /// Mirrors `SpecBuildPanelViewModel.isRunning`; written by `CodeSpeakModeView`.
+    var codeSpeakIsRunning: Bool = false
+
+    /// Set to `true` by the toolbar stop button; observed by `CodeSpeakModeView`.
+    var codeSpeakStopRequested: Bool = false
+
+    /// Name of the currently selected spec file; written by `CodeSpeakModeView`.
+    /// Displayed in the titlebar breadcrumb.
+    var codeSpeakCurrentSpecName: String = ""
+
+    /// True when the spec editor has unsaved changes; written by `CodeSpeakModeView`.
+    var codeSpeakIsEditorDirty: Bool = false
+
+    // MARK: - CodeSpeak Titlebar Layout
+
+    /// Width of the CodeSpeak specs sidebar column (left panel).
+    ///
+    /// Updated by `CodeSpeakModeView` via `GeometryReader` so `ToolbarView` can
+    /// position the breadcrumb exactly above the center column's left edge.
+    var specsColumnWidth: CGFloat = 220
+
     /// Update `currentMode` based on whether the active project is a CodeSpeak project.
     ///
     /// Called by `AppLifecycleCoordinator` whenever the active project changes.

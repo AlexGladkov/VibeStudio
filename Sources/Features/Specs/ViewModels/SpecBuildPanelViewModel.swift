@@ -6,20 +6,20 @@ import Foundation
 import Observation
 import OSLog
 
-/// ViewModel for `SpecBuildPanelView`.
+/// ViewModel for `SpecBuildPanelView` and the build column in `CodeSpeakModeView`.
 ///
-/// Launches `codespeak build` via `CodeSpeakProcessRunner`, streams output
-/// lines into `outputLines`, and parses stats from the output.
+/// Launches codespeak CLI commands via `CodeSpeakProcessRunner`, streams output
+/// lines into `outputLines`, and parses stats from the output when applicable.
 @Observable
 @MainActor
 final class SpecBuildPanelViewModel {
 
     // MARK: - State
 
-    /// Accumulated stdout/stderr lines from the running build.
+    /// Accumulated stdout/stderr lines from the running command.
     private(set) var outputLines: [String] = []
 
-    /// True while `codespeak build` is running.
+    /// True while a codespeak command is running.
     private(set) var isRunning = false
 
     /// Exit code after completion. Nil while running or before first run.
@@ -27,6 +27,28 @@ final class SpecBuildPanelViewModel {
 
     /// Parsed stats from the last completed build.
     private(set) var stats: SpecStats?
+
+    /// True when the last run was explicitly cancelled by the user.
+    private(set) var wasCancelled = false
+
+    /// Currently selected command to execute.
+    var selectedCommand: CodeSpeakCommand = .build
+
+    /// Task name for the `.task` command.
+    var taskName: String = ""
+
+    /// Change message for the `.change` command.
+    var changeMessage: String = ""
+
+    /// Whether the current state allows running the selected command.
+    var canRun: Bool {
+        guard !isRunning else { return false }
+        switch selectedCommand {
+        case .task:   return !taskName.trimmingCharacters(in: .whitespaces).isEmpty
+        case .change: return !changeMessage.trimmingCharacters(in: .whitespaces).isEmpty
+        default:      return true
+        }
+    }
 
     // MARK: - Dependencies
 
@@ -41,34 +63,63 @@ final class SpecBuildPanelViewModel {
         self.projectManager = projectManager
     }
 
-    // MARK: - Build
+    // MARK: - Run
 
-    /// Run `codespeak build` in the given directory and stream output.
-    func runBuild(at directory: URL) async {
+    /// Run the selected codespeak command in the given directory and stream output.
+    ///
+    /// - Parameters:
+    ///   - directory: Working directory (project root).
+    ///   - specPath: Optional path to a specific spec file (from the editor).
+    func run(at directory: URL, specPath: URL? = nil) async {
         guard !isRunning else { return }
         isRunning = true
+        wasCancelled = false
         outputLines = []
         exitCode = nil
         stats = nil
 
-        for await event in await processRunner.run(["build"], at: directory) {
+        let specString = specPath?.path(percentEncoded: false)
+        let args = selectedCommand.cliArguments(
+            specPath: specString,
+            taskName: taskName,
+            changeMessage: changeMessage
+        )
+
+        // Header line showing the command being run
+        outputLines.append("$ codespeak \(args.joined(separator: " "))")
+
+        for await event in await processRunner.run(args, at: directory) {
             switch event {
             case .line(let line):
                 outputLines.append(line)
-                parseStats(from: line)
+                if selectedCommand.supportsStatsParsing {
+                    parseStats(from: line)
+                }
             case .exitCode(let code):
                 exitCode = code
             case .error(let message):
-                outputLines.append("⚠ \(message)")
+                outputLines.append("-- \(message)")
             }
         }
 
         isRunning = false
 
         // Push stats to the service so TabItemView badge updates
-        if let s = stats, let activeId = projectManager.activeProjectId {
+        if selectedCommand.supportsStatsParsing,
+           let s = stats,
+           let activeId = projectManager.activeProjectId {
             codeSpeak.updateStats(s, for: activeId)
         }
+    }
+
+    // MARK: - Stop
+
+    /// Stop the currently running command.
+    func stop() {
+        guard isRunning else { return }
+        isRunning = false
+        wasCancelled = true
+        Task { await processRunner.stop() }
     }
 
     // MARK: - Output Parsing

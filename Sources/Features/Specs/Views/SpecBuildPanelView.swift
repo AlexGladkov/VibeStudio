@@ -56,72 +56,120 @@ struct SpecBuildPanelView: View {
     // MARK: - Header
 
     private func headerView(model: SpecBuildPanelViewModel, project: Project?) -> some View {
-        HStack(spacing: DSSpacing.xs) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(DSColor.agentCodeSpeak)
+        VStack(spacing: 0) {
+            HStack(spacing: DSSpacing.xs) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DSColor.agentCodeSpeak)
 
-            Text("CodeSpeak Build")
-                .font(DSFont.sidebarSection)
-                .foregroundStyle(DSColor.textPrimary)
+                CommandSelectorView(
+                    selectedCommand: Binding(
+                        get: { model.selectedCommand },
+                        set: { model.selectedCommand = $0 }
+                    ),
+                    taskName: Binding(
+                        get: { model.taskName },
+                        set: { model.taskName = $0 }
+                    ),
+                    changeMessage: Binding(
+                        get: { model.changeMessage },
+                        set: { model.changeMessage = $0 }
+                    ),
+                    isRunning: model.isRunning
+                )
 
-            Spacer()
+                Spacer()
 
-            // Exit code badge
-            if let code = model.exitCode {
-                Text(code == 0 ? "PASS" : "FAIL")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(
-                        code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                        in: RoundedRectangle(cornerRadius: 3)
-                    )
-            }
+                // Exit code badge (only for stats-capable commands)
+                if model.selectedCommand.supportsStatsParsing {
+                    if let code = model.exitCode {
+                        Text(code == 0 ? "PASS" : "FAIL")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(
+                                code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
+                                in: RoundedRectangle(cornerRadius: 3)
+                            )
+                    }
 
-            // Stats summary
-            if let stats = model.stats {
-                Text("\(stats.passing)/\(stats.total)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
-            }
+                    // Stats summary
+                    if let stats = model.stats {
+                        Text("\(stats.passing)/\(stats.total)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
+                    }
+                }
 
-            // Run button
-            Button {
-                guard let project else { return }
-                Task { await model.runBuild(at: project.path) }
-            } label: {
-                if model.isRunning {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 16, height: 16)
-                } else {
-                    Image(systemName: "play.fill")
+                // Play/Stop button
+                Button {
+                    guard let project else { return }
+                    if model.isRunning {
+                        model.stop()
+                    } else {
+                        Task { await model.run(at: project.path) }
+                    }
+                } label: {
+                    Image(systemName: model.isRunning ? "stop.fill" : "play.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(DSColor.actionRun)
+                        .foregroundStyle(model.isRunning ? DSColor.actionStop : DSColor.actionRun)
                         .frame(width: 16, height: 16)
                 }
-            }
-            .buttonStyle(.plain)
-            .disabled(model.isRunning || project == nil)
-            .help("Run codespeak build")
+                .buttonStyle(.plain)
+                .disabled(!model.canRun && !model.isRunning)
+                .help(model.isRunning ? "Stop codespeak" : "Run codespeak \(model.selectedCommand.displayName.lowercased())")
 
-            // Close button
-            Button {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    navigationCoordinator.showingSpecPanel = false
+                // Close button
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        navigationCoordinator.showingSpecPanel = false
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DSColor.textMuted)
+                        .frame(width: 16, height: 16)
                 }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10))
-                    .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 16, height: 16)
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, DSSpacing.md)
+            .frame(height: DSLayout.gitSectionHeaderHeight)
+
+            if model.selectedCommand.requiresInput {
+                HStack(spacing: DSSpacing.xs) {
+                    Text(model.selectedCommand.inputLabel)
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .frame(width: 50, alignment: .trailing)
+
+                    TextField(
+                        model.selectedCommand.inputPlaceholder,
+                        text: model.selectedCommand == .task
+                            ? Binding(
+                                get: { model.taskName },
+                                set: { model.taskName = $0 }
+                            )
+                            : Binding(
+                                get: { model.changeMessage },
+                                set: { model.changeMessage = $0 }
+                            )
+                    )
+                    .textFieldStyle(.plain)
+                    .font(DSFont.sidebarItem)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, DSSpacing.xxs)
+                    .background(
+                        DSColor.surfaceInput,
+                        in: RoundedRectangle(cornerRadius: DSRadius.sm)
+                    )
+                    .disabled(model.isRunning)
+                }
+                .padding(.horizontal, DSSpacing.md)
+                .frame(height: 28)
+            }
         }
-        .padding(.horizontal, DSSpacing.md)
-        .frame(height: DSLayout.gitSectionHeaderHeight)
     }
 
     // MARK: - Output
@@ -164,10 +212,10 @@ struct SpecBuildPanelView: View {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 24))
                 .foregroundStyle(DSColor.textMuted)
-            Text("Run codespeak build")
+            Text("Run codespeak command")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
-            Text("Press ▶ to build specs")
+            Text("Press \u{25B6} to \(viewModel.selectedCommand.displayName.lowercased())")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted.opacity(0.6))
         }

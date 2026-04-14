@@ -79,7 +79,22 @@ struct WindowToolbarRemover: NSViewRepresentable {
             hosting.wantsLayer = true
 
             titlebarContainer.addSubview(hosting)
+
+            // Measure where traffic lights end so we can start the breadcrumb just after.
+            // standardWindowButton returns buttons in window coordinates; convert to container.
+            let trafficLightsEnd: CGFloat
+            if let zoomBtn = window.standardWindowButton(.zoomButton),
+               let inContainer = zoomBtn.superview?.convert(zoomBtn.frame, to: titlebarContainer) {
+                trafficLightsEnd = inContainer.maxX + 8
+            } else {
+                trafficLightsEnd = 84  // safe fallback for standard macOS chrome
+            }
+
             NSLayoutConstraint.activate([
+                hosting.leadingAnchor.constraint(
+                    equalTo: titlebarContainer.leadingAnchor,
+                    constant: trafficLightsEnd
+                ),
                 hosting.trailingAnchor.constraint(
                     equalTo: titlebarContainer.trailingAnchor,
                     constant: -12

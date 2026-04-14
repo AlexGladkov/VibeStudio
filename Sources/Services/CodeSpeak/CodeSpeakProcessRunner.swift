@@ -25,6 +25,31 @@ enum CodeSpeakOutput: Sendable {
 /// Reads `ANTHROPIC_API_KEY` from Keychain (same path as `AICommitService`).
 actor CodeSpeakProcessRunner {
 
+    // MARK: - Process State
+
+    /// The currently running process (nil when idle).
+    private var currentProcess: Process?
+
+    /// Monotonic generation counter to guard against stale terminationHandler callbacks.
+    private var generation: UInt64 = 0
+
+    // MARK: - Stop
+
+    /// Terminate the currently running process, if any.
+    func stop() {
+        guard let process = currentProcess, process.isRunning else { return }
+        process.terminate()
+    }
+
+    /// Clear the process reference if it matches the expected generation.
+    ///
+    /// Called from `terminationHandler` via `Task { await self?.clearProcess(...) }`
+    /// to safely access actor-isolated state.
+    private func clearProcess(generation gen: UInt64) {
+        guard gen == generation else { return }
+        currentProcess = nil
+    }
+
     // MARK: - Run
 
     /// Spawn `codespeak <args>` in `directory` and stream output events.
@@ -39,7 +64,12 @@ actor CodeSpeakProcessRunner {
         at directory: URL,
         env: [String: String] = [:]
     ) -> AsyncStream<CodeSpeakOutput> {
-        AsyncStream { continuation in
+        // Terminate any previously running process before starting a new one.
+        currentProcess?.terminate()
+        generation &+= 1
+        let myGen = generation
+
+        return AsyncStream { continuation in
             Task {
                 // 1. Resolve binary
                 guard let binaryPath = CLIAgentPathResolver.resolve("codespeak") else {
@@ -49,16 +79,46 @@ actor CodeSpeakProcessRunner {
                     return
                 }
 
-                // 2. Resolve API key (Keychain → process env → login shell → .env.local)
+                // 2. Resolve API key (Keychain -> process env -> login shell -> .env.local)
                 guard let apiKey = await self.resolveAPIKey(at: directory) else {
-                    continuation.yield(.error("ANTHROPIC_API_KEY not set. Add it in Settings → Claude."))
+                    continuation.yield(.error("ANTHROPIC_API_KEY not set. Add it in Settings -> Claude."))
                     continuation.yield(.exitCode(1))
                     continuation.finish()
                     return
                 }
 
-                // 3. Build environment
-                var processEnv = ProcessInfo.processInfo.environment
+                // 3. Build allowlist-based environment
+                let allowedVars: Set<String> = [
+                    "HOME", "USER", "LOGNAME",
+                    "LANG", "LC_ALL", "LC_CTYPE",
+                    "TERM", "COLORTERM",
+                    "PATH", "SSH_AUTH_SOCK",
+                    "SHELL", "TMPDIR",
+                    "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+                ]
+                let parentEnv = ProcessInfo.processInfo.environment
+                var processEnv: [String: String] = [:]
+                for key in allowedVars {
+                    if let value = parentEnv[key] {
+                        processEnv[key] = value
+                    }
+                }
+
+                // Ensure terminal capabilities and locale are always set.
+                processEnv["TERM"] = processEnv["TERM"] ?? "xterm-256color"
+                processEnv["LANG"] = processEnv["LANG"] ?? "en_US.UTF-8"
+
+                // Prepend trusted bin directories to PATH so codespeak can find
+                // its own binary, git, node, and other tools.
+                let trustedBins = SecurityConstants.trustedBinDirectories
+                let currentPath = processEnv["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+                let existingParts = currentPath.split(separator: ":").map(String.init)
+                let missingBins = trustedBins.filter { !existingParts.contains($0) }
+                if !missingBins.isEmpty {
+                    processEnv["PATH"] = (missingBins + existingParts).joined(separator: ":")
+                }
+
+                // Inject API key after building the safe env.
                 processEnv["ANTHROPIC_API_KEY"] = apiKey
                 for (k, v) in env { processEnv[k] = v }
 
@@ -104,36 +164,52 @@ actor CodeSpeakProcessRunner {
                     }
                 }
 
-                // 7. Wait for exit
+                // 7. Launch and handle termination asynchronously
                 do {
+                    // terminationHandler fires on a Foundation background thread.
+                    // Capture only local `let` values; use Task for actor-isolated access.
+                    process.terminationHandler = { [weak self] proc in
+                        // Drain remaining data from pipes
+                        outHandle.readabilityHandler = nil
+                        errHandle.readabilityHandler = nil
+
+                        let remainingOut = outHandle.readDataToEndOfFile()
+                        if !remainingOut.isEmpty, let text = String(data: remainingOut, encoding: .utf8) {
+                            for line in text.components(separatedBy: "\n") {
+                                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                                if !trimmed.isEmpty { continuation.yield(.line(trimmed)) }
+                            }
+                        }
+                        let remainingErr = errHandle.readDataToEndOfFile()
+                        if !remainingErr.isEmpty, let text = String(data: remainingErr, encoding: .utf8) {
+                            for line in text.components(separatedBy: "\n") {
+                                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                                if !trimmed.isEmpty { continuation.yield(.line(trimmed)) }
+                            }
+                        }
+
+                        continuation.yield(.exitCode(proc.terminationStatus))
+                        continuation.finish()
+
+                        // Clear actor state via async hop
+                        Task { await self?.clearProcess(generation: myGen) }
+                    }
+
                     try process.run()
-                    process.waitUntilExit()
-                    outHandle.readabilityHandler = nil
-                    errHandle.readabilityHandler = nil
-                    // Drain remaining data
-                    let remainingOut = outHandle.readDataToEndOfFile()
-                    if !remainingOut.isEmpty, let text = String(data: remainingOut, encoding: .utf8) {
-                        for line in text.components(separatedBy: "\n") {
-                            let trimmed = line.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty { continuation.yield(.line(trimmed)) }
-                        }
-                    }
-                    let remainingErr = errHandle.readDataToEndOfFile()
-                    if !remainingErr.isEmpty, let text = String(data: remainingErr, encoding: .utf8) {
-                        for line in text.components(separatedBy: "\n") {
-                            let trimmed = line.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty { continuation.yield(.line(trimmed)) }
-                        }
-                    }
-                    continuation.yield(.exitCode(process.terminationStatus))
+                    await self.setCurrentProcess(process, generation: myGen)
                 } catch {
                     continuation.yield(.error("Failed to launch codespeak: \(error.localizedDescription)"))
                     continuation.yield(.exitCode(1))
+                    continuation.finish()
                 }
-
-                continuation.finish()
             }
         }
+    }
+
+    /// Store the running process reference if the generation still matches.
+    private func setCurrentProcess(_ process: Process, generation gen: UInt64) {
+        guard gen == generation else { return }
+        currentProcess = process
     }
 
     // MARK: - Private: API Key Resolution
