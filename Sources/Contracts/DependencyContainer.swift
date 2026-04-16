@@ -266,6 +266,12 @@ extension View {
             .environment(\.gitStatusPoller, container.gitStatusPoller)
             .environment(\.agentAvailability, container.agentAvailability)
             .environment(container.appReadyState)
+            // Inject navigationCoordinator via both styles:
+            // - Observable-style (.environment(object)) ensures @Observable property tracking
+            //   works in RootView/ToolbarView (currentMode switch).
+            // - EnvironmentKey-style (.environment(\.key, ...)) keeps existing views that
+            //   use @Environment(\.navigationCoordinator) working unchanged.
+            .environment(container.navigationCoordinator)
             .environment(\.navigationCoordinator, container.navigationCoordinator)
             .environment(\.themeService, container.themeService)
             .environment(\.freeTabStore, container.freeTabStore)

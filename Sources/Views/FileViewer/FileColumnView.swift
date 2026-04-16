@@ -24,7 +24,7 @@ struct FileColumnView: View {
     private var header: some View {
         HStack(spacing: DSSpacing.sm) {
             Image(systemName: "doc.text")
-                .font(.system(size: 12))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             Text(file.fileName)
@@ -40,7 +40,7 @@ struct FileColumnView: View {
                     onClose()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.textMuted)
                 }
                 .buttonStyle(.plain)
@@ -73,7 +73,7 @@ struct FileColumnView: View {
             centeredPlaceholder {
                 VStack(spacing: DSSpacing.sm) {
                     Image(systemName: "doc.zipper")
-                        .font(.system(size: 24))
+                        .font(DSFont.emptyStateIcon)
                         .foregroundStyle(DSColor.textMuted)
                     Text("Binary file -- preview not available")
                         .font(DSFont.sidebarItem)
@@ -85,7 +85,7 @@ struct FileColumnView: View {
                 centeredPlaceholder {
                     VStack(spacing: DSSpacing.sm) {
                         Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 24))
+                            .font(DSFont.emptyStateIcon)
                             .foregroundStyle(DSColor.gitModified)
                         Text("File too large to preview (\(formatBytes(size)))")
                             .font(DSFont.sidebarItem)
@@ -102,7 +102,7 @@ struct FileColumnView: View {
             centeredPlaceholder {
                 VStack(spacing: DSSpacing.sm) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 24))
+                        .font(DSFont.emptyStateIcon)
                         .foregroundStyle(DSColor.gitDeleted)
                     Text(message)
                         .font(DSFont.sidebarItem)
@@ -128,7 +128,7 @@ struct FileColumnView: View {
     private func sizeWarningBanner(size: Int) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
+                .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.gitModified)
             Text("File truncated (\(formatBytes(size))) -- showing first \(FileLoader.maxLineCount) lines")
                 .font(DSFont.sidebarItemSmall)

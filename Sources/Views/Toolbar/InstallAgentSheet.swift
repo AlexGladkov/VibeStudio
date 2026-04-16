@@ -29,7 +29,7 @@ struct InstallAgentSheet: View {
             Divider().background(DSColor.borderDefault)
             footer
         }
-        .frame(width: 480, height: 420)
+        .frame(minWidth: 400, idealWidth: 480, minHeight: 360, idealHeight: 420)
         .background(DSColor.surfaceOverlay)
     }
 
@@ -38,7 +38,7 @@ struct InstallAgentSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Install \(assistant.displayName)")
-                .font(.system(size: 15, weight: .semibold))
+                .font(DSFont.sheetTitle)
                 .foregroundStyle(DSColor.textPrimary)
             Text(assistant.shortDescription)
                 .font(DSFont.sidebarItemSmall)
@@ -105,7 +105,7 @@ struct InstallAgentSheet: View {
             stepHeader(number: number, title: "Настройка")
 
             Text(instructions)
-                .font(.system(size: 12, design: .monospaced))
+                .font(DSFont.monoPath)
                 .foregroundStyle(DSColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(DSSpacing.sm)
@@ -121,13 +121,13 @@ struct InstallAgentSheet: View {
     private func stepHeader(number: Int, title: String) -> some View {
         HStack(spacing: DSSpacing.sm) {
             Text("\(number)")
-                .font(.system(size: 11, weight: .bold))
+                .font(DSFont.smallButtonLabel)
                 .foregroundStyle(DSColor.textInverse)
-                .frame(width: 20, height: 20)
+                .frame(width: DSLayout.stepIndicatorSize, height: DSLayout.stepIndicatorSize)
                 .background(DSColor.accentPrimary, in: Circle())
 
             Text(title)
-                .font(.system(size: 13, weight: .medium))
+                .font(DSFont.gitBranch)
                 .foregroundStyle(DSColor.textPrimary)
         }
     }
@@ -135,7 +135,7 @@ struct InstallAgentSheet: View {
     private func commandBlock(_ command: String) -> some View {
         HStack(spacing: DSSpacing.sm) {
             Text(command)
-                .font(.system(size: 12, design: .monospaced))
+                .font(DSFont.monoPath)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(2)
                 .truncationMode(.tail)
@@ -149,15 +149,15 @@ struct InstallAgentSheet: View {
                     if copiedCommand == command { copiedCommand = nil }
                 }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: copiedCommand == command ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(DSFont.iconMD)
                     Text(copiedCommand == command ? "Copied" : "Copy")
-                        .font(.system(size: 11))
+                        .font(DSFont.sidebarItemSmall)
                 }
                 .foregroundStyle(copiedCommand == command ? DSColor.actionRun : DSColor.textSecondary)
                 .padding(.horizontal, DSSpacing.sm)
-                .frame(height: 24)
+                .frame(height: 24) // slightly smaller than gitButtonHeight
                 .background(DSColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DSRadius.sm))
                 .overlay(
                     RoundedRectangle(cornerRadius: DSRadius.sm)

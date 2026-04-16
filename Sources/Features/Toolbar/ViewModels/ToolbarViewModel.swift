@@ -28,17 +28,20 @@ final class ToolbarViewModel {
     private let projectManager: any ProjectManaging
     private let terminalManager: any TerminalSessionManaging
     let agentAvailability: any AgentAvailabilityChecking
+    private let apiKeyResolver: any APIKeyResolving
 
     // MARK: - Init
 
     init(
         projectManager: any ProjectManaging,
         terminalManager: any TerminalSessionManaging,
-        agentAvailability: any AgentAvailabilityChecking
+        agentAvailability: any AgentAvailabilityChecking,
+        apiKeyResolver: any APIKeyResolving = KeychainAPIKeyResolver()
     ) {
         self.projectManager = projectManager
         self.terminalManager = terminalManager
         self.agentAvailability = agentAvailability
+        self.apiKeyResolver = apiKeyResolver
         startProjectCleanupObservation()
         startSessionEventObservation()
     }
@@ -154,7 +157,7 @@ final class ToolbarViewModel {
         // Resolve API key: Keychain first, then environment fallback.
         let apiKeyValue: String? = {
             guard let envVar = agent.apiKeyEnvironmentVariable else { return nil }
-            if let keychainValue = KeychainHelper.load(account: envVar), !keychainValue.isEmpty {
+            if let keychainValue = apiKeyResolver.resolve(for: envVar), !keychainValue.isEmpty {
                 return keychainValue
             }
             return ProcessInfo.processInfo.environment[envVar]

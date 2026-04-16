@@ -18,7 +18,7 @@ struct FileViewerSheet: View {
     private var viewModel: FileViewerViewModel {
         if let existing = vm { return existing }
         let created = FileViewerViewModel(initialFile: initialFile)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -64,7 +64,7 @@ struct FileViewerSheet: View {
                 } label: {
                     HStack(spacing: DSSpacing.xxs) {
                         Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(DSFont.iconMD)
                         Text("Add File")
                             .font(DSFont.buttonLabel)
                     }
@@ -77,7 +77,7 @@ struct FileViewerSheet: View {
                 model.copyAllContent()
             } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 12))
+                    .font(DSFont.bodySmall)
                     .foregroundStyle(DSColor.textSecondary)
             }
             .buttonStyle(.plain)
@@ -87,7 +87,7 @@ struct FileViewerSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
+                    .font(DSFont.iconLG)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)

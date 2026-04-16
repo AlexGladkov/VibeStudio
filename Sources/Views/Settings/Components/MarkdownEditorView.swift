@@ -25,8 +25,8 @@ struct MarkdownEditorView: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.isRichText = false
         textView.allowsUndo = true
-        textView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        textView.textContainerInset = NSSize(width: 12, height: 12)
+        textView.font = DSFont.codeEditorNSFont(size: 12)
+        textView.textContainerInset = NSSize(width: DSSpacing.md, height: DSSpacing.md)
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false

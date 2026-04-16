@@ -17,7 +17,7 @@ struct CodeSpeakSettingsPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("CodeSpeak")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.settingsTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
@@ -31,7 +31,7 @@ struct CodeSpeakSettingsPane: View {
                     HStack(spacing: DSSpacing.xs) {
                         Circle()
                             .fill(isInstalled ? DSColor.gitAdded : DSColor.gitDeleted)
-                            .frame(width: 8, height: 8)
+                            .frame(width: DSLayout.statusDotSize, height: DSLayout.statusDotSize)
                         Text(isInstalled ? "codespeak installed" : "codespeak not found")
                             .font(DSFont.sidebarItem)
                             .foregroundStyle(DSColor.textPrimary)
@@ -40,7 +40,7 @@ struct CodeSpeakSettingsPane: View {
                     HStack(spacing: DSSpacing.xs) {
                         Circle()
                             .fill(hasAPIKey ? DSColor.gitAdded : DSColor.gitModified)
-                            .frame(width: 8, height: 8)
+                            .frame(width: DSLayout.statusDotSize, height: DSLayout.statusDotSize)
                         Text(hasAPIKey ? "ANTHROPIC_API_KEY configured" : "ANTHROPIC_API_KEY not set")
                             .font(DSFont.sidebarItem)
                             .foregroundStyle(DSColor.textPrimary)

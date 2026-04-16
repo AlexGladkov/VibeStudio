@@ -17,7 +17,8 @@ struct ToolbarView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
     @Environment(\.agentAvailability) private var agentAvailability
-    @Environment(\.navigationCoordinator) private var navigationCoordinator
+    // Observable-style injection — required for currentMode reactive tracking.
+    @Environment(AppNavigationCoordinator.self) private var navigationCoordinator
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.freeTabStore) private var freeTabStore
     @Environment(\.openURL) private var openURL
@@ -33,13 +34,11 @@ struct ToolbarView: View {
             terminalManager: terminalManager,
             agentAvailability: agentAvailability
         )
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
-    private var activeProject: Project? {
-        projectManager.projects.first { $0.id == projectManager.activeProjectId }
-    }
+    private var activeProject: Project? { projectManager.activeProject }
 
     var body: some View {
         let model = viewModel
@@ -50,14 +49,14 @@ struct ToolbarView: View {
                 if navigationCoordinator.currentMode == .codeSpeak {
                     codeSpeakThreeSectionToolbar()
                 } else {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DSSpacing.sm) {
                         configPicker(model: model)
                         playStopButton(model: model)
                         openInBrowserButton(model: model)
                         settingsButton()
                         changesToggleButton()
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, DSSpacing.md)
                 }
             }
         }
@@ -90,10 +89,10 @@ struct ToolbarView: View {
     // so the breadcrumb tracks sidebar resize automatically.
 
     private func codeSpeakThreeSectionToolbar() -> some View {
-        // trafficLightsEnd ≈ 84pt — the standard macOS value used in WindowToolbarRemover.
+        // trafficLightsEnd — the standard macOS value used in WindowToolbarRemover.
         // The hosting view's leading anchor is set to this value, so subtracting it gives
         // the offset within the hosting view where the specs column ends.
-        let trafficLightsEnd: CGFloat = 84
+        let trafficLightsEnd = DSLayout.trafficLightsEndFallback
         let specsWidth = navigationCoordinator.specsColumnWidth
         let box1Width = max(0, specsWidth - trafficLightsEnd)
 
@@ -103,20 +102,20 @@ struct ToolbarView: View {
                 .frame(width: box1Width)
 
             // Box 2 — center: breadcrumb pinned to left of center column
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.sm) {
                 codeSpeakBreadcrumb()
-                    .padding(.leading, 8)
+                    .padding(.leading, DSSpacing.sm)
                 codeSpeakStatsBadge()
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: DSSpacing.sm)
 
             // Box 3 — right: run controls
-            HStack(spacing: 6) {
+            HStack(spacing: DSSpacing.sm) {
                 codeSpeakRunBar()
                 settingsButton()
             }
-            .padding(.trailing, 12)
+            .padding(.trailing, DSSpacing.md)
         }
     }
 
@@ -127,19 +126,19 @@ struct ToolbarView: View {
             guard !model.isRunning, model.activeId != nil else { return }
             showingPicker.toggle()
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: DSSpacing.xs) {
                 AIAssistantIconView(assistant: model.currentAssistant, size: 14)
                     .opacity(model.isRunning ? 0.4 : 1.0)
 
                 Text(model.currentAssistant.displayName)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DSFont.tabTitle)
                     .foregroundStyle(model.isRunning ? DSColor.textMuted : DSColor.textPrimary)
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .medium))
+                    .font(DSFont.iconSM)
                     .foregroundStyle(model.isRunning ? DSColor.textMuted : DSColor.textSecondary)
             }
-            .frame(height: 22)
+            .frame(height: DSLayout.toolbarButtonHeight)
         }
         .buttonStyle(.plain)
         .disabled(model.isRunning || model.activeId == nil)
@@ -167,24 +166,24 @@ struct ToolbarView: View {
                         showingPicker = false
                     }
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         AIAssistantIconView(assistant: assistant, size: 14)
                             .opacity(canLaunch ? 1.0 : 0.5)
 
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                             Text(assistant.displayName)
-                                .font(.system(size: 13))
+                                .font(DSFont.sidebarItem)
                                 .foregroundStyle(canLaunch ? DSColor.textPrimary : DSColor.textSecondary)
 
                             if isNotInstalled {
                                 Text("Нажми для установки")
-                                    .font(.system(size: 10))
+                                    .font(DSFont.iconMD)
                                     .foregroundStyle(DSColor.accentPrimary)
                                     .lineLimit(1)
                             } else if case .available(_, let hasAPIKey) = status, !hasAPIKey,
                                       assistant.apiKeyEnvironmentVariable != nil {
                                 Text("API key not set")
-                                    .font(.system(size: 10))
+                                    .font(DSFont.iconMD)
                                     .foregroundStyle(DSColor.indicatorWaiting)
                                     .lineLimit(1)
                             }
@@ -194,11 +193,11 @@ struct ToolbarView: View {
 
                         if isNotInstalled {
                             Image(systemName: "arrow.down.circle")
-                                .font(.system(size: 14))
+                                .font(DSFont.iconLG)
                                 .foregroundStyle(DSColor.accentPrimary)
                         } else if !canLaunch {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 10))
+                                .font(DSFont.iconMD)
                                 .foregroundStyle(DSColor.indicatorWaiting)
                         } else if assistant == model.currentAssistant {
                             Image(systemName: "checkmark")
@@ -206,15 +205,15 @@ struct ToolbarView: View {
                                 .foregroundStyle(DSColor.accentPrimary)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.sm)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .frame(minWidth: 200)
-        .padding(.vertical, 4)
+        .frame(minWidth: DSLayout.popoverMinWidth)
+        .padding(.vertical, DSSpacing.xs)
         .background(DSColor.surfaceOverlay)
     }
 
@@ -237,7 +236,7 @@ struct ToolbarView: View {
                         )
                 }
             }
-            .frame(width: 26, height: 22)
+            .frame(width: DSLayout.toolbarIconButtonWidth, height: DSLayout.toolbarButtonHeight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -256,33 +255,33 @@ struct ToolbarView: View {
                 projectManager.activeProjectId = nil
             } label: {
                 Text("Projects")
-                    .font(.system(size: 12))
+                    .font(DSFont.tabTitle)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
             .help("All Projects")
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(DSColor.textMuted.opacity(0.5))
-                .padding(.horizontal, 4)
+                .font(DSFont.iconSM)
+                .foregroundStyle(DSColor.textGhost)
+                .padding(.horizontal, DSSpacing.xs)
 
             // Project name + dropdown
             Button {
                 showingProjectPicker.toggle()
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "doc.text.magnifyingglass")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(DSFont.tabTitle)
                         .foregroundStyle(DSColor.agentCodeSpeak)
 
                     Text(activeProject?.name ?? "CodeSpeak")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(DSFont.tabTitle)
                         .foregroundStyle(DSColor.textPrimary)
                         .lineLimit(1)
 
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(DSColor.textSecondary)
                 }
             }
@@ -291,9 +290,9 @@ struct ToolbarView: View {
                 projectPickerPopover
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(DSColor.agentCodeSpeak.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, DSSpacing.xxs)
+        .background(DSColor.agentCodeSpeak.opacity(0.08), in: RoundedRectangle(cornerRadius: DSRadius.md))
     }
 
     private var projectPickerPopover: some View {
@@ -303,7 +302,7 @@ struct ToolbarView: View {
                     projectManager.activeProjectId = project.id
                     showingProjectPicker = false
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DSSpacing.sm) {
                         if project.id == projectManager.activeProjectId {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 11, weight: .semibold))
@@ -313,22 +312,22 @@ struct ToolbarView: View {
                         }
 
                         Text(project.name)
-                            .font(.system(size: 13))
+                            .font(DSFont.sidebarItem)
                             .foregroundStyle(DSColor.textPrimary)
                             .lineLimit(1)
 
                         Spacer()
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.sm)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
 
         }
-        .frame(minWidth: 200)
-        .padding(.vertical, 4)
+        .frame(minWidth: DSLayout.popoverMinWidth)
+        .padding(.vertical, DSSpacing.xs)
         .background(DSColor.surfaceOverlay)
     }
 
@@ -339,13 +338,13 @@ struct ToolbarView: View {
         if let id = projectManager.activeProjectId,
            let stats = codeSpeak.projectStats[id] {
             Text("\(stats.passing)/\(stats.total)")
-                .font(.system(size: 11, weight: .medium))
+                .font(DSFont.smallButtonLabel)
                 .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(
                     stats.allPassing ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                    in: RoundedRectangle(cornerRadius: 3)
+                    in: RoundedRectangle(cornerRadius: DSRadius.sm)
                 )
         }
     }
@@ -363,7 +362,7 @@ struct ToolbarView: View {
                 projectManager.activeProjectId = nil
             } label: {
                 Text("Projects")
-                    .font(.system(size: 12))
+                    .font(DSFont.tabTitle)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -371,31 +370,31 @@ struct ToolbarView: View {
 
             if let project = activeProject {
                 Text(" \u{203A} ")
-                    .font(.system(size: 12))
-                    .foregroundStyle(DSColor.textMuted.opacity(0.5))
+                    .font(DSFont.tabTitle)
+                    .foregroundStyle(DSColor.textGhost)
 
                 Text(project.name)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DSFont.tabTitle)
                     .foregroundStyle(DSColor.textSecondary)
                     .lineLimit(1)
             }
 
-            if !navigationCoordinator.codeSpeakCurrentSpecName.isEmpty {
+            if !navigationCoordinator.runBar.currentSpecName.isEmpty {
                 Text(" \u{203A} ")
-                    .font(.system(size: 12))
-                    .foregroundStyle(DSColor.textMuted.opacity(0.5))
+                    .font(DSFont.tabTitle)
+                    .foregroundStyle(DSColor.textGhost)
 
-                Text(navigationCoordinator.codeSpeakCurrentSpecName)
-                    .font(.system(size: 12, weight: .medium))
+                Text(navigationCoordinator.runBar.currentSpecName)
+                    .font(DSFont.tabTitle)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
 
                 // Dirty indicator
-                if navigationCoordinator.codeSpeakIsEditorDirty {
+                if navigationCoordinator.runBar.isEditorDirty {
                     Circle()
                         .fill(DSColor.gitModified)
-                        .frame(width: 5, height: 5)
-                        .padding(.leading, 3)
+                        .frame(width: 5, height: 5) // dirty dot, intentionally sub-grid
+                        .padding(.leading, DSSpacing.xxs)
                 }
             }
         }
@@ -405,9 +404,9 @@ struct ToolbarView: View {
 
     /// Returns `true` if the current command can be launched (non-empty required inputs).
     private var codeSpeakCanRun: Bool {
-        switch navigationCoordinator.codeSpeakCommand {
-        case .task:   return !navigationCoordinator.codeSpeakTaskName.trimmingCharacters(in: .whitespaces).isEmpty
-        case .change: return !navigationCoordinator.codeSpeakChangeMessage.trimmingCharacters(in: .whitespaces).isEmpty
+        switch navigationCoordinator.runBar.command {
+        case .task:   return !navigationCoordinator.runBar.taskName.trimmingCharacters(in: .whitespaces).isEmpty
+        case .change: return !navigationCoordinator.runBar.changeMessage.trimmingCharacters(in: .whitespaces).isEmpty
         default:      return true
         }
     }
@@ -418,105 +417,105 @@ struct ToolbarView: View {
     /// Command state lives in `AppNavigationCoordinator` so the toolbar
     /// and `CodeSpeakModeView` share the same source of truth.
     private func codeSpeakRunBar() -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DSSpacing.sm) {
             // CodeSpeak icon (moved here from the right panel header)
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.tabTitle)
                 .foregroundStyle(DSColor.agentCodeSpeak)
 
             // Command dropdown
             Menu {
                 ForEach(CodeSpeakCommand.allCases) { cmd in
                     Button(cmd.displayName) {
-                        navigationCoordinator.codeSpeakCommand = cmd
+                        navigationCoordinator.runBar.command = cmd
                     }
                 }
             } label: {
-                HStack(spacing: 4) {
-                    Text(navigationCoordinator.codeSpeakCommand.displayName)
-                        .font(.system(size: 12, weight: .medium))
+                HStack(spacing: DSSpacing.xs) {
+                    Text(navigationCoordinator.runBar.command.displayName)
+                        .font(DSFont.tabTitle)
                         .foregroundStyle(
-                            navigationCoordinator.codeSpeakIsRunning
+                            navigationCoordinator.runBar.isRunning
                                 ? DSColor.textMuted
                                 : DSColor.textPrimary
                         )
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(DSColor.textSecondary)
                 }
-                .frame(height: 22)
+                .frame(height: DSLayout.toolbarButtonHeight)
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .disabled(navigationCoordinator.codeSpeakIsRunning)
+            .disabled(navigationCoordinator.runBar.isRunning)
 
             // Inline text field for commands that require input
-            if navigationCoordinator.codeSpeakCommand == .task {
+            if navigationCoordinator.runBar.command == .task {
                 TextField(
                     "Task name...",
                     text: Binding(
-                        get: { navigationCoordinator.codeSpeakTaskName },
-                        set: { navigationCoordinator.codeSpeakTaskName = $0 }
+                        get: { navigationCoordinator.runBar.taskName },
+                        set: { navigationCoordinator.runBar.taskName = $0 }
                     )
                 )
                 .textFieldStyle(.plain)
-                .font(.system(size: 11))
+                .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textPrimary)
-                .frame(width: 140, height: 20)
-                .padding(.horizontal, 6)
+                .frame(minWidth: DSLayout.toolbarTextFieldMinWidth, maxWidth: DSLayout.toolbarTextFieldMaxWidth)
+                .padding(.horizontal, DSSpacing.sm)
                 .background(
                     DSColor.surfaceInput,
-                    in: RoundedRectangle(cornerRadius: 4)
+                    in: RoundedRectangle(cornerRadius: DSRadius.sm)
                 )
-                .disabled(navigationCoordinator.codeSpeakIsRunning)
-            } else if navigationCoordinator.codeSpeakCommand == .change {
+                .disabled(navigationCoordinator.runBar.isRunning)
+            } else if navigationCoordinator.runBar.command == .change {
                 TextField(
                     "Describe the change...",
                     text: Binding(
-                        get: { navigationCoordinator.codeSpeakChangeMessage },
-                        set: { navigationCoordinator.codeSpeakChangeMessage = $0 }
+                        get: { navigationCoordinator.runBar.changeMessage },
+                        set: { navigationCoordinator.runBar.changeMessage = $0 }
                     )
                 )
                 .textFieldStyle(.plain)
-                .font(.system(size: 11))
+                .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textPrimary)
-                .frame(width: 180, height: 20)
-                .padding(.horizontal, 6)
+                .frame(minWidth: DSLayout.toolbarTextFieldMinWidth, maxWidth: DSLayout.toolbarTextFieldMaxWidth)
+                .padding(.horizontal, DSSpacing.sm)
                 .background(
                     DSColor.surfaceInput,
-                    in: RoundedRectangle(cornerRadius: 4)
+                    in: RoundedRectangle(cornerRadius: DSRadius.sm)
                 )
-                .disabled(navigationCoordinator.codeSpeakIsRunning)
+                .disabled(navigationCoordinator.runBar.isRunning)
             }
 
             // Play / Stop button (triangle on the RIGHT)
             Button {
-                if navigationCoordinator.codeSpeakIsRunning {
-                    navigationCoordinator.codeSpeakStopRequested = true
+                if navigationCoordinator.runBar.isRunning {
+                    navigationCoordinator.runBar.stopRequested = true
                 } else {
                     navigationCoordinator.codeSpeakBuildRequested = true
                 }
             } label: {
                 Image(
-                    systemName: navigationCoordinator.codeSpeakIsRunning
+                    systemName: navigationCoordinator.runBar.isRunning
                         ? "stop.fill"
                         : "play.fill"
                 )
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(
-                    navigationCoordinator.codeSpeakIsRunning
+                    navigationCoordinator.runBar.isRunning
                         ? DSColor.actionStop
                         : (codeSpeakCanRun ? DSColor.actionRun : DSColor.textMuted)
                 )
-                .frame(width: 22, height: 22)
+                .frame(width: DSLayout.toolbarButtonHeight, height: DSLayout.toolbarButtonHeight)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!navigationCoordinator.codeSpeakIsRunning && !codeSpeakCanRun)
+            .disabled(!navigationCoordinator.runBar.isRunning && !codeSpeakCanRun)
             .help(
-                navigationCoordinator.codeSpeakIsRunning
+                navigationCoordinator.runBar.isRunning
                     ? "Stop codespeak"
-                    : "Run codespeak \(navigationCoordinator.codeSpeakCommand.displayName.lowercased())"
+                    : "Run codespeak \(navigationCoordinator.runBar.command.displayName.lowercased())"
             )
         }
     }
@@ -530,14 +529,12 @@ struct ToolbarView: View {
             }
         } label: {
             Image(systemName: "sidebar.right")
-                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(
                     navigationCoordinator.showingChangesPanel
                         ? DSColor.accentPrimary
                         : DSColor.textSecondary
                 )
-                .frame(width: 26, height: 22)
-                .contentShape(Rectangle())
+                .toolbarIconButton()
         }
         .buttonStyle(.plain)
         .help("Toggle Changes Panel (\u{2318}\u{21E7}G)")
@@ -550,10 +547,8 @@ struct ToolbarView: View {
             navigationCoordinator.showingSettings = true
         } label: {
             Image(systemName: "gear")
-                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 26, height: 22)
-                .contentShape(Rectangle())
+                .toolbarIconButton()
         }
         .buttonStyle(.plain)
         .help("Settings")
@@ -568,10 +563,8 @@ struct ToolbarView: View {
             }
         } label: {
             Image(systemName: "globe")
-                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(model.activeProductionURL != nil ? DSColor.textPrimary : DSColor.textMuted)
-                .frame(width: 26, height: 22)
-                .contentShape(Rectangle())
+                .toolbarIconButton()
         }
         .buttonStyle(.plain)
         .disabled(model.activeProductionURL == nil)

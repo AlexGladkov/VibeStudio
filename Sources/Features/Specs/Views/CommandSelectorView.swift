@@ -43,7 +43,7 @@ struct CommandSelectorView: View {
                     .font(DSFont.sidebarSection)
                     .foregroundStyle(DSColor.textPrimary)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: 8, weight: .semibold)) // sub-grid, intentionally micro
                     .foregroundStyle(DSColor.textMuted)
             }
         }
@@ -59,7 +59,7 @@ struct CommandSelectorView: View {
             Text(selectedCommand.inputLabel)
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textSecondary)
-                .frame(width: 50, alignment: .trailing)
+                .frame(width: DSLayout.inputLabelWidth, alignment: .trailing)
 
             TextField(
                 selectedCommand.inputPlaceholder,
@@ -75,7 +75,7 @@ struct CommandSelectorView: View {
                 in: RoundedRectangle(cornerRadius: DSRadius.sm)
             )
         }
-        .frame(height: 32)
+        .frame(height: DSLayout.inputRowHeight)
         .disabled(isRunning)
     }
 

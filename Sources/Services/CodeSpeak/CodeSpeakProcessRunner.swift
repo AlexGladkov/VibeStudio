@@ -231,7 +231,7 @@ actor CodeSpeakProcessRunner {
             return key
         }
         // 3. Login shell environment — covers Finder/Dock launch (launchd strips shell env)
-        if let key = resolveFromLoginShell(), !key.isEmpty {
+        if let key = await resolveFromLoginShell(), !key.isEmpty {
             return key
         }
         // 4. .env.local in project directory — CodeSpeak stores key here when configured via CLI
@@ -263,22 +263,31 @@ actor CodeSpeakProcessRunner {
     /// Sources `.zshenv` + `.zprofile` (login shell, non-interactive).
     /// If the key lives only in `.zshrc` this won't find it — user should set
     /// it in Settings → Claude or move the export to `.zshenv`.
-    private func resolveFromLoginShell() -> String? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        task.arguments = ["-l", "-c", "printf '%s' \"$ANTHROPIC_API_KEY\""]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe() // discard shell startup noise
-        do {
-            try task.run()
-        } catch {
-            return nil
+    ///
+    /// Uses async `terminationHandler` instead of `waitUntilExit()` to avoid
+    /// blocking the actor thread.
+    private func resolveFromLoginShell() async -> String? {
+        await withCheckedContinuation { continuation in
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/bin/zsh")
+            task.arguments = ["-l", "-c", "printf '%s' \"$ANTHROPIC_API_KEY\""]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = Pipe() // discard shell startup noise
+            task.terminationHandler = { _ in
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let raw = String(data: data, encoding: .utf8) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                continuation.resume(returning: value.isEmpty ? nil : value)
+            }
+            do {
+                try task.run()
+            } catch {
+                continuation.resume(returning: nil)
+            }
         }
-        task.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let raw = String(data: data, encoding: .utf8) else { return nil }
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 }

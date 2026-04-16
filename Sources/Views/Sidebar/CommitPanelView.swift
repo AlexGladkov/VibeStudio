@@ -28,13 +28,13 @@ struct CommitPanelView: View {
             Rectangle()
                 .fill(DSColor.borderSubtle)
                 .frame(height: 1)
-                .padding(.vertical, 2)
+                .padding(.vertical, DSSpacing.xxs)
 
             // CodeSpeak drift warning
             if let stats = codeSpeak.projectStats[project.id], stats.failing > 0 {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 11))
+                        .font(DSFont.iconBase)
                         .foregroundStyle(DSColor.gitModified)
                     Text("\(stats.failing) spec\(stats.failing == 1 ? "" : "s") failing — consider running CodeSpeak before committing")
                         .font(DSFont.sidebarItemSmall)
@@ -70,12 +70,12 @@ struct CommitPanelView: View {
                         Task { await gitSidebarVM.generateAICommitMessage(for: project) }
                     } label: {
                         if isGenerating {
-                            ProgressView().scaleEffect(0.5).frame(width: 20, height: 20)
+                            ProgressView().scaleEffect(0.5).frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                         } else {
                             Image(systemName: "sparkles")
-                                .font(.system(size: 12))
+                                .font(DSFont.buttonLabel)
                                 .foregroundStyle(hasChanges ? DSColor.accentPrimary : DSColor.textMuted)
-                                .frame(width: 20, height: 20)
+                                .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                         }
                     }
                     .buttonStyle(.plain)
@@ -86,10 +86,10 @@ struct CommitPanelView: View {
                 // Char count (only when typing)
                 if !summaryText.isEmpty {
                     Text("\(charCount)/72")
-                        .font(.system(size: 9))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(isOverLimit ? DSColor.gitDeleted : DSColor.textMuted)
                         .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.top, 2)
+                        .padding(.top, DSSpacing.xxs)
                 }
 
                 Rectangle()
@@ -139,13 +139,13 @@ struct CommitPanelView: View {
                     } else {
                         HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 11))
+                                .font(DSFont.iconBase)
                             Text("Commit All Changes")
                                 .font(DSFont.buttonLabel)
                         }
                     }
                 }
-                .foregroundStyle(hasChanges ? DSColor.buttonPrimaryText : DSColor.textMuted.opacity(0.5))
+                .foregroundStyle(hasChanges ? DSColor.buttonPrimaryText : DSColor.textGhost)
                 .frame(maxWidth: .infinity)
                 .frame(height: DSLayout.gitButtonHeight)
                 .background(

@@ -20,7 +20,7 @@ struct TraceabilityPanelView: View {
     private var viewModel: TraceabilityPanelViewModel {
         if let existing = vm { return existing }
         let created = TraceabilityPanelViewModel()
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -44,9 +44,9 @@ struct TraceabilityPanelView: View {
             }
         }
         .frame(
-            minWidth: DSLayout.traceabilityPanelDefaultWidth - 40,
+            minWidth: DSLayout.traceabilityPanelMinWidth,
             idealWidth: DSLayout.traceabilityPanelDefaultWidth,
-            maxWidth: DSLayout.traceabilityPanelDefaultWidth + 120
+            maxWidth: DSLayout.traceabilityPanelMaxWidth
         )
         .background(DSColor.surfaceRaised)
         .task(id: projectManager.activeProjectId) {
@@ -69,7 +69,7 @@ struct TraceabilityPanelView: View {
     private func headerView(model: TraceabilityPanelViewModel) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "link")
-                .font(.system(size: 11, weight: .medium))
+                .font(DSFont.smallButtonLabel)
                 .foregroundStyle(DSColor.agentCodeSpeak)
 
             Text("Traceability")
@@ -85,7 +85,7 @@ struct TraceabilityPanelView: View {
                 }
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -98,7 +98,7 @@ struct TraceabilityPanelView: View {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10))
+                    .font(DSFont.iconMD)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -148,10 +148,10 @@ struct TraceabilityPanelView: View {
     }
 
     private func specToFilesRow(specName: String, files: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "doc.text")
-                    .font(.system(size: 10))
+                    .font(DSFont.iconMD)
                     .foregroundStyle(DSColor.agentCodeSpeak)
                 Text(specName)
                     .font(DSFont.sidebarItem)
@@ -164,9 +164,9 @@ struct TraceabilityPanelView: View {
             ForEach(files, id: \.self) { file in
                 HStack(spacing: DSSpacing.xs) {
                     Text("→")
-                        .font(.system(size: 10))
+                        .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.textMuted)
-                        .frame(width: 16)
+                        .frame(width: DSLayout.smallIconButtonSize)
                     Text(file)
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textSecondary)
@@ -174,7 +174,7 @@ struct TraceabilityPanelView: View {
                         .truncationMode(.middle)
                 }
                 .padding(.horizontal, DSSpacing.sm)
-                .padding(.bottom, 2)
+                .padding(.bottom, DSSpacing.xxs)
             }
         }
         .background(DSColor.surfaceOverlay.opacity(0.4), in: RoundedRectangle(cornerRadius: DSRadius.sm))
@@ -182,10 +182,10 @@ struct TraceabilityPanelView: View {
     }
 
     private func fileToSpecsRow(filePath: String, specs: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "doc.fill")
-                    .font(.system(size: 10))
+                    .font(DSFont.iconMD)
                     .foregroundStyle(DSColor.textSecondary)
                 Text(URL(fileURLWithPath: filePath).lastPathComponent)
                     .font(DSFont.sidebarItem)
@@ -198,16 +198,16 @@ struct TraceabilityPanelView: View {
             ForEach(specs, id: \.self) { spec in
                 HStack(spacing: DSSpacing.xs) {
                     Text("→")
-                        .font(.system(size: 10))
+                        .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.textMuted)
-                        .frame(width: 16)
+                        .frame(width: DSLayout.smallIconButtonSize)
                     Text(spec + ".cs.md")
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.agentCodeSpeak)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, DSSpacing.sm)
-                .padding(.bottom, 2)
+                .padding(.bottom, DSSpacing.xxs)
             }
         }
         .background(DSColor.surfaceOverlay.opacity(0.4), in: RoundedRectangle(cornerRadius: DSRadius.sm))
@@ -229,14 +229,14 @@ struct TraceabilityPanelView: View {
         VStack(spacing: DSSpacing.sm) {
             Spacer()
             Image(systemName: "link.badge.plus")
-                .font(.system(size: 24))
+                .font(DSFont.emptyStateIcon)
                 .foregroundStyle(DSColor.textMuted)
             Text("No traceability links")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
             Text("Add @file: markers to specs")
                 .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted.opacity(0.6))
+                .foregroundStyle(DSColor.textDisabled)
             Spacer()
         }
         .frame(maxWidth: .infinity)

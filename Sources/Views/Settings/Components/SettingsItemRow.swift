@@ -50,13 +50,13 @@ struct SettingsItemRow: View {
         HStack(spacing: DSSpacing.sm) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text(name)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DSFont.buttonLabel)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 11))
+                        .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -68,7 +68,7 @@ struct SettingsItemRow: View {
             if let onEdit {
                 Button(action: onEdit) {
                     Image(systemName: "pencil")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -77,7 +77,7 @@ struct SettingsItemRow: View {
             if showDelete, let onDelete {
                 Button(action: onDelete) {
                     Image(systemName: "trash")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                         .foregroundStyle(DSColor.gitDeleted)
                 }
                 .buttonStyle(.bordered)

@@ -32,7 +32,7 @@ struct SpecsPanelView: View {
     private var viewModel: SpecsViewModel {
         if let existing = vm { return existing }
         let created = SpecsViewModel()
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -115,7 +115,7 @@ struct SpecsPanelView: View {
                 }
             } label: {
                 Image(systemName: "play.circle")
-                    .font(.system(size: 13))
+                    .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -126,7 +126,7 @@ struct SpecsPanelView: View {
                 activeSheet = .wizard
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 13))
+                    .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -185,15 +185,15 @@ struct SpecsPanelView: View {
         switch spec.status {
         case .passing:
             Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .semibold))
+                .font(DSFont.statusBadge)
                 .foregroundStyle(DSColor.gitAdded)
         case .failing:
             Image(systemName: "xmark")
-                .font(.system(size: 10, weight: .semibold))
+                .font(DSFont.statusBadge)
                 .foregroundStyle(DSColor.gitDeleted)
         case .unknown:
             Image(systemName: "questionmark")
-                .font(.system(size: 10))
+                .font(DSFont.iconMD)
                 .foregroundStyle(DSColor.textMuted)
         }
     }
@@ -222,14 +222,14 @@ struct SpecsPanelView: View {
         VStack(spacing: DSSpacing.sm) {
             Spacer()
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 24))
+                .font(DSFont.emptyStateIcon)
                 .foregroundStyle(DSColor.textMuted)
             Text("No specs found")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
             Text("spec/*.cs.md")
                 .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted.opacity(0.6))
+                .foregroundStyle(DSColor.textDisabled)
             Spacer()
         }
         .frame(maxWidth: .infinity)

@@ -7,15 +7,6 @@ import Observation
 import OSLog
 import SwiftUI
 
-// MARK: - Notification Name
-
-extension Notification.Name {
-    /// Posted when the user changes the app appearance.
-    ///
-    /// `object` is the new `AppAppearance` value.
-    static let themeDidChange = Notification.Name("vs.themeDidChange")
-}
-
 // MARK: - ThemeService
 
 /// Manages app-wide appearance selection and applies it to `NSApp`.
@@ -24,8 +15,7 @@ extension Notification.Name {
 /// On change, sets `NSApp.appearance` — which propagates to **all** views
 /// (both AppKit and SwiftUI via `NSHostingView`).
 ///
-/// Post a `.themeDidChange` notification so secondary consumers (e.g.
-/// `TerminalService`) can update their non-SwiftUI appearance.
+/// Observers use `@Observable` / `withObservationTracking` on `selectedAppearance`.
 @Observable
 @MainActor
 final class ThemeService: ThemeServicing {
@@ -43,10 +33,6 @@ final class ThemeService: ThemeServicing {
         didSet {
             defaults.set(selectedAppearance.rawValue, forKey: storageKey)
             apply(selectedAppearance)
-            NotificationCenter.default.post(
-                name: .themeDidChange,
-                object: selectedAppearance
-            )
         }
     }
 
@@ -110,10 +96,6 @@ final class ThemeService: ThemeServicing {
             // which re-evaluates `resolvedColorScheme` against the new
             // `NSApp.effectiveAppearance` value.
             self.systemThemeToken += 1
-            NotificationCenter.default.post(
-                name: .themeDidChange,
-                object: AppAppearance.system
-            )
         }
     }
 

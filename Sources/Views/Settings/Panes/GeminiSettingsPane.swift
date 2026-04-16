@@ -34,7 +34,7 @@ struct GeminiSettingsPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Gemini")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.settingsTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
@@ -62,19 +62,19 @@ struct GeminiSettingsPane: View {
     private var settingsFileSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Конфиг")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Text(displayPath)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(DSFont.monoPath)
                     .foregroundStyle(configExists ? DSColor.textPrimary : DSColor.textMuted)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 if !configExists {
                     Text("не найден")
-                        .font(.system(size: 11))
+                        .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
                 }
 
@@ -85,7 +85,7 @@ struct GeminiSettingsPane: View {
                         NSWorkspace.shared.activateFileViewerSelecting([Self.settingsURL])
                     } label: {
                         Label("Finder", systemImage: "folder")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(DSFont.smallButtonLabel)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -98,7 +98,7 @@ struct GeminiSettingsPane: View {
                         configExists ? "Редактировать" : "Создать конфиг",
                         systemImage: configExists ? "pencil" : "plus"
                     )
-                    .font(.system(size: 11, weight: .medium))
+                    .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -117,10 +117,10 @@ struct GeminiSettingsPane: View {
     private var settingsReferenceRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
             Text("Доступные настройки: theme, sandbox, checkpointing, preferredEditor,")
-                .font(.system(size: 11))
+                .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
             Text("contextWindowCompression, telemetry, coreTools, mcpServers, extensions.")
-                .font(.system(size: 11))
+                .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
         }
     }
@@ -130,21 +130,21 @@ struct GeminiSettingsPane: View {
     private var authInfoRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Авторизация")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 12))
+                    .font(DSFont.bodySmall)
                     .foregroundStyle(DSColor.textMuted)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Установите API-ключ через переменную окружения:")
-                        .font(.system(size: 12))
+                        .font(DSFont.bodySmall)
                         .foregroundStyle(DSColor.textMuted)
 
                     Text("export GEMINI_API_KEY=your-key")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoSmall)
                         .foregroundStyle(DSColor.textSecondary)
                 }
 

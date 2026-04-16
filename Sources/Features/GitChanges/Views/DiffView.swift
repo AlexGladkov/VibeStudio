@@ -72,14 +72,14 @@ struct DiffView: View {
             }
             .font(DSFont.terminal(size: 11))
             .foregroundStyle(DSColor.diffGutter)
-            .frame(width: 32, alignment: .trailing)
-            .padding(.trailing, 3)
+            .frame(width: DSLayout.diffGutterWidth, alignment: .trailing)
+            .padding(.trailing, DSSpacing.xxs)
 
             // +/- symbol
             Text(prefix(for: cell?.type))
                 .font(DSFont.terminal(size: 12))
                 .foregroundStyle(prefixColor(for: cell?.type))
-                .frame(width: 12)
+                .frame(width: DSLayout.diffPrefixWidth)
 
             // Line content
             Text(cell?.content ?? "")
@@ -89,7 +89,7 @@ struct DiffView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 4)
+            Spacer(minLength: DSSpacing.xs)
         }
         .frame(maxWidth: .infinity)
         .background(cellBackground(for: cell))

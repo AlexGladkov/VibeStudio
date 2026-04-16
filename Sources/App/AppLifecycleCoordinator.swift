@@ -113,6 +113,19 @@ final class AppLifecycleCoordinator {
             )
         }.value
 
+        // Enforce default window size before revealing content.
+        // SwiftUI ignores .defaultSize when the autosave key changes (it changes
+        // every time an @Environment key is added to injectServices). At this point
+        // the TCC probe has finished, the window is fully initialised but still
+        // shows the splash, so we can resize it without any visible flash.
+        if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.contentView != nil }),
+           window.frame.width < DSLayout.windowDefaultWidth {
+            var frame = window.frame
+            frame.size.width = DSLayout.windowDefaultWidth
+            frame.size.height = max(frame.size.height, DSLayout.windowDefaultHeight)
+            window.setFrame(frame, display: false)
+        }
+
         // TCC is now resolved — open the gate so RootView renders the full UI.
         container.appReadyState.tccGranted = true
 

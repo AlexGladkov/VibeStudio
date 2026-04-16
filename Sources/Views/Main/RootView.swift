@@ -25,7 +25,10 @@ struct RootView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(AppReadyState.self) private var appReady
     @Environment(\.themeService) private var themeService
-    @Environment(\.navigationCoordinator) private var navigationCoordinator
+    // Use Observable-style @Environment to guarantee @Observable property tracking.
+    // @Environment(\.navigationCoordinator) does NOT auto-track currentMode changes;
+    // @Environment(AppNavigationCoordinator.self) does (via withObservationTracking).
+    @Environment(AppNavigationCoordinator.self) private var navigationCoordinator
     @Environment(\.freeTabStore) private var freeTabStore
     @Environment(\.codeSpeak) private var codeSpeak
     @State private var showSidebar = true
@@ -93,7 +96,7 @@ struct RootView: View {
                                         WelcomeView()
                                     }
                                 }
-                                .frame(minWidth: 300)
+                                .frame(minWidth: DSLayout.contentMinWidth)
                             }
 
                             // Right-side changes panel
@@ -162,7 +165,9 @@ struct RootView: View {
         }
         .frame(
             minWidth: DSLayout.windowMinWidth,
-            minHeight: DSLayout.windowMinHeight
+            idealWidth: DSLayout.windowDefaultWidth,
+            minHeight: DSLayout.windowMinHeight,
+            idealHeight: DSLayout.windowDefaultHeight
         )
         .background(DSColor.surfaceBase)
         .preferredColorScheme(preferredScheme)

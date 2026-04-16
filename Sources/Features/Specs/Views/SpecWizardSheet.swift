@@ -41,7 +41,7 @@ struct SpecWizardSheet: View {
                 Image(systemName: "doc.badge.plus")
                     .foregroundStyle(DSColor.agentCodeSpeak)
                 Text("New Spec")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(DSFont.sheetSubtitle)
                     .foregroundStyle(DSColor.textPrimary)
                 Spacer()
             }
@@ -62,7 +62,7 @@ struct SpecWizardSheet: View {
 
                 if !sanitizedName.isEmpty {
                     Text("spec/\(sanitizedName).cs.md")
-                        .font(.system(size: 10))
+                        .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.textMuted)
                 }
 

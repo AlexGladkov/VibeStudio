@@ -31,29 +31,10 @@ final class AppNavigationCoordinator {
     var codeSpeakBuildRequested: Bool = false
 
     // MARK: - CodeSpeak Run Bar State
-    // Source of truth for the toolbar run bar; observed by CodeSpeakModeView.
+    // Extracted to `CodeSpeakRunBarState` to respect SRP.
 
-    /// Selected command for the toolbar run bar.
-    var codeSpeakCommand: CodeSpeakCommand = .build
-
-    /// Task name input (used when `codeSpeakCommand == .task`).
-    var codeSpeakTaskName: String = ""
-
-    /// Change message input (used when `codeSpeakCommand == .change`).
-    var codeSpeakChangeMessage: String = ""
-
-    /// Mirrors `SpecBuildPanelViewModel.isRunning`; written by `CodeSpeakModeView`.
-    var codeSpeakIsRunning: Bool = false
-
-    /// Set to `true` by the toolbar stop button; observed by `CodeSpeakModeView`.
-    var codeSpeakStopRequested: Bool = false
-
-    /// Name of the currently selected spec file; written by `CodeSpeakModeView`.
-    /// Displayed in the titlebar breadcrumb.
-    var codeSpeakCurrentSpecName: String = ""
-
-    /// True when the spec editor has unsaved changes; written by `CodeSpeakModeView`.
-    var codeSpeakIsEditorDirty: Bool = false
+    /// Run bar state: command selection, inputs, running/stop flags, editor state.
+    var runBar = CodeSpeakRunBarState()
 
     // MARK: - CodeSpeak Titlebar Layout
 

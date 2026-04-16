@@ -19,7 +19,7 @@ struct ClaudeSettingsPane: View {
     private var viewModel: ClaudeSettingsPaneViewModel {
         if let existing = vm { return existing }
         let created = ClaudeSettingsPaneViewModel()
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -49,7 +49,7 @@ struct ClaudeSettingsPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Claude")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.settingsTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
@@ -128,12 +128,12 @@ struct ClaudeSettingsPane: View {
     private func fileRow(model: ClaudeSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Глобальный конфиг")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Text(model.displayPath)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(DSFont.monoPath)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -144,7 +144,7 @@ struct ClaudeSettingsPane: View {
                     NSWorkspace.shared.activateFileViewerSelecting([ClaudeSettingsPaneViewModel.claudeURL])
                 } label: {
                     Label("Finder", systemImage: "folder")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -153,7 +153,7 @@ struct ClaudeSettingsPane: View {
                     showEditor = true
                 } label: {
                     Label("Редактировать", systemImage: "pencil")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -184,7 +184,7 @@ struct ClaudeSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 320)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
                 .settingsCard()
             }
         }
@@ -234,7 +234,7 @@ struct ClaudeSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 200)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightSmall)
                 .settingsCard()
             }
         }
@@ -284,7 +284,7 @@ struct ClaudeSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 200)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightSmall)
                 .settingsCard()
             }
         }
@@ -300,15 +300,15 @@ struct ClaudeSettingsPane: View {
 
     private func skillRow(_ skill: SkillInfo) -> some View {
         HStack(spacing: DSSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 Text(skill.name.isEmpty ? skill.directoryURL.lastPathComponent : skill.name)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(DSFont.buttonLabel)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
 
                 if !skill.description.isEmpty {
                     Text(skill.description)
-                        .font(.system(size: 11))
+                        .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -319,7 +319,7 @@ struct ClaudeSettingsPane: View {
 
             if !skill.isWritable {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 10))
+                    .font(DSFont.iconMD)
                     .foregroundStyle(DSColor.textMuted)
             }
 
@@ -327,7 +327,7 @@ struct ClaudeSettingsPane: View {
                 viewingSkill = skill
             } label: {
                 Image(systemName: skill.isWritable ? "pencil" : "eye")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(DSFont.smallButtonLabel)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)

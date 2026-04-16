@@ -38,11 +38,11 @@ struct ClaudeEditorSheet: View {
     private var toolbar: some View {
         HStack(spacing: DSSpacing.sm) {
             Text("CLAUDE.md")
-                .font(.system(size: 13, weight: .semibold))
+                .font(DSFont.sheetTitle)
                 .foregroundStyle(DSColor.textPrimary)
 
             Text("~/.claude/CLAUDE.md")
-                .font(.system(size: 11, design: .monospaced))
+                .font(DSFont.monoSmall)
                 .foregroundStyle(DSColor.textMuted)
 
             Spacer()
@@ -51,7 +51,7 @@ struct ClaudeEditorSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
+                    .font(DSFont.bodyMedium)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -68,11 +68,11 @@ struct ClaudeEditorSheet: View {
         HStack(spacing: DSSpacing.sm) {
             if let err = saveError {
                 Text(err)
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.gitDeleted)
             } else if hasUnsavedChanges {
                 Text("Есть несохранённые изменения")
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }
 

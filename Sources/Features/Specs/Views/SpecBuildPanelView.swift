@@ -22,15 +22,13 @@ struct SpecBuildPanelView: View {
             codeSpeak: codeSpeak,
             projectManager: projectManager
         )
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
     var body: some View {
         let model = viewModel
-        let activeProject = projectManager.projects.first {
-            $0.id == projectManager.activeProjectId
-        }
+        let activeProject = projectManager.activeProject
 
         VStack(spacing: 0) {
             headerView(model: model, project: activeProject)
@@ -59,7 +57,7 @@ struct SpecBuildPanelView: View {
         VStack(spacing: 0) {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(DSFont.smallButtonLabel)
                     .foregroundStyle(DSColor.agentCodeSpeak)
 
                 CommandSelectorView(
@@ -84,20 +82,20 @@ struct SpecBuildPanelView: View {
                 if model.selectedCommand.supportsStatsParsing {
                     if let code = model.exitCode {
                         Text(code == 0 ? "PASS" : "FAIL")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(DSFont.badgeSmall)
                             .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
+                            .padding(.horizontal, DSSpacing.xs)
+                            .padding(.vertical, DSSpacing.xxs)
                             .background(
                                 code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                                in: RoundedRectangle(cornerRadius: 3)
+                                in: RoundedRectangle(cornerRadius: DSRadius.sm)
                             )
                     }
 
                     // Stats summary
                     if let stats = model.stats {
                         Text("\(stats.passing)/\(stats.total)")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(DSFont.iconMDMedium)
                             .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
                     }
                 }
@@ -112,9 +110,9 @@ struct SpecBuildPanelView: View {
                     }
                 } label: {
                     Image(systemName: model.isRunning ? "stop.fill" : "play.fill")
-                        .font(.system(size: 11))
+                        .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(model.isRunning ? DSColor.actionStop : DSColor.actionRun)
-                        .frame(width: 16, height: 16)
+                        .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
                 }
                 .buttonStyle(.plain)
                 .disabled(!model.canRun && !model.isRunning)
@@ -127,9 +125,9 @@ struct SpecBuildPanelView: View {
                     }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10))
+                        .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.textMuted)
-                        .frame(width: 16, height: 16)
+                        .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
                 }
                 .buttonStyle(.plain)
             }
@@ -141,7 +139,7 @@ struct SpecBuildPanelView: View {
                     Text(model.selectedCommand.inputLabel)
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textSecondary)
-                        .frame(width: 50, alignment: .trailing)
+                        .frame(width: DSLayout.inputLabelWidth, alignment: .trailing)
 
                     TextField(
                         model.selectedCommand.inputPlaceholder,
@@ -167,7 +165,7 @@ struct SpecBuildPanelView: View {
                     .disabled(model.isRunning)
                 }
                 .padding(.horizontal, DSSpacing.md)
-                .frame(height: 28)
+                .frame(height: DSLayout.gitButtonHeight)
             }
         }
     }
@@ -189,12 +187,13 @@ struct SpecBuildPanelView: View {
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, DSSpacing.md)
-                                    .padding(.vertical, 1)
+                                    .padding(.vertical, 1) // sub-grid vertical padding for output line
                                     .id(idx)
                             }
                         }
                         .padding(.vertical, DSSpacing.xs)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: model.outputLines.count) { _, count in
                         if count > 0 {
                             withAnimation(.none) {
@@ -210,14 +209,14 @@ struct SpecBuildPanelView: View {
     private var emptyStateView: some View {
         VStack(spacing: DSSpacing.sm) {
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 24))
+                .font(DSFont.emptyStateIcon)
                 .foregroundStyle(DSColor.textMuted)
             Text("Run codespeak command")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
             Text("Press \u{25B6} to \(viewModel.selectedCommand.displayName.lowercased())")
                 .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted.opacity(0.6))
+                .foregroundStyle(DSColor.textDisabled)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

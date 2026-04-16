@@ -9,15 +9,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 
-// MARK: - SidebarSection
-
-/// Sidebar content sections selectable via the icon strip.
-enum SidebarSection {
-    case files
-    case git
-    case specs
-}
-
 // MARK: - BranchCreationContext
 
 /// Payload for "Create branch here" context menu — identifies the source branch.
@@ -50,13 +41,13 @@ private struct ProjectFileHeaderView: View {
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(DSColor.textMuted)
                         .rotationEffect(isExpanded ? .degrees(90) : .zero)
                         .animation(.easeOut(duration: 0.15), value: isExpanded)
 
                     Image(systemName: isCodeSpeakProject ? "doc.text.magnifyingglass" : "folder.fill")
-                        .font(.system(size: 13))
+                        .font(DSFont.sidebarItem)
                         .foregroundStyle(
                             isCodeSpeakProject
                                 ? DSColor.agentCodeSpeak
@@ -80,9 +71,9 @@ private struct ProjectFileHeaderView: View {
                 onSettings()
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 11))
+                    .font(DSFont.iconBase)
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -142,13 +133,13 @@ struct ProjectGitHeaderView: View {
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(DSColor.textMuted)
                         .rotationEffect(isExpanded ? .degrees(90) : .zero)
                         .animation(.easeOut(duration: 0.15), value: isExpanded)
 
                     Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 11))
+                        .font(DSFont.iconBase)
                         .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.textSecondary)
 
                     Text(project.name)
@@ -161,7 +152,7 @@ struct ProjectGitHeaderView: View {
                     Spacer()
 
                     if let b = branch, !b.isEmpty {
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text(b)
                                 .font(DSFont.sidebarItemSmall)
                                 .foregroundStyle(DSColor.textMuted)
@@ -169,17 +160,17 @@ struct ProjectGitHeaderView: View {
                                 .truncationMode(.middle)
 
                             if aheadCount > 0 {
-                                HStack(spacing: 1) {
-                                    Image(systemName: "arrow.up").font(.system(size: 8))
-                                    Text("\(aheadCount)").font(.system(size: 10))
+                                HStack(spacing: DSSpacing.xxs) {
+                                    Image(systemName: "arrow.up").font(DSFont.iconXS)
+                                    Text("\(aheadCount)").font(DSFont.iconMD)
                                 }
                                 .foregroundStyle(DSColor.gitAdded)
                             }
 
                             if behindCount > 0 {
-                                HStack(spacing: 1) {
-                                    Image(systemName: "arrow.down").font(.system(size: 8))
-                                    Text("\(behindCount)").font(.system(size: 10))
+                                HStack(spacing: DSSpacing.xxs) {
+                                    Image(systemName: "arrow.down").font(DSFont.iconXS)
+                                    Text("\(behindCount)").font(DSFont.iconMD)
                                 }
                                 .foregroundStyle(DSColor.gitDeleted)
                             }
@@ -195,9 +186,9 @@ struct ProjectGitHeaderView: View {
                 onSettings()
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 11))
+                    .font(DSFont.iconBase)
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -288,7 +279,6 @@ struct SidebarView: View {
             contentPanel
         }
         .frame(maxHeight: .infinity)
-        .background(.ultraThinMaterial)
         .background(DSColor.surfaceRaised)
         .overlay(alignment: .trailing) {
             Rectangle()
@@ -398,9 +388,9 @@ struct SidebarView: View {
                 showAddProjectPopover = true
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 14))
+                    .font(DSFont.iconLG)
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 24, height: 24)
+                    .frame(width: DSLayout.iconStripButtonSize, height: DSLayout.iconStripButtonSize)
                     .cornerRadius(DSRadius.sm)
             }
             .buttonStyle(.plain)
@@ -424,7 +414,7 @@ struct SidebarView: View {
             }
         }
         .padding(.top, DSSpacing.sm)
-        .frame(width: 32)
+        .frame(width: DSLayout.iconStripWidth)
     }
 
     private func iconButton(section: SidebarSection, symbol: String) -> some View {
@@ -433,9 +423,9 @@ struct SidebarView: View {
             activeSection = section
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 14))
+                .font(DSFont.iconLG)
                 .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.textMuted)
-                .frame(width: 24, height: 24)
+                .frame(width: DSLayout.iconStripButtonSize, height: DSLayout.iconStripButtonSize)
                 .background(isActive ? DSColor.surfaceOverlay : Color.clear)
                 .cornerRadius(DSRadius.sm)
         }
@@ -543,7 +533,7 @@ struct SidebarView: View {
                             Task { await vm.refreshAllGitInfo(projects: projectManager.projects) }
                         } label: {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11))
+                                .font(DSFont.iconBase)
                                 .foregroundStyle(DSColor.textMuted)
                         }
                         .buttonStyle(.plain)

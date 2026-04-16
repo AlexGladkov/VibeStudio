@@ -26,9 +26,7 @@ struct CodeSpeakModeView: View {
     @State private var showWizard = false
     @State private var showingProjectPicker = false
 
-    private var activeProject: Project? {
-        projectManager.projects.first { $0.id == projectManager.activeProjectId }
-    }
+    private var activeProject: Project? { projectManager.activeProject }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -68,30 +66,30 @@ struct CodeSpeakModeView: View {
             if requested, let project = activeProject {
                 navigationCoordinator.codeSpeakBuildRequested = false
                 // Sync command state from coordinator (toolbar is source of truth)
-                vm.buildVM.selectedCommand = navigationCoordinator.codeSpeakCommand
-                vm.buildVM.taskName = navigationCoordinator.codeSpeakTaskName
-                vm.buildVM.changeMessage = navigationCoordinator.codeSpeakChangeMessage
+                vm.buildVM.selectedCommand = navigationCoordinator.runBar.command
+                vm.buildVM.taskName = navigationCoordinator.runBar.taskName
+                vm.buildVM.changeMessage = navigationCoordinator.runBar.changeMessage
                 Task { await vm.buildVM.run(at: project.path, specPath: vm.selectedSpec?.url) }
             }
         }
         // Stop triggered by toolbar ■ button
-        .onChange(of: navigationCoordinator.codeSpeakStopRequested) { _, requested in
+        .onChange(of: navigationCoordinator.runBar.stopRequested) { _, requested in
             if requested {
-                navigationCoordinator.codeSpeakStopRequested = false
+                navigationCoordinator.runBar.stopRequested = false
                 vm.buildVM.stop()
             }
         }
         // Mirror isRunning back to coordinator so toolbar can show ■ vs ▶
         .onChange(of: vm.buildVM.isRunning) { _, running in
-            navigationCoordinator.codeSpeakIsRunning = running
+            navigationCoordinator.runBar.isRunning = running
         }
         // Sync selected spec name to titlebar breadcrumb
         .onChange(of: vm.selectedSpec) { _, spec in
-            navigationCoordinator.codeSpeakCurrentSpecName = spec?.name ?? ""
+            navigationCoordinator.runBar.currentSpecName = spec?.name ?? ""
         }
         // Sync dirty state to titlebar dirty indicator
         .onChange(of: vm.isEditorDirty) { _, dirty in
-            navigationCoordinator.codeSpeakIsEditorDirty = dirty
+            navigationCoordinator.runBar.isEditorDirty = dirty
         }
         .background {
             VStack {
@@ -106,9 +104,9 @@ struct CodeSpeakModeView: View {
                         if vm.buildVM.isRunning {
                             vm.buildVM.stop()
                         } else {
-                            vm.buildVM.selectedCommand = navigationCoordinator.codeSpeakCommand
-                            vm.buildVM.taskName = navigationCoordinator.codeSpeakTaskName
-                            vm.buildVM.changeMessage = navigationCoordinator.codeSpeakChangeMessage
+                            vm.buildVM.selectedCommand = navigationCoordinator.runBar.command
+                            vm.buildVM.taskName = navigationCoordinator.runBar.taskName
+                            vm.buildVM.changeMessage = navigationCoordinator.runBar.changeMessage
                             Task { await vm.buildVM.run(at: project.path, specPath: vm.selectedSpec?.url) }
                         }
                     }
@@ -157,7 +155,7 @@ struct CodeSpeakModeView: View {
                     Image(systemName: "plus")
                     Text("New Spec")
                 }
-                .font(.system(size: 12))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DSSpacing.md)
@@ -185,12 +183,12 @@ struct CodeSpeakModeView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { specsExpanded.toggle() }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(DSFont.statusBadge)
                         .foregroundStyle(DSColor.textMuted)
                         .rotationEffect(.degrees(specsExpanded ? 90 : 0))
-                        .frame(width: 14)
+                        .frame(width: DSLayout.chevronFrameWidth)
 
                     Text("SPECS")
                         .font(DSFont.sidebarSection)
@@ -210,7 +208,7 @@ struct CodeSpeakModeView: View {
                         }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 11))
+                            .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)
                     }
                     .buttonStyle(.plain)
@@ -226,12 +224,12 @@ struct CodeSpeakModeView: View {
             if specsExpanded {
                 if vm.specsVM.isLoading {
                     HStack { Spacer(); ProgressView().scaleEffect(0.6); Spacer() }
-                        .frame(height: 32)
+                        .frame(height: DSLayout.spinnerRowHeight)
                 } else if vm.specsVM.specFiles.isEmpty {
                     Text("No specs found")
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
-                        .padding(.leading, 28)
+                        .padding(.leading, 28) // 2x chevronFrameWidth
                         .padding(.vertical, DSSpacing.xs)
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
@@ -252,7 +250,7 @@ struct CodeSpeakModeView: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 // indent to align with section label
-                Color.clear.frame(width: 14)
+                Color.clear.frame(width: DSLayout.chevronFrameWidth)
 
                 Circle()
                     .fill(specStatusColor(spec.status))
@@ -286,11 +284,11 @@ struct CodeSpeakModeView: View {
         switch spec.status {
         case .passing:
             Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .semibold))
+                .font(DSFont.statusBadge)
                 .foregroundStyle(DSColor.gitAdded)
         case .failing:
             Image(systemName: "xmark")
-                .font(.system(size: 10, weight: .semibold))
+                .font(DSFont.statusBadge)
                 .foregroundStyle(DSColor.gitDeleted)
         case .unknown:
             EmptyView()
@@ -312,12 +310,12 @@ struct CodeSpeakModeView: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { generatedExpanded.toggle() }
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(DSFont.statusBadge)
                         .foregroundStyle(DSColor.textMuted)
                         .rotationEffect(.degrees(generatedExpanded ? 90 : 0))
-                        .frame(width: 14)
+                        .frame(width: DSLayout.chevronFrameWidth)
 
                     Text("GENERATED")
                         .font(DSFont.sidebarSection)
@@ -335,7 +333,7 @@ struct CodeSpeakModeView: View {
                         }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 11))
+                            .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)
                     }
                     .buttonStyle(.plain)
@@ -365,10 +363,10 @@ struct CodeSpeakModeView: View {
             vm.selectGeneratedFile(file)
         } label: {
             HStack(spacing: DSSpacing.xs) {
-                Color.clear.frame(width: 14)
+                Color.clear.frame(width: DSLayout.chevronFrameWidth)
 
                 Image(systemName: "doc.text")
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
 
                 Text(file.name)
@@ -428,7 +426,7 @@ struct CodeSpeakModeView: View {
     private func generatedFileHeader(file: GeneratedFile) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "doc.text")
-                .font(.system(size: 11))
+                .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
 
             Text(file.name)
@@ -438,11 +436,11 @@ struct CodeSpeakModeView: View {
             Text("read-only")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(DSColor.textMuted)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
+                .padding(.horizontal, DSSpacing.xs)
+                .padding(.vertical, DSSpacing.xxs)
                 .background(
                     DSColor.textMuted.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 3)
+                    in: RoundedRectangle(cornerRadius: DSRadius.sm)
                 )
 
             Spacer()
@@ -454,7 +452,7 @@ struct CodeSpeakModeView: View {
     private var editorEmptyState: some View {
         VStack(spacing: DSSpacing.sm) {
             Image(systemName: "doc.text")
-                .font(.system(size: 32))
+                .font(DSFont.emptyStateIconLarge)
                 .foregroundStyle(DSColor.textMuted)
             Text("Select a spec to edit")
                 .font(DSFont.sidebarItem)
@@ -468,39 +466,40 @@ struct CodeSpeakModeView: View {
 
     private func buildColumn() -> some View {
         buildOutput()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(DSColor.surfaceRaised)
     }
 
     private func buildHeader() -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 11, weight: .medium))
+                .font(DSFont.smallButtonLabel)
                 .foregroundStyle(DSColor.agentCodeSpeak)
 
             // Show current command name (read-only — controlled from toolbar)
-            Text(navigationCoordinator.codeSpeakCommand.displayName)
+            Text(navigationCoordinator.runBar.command.displayName)
                 .font(DSFont.sidebarSection)
                 .foregroundStyle(DSColor.textSecondary)
 
             Spacer()
 
             // PASS/FAIL badge + stats (build command only)
-            if navigationCoordinator.codeSpeakCommand.supportsStatsParsing {
+            if navigationCoordinator.runBar.command.supportsStatsParsing {
                 if let code = vm.buildVM.exitCode {
                     Text(code == 0 ? "PASS" : "FAIL")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(DSFont.badgeSmall)
                         .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, DSSpacing.xs)
+                        .padding(.vertical, DSSpacing.xxs)
                         .background(
                             code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                            in: RoundedRectangle(cornerRadius: 3)
+                            in: RoundedRectangle(cornerRadius: DSRadius.sm)
                         )
                 }
 
                 if let stats = vm.buildVM.stats {
                     Text("\(stats.passing)/\(stats.total)")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(DSFont.iconMDMedium)
                         .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
                 }
             }
@@ -524,7 +523,7 @@ struct CodeSpeakModeView: View {
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, DSSpacing.md)
-                                    .padding(.vertical, 1)
+                                    .padding(.vertical, 1) // sub-grid vertical padding for output line
                                     .id(idx)
                             }
                         }
@@ -545,14 +544,14 @@ struct CodeSpeakModeView: View {
     private var buildEmptyState: some View {
         VStack(spacing: DSSpacing.sm) {
             Image(systemName: "play.circle")
-                .font(.system(size: 32))
+                .font(DSFont.emptyStateIconLarge)
                 .foregroundStyle(DSColor.textMuted)
             Text("Run CodeSpeak to see output")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
             Text("Press \u{25B6} to \(vm.buildVM.selectedCommand.displayName.lowercased())")
                 .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted.opacity(0.6))
+                .foregroundStyle(DSColor.textDisabled)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

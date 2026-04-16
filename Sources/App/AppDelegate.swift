@@ -70,18 +70,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - NSApplicationDelegate
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        // Intentionally empty.
+        // SwiftUI WindowGroup saves window geometry to UserDefaults under a key
+        // that encodes the entire view-modifier type hierarchy (including all
+        // .injectServices modifiers and WindowToolbarRemover). If any saved frame
+        // has width <= windowMinWidth it means the window was pinned to its absolute
+        // minimum — reset it so .defaultSize(1600, 1000) takes effect on next launch.
         //
-        // Previous approach: call contentsOfDirectory(~/Documents) here as a
-        // TCC preflight. This was incorrect — FileManager calls are non-blocking
-        // with respect to TCC: the call returns immediately with a permission error
-        // while the dialog is shown asynchronously. Because applicationWillFinishLaunching
-        // runs before the main runloop starts, macOS may not be able to present the
-        // TCC dialog at all at this point, making the preflight entirely ineffective.
-        //
-        // The correct approach (below, in applicationDidFinishLaunching) is to
-        // run the TCC trigger on a background thread and await its completion
-        // before spawning any child processes (PTY shells, git subprocesses).
+        // Key format: "NSWindow Frame SwiftUI.ModifiedContent<...>-1-AppWindow-1"
+        // Value format: "x y width height screenX screenY screenW screenH"
+        let minUsableWidth = DSLayout.windowMinWidth  // 640 — anything at or below this is bad
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys
+            where key.hasPrefix("NSWindow Frame SwiftUI") {
+            guard let frameStr = defaults.string(forKey: key) else { continue }
+            let parts = frameStr.split(separator: " ").compactMap { Double($0) }
+            // Index 2 is the saved window width.
+            if parts.count >= 3, CGFloat(parts[2]) <= minUsableWidth {
+                defaults.removeObject(forKey: key)
+            }
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -98,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Delegate TCC consent + startup sequencing to the lifecycle coordinator.
         // See AppLifecycleCoordinator for the detailed explanation of TCC ordering.
         lifecycleCoordinator.startAfterLaunch()
+
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

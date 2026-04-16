@@ -31,7 +31,7 @@ struct TabItemView: View {
     private var viewModel: TabItemViewModel {
         if let existing = vm { return existing }
         let created = TabItemViewModel(projectManager: projectManager, terminalManager: terminalManager)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -52,11 +52,11 @@ struct TabItemView: View {
 
             if let stats = codeSpeak.projectStats[project.id] {
                 Text("CS:\(stats.passing)/\(stats.total)")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(DSFont.badgeSmall)
                     .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitDeleted)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(DSColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: 3))
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, 1) // intentionally 1pt for compact badge
+                    .background(DSColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DSRadius.sm))
             }
 
             if isActive || isHovering {
@@ -89,7 +89,7 @@ struct TabItemView: View {
             if isActive {
                 Rectangle()
                     .fill(DSColor.accentPrimary)
-                    .frame(height: 2)
+                    .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
         }
         .onHover { hovering in

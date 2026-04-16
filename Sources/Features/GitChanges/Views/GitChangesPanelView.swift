@@ -26,7 +26,7 @@ struct GitChangesPanelView: View {
             gitService: gitService,
             projectManager: projectManager
         )
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -76,13 +76,13 @@ struct GitChangesPanelView: View {
                 Text("\(total)")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textInverse)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, 1) // sub-grid vertical padding for badge
                     .background(DSColor.accentPrimary, in: Capsule())
             }
         }
         .padding(.horizontal, DSSpacing.md)
-        .frame(height: 28)
+        .frame(height: DSLayout.gitSectionHeaderHeight)
     }
 
     // MARK: - Empty State
@@ -91,7 +91,7 @@ struct GitChangesPanelView: View {
         VStack(spacing: DSSpacing.sm) {
             Spacer()
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 24))
+                .font(DSFont.emptyStateIcon)
                 .foregroundStyle(DSColor.textMuted)
             Text("Working tree clean")
                 .font(DSFont.sidebarItem)
@@ -156,7 +156,7 @@ struct GitChangesPanelView: View {
             Text(displayStatus(file.status))
                 .font(DSFont.gitStatus)
                 .foregroundStyle(file.status.color)
-                .frame(width: 16, alignment: .center)
+                .frame(width: DSLayout.statusLetterWidth, alignment: .center)
         }
         .padding(.horizontal, DSSpacing.md)
         .frame(height: DSLayout.changesFileRowHeight)
@@ -209,58 +209,4 @@ private struct ChangesFileEntry {
     let id: String
     let file: GitFile
     let staged: Bool
-}
-
-// MARK: - Diff Window Store
-
-/// Manages standalone diff `NSWindow` instances.
-///
-/// Retains windows in a static array so they are not deallocated while open.
-/// Each window is removed from the array automatically when it closes.
-enum DiffWindowStore {
-
-    nonisolated(unsafe) private static var windows: [NSWindow] = []
-
-    /// Open a new resizable diff window for the given file.
-    @MainActor
-    static func open(
-        file: GitFile,
-        staged: Bool,
-        projectPath: URL?,
-        gitService: any GitServicing
-    ) {
-        let content = FileDiffSheetView(
-            file: file,
-            staged: staged,
-            projectPath: projectPath,
-            gitService: gitService
-        )
-
-        let vc = NSHostingController(rootView: content)
-        let window = NSWindow(contentViewController: vc)
-        window.styleMask = [.titled, .closable, .resizable, .miniaturizable]
-        window.title = (file.path as NSString).lastPathComponent
-
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let width  = min(screen.width  * 0.82, 1680)
-        let height = min(screen.height * 0.88, 1100)
-        window.setContentSize(NSSize(width: width, height: height))
-        window.center()
-
-        window.minSize = NSSize(width: 760, height: 480)
-        window.isReleasedWhenClosed = false
-
-        windows.append(window)
-
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: window,
-            queue: .main
-        ) { [weak window] _ in
-            guard let window else { return }
-            DiffWindowStore.windows.removeAll { $0 === window }
-        }
-
-        window.makeKeyAndOrderFront(nil)
-    }
 }

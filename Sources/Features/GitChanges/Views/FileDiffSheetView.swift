@@ -52,16 +52,16 @@ struct FileDiffSheetView: View {
             Text(file.status.rawValue)
                 .font(DSFont.gitStatus)
                 .foregroundStyle(file.status.color)
-                .frame(width: 14, alignment: .center)
+                .frame(width: DSLayout.statusLetterWidth, alignment: .center)
 
             Text((file.path as NSString).lastPathComponent)
-                .font(.system(size: 13, weight: .semibold))
+                .font(DSFont.gitBranch)
                 .foregroundStyle(DSColor.textPrimary)
 
             let dir = (file.path as NSString).deletingLastPathComponent
             if !dir.isEmpty && dir != "." {
                 Text(dir)
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -69,13 +69,13 @@ struct FileDiffSheetView: View {
 
             if staged {
                 Text("staged")
-                    .font(.system(size: 10))
+                    .font(DSFont.iconMD)
                     .foregroundStyle(DSColor.gitAdded)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, 1) // sub-grid vertical padding for badge
                     .background(
                         DSColor.gitAdded.opacity(0.1),
-                        in: RoundedRectangle(cornerRadius: 3)
+                        in: RoundedRectangle(cornerRadius: DSRadius.sm)
                     )
             }
 
@@ -85,9 +85,9 @@ struct FileDiffSheetView: View {
                 NSApp.keyWindow?.close()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
+                    .font(.system(size: 16)) // close icon, intentionally larger than iconLG
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 24, height: 24)
+                    .frame(width: DSLayout.closeButtonSize, height: DSLayout.closeButtonSize)
             }
             .buttonStyle(.plain)
             .keyboardShortcut(.escape, modifiers: [])
@@ -102,25 +102,31 @@ struct FileDiffSheetView: View {
     @ViewBuilder
     private var diffContentView: some View {
         if isLoading {
-            Spacer()
-            ProgressView().scaleEffect(0.7)
-            Spacer()
+            VStack {
+                Spacer()
+                ProgressView().scaleEffect(0.7)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if hunks.isEmpty {
-            Spacer()
-            Text(errorMessage ?? "No changes")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-                .multilineTextAlignment(.center)
-                .padding()
-            Spacer()
+            VStack {
+                Spacer()
+                Text(errorMessage ?? "No changes")
+                    .font(DSFont.sidebarItem)
+                    .foregroundStyle(DSColor.textMuted)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(spacing: 0) {
                 if let warning = sizeWarning {
                     Text(warning)
-                        .font(.system(size: 10))
+                        .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.indicatorWaiting)
                         .padding(.horizontal, DSSpacing.sm)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, DSSpacing.xxs)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Divider()
                 }

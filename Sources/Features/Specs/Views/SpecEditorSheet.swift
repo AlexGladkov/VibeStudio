@@ -22,7 +22,7 @@ struct SpecEditorSheet: View {
     private var viewModel: SpecEditorViewModel {
         if let existing = vm { return existing }
         let created = SpecEditorViewModel(specFile: specFile)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -35,7 +35,7 @@ struct SpecEditorSheet: View {
                 Image(systemName: "doc.text")
                     .foregroundStyle(DSColor.agentCodeSpeak)
                 Text(specFile.name)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(DSFont.sheetSubtitle)
                     .foregroundStyle(DSColor.textPrimary)
                 if model.isDirty {
                     Text("•")
@@ -87,7 +87,7 @@ struct SpecEditorSheet: View {
                     Divider()
                     ScrollView {
                         Text(model.content)
-                            .font(.system(size: 13))
+                            .font(DSFont.sidebarItem)
                             .foregroundStyle(DSColor.textPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(DSSpacing.md)
@@ -109,39 +109,22 @@ struct SpecEditorSheet: View {
             }
 
             // Footer
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .padding(.horizontal, DSSpacing.md)
-                    .padding(.vertical, DSSpacing.xs)
-                    .background(DSColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DSRadius.md))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DSRadius.md)
-                            .stroke(DSColor.borderDefault, lineWidth: 1)
-                    )
-
-                Button("Save") {
+            SheetActionButtons(
+                onCancel: { dismiss() },
+                actionLabel: "Save",
+                isDisabled: !model.isDirty,
+                isLoading: model.isSaving,
+                onAction: {
                     Task {
                         if await model.save() { dismiss() }
                     }
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(model.isDirty ? DSColor.buttonPrimaryText : DSColor.textMuted)
-                .padding(.horizontal, DSSpacing.md)
-                .padding(.vertical, DSSpacing.xs)
-                .background(
-                    model.isDirty ? DSColor.buttonPrimaryBg : DSColor.surfaceOverlay,
-                    in: RoundedRectangle(cornerRadius: DSRadius.md)
-                )
-                .disabled(!model.isDirty || model.isSaving)
-            }
+            )
             .padding(.horizontal, DSSpacing.lg)
             .padding(.vertical, DSSpacing.md)
         }
         .background(DSColor.surfaceBase)
-        .frame(width: 900, height: 600)
+        .frame(minWidth: 600, idealWidth: DSLayout.sheetLargeWidth, minHeight: 400, idealHeight: DSLayout.sheetLargeHeight)
         .onAppear {
             if vm == nil { vm = SpecEditorViewModel(specFile: specFile) }
         }
