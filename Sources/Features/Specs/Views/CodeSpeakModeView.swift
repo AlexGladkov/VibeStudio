@@ -465,9 +465,14 @@ struct CodeSpeakModeView: View {
     // MARK: - Right Column: Build Output
 
     private func buildColumn() -> some View {
-        buildOutput()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(DSColor.surfaceRaised)
+        VStack(spacing: 0) {
+            buildHeader()
+            Divider().background(DSColor.borderSubtle)
+            buildOutput()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DSColor.surfaceRaised)
     }
 
     private func buildHeader() -> some View {
@@ -509,34 +514,36 @@ struct CodeSpeakModeView: View {
     }
 
     private func buildOutput() -> some View {
-        Group {
-            if vm.buildVM.outputLines.isEmpty && !vm.buildVM.isRunning {
-                buildEmptyState
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(vm.buildVM.outputLines.enumerated()), id: \.offset) { idx, line in
-                                Text(line)
-                                    .font(DSFont.terminal(size: 11))
-                                    .foregroundStyle(buildLineColor(for: line))
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, DSSpacing.md)
-                                    .padding(.vertical, 1) // sub-grid vertical padding for output line
-                                    .id(idx)
-                            }
+        // ZStack preserves SwiftUI view identity for both states, preventing
+        // HSplitView from resetting divider positions when a build starts.
+        ZStack {
+            buildEmptyState
+                .opacity(vm.buildVM.outputLines.isEmpty && !vm.buildVM.isRunning ? 1 : 0)
+
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(vm.buildVM.outputLines.enumerated()), id: \.offset) { idx, line in
+                            Text(line)
+                                .font(DSFont.terminal(size: 11))
+                                .foregroundStyle(buildLineColor(for: line))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, DSSpacing.md)
+                                .padding(.vertical, 1) // sub-grid vertical padding for output line
+                                .id(idx)
                         }
-                        .padding(.vertical, DSSpacing.xs)
                     }
-                    .onChange(of: vm.buildVM.outputLines.count) { _, count in
-                        if count > 0 {
-                            withAnimation(.none) {
-                                proxy.scrollTo(count - 1, anchor: .bottom)
-                            }
+                    .padding(.vertical, DSSpacing.xs)
+                }
+                .onChange(of: vm.buildVM.outputLines.count) { _, count in
+                    if count > 0 {
+                        withAnimation(.none) {
+                            proxy.scrollTo(count - 1, anchor: .bottom)
                         }
                     }
                 }
+                .opacity(vm.buildVM.outputLines.isEmpty && !vm.buildVM.isRunning ? 0 : 1)
             }
         }
     }
