@@ -54,7 +54,7 @@ struct OpencodeSettingsPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("OpenCode")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.settingsTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
@@ -92,12 +92,12 @@ struct OpencodeSettingsPane: View {
     private var configDirectoryRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Директория конфига")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Text(displayConfigPath)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(DSFont.monoPath)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -108,7 +108,7 @@ struct OpencodeSettingsPane: View {
                     NSWorkspace.shared.open(Self.configDirectoryURL)
                 } label: {
                     Label("Finder", systemImage: "folder")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -139,7 +139,7 @@ struct OpencodeSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 280)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
                 .settingsCard()
             }
         }
@@ -205,20 +205,20 @@ struct OpencodeSettingsPane: View {
     private var providersInfoRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Авторизация")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 12))
+                    .font(DSFont.bodySmall)
                     .foregroundStyle(DSColor.textMuted)
 
                 Text("Провайдеры и API-ключи управляются через CLI: ")
-                    .font(.system(size: 12))
+                    .font(DSFont.bodySmall)
                     .foregroundStyle(DSColor.textMuted)
 
                 Text("opencode providers")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(DSFont.monoSmall)
                     .foregroundStyle(DSColor.textSecondary)
 
                 Spacer()

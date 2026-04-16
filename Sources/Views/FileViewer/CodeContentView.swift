@@ -6,15 +6,15 @@ import SwiftUI
 
 struct CodeContentView: View {
 
-    let content: String
+    let lines: [String]
 
-    private var lines: [String] {
-        content.components(separatedBy: "\n")
+    init(content: String) {
+        self.lines = content.components(separatedBy: "\n")
     }
 
     private var gutterWidth: CGFloat {
         let digits = max(String(lines.count).count, 3)
-        return CGFloat(digits) * 8 + DSSpacing.sm * 2
+        return CGFloat(digits) * DSLayout.codeDigitWidth + DSSpacing.sm * 2
     }
 
     var body: some View {
@@ -41,7 +41,7 @@ struct CodeContentView: View {
                 Text("\(index + 1)")
                     .font(DSFont.terminal(size: 12))
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(height: 18)
+                    .frame(height: DSLayout.diffLineHeight)
             }
         }
         .padding(.horizontal, DSSpacing.sm)
@@ -57,7 +57,7 @@ struct CodeContentView: View {
                 Text(line.isEmpty ? " " : line)
                     .font(DSFont.terminal(size: 12))
                     .foregroundStyle(DSColor.textPrimary)
-                    .frame(height: 18, alignment: .leading)
+                    .frame(height: DSLayout.diffLineHeight, alignment: .leading)
                     .textSelection(.enabled)
             }
         }

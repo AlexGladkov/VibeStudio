@@ -13,6 +13,7 @@ struct TabItemView: View {
 
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
+    @Environment(\.codeSpeak) private var codeSpeak
     /// Concrete TerminalService for @Observable-tracked property access.
     ///
     /// `terminalManager` is typed `any TerminalSessionManaging` — Swift's
@@ -30,7 +31,7 @@ struct TabItemView: View {
     private var viewModel: TabItemViewModel {
         if let existing = vm { return existing }
         let created = TabItemViewModel(projectManager: projectManager, terminalManager: terminalManager)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -48,6 +49,15 @@ struct TabItemView: View {
                 .font(DSFont.tabTitle)
                 .foregroundStyle(isActive || isHovering ? DSColor.textPrimary : DSColor.textSecondary)
                 .lineLimit(1)
+
+            if let stats = codeSpeak.projectStats[project.id] {
+                Text("CS:\(stats.passing)/\(stats.total)")
+                    .font(DSFont.badgeSmall)
+                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitDeleted)
+                    .padding(.horizontal, DSSpacing.xs)
+                    .padding(.vertical, 1) // intentionally 1pt for compact badge
+                    .background(DSColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DSRadius.sm))
+            }
 
             if isActive || isHovering {
                 Button {
@@ -79,7 +89,7 @@ struct TabItemView: View {
             if isActive {
                 Rectangle()
                     .fill(DSColor.accentPrimary)
-                    .frame(height: 2)
+                    .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
         }
         .onHover { hovering in

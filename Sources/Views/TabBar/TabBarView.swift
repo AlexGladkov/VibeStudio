@@ -59,7 +59,7 @@ struct TabBarView: View {
             // Session creation is handled by TerminalAreaView.emptyTerminalView.onAppear
         } label: {
             Image(systemName: "plus")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.tabTitle)
                 .foregroundStyle(DSColor.textSecondary)
                 .frame(
                     width: DSLayout.tabAddButtonSize,

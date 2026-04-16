@@ -57,7 +57,7 @@ struct QwenSettingsPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Qwen")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.settingsTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
@@ -109,19 +109,19 @@ struct QwenSettingsPane: View {
     private var fileRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Глобальный конфиг")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Text(displayPath)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(DSFont.monoPath)
                     .foregroundStyle(configExists ? DSColor.textPrimary : DSColor.textMuted)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 if !configExists {
                     Text("не найден")
-                        .font(.system(size: 11))
+                        .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
                 }
 
@@ -132,7 +132,7 @@ struct QwenSettingsPane: View {
                         NSWorkspace.shared.activateFileViewerSelecting([Self.qwenURL])
                     } label: {
                         Label("Finder", systemImage: "folder")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(DSFont.smallButtonLabel)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -145,7 +145,7 @@ struct QwenSettingsPane: View {
                         configExists ? "Редактировать" : "Создать конфиг",
                         systemImage: configExists ? "pencil" : "plus"
                     )
-                    .font(.system(size: 11, weight: .medium))
+                    .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -176,7 +176,7 @@ struct QwenSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 280)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
                 .settingsCard()
             }
         }
@@ -210,21 +210,21 @@ struct QwenSettingsPane: View {
     private var authInfoRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Авторизация")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 12))
+                    .font(DSFont.bodySmall)
                     .foregroundStyle(DSColor.textMuted)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text("Установите API-ключ DashScope через переменную окружения:")
-                        .font(.system(size: 12))
+                        .font(DSFont.bodySmall)
                         .foregroundStyle(DSColor.textMuted)
 
                     Text("export DASHSCOPE_API_KEY=your-key")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoSmall)
                         .foregroundStyle(DSColor.textSecondary)
                 }
 

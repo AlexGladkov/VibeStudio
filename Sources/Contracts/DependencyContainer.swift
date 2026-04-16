@@ -60,6 +60,23 @@ final class ServiceContainer {
     /// `themeService`: SwiftUI observation tracking requires direct access.
     let freeTabStore: FreeTabStore
 
+    /// CodeSpeak config detection and build stats cache.
+    ///
+    /// Concrete `@Observable` type — same reason as `terminalService`: SwiftUI
+    /// `withObservationTracking` requires the concrete type for property-level subscriptions.
+    let codeSpeak: CodeSpeakService
+
+    /// Syntax parser registry for syntax-highlighted editors.
+    ///
+    /// Concrete `@Observable` type — same reason as `terminalService`: SwiftUI
+    /// `withObservationTracking` requires the concrete type for property-level subscriptions.
+    let syntaxParserRegistry: SyntaxParserRegistry
+
+    /// User-facing CodeSpeak behaviour preferences (auto-build, notifications, etc.).
+    ///
+    /// Concrete `@Observable` type for the same reason as `themeService`.
+    let csPreferences: CodeSpeakPreferences
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -73,7 +90,10 @@ final class ServiceContainer {
         appReadyState: AppReadyState,
         navigationCoordinator: AppNavigationCoordinator,
         themeService: ThemeService,
-        freeTabStore: FreeTabStore
+        freeTabStore: FreeTabStore,
+        codeSpeak: CodeSpeakService,
+        syntaxParserRegistry: SyntaxParserRegistry,
+        csPreferences: CodeSpeakPreferences
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -88,6 +108,9 @@ final class ServiceContainer {
         self.navigationCoordinator = navigationCoordinator
         self.themeService = themeService
         self.freeTabStore = freeTabStore
+        self.codeSpeak = codeSpeak
+        self.syntaxParserRegistry = syntaxParserRegistry
+        self.csPreferences = csPreferences
     }
 }
 
@@ -138,6 +161,18 @@ private struct ThemeServiceKey: EnvironmentKey {
 
 private struct FreeTabStoreKey: EnvironmentKey {
     @MainActor static let defaultValue: FreeTabStore = FreeTabStore()
+}
+
+private struct CodeSpeakServiceKey: EnvironmentKey {
+    @MainActor static let defaultValue: CodeSpeakService = CodeSpeakService()
+}
+
+private struct SyntaxParserRegistryKey: EnvironmentKey {
+    @MainActor static let defaultValue: SyntaxParserRegistry = SyntaxParserRegistry()
+}
+
+private struct CodeSpeakPreferencesKey: EnvironmentKey {
+    @MainActor static let defaultValue: CodeSpeakPreferences = CodeSpeakPreferences()
 }
 
 extension EnvironmentValues {
@@ -195,6 +230,21 @@ extension EnvironmentValues {
         get { self[FreeTabStoreKey.self] }
         set { self[FreeTabStoreKey.self] = newValue }
     }
+
+    var codeSpeak: CodeSpeakService {
+        get { self[CodeSpeakServiceKey.self] }
+        set { self[CodeSpeakServiceKey.self] = newValue }
+    }
+
+    var syntaxParserRegistry: SyntaxParserRegistry {
+        get { self[SyntaxParserRegistryKey.self] }
+        set { self[SyntaxParserRegistryKey.self] = newValue }
+    }
+
+    var csPreferences: CodeSpeakPreferences {
+        get { self[CodeSpeakPreferencesKey.self] }
+        set { self[CodeSpeakPreferencesKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -232,9 +282,18 @@ extension View {
             .environment(\.gitStatusPoller, container.gitStatusPoller)
             .environment(\.agentAvailability, container.agentAvailability)
             .environment(container.appReadyState)
+            // Inject navigationCoordinator via both styles:
+            // - Observable-style (.environment(object)) ensures @Observable property tracking
+            //   works in RootView/ToolbarView (currentMode switch).
+            // - EnvironmentKey-style (.environment(\.key, ...)) keeps existing views that
+            //   use @Environment(\.navigationCoordinator) working unchanged.
+            .environment(container.navigationCoordinator)
             .environment(\.navigationCoordinator, container.navigationCoordinator)
             .environment(\.themeService, container.themeService)
             .environment(\.freeTabStore, container.freeTabStore)
+            .environment(\.codeSpeak, container.codeSpeak)
+            .environment(\.syntaxParserRegistry, container.syntaxParserRegistry)
+            .environment(\.csPreferences, container.csPreferences)
     }
 }
 
@@ -348,6 +407,7 @@ private final class PreviewGitService: GitServicing {
     func addRemote(name: String, url: String, at repository: URL) async throws {}
     func remoteURL(name: String, at repository: URL) async -> String? { nil }
     func aheadBehind(at repository: URL) async throws -> (ahead: Int, behind: Int) { (0, 0) }
+    func diffStats(at repository: URL) async throws -> [String: GitDiffStat] { [:] }
 }
 
 private final class PreviewFileSystemWatcher: FileSystemWatching {

@@ -59,4 +59,13 @@ protocol GitStatusQuerying: Sendable {
     /// - Parameter repository: Repository root path.
     /// - Returns: Tuple of (ahead, behind) counts.
     func aheadBehind(at repository: URL) async throws -> (ahead: Int, behind: Int)
+
+    /// Per-file line addition/deletion counts for the working tree.
+    ///
+    /// Runs `git diff --numstat` (unstaged) and `git diff --cached --numstat` (staged)
+    /// and merges the results. Files not in the diff return nil in the dictionary.
+    ///
+    /// - Parameter repository: Repository root path.
+    /// - Returns: Dictionary keyed by relative file path.
+    func diffStats(at repository: URL) async throws -> [String: GitDiffStat]
 }

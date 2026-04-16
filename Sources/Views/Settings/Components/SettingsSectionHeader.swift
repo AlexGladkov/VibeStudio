@@ -36,7 +36,7 @@ struct SettingsSectionHeader: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             Spacer()
@@ -44,7 +44,7 @@ struct SettingsSectionHeader: View {
             if showAddButton, let onAdd {
                 Button(action: onAdd) {
                     Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)

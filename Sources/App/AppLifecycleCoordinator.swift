@@ -113,6 +113,19 @@ final class AppLifecycleCoordinator {
             )
         }.value
 
+        // Enforce default window size before revealing content.
+        // SwiftUI ignores .defaultSize when the autosave key changes (it changes
+        // every time an @Environment key is added to injectServices). At this point
+        // the TCC probe has finished, the window is fully initialised but still
+        // shows the splash, so we can resize it without any visible flash.
+        if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.contentView != nil }),
+           window.frame.width < DSLayout.windowDefaultWidth {
+            var frame = window.frame
+            frame.size.width = DSLayout.windowDefaultWidth
+            frame.size.height = max(frame.size.height, DSLayout.windowDefaultHeight)
+            window.setFrame(frame, display: false)
+        }
+
         // TCC is now resolved — open the gate so RootView renders the full UI.
         container.appReadyState.tccGranted = true
 
@@ -174,12 +187,20 @@ final class AppLifecycleCoordinator {
         guard let activeId = activeProjectId,
               let project = container.projectManager.project(for: activeId) else {
             container.gitStatusPoller.stopPolling()
+            container.navigationCoordinator.syncMode(isCodeSpeak: false)
             Logger.git.debug("Git status polling stopped — no active project")
             return
         }
 
         container.gitStatusPoller.startPolling(for: project.path, isActive: true)
         Logger.git.info("Git status polling started for \(project.name, privacy: .public)")
+        container.codeSpeak.checkConfig(for: project)
+        let isCS = container.codeSpeak.isCodeSpeakProject(activeId)
+        container.navigationCoordinator.syncMode(isCodeSpeak: isCS)
+        // Apply default command preference when entering a CodeSpeak project.
+        if isCS {
+            container.navigationCoordinator.runBar.command = container.csPreferences.defaultCommand
+        }
     }
 
     // MARK: - Private: File Event Forwarding

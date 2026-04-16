@@ -104,16 +104,17 @@ struct BranchListView: View {
             if isOperating {
                 ProgressView()
                     .scaleEffect(0.5)
-                    .frame(width: 12, height: 12)
+                    .frame(width: DSSpacing.md, height: DSSpacing.md)
             } else {
                 Image(systemName: isCurrent ? "checkmark" : "circle")
+                    // TODO: sub-grid size — 6pt has no DS token yet
                     .font(.system(size: isCurrent ? 9 : 6, weight: isCurrent ? .semibold : .regular))
-                    .foregroundStyle(isCurrent ? DSColor.gitAdded : DSColor.textMuted.opacity(0.5))
-                    .frame(width: 12)
+                    .foregroundStyle(isCurrent ? DSColor.gitAdded : DSColor.textDisabled)
+                    .frame(width: DSSpacing.md)
             }
 
             Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 10))
+                .font(DSFont.iconMD)
                 .foregroundStyle(isCurrent ? DSColor.accentPrimary : DSColor.textSecondary)
 
             Text(branch.name)
@@ -127,23 +128,23 @@ struct BranchListView: View {
 
             // Ahead/behind only for current branch
             if isCurrent && (aheadCount > 0 || behindCount > 0) {
-                HStack(spacing: 3) {
+                HStack(spacing: DSSpacing.xxs) {
                     if aheadCount > 0 {
-                        HStack(spacing: 1) {
-                            Image(systemName: "arrow.up").font(.system(size: 8))
-                            Text("\(aheadCount)").font(.system(size: 10))
+                        HStack(spacing: DSSpacing.xxs) {
+                            Image(systemName: "arrow.up").font(DSFont.iconXS)
+                            Text("\(aheadCount)").font(DSFont.iconMD)
                         }.foregroundStyle(DSColor.gitAdded)
                     }
                     if behindCount > 0 {
-                        HStack(spacing: 1) {
-                            Image(systemName: "arrow.down").font(.system(size: 8))
-                            Text("\(behindCount)").font(.system(size: 10))
+                        HStack(spacing: DSSpacing.xxs) {
+                            Image(systemName: "arrow.down").font(DSFont.iconXS)
+                            Text("\(behindCount)").font(DSFont.iconMD)
                         }.foregroundStyle(DSColor.gitDeleted)
                     }
                 }
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, DSSpacing.xxs)
         .contentShape(Rectangle())
         .frame(height: DSLayout.gitFileRowHeight)
         .sidebarHover()
@@ -182,9 +183,9 @@ struct BranchListView: View {
         } label: {
             HStack(spacing: DSSpacing.xs) {
                 Image(systemName: "plus")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(DSFont.badgeSmall)
                     .foregroundStyle(DSColor.accentPrimary)
-                    .frame(width: 12)
+                    .frame(width: DSSpacing.md)
                 Text("New branch")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.accentPrimary)
@@ -203,7 +204,7 @@ struct BranchListView: View {
         HStack(spacing: DSSpacing.xs) {
             Rectangle().fill(DSColor.borderSubtle).frame(height: 1)
             Text("origin")
-                .font(.system(size: 10))
+                .font(DSFont.iconMD)
                 .foregroundStyle(DSColor.textMuted)
                 .fixedSize()
             Rectangle().fill(DSColor.borderSubtle).frame(height: 1)
@@ -214,23 +215,23 @@ struct BranchListView: View {
     private func remoteUnavailableRow() -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "cloud.slash")
-                .font(.system(size: 9))
+                .font(DSFont.iconSM)
                 .foregroundStyle(DSColor.textMuted)
-                .frame(width: 12)
+                .frame(width: DSSpacing.md)
             Text("unavailable")
-                .font(.system(size: 10))
+                .font(DSFont.iconMD)
                 .foregroundStyle(DSColor.textMuted)
             Spacer()
         }
-        .frame(height: 20)
+        .frame(height: DSLayout.gitFileRowHeight - 8)
     }
 
     private func remoteBranchRow(branch: GitBranch) -> some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "cloud")
-                .font(.system(size: 9))
+                .font(DSFont.iconSM)
                 .foregroundStyle(DSColor.textMuted)
-                .frame(width: 12)
+                .frame(width: DSSpacing.md)
 
             Text(branch.name.replacingOccurrences(of: "origin/", with: ""))
                 .font(DSFont.sidebarItemSmall)
@@ -240,6 +241,6 @@ struct BranchListView: View {
 
             Spacer()
         }
-        .frame(height: 22)
+        .frame(height: DSLayout.gitFileRowHeight - 6)
     }
 }

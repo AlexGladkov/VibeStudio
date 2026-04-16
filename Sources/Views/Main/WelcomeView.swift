@@ -19,7 +19,7 @@ struct WelcomeView: View {
     private var viewModel: AddProjectViewModel {
         if let existing = vm { return existing }
         let created = AddProjectViewModel(projectManager: projectManager)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -31,11 +31,11 @@ struct WelcomeView: View {
             // App icon + title
             VStack(spacing: DSSpacing.sm) {
                 Image(systemName: "terminal.fill")
-                    .font(.system(size: 48))
+                    .font(DSFont.welcomeIcon)
                     .foregroundStyle(DSColor.accentPrimary)
 
                 Text("VibeStudio")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(DSFont.welcomeTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Text("Open a folder to get started")
@@ -85,7 +85,26 @@ struct WelcomeView: View {
                 .keyboardShortcut("o", modifiers: .command)
             }
 
-            // Recent projects
+            // Open projects (shown when returning from CodeSpeak mode — projects exist but none active)
+            if !projectManager.projects.isEmpty {
+                Spacer().frame(height: DSSpacing.xl)
+
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    Text("PROJECTS")
+                        .font(DSFont.sidebarSection)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .padding(.bottom, DSSpacing.xxs)
+
+                    ForEach(projectManager.projects.sorted { $0.lastOpened > $1.lastOpened }) { project in
+                        RecentProjectRow(project: project) {
+                            projectManager.activeProjectId = project.id
+                        }
+                    }
+                }
+                .frame(maxWidth: DSLayout.welcomeListMaxWidth)
+            }
+
+            // Recent projects (previously added but since removed)
             if !projectManager.recentProjects.isEmpty {
                 Spacer().frame(height: DSSpacing.xl)
 
@@ -93,7 +112,7 @@ struct WelcomeView: View {
                     Text("RECENT")
                         .font(DSFont.sidebarSection)
                         .foregroundStyle(DSColor.textSecondary)
-                        .padding(.bottom, 2)
+                        .padding(.bottom, DSSpacing.xxs)
 
                     ForEach(projectManager.recentProjects) { project in
                         RecentProjectRow(project: project) {
@@ -101,7 +120,7 @@ struct WelcomeView: View {
                         }
                     }
                 }
-                .frame(maxWidth: 420)
+                .frame(maxWidth: DSLayout.welcomeListMaxWidth)
             }
 
             // Inline error (e.g. path no longer exists)
@@ -111,7 +130,7 @@ struct WelcomeView: View {
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.gitDeleted)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: DSLayout.welcomeListMaxWidth)
             }
 
             Spacer()
@@ -150,9 +169,9 @@ private struct RecentProjectRow: View {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "folder.fill")
                     .foregroundStyle(DSColor.gitModified)
-                    .font(.system(size: 14))
+                    .font(DSFont.iconLG)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(project.name)
                         .font(DSFont.sidebarItem)
                         .foregroundStyle(DSColor.textPrimary)
@@ -170,7 +189,7 @@ private struct RecentProjectRow: View {
             .padding(.vertical, DSSpacing.xs)
             .background(
                 RoundedRectangle(cornerRadius: DSRadius.sm)
-                    .fill(isHovering ? DSColor.textPrimary.opacity(0.07) : Color.clear)
+                    .fill(isHovering ? DSColor.hoverOverlay : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -198,7 +217,7 @@ struct CreateNewProjectSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             Text("Create New Project")
-                .font(.system(size: 18, weight: .semibold))
+                .font(DSFont.sheetTitle)
                 .foregroundStyle(DSColor.textPrimary)
                 .padding(.bottom, DSSpacing.lg)
 
@@ -211,7 +230,7 @@ struct CreateNewProjectSheet: View {
             // Location picker
             fieldLabel("Location")
             HStack(spacing: DSSpacing.sm) {
-                Text(parentFolder?.abbreviatingWithTilde ?? "Choose a folder…")
+                Text(parentFolder?.tildeAbbreviatedPath ?? "Choose a folder…")
                     .font(DSFont.sidebarItem)
                     .foregroundStyle(parentFolder != nil ? DSColor.textPrimary : DSColor.textMuted)
                     .lineLimit(1)
@@ -261,7 +280,7 @@ struct CreateNewProjectSheet: View {
             }
         }
         .padding(DSSpacing.xl)
-        .frame(width: 480, height: 280)
+        .frame(minWidth: 400, idealWidth: 480, minHeight: 240)
         .background(DSColor.surfaceBase)
         .fileImporter(
             isPresented: $showFolderPicker,
@@ -278,22 +297,16 @@ struct CreateNewProjectSheet: View {
         Text(text)
             .font(DSFont.sidebarItemSmall)
             .foregroundStyle(DSColor.textSecondary)
-            .padding(.bottom, 4)
+            .padding(.bottom, DSSpacing.xs)
     }
 
     private func createProject() {
         guard canCreate, let parent = parentFolder else { return }
         errorMessage = nil
 
-        let newURL = parent.appendingPathComponent(trimmedName)
+        let useCase = CreateProjectUseCase(projectManager: projectManager)
         do {
-            try FileManager.default.createDirectory(
-                at: newURL,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-            let project = try projectManager.addProject(at: newURL)
-            projectManager.activeProjectId = project.id
+            try useCase.execute(name: trimmedName, parent: parent)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -301,14 +314,3 @@ struct CreateNewProjectSheet: View {
     }
 }
 
-// MARK: - URL convenience
-
-private extension URL {
-    /// ~/path/to/dir → ~/path/to/dir (shorter display).
-    var abbreviatingWithTilde: String {
-        path.replacingOccurrences(
-            of: NSHomeDirectory(),
-            with: "~"
-        )
-    }
-}

@@ -83,7 +83,7 @@ struct GitProjectSectionView: View {
                 } else {
                     // Loading
                     HStack {
-                        ProgressView().scaleEffect(0.6)
+                        ProgressView().scaleEffect(0.6) // 0.6 = visual fit for sidebar row
                         Text("Loading...")
                             .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)
@@ -93,7 +93,7 @@ struct GitProjectSectionView: View {
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, DSSpacing.xxs)
     }
 
     // MARK: - Not a Repository Content
@@ -109,7 +109,7 @@ struct GitProjectSectionView: View {
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 11))
+                        .font(DSFont.iconBase)
                     Text("Initialize Git")
                         .font(DSFont.buttonLabel)
                 }

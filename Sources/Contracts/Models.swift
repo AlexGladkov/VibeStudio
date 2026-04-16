@@ -200,6 +200,11 @@ enum DiffLineType: Sendable {
     case deletion
 }
 
+struct GitDiffStat: Sendable {
+    let added: Int
+    let deleted: Int
+}
+
 struct GitCommitInfo: Sendable {
     let hash: String
     let shortHash: String

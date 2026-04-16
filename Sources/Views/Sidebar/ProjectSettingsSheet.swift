@@ -16,7 +16,7 @@ struct ProjectSettingsSheet: View {
     private var viewModel: ProjectSettingsViewModel {
         if let existing = vm { return existing }
         let created = ProjectSettingsViewModel(projectManager: projectManager, project: project)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -26,7 +26,7 @@ struct ProjectSettingsSheet: View {
             // Header
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("Project Settings")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.sheetTitle)
                     .foregroundStyle(DSColor.textPrimary)
                 Text(project.name)
                     .font(DSFont.sidebarItemSmall)
@@ -50,7 +50,7 @@ struct ProjectSettingsSheet: View {
                     if model.saveSettings() { dismiss() }
                 }
                 Text("Used for the \"Open in Browser\" toolbar action")
-                    .font(.system(size: 10))
+                    .font(DSFont.iconMD)
                     .foregroundStyle(DSColor.textMuted)
             }
 
@@ -66,7 +66,7 @@ struct ProjectSettingsSheet: View {
             .keyboardShortcut(.return, modifiers: .command)
         }
         .padding(DSSpacing.lg)
-        .frame(width: 360, height: 260)
+        .frame(minWidth: DSLayout.sheetSmallWidth, idealWidth: DSLayout.sheetMediumWidth - 20, minHeight: DSLayout.sheetSmallHeight, idealHeight: DSLayout.sheetMediumHeight - 60)
         .background(DSColor.surfaceOverlay)
         .onAppear {
             if vm == nil {

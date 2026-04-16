@@ -56,7 +56,7 @@ struct FileTreeView: View {
                 vm.rebuildTree(at: projectPath)
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11))
+                    .font(DSFont.iconBase)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -178,12 +178,12 @@ private struct DirectoryRowView: View {
     private var directoryLabel: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "chevron.right")
-                .font(.system(size: 9))
+                .font(DSFont.iconSM)
                 .foregroundStyle(DSColor.textMuted)
                 .rotationEffect(isExpanded ? .degrees(90) : .zero)
 
             Image(systemName: "folder.fill")
-                .font(.system(size: 14))
+                .font(DSFont.iconLG)
                 .foregroundStyle(DSColor.gitModified)
 
             Text(entry.path.lastPathComponent)
@@ -210,12 +210,12 @@ private struct FileRowView: View {
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
-            // Spacer for disclosure triangle alignment.
+            // Spacer for disclosure triangle alignment (matches iconSM point size).
             Color.clear
-                .frame(width: 9, height: 9)
+                .frame(width: 9)
 
             Image(systemName: fileIcon)
-                .font(.system(size: 14))
+                .font(DSFont.iconLG)
                 .foregroundStyle(fileIconColor)
 
             Text(entry.path.lastPathComponent)

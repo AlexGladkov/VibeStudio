@@ -9,14 +9,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 
-// MARK: - SidebarSection
-
-/// Sidebar content sections selectable via the icon strip.
-enum SidebarSection {
-    case files
-    case git
-}
-
 // MARK: - BranchCreationContext
 
 /// Payload for "Create branch here" context menu — identifies the source branch.
@@ -34,6 +26,7 @@ private struct ProjectFileHeaderView: View {
     let project: Project
     let isActive: Bool
     let isExpanded: Bool
+    let isCodeSpeakProject: Bool
     let remoteURL: String?
     let onTap: () -> Void
     let onSettings: () -> Void
@@ -48,14 +41,18 @@ private struct ProjectFileHeaderView: View {
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(DSColor.textMuted)
                         .rotationEffect(isExpanded ? .degrees(90) : .zero)
                         .animation(.easeOut(duration: 0.15), value: isExpanded)
 
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.gitModified)
+                    Image(systemName: isCodeSpeakProject ? "doc.text.magnifyingglass" : "folder.fill")
+                        .font(DSFont.sidebarItem)
+                        .foregroundStyle(
+                            isCodeSpeakProject
+                                ? DSColor.agentCodeSpeak
+                                : (isActive ? DSColor.accentPrimary : DSColor.gitModified)
+                        )
 
                     Text(project.name)
                         .font(DSFont.sidebarItem)
@@ -74,9 +71,9 @@ private struct ProjectFileHeaderView: View {
                 onSettings()
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 11))
+                    .font(DSFont.iconBase)
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -136,13 +133,13 @@ struct ProjectGitHeaderView: View {
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 9))
+                        .font(DSFont.iconSM)
                         .foregroundStyle(DSColor.textMuted)
                         .rotationEffect(isExpanded ? .degrees(90) : .zero)
                         .animation(.easeOut(duration: 0.15), value: isExpanded)
 
                     Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 11))
+                        .font(DSFont.iconBase)
                         .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.textSecondary)
 
                     Text(project.name)
@@ -155,7 +152,7 @@ struct ProjectGitHeaderView: View {
                     Spacer()
 
                     if let b = branch, !b.isEmpty {
-                        HStack(spacing: 3) {
+                        HStack(spacing: DSSpacing.xxs) {
                             Text(b)
                                 .font(DSFont.sidebarItemSmall)
                                 .foregroundStyle(DSColor.textMuted)
@@ -163,17 +160,17 @@ struct ProjectGitHeaderView: View {
                                 .truncationMode(.middle)
 
                             if aheadCount > 0 {
-                                HStack(spacing: 1) {
-                                    Image(systemName: "arrow.up").font(.system(size: 8))
-                                    Text("\(aheadCount)").font(.system(size: 10))
+                                HStack(spacing: DSSpacing.xxs) {
+                                    Image(systemName: "arrow.up").font(DSFont.iconXS)
+                                    Text("\(aheadCount)").font(DSFont.iconMD)
                                 }
                                 .foregroundStyle(DSColor.gitAdded)
                             }
 
                             if behindCount > 0 {
-                                HStack(spacing: 1) {
-                                    Image(systemName: "arrow.down").font(.system(size: 8))
-                                    Text("\(behindCount)").font(.system(size: 10))
+                                HStack(spacing: DSSpacing.xxs) {
+                                    Image(systemName: "arrow.down").font(DSFont.iconXS)
+                                    Text("\(behindCount)").font(DSFont.iconMD)
                                 }
                                 .foregroundStyle(DSColor.gitDeleted)
                             }
@@ -189,9 +186,9 @@ struct ProjectGitHeaderView: View {
                 onSettings()
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 11))
+                    .font(DSFont.iconBase)
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 20, height: 20)
+                    .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -232,6 +229,7 @@ struct SidebarView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.gitService) private var gitService
     @Environment(\.aiCommitService) private var aiCommitService
+    @Environment(\.codeSpeak) private var codeSpeak
 
     @State private var activeSection: SidebarSection = .files
     @State private var expandedProjects: Set<UUID> = []
@@ -260,6 +258,11 @@ struct SidebarView: View {
     // Git ViewModel -- lazily initialized with environment services
     @State private var gitVM: GitSidebarViewModel?
 
+    /// Projects that are NOT CodeSpeak projects — shown in the regular sidebar.
+    private var regularProjects: [Project] {
+        projectManager.projects.filter { !codeSpeak.isCodeSpeakProject($0.id) }
+    }
+
     /// Resolve or create the git view model, ensuring environment services are injected.
     private var vm: GitSidebarViewModel {
         if let existing = gitVM { return existing }
@@ -281,7 +284,6 @@ struct SidebarView: View {
             contentPanel
         }
         .frame(maxHeight: .infinity)
-        .background(.ultraThinMaterial)
         .background(DSColor.surfaceRaised)
         .overlay(alignment: .trailing) {
             Rectangle()
@@ -384,15 +386,16 @@ struct SidebarView: View {
         VStack(spacing: DSSpacing.sm) {
             iconButton(section: .files, symbol: "folder.fill")
             iconButton(section: .git, symbol: "arrow.triangle.branch")
+            iconButton(section: .specs, symbol: "doc.text.magnifyingglass")
             Spacer()
 
             Button {
                 showAddProjectPopover = true
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 14))
+                    .font(DSFont.iconLG)
                     .foregroundStyle(DSColor.textMuted)
-                    .frame(width: 24, height: 24)
+                    .frame(width: DSLayout.iconStripButtonSize, height: DSLayout.iconStripButtonSize)
                     .cornerRadius(DSRadius.sm)
             }
             .buttonStyle(.plain)
@@ -416,7 +419,7 @@ struct SidebarView: View {
             }
         }
         .padding(.top, DSSpacing.sm)
-        .frame(width: 32)
+        .frame(width: DSLayout.iconStripWidth)
     }
 
     private func iconButton(section: SidebarSection, symbol: String) -> some View {
@@ -425,9 +428,9 @@ struct SidebarView: View {
             activeSection = section
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 14))
+                .font(DSFont.iconLG)
                 .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.textMuted)
-                .frame(width: 24, height: 24)
+                .frame(width: DSLayout.iconStripButtonSize, height: DSLayout.iconStripButtonSize)
                 .background(isActive ? DSColor.surfaceOverlay : Color.clear)
                 .cornerRadius(DSRadius.sm)
         }
@@ -441,8 +444,10 @@ struct SidebarView: View {
         Group {
             if activeSection == .files {
                 multiProjectFileTree()
+            } else if activeSection == .specs {
+                SpecsPanelView()
             } else {
-                if projectManager.projects.isEmpty {
+                if regularProjects.isEmpty {
                     noProjectView()
                 } else {
                     multiProjectGitView()
@@ -457,7 +462,7 @@ struct SidebarView: View {
     private func multiProjectFileTree() -> some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(projectManager.projects) { project in
+                ForEach(regularProjects) { project in
                     projectSection(project: project)
                 }
             }
@@ -469,7 +474,7 @@ struct SidebarView: View {
             }
         }
         .task {
-            for project in projectManager.projects {
+            for project in regularProjects {
                 await vm.loadRemoteURL(for: project)
             }
         }
@@ -484,6 +489,7 @@ struct SidebarView: View {
                 project: project,
                 isActive: isActive,
                 isExpanded: isExpanded,
+                isCodeSpeakProject: codeSpeak.isCodeSpeakProject(project.id),
                 remoteURL: vm.projectRemoteURLs[project.id],
                 onTap: {
                     if isExpanded {
@@ -516,7 +522,7 @@ struct SidebarView: View {
     // MARK: - Multi-Project Git View
 
     private func multiProjectGitView() -> some View {
-        let activeProject = projectManager.projects
+        let activeProject = regularProjects
             .first { $0.id == projectManager.activeProjectId }
         let showCommitPanel = activeProject.map { !vm.nonGitProjects.contains($0.id) } ?? false
 
@@ -529,17 +535,17 @@ struct SidebarView: View {
                             .foregroundStyle(DSColor.textSecondary)
                         Spacer()
                         Button {
-                            Task { await vm.refreshAllGitInfo(projects: projectManager.projects) }
+                            Task { await vm.refreshAllGitInfo(projects: regularProjects) }
                         } label: {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11))
+                                .font(DSFont.iconBase)
                                 .foregroundStyle(DSColor.textMuted)
                         }
                         .buttonStyle(.plain)
                     }
                     .frame(height: DSLayout.gitSectionHeaderHeight)
 
-                    ForEach(projectManager.projects) { project in
+                    ForEach(regularProjects) { project in
                         GitProjectSectionView(
                             project: project,
                             isActiveProject: project.id == projectManager.activeProjectId,
@@ -564,7 +570,7 @@ struct SidebarView: View {
             }
         }
         .task {
-            await vm.refreshAllGitInfo(projects: projectManager.projects)
+            await vm.refreshAllGitInfo(projects: regularProjects)
         }
     }
 

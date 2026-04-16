@@ -65,7 +65,7 @@ struct TerminalHostView: NSViewRepresentable {
         } catch {
             // Show error state if terminal view cannot be attached.
             let label = NSTextField(labelWithString: "Terminal unavailable")
-            label.textColor = .secondaryLabelColor
+            label.textColor = .secondaryLabelColor // AppKit semantic color, equivalent to DSColor.textSecondary
             label.translatesAutoresizingMaskIntoConstraints = false
             container.addSubview(label)
             NSLayoutConstraint.activate([

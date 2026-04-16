@@ -20,7 +20,7 @@ struct TerminalAreaView: View {
     private var viewModel: TerminalAreaViewModel {
         if let existing = vm { return existing }
         let created = TerminalAreaViewModel(projectManager: projectManager, terminalManager: terminalManager)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -100,11 +100,11 @@ private struct DroppableTerminalPanel: View {
         TerminalHostView(sessionId: session.id)
             .overlay {
                 if isDragTarget {
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(DSColor.accentPrimary, lineWidth: 1.5)
+                    RoundedRectangle(cornerRadius: DSRadius.sm)
+                        .stroke(DSColor.accentPrimary, lineWidth: 1.5) // intentional: 1.5pt border for visibility
                         .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(DSColor.accentPrimary.opacity(0.08))
+                            RoundedRectangle(cornerRadius: DSRadius.sm)
+                                .fill(DSColor.dropTargetBg)
                         )
                         .allowsHitTesting(false)
                 }

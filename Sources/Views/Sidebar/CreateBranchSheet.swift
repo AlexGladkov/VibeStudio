@@ -22,7 +22,7 @@ struct CreateBranchSheet: View {
             project: project,
             fromBranch: fromBranch
         )
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -31,15 +31,15 @@ struct CreateBranchSheet: View {
         VStack(alignment: .leading, spacing: DSSpacing.lg) {
             VStack(alignment: .leading, spacing: DSSpacing.xs) {
                 Text("New Branch")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.sheetTitle)
                     .foregroundStyle(DSColor.textPrimary)
                 if let from = fromBranch {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DSSpacing.xs) {
                         Text("from")
                             .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)
                         Image(systemName: "arrow.triangle.branch")
-                            .font(.system(size: 10))
+                            .font(DSFont.iconMD)
                             .foregroundStyle(DSColor.accentPrimary)
                         Text(from)
                             .font(DSFont.sidebarItemSmall)
@@ -101,7 +101,7 @@ struct CreateBranchSheet: View {
             )
         }
         .padding(DSSpacing.lg)
-        .frame(width: 320, height: 240)
+        .frame(minWidth: DSLayout.sheetSmallWidth - 20, idealWidth: DSLayout.sheetSmallWidth, minHeight: DSLayout.sheetSmallHeight - 40, idealHeight: DSLayout.sheetSmallHeight)
         .background(DSColor.surfaceOverlay)
         .onAppear {
             if vm == nil {

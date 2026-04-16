@@ -18,16 +18,16 @@ struct GeneralSettingsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xl) {
             Text("Внешний вид")
-                .font(.system(size: 15, weight: .semibold))
+                .font(DSFont.settingsTitle)
                 .foregroundStyle(DSColor.textPrimary)
 
             Divider().background(DSColor.borderDefault)
 
             HStack(spacing: DSSpacing.lg) {
                 Text("Тема")
-                    .font(.system(size: 13))
+                    .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textPrimary)
-                    .frame(width: 80, alignment: .leading)
+                    .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
 
                 Picker("", selection: Binding(
                     get: { themeService.selectedAppearance.rawValue },
@@ -38,7 +38,7 @@ struct GeneralSettingsPane: View {
                     Text("Light").tag(2)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 240)
+                .frame(width: DSLayout.settingsPickerWidth)
                 .labelsHidden()
 
                 Spacer()

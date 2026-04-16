@@ -24,7 +24,7 @@ struct AddProjectPopover: View {
     private var viewModel: AddProjectViewModel {
         if let existing = vm { return existing }
         let created = AddProjectViewModel(projectManager: projectManager)
-        DispatchQueue.main.async { vm = created }
+        Task { @MainActor in vm = created }
         return created
     }
 
@@ -47,7 +47,7 @@ struct AddProjectPopover: View {
         }
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.sm)
-        .frame(width: 300)
+        .frame(minWidth: 280, idealWidth: DSLayout.addProjectPopoverWidth, maxWidth: 360)
         .background(DSColor.surfaceOverlay)
         .onAppear {
             if vm == nil {
@@ -62,7 +62,7 @@ struct AddProjectPopover: View {
     private var emptyState: some View {
         VStack(spacing: DSSpacing.sm) {
             Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 28))
+                .font(DSFont.emptyStateIcon)
                 .foregroundStyle(DSColor.textMuted)
 
             Text("No recent projects")
@@ -148,10 +148,10 @@ private struct RecentRow: View {
         Button(action: onTap) {
             HStack(spacing: DSSpacing.sm) {
                 Image(systemName: "folder.fill")
-                    .font(.system(size: 13))
+                    .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.gitModified)
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                     Text(project.name)
                         .font(DSFont.sidebarItem)
                         .foregroundStyle(DSColor.textPrimary)
@@ -179,7 +179,7 @@ private struct RecentRow: View {
             .padding(.vertical, DSSpacing.xs)
             .background(
                 RoundedRectangle(cornerRadius: DSRadius.sm)
-                    .fill(isHovering ? DSColor.textPrimary.opacity(0.07) : Color.clear)
+                    .fill(isHovering ? DSColor.hoverOverlay : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -211,13 +211,13 @@ private struct ActionRow: View {
                 .foregroundStyle(DSColor.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DSSpacing.md)
-                .padding(.vertical, 6)
+                .padding(.vertical, DSSpacing.sm)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background(
             RoundedRectangle(cornerRadius: DSRadius.sm)
-                .fill(isHovering ? DSColor.textPrimary.opacity(0.07) : Color.clear)
+                .fill(isHovering ? DSColor.hoverOverlay : Color.clear)
         )
         .onHover { isHovering = $0 }
     }

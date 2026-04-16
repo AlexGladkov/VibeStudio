@@ -23,28 +23,31 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     case codex
     case gemini
     case qwenCode
+    case codeSpeak
 
     var id: String { rawValue }
 
     /// Human-readable display name for the toolbar picker.
     var displayName: String {
         switch self {
-        case .claude:    return "claude"
-        case .opencode:  return "opencode"
-        case .codex:     return "codex"
-        case .gemini:    return "gemini"
-        case .qwenCode:  return "qwen"
+        case .claude:     return "claude"
+        case .opencode:   return "opencode"
+        case .codex:      return "codex"
+        case .gemini:     return "gemini"
+        case .qwenCode:   return "qwen"
+        case .codeSpeak:  return "CodeSpeak"
         }
     }
 
     /// Binary name used to locate the executable via `CLIAgentPathResolver`.
     var executableName: String {
         switch self {
-        case .claude:    return "claude"
-        case .opencode:  return "opencode"
-        case .codex:     return "codex"
-        case .gemini:    return "gemini"
-        case .qwenCode:  return "qwen"
+        case .claude:     return "claude"
+        case .opencode:   return "opencode"
+        case .codex:      return "codex"
+        case .gemini:     return "gemini"
+        case .qwenCode:   return "qwen"
+        case .codeSpeak:  return "codespeak"
         }
     }
 
@@ -53,11 +56,12 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// SwiftTerm prepends `execName` as argv[0], so these are argv[1..N].
     var launchArguments: [String] {
         switch self {
-        case .claude:    return ["--dangerously-skip-permissions"]
-        case .opencode:  return []
-        case .codex:     return []
-        case .gemini:    return []
-        case .qwenCode:  return []
+        case .claude:     return ["--dangerously-skip-permissions"]
+        case .opencode:   return []
+        case .codex:      return []
+        case .gemini:     return []
+        case .qwenCode:   return []
+        case .codeSpeak:  return []
         }
     }
 
@@ -69,8 +73,9 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// process environment when launched from Finder / Dock / launchd.
     var launchViaShellInput: Bool {
         switch self {
-        case .opencode: return true
-        default:        return false
+        case .opencode:  return true
+        case .codeSpeak: return true
+        default:         return false
         }
     }
 
@@ -80,22 +85,24 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// New agents use the dedicated PTY launch via `TerminalService.startAgentSession`.
     var launchCommand: String {
         switch self {
-        case .claude:    return "claude --dangerously-skip-permissions\n"
-        case .opencode:  return "opencode\n"
-        case .codex:     return "codex\n"
-        case .gemini:    return "gemini\n"
-        case .qwenCode:  return "qwen\n"
+        case .claude:     return "claude --dangerously-skip-permissions\n"
+        case .opencode:   return "opencode\n"
+        case .codex:      return "codex\n"
+        case .gemini:     return "gemini\n"
+        case .qwenCode:   return "qwen\n"
+        case .codeSpeak:  return "codespeak build\n"
         }
     }
 
     /// How to gracefully terminate this agent.
     var exitSequence: AgentExitSequence {
         switch self {
-        case .claude:    return .ctrlCThenCommand("/exit")
-        case .opencode:  return .ctrlC
-        case .codex:     return .ctrlC
-        case .gemini:    return .ctrlC
-        case .qwenCode:  return .ctrlC
+        case .claude:     return .ctrlCThenCommand("/exit")
+        case .opencode:   return .ctrlC
+        case .codex:      return .ctrlC
+        case .gemini:     return .ctrlC
+        case .qwenCode:   return .ctrlC
+        case .codeSpeak:  return .ctrlC
         }
     }
 
@@ -105,22 +112,24 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// (Claude uses OAuth login via `claude login`, opencode uses its own config).
     var apiKeyEnvironmentVariable: String? {
         switch self {
-        case .claude:    return nil              // OAuth via `claude login`, no API key needed
-        case .opencode:  return nil
-        case .codex:     return "OPENAI_API_KEY"
-        case .gemini:    return "GEMINI_API_KEY"
-        case .qwenCode:  return "DASHSCOPE_API_KEY"
+        case .claude:     return nil              // OAuth via `claude login`, no API key needed
+        case .opencode:   return nil
+        case .codex:      return "OPENAI_API_KEY"
+        case .gemini:     return "GEMINI_API_KEY"
+        case .qwenCode:   return "DASHSCOPE_API_KEY"
+        case .codeSpeak:  return "ANTHROPIC_API_KEY"
         }
     }
 
     /// Installation hint shown in the picker when the agent is not found.
     var installHint: String {
         switch self {
-        case .claude:    return "npm install -g @anthropic-ai/claude-code"
-        case .opencode:  return "go install github.com/opencode-ai/opencode@latest"
-        case .codex:     return "npm install -g @openai/codex"
-        case .gemini:    return "npm install -g @google/gemini-cli"
-        case .qwenCode:  return "npm install -g @anthropic-ai/qwen-code"
+        case .claude:     return "npm install -g @anthropic-ai/claude-code"
+        case .opencode:   return "go install github.com/opencode-ai/opencode@latest"
+        case .codex:      return "npm install -g @openai/codex"
+        case .gemini:     return "npm install -g @google/gemini-cli"
+        case .qwenCode:   return "npm install -g @anthropic-ai/qwen-code"
+        case .codeSpeak:  return "uv tool install codespeak-cli"
         }
     }
 
@@ -139,6 +148,8 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
             return "Google Gemini CLI for AI-powered code assistance and generation."
         case .qwenCode:
             return "Alibaba's Qwen Code CLI for code generation and completion."
+        case .codeSpeak:
+            return "Spec-driven AI coding tool. Runs codespeak build against your project specs."
         }
     }
 
@@ -149,6 +160,8 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
             return "Node.js 18+"
         case .opencode:
             return "Go 1.22+"
+        case .codeSpeak:
+            return "uv (Python package manager)"
         }
     }
 
@@ -159,6 +172,8 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
             return "node --version"
         case .opencode:
             return "go version"
+        case .codeSpeak:
+            return "uv --version"
         }
     }
 
@@ -175,6 +190,8 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
             return "Set your Gemini API key:\nexport GEMINI_API_KEY=your-key-here\n\nGet a key at: aistudio.google.com → API Keys"
         case .qwenCode:
             return "Set your DashScope API key:\nexport DASHSCOPE_API_KEY=your-key-here\n\nGet a key at: dashscope.console.aliyun.com"
+        case .codeSpeak:
+            return "1. Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh\n2. uv tool install codespeak-cli\n3. Set ANTHROPIC_API_KEY in Claude settings\n4. Run codespeak init in your project"
         }
     }
 }

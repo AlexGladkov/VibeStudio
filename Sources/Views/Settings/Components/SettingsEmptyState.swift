@@ -25,7 +25,7 @@ struct SettingsEmptyState: View {
         HStack {
             Spacer()
             Text(text)
-                .font(.system(size: 12))
+                .font(DSFont.bodySmall)
                 .foregroundStyle(DSColor.textMuted)
             Spacer()
         }

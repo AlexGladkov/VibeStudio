@@ -65,27 +65,27 @@ struct CommandEditorSheet: View {
         HStack(spacing: DSSpacing.sm) {
             if isNewFile {
                 Text("Новая команда")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.sheetTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 HStack(spacing: DSSpacing.xs) {
                     TextField("имя-файла", text: $filename)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoSmall)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 160)
 
                     Text(".md")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoSmall)
                         .foregroundStyle(DSColor.textMuted)
                 }
             } else {
                 Text(fileURL?.deletingPathExtension().lastPathComponent ?? "Команда")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DSFont.sheetTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 if let url = fileURL {
                     Text(url.tildeAbbreviatedPath)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(DSFont.monoSmall)
                         .foregroundStyle(DSColor.textMuted)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -98,7 +98,7 @@ struct CommandEditorSheet: View {
                 dismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
+                    .font(DSFont.bodyMedium)
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
@@ -115,11 +115,11 @@ struct CommandEditorSheet: View {
         HStack(spacing: DSSpacing.sm) {
             if let err = saveError {
                 Text(err)
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.gitDeleted)
             } else if hasUnsavedChanges {
                 Text("Есть несохранённые изменения")
-                    .font(.system(size: 11))
+                    .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }
 

@@ -22,7 +22,7 @@ struct SettingsView: View {
             Divider()
             contentPane
         }
-        .frame(minWidth: 860, idealWidth: 960, minHeight: 680, idealHeight: 760)
+        .frame(minWidth: DSLayout.settingsWindowMinWidth, idealWidth: DSLayout.settingsWindowIdealWidth, minHeight: DSLayout.settingsWindowMinHeight, idealHeight: DSLayout.settingsWindowIdealHeight)
         .background(DSColor.surfaceDefault)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -49,13 +49,13 @@ struct SettingsView: View {
             .padding(.vertical, DSSpacing.sm)
             .padding(.horizontal, DSSpacing.sm)
         }
-        .frame(width: 200)
+        .frame(width: DSLayout.settingsSidebarWidth)
         .background(DSColor.surfaceRaised)
     }
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(size: 10, weight: .semibold))
+            .font(DSFont.statusBadge)
             .foregroundStyle(DSColor.textMuted)
             .padding(.horizontal, DSSpacing.md)
             .padding(.top, DSSpacing.sm)
@@ -70,19 +70,19 @@ struct SettingsView: View {
         } label: {
             HStack(spacing: DSSpacing.sm) {
                 itemIcon(item, isSelected: isSelected)
-                    .frame(width: 16, height: 16)
+                    .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
 
                 Text(item.displayName)
-                    .font(.system(size: 13))
+                    .font(DSFont.sidebarItem)
                     .foregroundStyle(isSelected ? DSColor.textPrimary : DSColor.textSecondary)
 
                 Spacer()
             }
             .padding(.horizontal, DSSpacing.md)
-            .padding(.vertical, DSSpacing.sm - 2)
+            .padding(.vertical, DSSpacing.xs)
             .background(
                 RoundedRectangle(cornerRadius: DSRadius.md)
-                    .fill(isSelected ? DSColor.accentPrimary.opacity(0.15) : Color.clear)
+                    .fill(isSelected ? DSColor.accentPrimarySubtle : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -94,10 +94,10 @@ struct SettingsView: View {
         switch item {
         case .appearance:
             Image(systemName: item.systemImage)
-                .font(.system(size: 12))
+                .font(DSFont.bodySmall)
                 .foregroundStyle(isSelected ? DSColor.accentPrimary : DSColor.textSecondary)
         case .llmAssistant(let assistant):
-            AIAssistantIconView(assistant: assistant, size: 14)
+            AIAssistantIconView(assistant: assistant, size: 14) // iconLG point size
                 .opacity(isSelected ? 1.0 : 0.6)
         }
     }

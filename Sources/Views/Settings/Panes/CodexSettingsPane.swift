@@ -77,7 +77,7 @@ struct CodexSettingsPane: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Codex")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(DSFont.settingsTitle)
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
@@ -129,12 +129,12 @@ struct CodexSettingsPane: View {
     private var configSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Конфиг")
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
                 Text(displayConfigPath)
-                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .font(DSFont.monoPath)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -145,7 +145,7 @@ struct CodexSettingsPane: View {
                     NSWorkspace.shared.activateFileViewerSelecting([Self.configURL])
                 } label: {
                     Label("Finder", systemImage: "folder")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -154,7 +154,7 @@ struct CodexSettingsPane: View {
                     showConfigEditor = true
                 } label: {
                     Label("Редактировать", systemImage: "pencil")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(DSFont.smallButtonLabel)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -185,7 +185,7 @@ struct CodexSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 280)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
                 .settingsCard()
             }
         }
@@ -235,7 +235,7 @@ struct CodexSettingsPane: View {
                         }
                     }
                 }
-                .frame(maxHeight: 200)
+                .frame(maxHeight: DSLayout.settingsListMaxHeightSmall)
                 .settingsCard()
             }
         }
@@ -244,7 +244,7 @@ struct CodexSettingsPane: View {
     private func skillRow(_ skill: CodexSkillEntry) -> some View {
         HStack(spacing: DSSpacing.sm) {
             Text(skill.displayName)
-                .font(.system(size: 12, weight: .medium))
+                .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textPrimary)
                 .lineLimit(1)
 
@@ -254,7 +254,7 @@ struct CodexSettingsPane: View {
                 NSWorkspace.shared.open(skill.directoryURL)
             } label: {
                 Image(systemName: "folder")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(DSFont.smallButtonLabel)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)

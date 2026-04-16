@@ -22,7 +22,7 @@ struct FreeTabItemView: View {
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: "terminal")
-                .font(.system(size: 10, weight: .medium))
+                .font(DSFont.iconMD)
                 .foregroundStyle(isActive || isHovering ? DSColor.textPrimary : DSColor.textSecondary)
 
             Text(freeTab.title)
@@ -60,7 +60,7 @@ struct FreeTabItemView: View {
             if isActive {
                 Rectangle()
                     .fill(DSColor.accentPrimary)
-                    .frame(height: 2)
+                    .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
         }
         .onHover { hovering in
