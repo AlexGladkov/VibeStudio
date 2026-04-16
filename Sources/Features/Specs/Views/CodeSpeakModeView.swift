@@ -465,14 +465,9 @@ struct CodeSpeakModeView: View {
     // MARK: - Right Column: Build Output
 
     private func buildColumn() -> some View {
-        VStack(spacing: 0) {
-            buildHeader()
-            Divider().background(DSColor.borderSubtle)
-            buildOutput()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DSColor.surfaceRaised)
+        buildOutput()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(DSColor.surfaceRaised)
     }
 
     private func buildHeader() -> some View {
