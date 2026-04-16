@@ -22,6 +22,7 @@ struct CodeSpeakModeView: View {
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.navigationCoordinator) private var navigationCoordinator
     @Environment(\.syntaxParserRegistry) private var syntaxParserRegistry
+    @Environment(\.csPreferences) private var csPreferences
 
     @State private var showWizard = false
     @State private var showingProjectPicker = false
@@ -80,8 +81,30 @@ struct CodeSpeakModeView: View {
             }
         }
         // Mirror isRunning back to coordinator so toolbar can show ■ vs ▶
-        .onChange(of: vm.buildVM.isRunning) { _, running in
+        .onChange(of: vm.buildVM.isRunning) { old, running in
             navigationCoordinator.runBar.isRunning = running
+            // Auto-open build panel (Regular mode right panel) when command starts.
+            if running && csPreferences.autoOpenBuildPanel {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    navigationCoordinator.showingSpecPanel = true
+                }
+            }
+            // Notify on complete (command finished, not cancelled).
+            if old && !running {
+                csPreferences.sendCompletionNotification(
+                    command: vm.buildVM.selectedCommand,
+                    exitCode: vm.buildVM.exitCode,
+                    wasCancelled: vm.buildVM.wasCancelled
+                )
+            }
+        }
+        // Auto-build on save: always run `build` after a successful spec save.
+        .onChange(of: vm.savedAt) { _, _ in
+            guard csPreferences.autoBuildOnSave,
+                  let project = activeProject,
+                  !vm.buildVM.isRunning else { return }
+            vm.buildVM.selectedCommand = .build
+            Task { await vm.buildVM.run(at: project.path, specPath: vm.selectedSpec?.url) }
         }
         // Sync selected spec name to titlebar breadcrumb
         .onChange(of: vm.selectedSpec) { _, spec in
@@ -172,6 +195,11 @@ struct CodeSpeakModeView: View {
             if vm.selectedSpec == nil, let first = vm.specsVM.specFiles.first {
                 vm.selectSpec(first)
             }
+            // Build on project open: run build automatically when entering a CS project.
+            if csPreferences.buildOnProjectOpen && !vm.specsVM.specFiles.isEmpty {
+                vm.buildVM.selectedCommand = .build
+                Task { await vm.buildVM.run(at: project.path) }
+            }
         }
     }
 
@@ -232,9 +260,23 @@ struct CodeSpeakModeView: View {
                         .padding(.leading, 28) // 2x chevronFrameWidth
                         .padding(.vertical, DSSpacing.xs)
                 } else {
+                    let failingSpecs = vm.specsVM.specFiles.filter { $0.status == .failing }
+                    // Show failing only if enabled and at least one result is known.
+                    // Falls back to all specs when no build has run yet (all .unknown).
+                    let visibleSpecs = (csPreferences.showFailingOnly && !failingSpecs.isEmpty)
+                        ? failingSpecs
+                        : vm.specsVM.specFiles
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(vm.specsVM.specFiles) { spec in
+                        ForEach(visibleSpecs) { spec in
                             specRow(spec: spec)
+                        }
+                        if csPreferences.showFailingOnly && failingSpecs.isEmpty
+                            && vm.specsVM.specFiles.allSatisfy({ $0.status == .passing }) {
+                            Text("All specs passing")
+                                .font(DSFont.sidebarItemSmall)
+                                .foregroundStyle(DSColor.gitAdded)
+                                .padding(.leading, 28)
+                                .padding(.vertical, DSSpacing.xs)
                         }
                     }
                     .padding(.horizontal, DSSpacing.sm)

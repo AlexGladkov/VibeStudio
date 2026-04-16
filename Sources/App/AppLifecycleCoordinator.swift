@@ -195,9 +195,12 @@ final class AppLifecycleCoordinator {
         container.gitStatusPoller.startPolling(for: project.path, isActive: true)
         Logger.git.info("Git status polling started for \(project.name, privacy: .public)")
         container.codeSpeak.checkConfig(for: project)
-        container.navigationCoordinator.syncMode(
-            isCodeSpeak: container.codeSpeak.isCodeSpeakProject(activeId)
-        )
+        let isCS = container.codeSpeak.isCodeSpeakProject(activeId)
+        container.navigationCoordinator.syncMode(isCodeSpeak: isCS)
+        // Apply default command preference when entering a CodeSpeak project.
+        if isCS {
+            container.navigationCoordinator.runBar.command = container.csPreferences.defaultCommand
+        }
     }
 
     // MARK: - Private: File Event Forwarding

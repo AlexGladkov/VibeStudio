@@ -132,9 +132,9 @@ enum DSLayout {
     /// Minimum window height.
     static let windowMinHeight: CGFloat = 400
     /// Default window width.
-    static let windowDefaultWidth: CGFloat = 1600
+    static let windowDefaultWidth: CGFloat = 2100
     /// Default window height.
-    static let windowDefaultHeight: CGFloat = 1000
+    static let windowDefaultHeight: CGFloat = 1312
 
     // MARK: Toolbar (extended)
 

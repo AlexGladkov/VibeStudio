@@ -32,6 +32,10 @@ final class CodeSpeakModeViewModel {
     /// Generated files discovered in the active project root.
     var generatedFiles: [GeneratedFile] = []
 
+    /// Timestamp of the last successful spec save. Observed by `CodeSpeakModeView`
+    /// to trigger auto-build when `csPreferences.autoBuildOnSave` is enabled.
+    private(set) var savedAt: Date?
+
     // MARK: - Sub-ViewModels
 
     let specsVM: SpecsViewModel
@@ -140,6 +144,7 @@ final class CodeSpeakModeViewModel {
         do {
             try Data(editorContent.utf8).write(to: spec.url)
             isEditorDirty = false
+            savedAt = Date()
         } catch {
             Logger.services.error("CodeSpeakModeViewModel: failed to save spec: \(error.localizedDescription, privacy: .public)")
         }

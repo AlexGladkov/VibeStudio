@@ -50,6 +50,7 @@ struct ToolbarView: View {
                     codeSpeakThreeSectionToolbar()
                 } else {
                     HStack(spacing: DSSpacing.sm) {
+                        Spacer(minLength: 0)
                         configPicker(model: model)
                         playStopButton(model: model)
                         openInBrowserButton(model: model)

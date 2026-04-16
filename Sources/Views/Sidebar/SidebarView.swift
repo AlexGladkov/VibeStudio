@@ -258,6 +258,11 @@ struct SidebarView: View {
     // Git ViewModel -- lazily initialized with environment services
     @State private var gitVM: GitSidebarViewModel?
 
+    /// Projects that are NOT CodeSpeak projects — shown in the regular sidebar.
+    private var regularProjects: [Project] {
+        projectManager.projects.filter { !codeSpeak.isCodeSpeakProject($0.id) }
+    }
+
     /// Resolve or create the git view model, ensuring environment services are injected.
     private var vm: GitSidebarViewModel {
         if let existing = gitVM { return existing }
@@ -442,7 +447,7 @@ struct SidebarView: View {
             } else if activeSection == .specs {
                 SpecsPanelView()
             } else {
-                if projectManager.projects.isEmpty {
+                if regularProjects.isEmpty {
                     noProjectView()
                 } else {
                     multiProjectGitView()
@@ -457,7 +462,7 @@ struct SidebarView: View {
     private func multiProjectFileTree() -> some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(projectManager.projects) { project in
+                ForEach(regularProjects) { project in
                     projectSection(project: project)
                 }
             }
@@ -469,7 +474,7 @@ struct SidebarView: View {
             }
         }
         .task {
-            for project in projectManager.projects {
+            for project in regularProjects {
                 await vm.loadRemoteURL(for: project)
             }
         }
@@ -517,7 +522,7 @@ struct SidebarView: View {
     // MARK: - Multi-Project Git View
 
     private func multiProjectGitView() -> some View {
-        let activeProject = projectManager.projects
+        let activeProject = regularProjects
             .first { $0.id == projectManager.activeProjectId }
         let showCommitPanel = activeProject.map { !vm.nonGitProjects.contains($0.id) } ?? false
 
@@ -530,7 +535,7 @@ struct SidebarView: View {
                             .foregroundStyle(DSColor.textSecondary)
                         Spacer()
                         Button {
-                            Task { await vm.refreshAllGitInfo(projects: projectManager.projects) }
+                            Task { await vm.refreshAllGitInfo(projects: regularProjects) }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                                 .font(DSFont.iconBase)
@@ -540,7 +545,7 @@ struct SidebarView: View {
                     }
                     .frame(height: DSLayout.gitSectionHeaderHeight)
 
-                    ForEach(projectManager.projects) { project in
+                    ForEach(regularProjects) { project in
                         GitProjectSectionView(
                             project: project,
                             isActiveProject: project.id == projectManager.activeProjectId,
@@ -565,7 +570,7 @@ struct SidebarView: View {
             }
         }
         .task {
-            await vm.refreshAllGitInfo(projects: projectManager.projects)
+            await vm.refreshAllGitInfo(projects: regularProjects)
         }
     }
 

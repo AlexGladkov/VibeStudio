@@ -21,6 +21,7 @@
 		0A1A345EC0C7E50B1C425F47 /* AICommitServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3344185FCE91D8FB33DBA35 /* AICommitServicing.swift */; };
 		0D0F5AFF5FA85A6C3C60D6CA /* SyntaxParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86760BC15DB6C19079392073 /* SyntaxParsing.swift */; };
 		0D56EE200F9B900BFFB5D795 /* SessionLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0FEFA964F39D9F3698F963 /* SessionLifecycleCoordinator.swift */; };
+		0F1A279285482807B678E0D1 /* CodeSpeakPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E37CDC9F2B4A5A3E85280C /* CodeSpeakPreferences.swift */; };
 		0F27670E823AE71722110F59 /* ProjectSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4116ACB6ED66B7D356B30621 /* ProjectSettingsViewModel.swift */; };
 		10A285006D5F2D85AF2FB913 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72DE3D05B9E00F4D114A65DD /* SessionStore.swift */; };
 		120B1C10BAD3295A5B8D48A9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F2A0126658D15DDC65BB524 /* SettingsView.swift */; };
@@ -347,6 +348,7 @@
 		BCF474238A8C2D84BBD35489 /* GitStatusPolling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusPolling.swift; sourceTree = "<group>"; };
 		BDAA7773FB14FCE4F533334E /* ContinuationHolder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuationHolder.swift; sourceTree = "<group>"; };
 		BEF2168AB155343AEA186350 /* TaggedTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaggedTerminalView.swift; sourceTree = "<group>"; };
+		C0E37CDC9F2B4A5A3E85280C /* CodeSpeakPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakPreferences.swift; sourceTree = "<group>"; };
 		C1FCA30A6F9404865A57376D /* CreateBranchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateBranchViewModel.swift; sourceTree = "<group>"; };
 		C285049312BEE8B9F29A7BC8 /* BranchListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchListView.swift; sourceTree = "<group>"; };
 		C2C9A50A20CEEB35BD7B0C37 /* GitURLConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitURLConverter.swift; sourceTree = "<group>"; };
@@ -542,6 +544,7 @@
 		2BBDFB75893B4859456CBAA0 /* CodeSpeak */ = {
 			isa = PBXGroup;
 			children = (
+				C0E37CDC9F2B4A5A3E85280C /* CodeSpeakPreferences.swift */,
 				3E860D132CA2D931F53C57BF /* CodeSpeakProcessRunner.swift */,
 				F95544C1BFABEEDBFD8B4AA3 /* CodeSpeakService.swift */,
 			);
@@ -1328,6 +1331,7 @@
 				1EDDB24FB283C91215EA55BB /* CodeSpeakModeView.swift in Sources */,
 				FB253C0D4564A83AE279DDA7 /* CodeSpeakModeViewModel.swift in Sources */,
 				1C9A2486B6860A10E85F22B3 /* CodeSpeakParser.swift in Sources */,
+				0F1A279285482807B678E0D1 /* CodeSpeakPreferences.swift in Sources */,
 				289F0A99C9DA68CD2288D7AC /* CodeSpeakProcessRunner.swift in Sources */,
 				472FC76493A5266103838AAD /* CodeSpeakPromptSheet.swift in Sources */,
 				CEE46F7ED9DA0F3AB38A4221 /* CodeSpeakRunBarState.swift in Sources */,

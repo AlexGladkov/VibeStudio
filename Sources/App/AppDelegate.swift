@@ -35,7 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             themeService: themeService,
             freeTabStore: freeTabStore,
             codeSpeak: codeSpeakService,
-            syntaxParserRegistry: syntaxParserRegistry
+            syntaxParserRegistry: syntaxParserRegistry,
+            csPreferences: csPreferences
         )
     }()
 
@@ -54,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var themeService = ThemeService()
     private lazy var freeTabStore = FreeTabStore()
     private lazy var codeSpeakService = CodeSpeakService()
+    private lazy var csPreferences = CodeSpeakPreferences()
     private lazy var syntaxParserRegistry: SyntaxParserRegistry = {
         let registry = SyntaxParserRegistry()
         registry.register(CodeSpeakParser())

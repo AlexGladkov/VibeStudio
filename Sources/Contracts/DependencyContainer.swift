@@ -72,6 +72,11 @@ final class ServiceContainer {
     /// `withObservationTracking` requires the concrete type for property-level subscriptions.
     let syntaxParserRegistry: SyntaxParserRegistry
 
+    /// User-facing CodeSpeak behaviour preferences (auto-build, notifications, etc.).
+    ///
+    /// Concrete `@Observable` type for the same reason as `themeService`.
+    let csPreferences: CodeSpeakPreferences
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -87,7 +92,8 @@ final class ServiceContainer {
         themeService: ThemeService,
         freeTabStore: FreeTabStore,
         codeSpeak: CodeSpeakService,
-        syntaxParserRegistry: SyntaxParserRegistry
+        syntaxParserRegistry: SyntaxParserRegistry,
+        csPreferences: CodeSpeakPreferences
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -104,6 +110,7 @@ final class ServiceContainer {
         self.freeTabStore = freeTabStore
         self.codeSpeak = codeSpeak
         self.syntaxParserRegistry = syntaxParserRegistry
+        self.csPreferences = csPreferences
     }
 }
 
@@ -162,6 +169,10 @@ private struct CodeSpeakServiceKey: EnvironmentKey {
 
 private struct SyntaxParserRegistryKey: EnvironmentKey {
     @MainActor static let defaultValue: SyntaxParserRegistry = SyntaxParserRegistry()
+}
+
+private struct CodeSpeakPreferencesKey: EnvironmentKey {
+    @MainActor static let defaultValue: CodeSpeakPreferences = CodeSpeakPreferences()
 }
 
 extension EnvironmentValues {
@@ -229,6 +240,11 @@ extension EnvironmentValues {
         get { self[SyntaxParserRegistryKey.self] }
         set { self[SyntaxParserRegistryKey.self] = newValue }
     }
+
+    var csPreferences: CodeSpeakPreferences {
+        get { self[CodeSpeakPreferencesKey.self] }
+        set { self[CodeSpeakPreferencesKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -277,6 +293,7 @@ extension View {
             .environment(\.freeTabStore, container.freeTabStore)
             .environment(\.codeSpeak, container.codeSpeak)
             .environment(\.syntaxParserRegistry, container.syntaxParserRegistry)
+            .environment(\.csPreferences, container.csPreferences)
     }
 }
 
