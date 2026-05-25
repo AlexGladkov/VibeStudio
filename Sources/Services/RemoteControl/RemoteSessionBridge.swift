@@ -118,7 +118,16 @@ final class RemoteSessionBridge {
     ///
     /// - Parameter data: Raw bytes from the PTY file descriptor.
     func handleRawData(_ data: ArraySlice<UInt8>) {
-        guard isStreaming else { return }
+        guard isStreaming else {
+            #if DEBUG
+            NSLog("[RC-BRIDGE] handleRawData SKIPPED (not streaming) bytes=\(data.count)")
+            #endif
+            return
+        }
+
+        #if DEBUG
+        NSLog("[RC-BRIDGE] handleRawData bytes=\(data.count) wsChannel=\(wsChannel != nil ? "alive" : "NIL")")
+        #endif
 
         pendingRawBytes.append(contentsOf: data)
 
@@ -213,7 +222,15 @@ final class RemoteSessionBridge {
 
     /// Send raw PTY bytes as a binary WebSocket frame.
     private func sendRawBinaryFrame(_ bytes: [UInt8]) {
-        guard !bytes.isEmpty, let ch = wsChannel else { return }
+        guard !bytes.isEmpty, let ch = wsChannel else {
+            #if DEBUG
+            NSLog("[RC-BRIDGE] sendRawBinaryFrame SKIPPED empty=\(bytes.isEmpty) wsChannel=\(wsChannel != nil ? "alive" : "NIL")")
+            #endif
+            return
+        }
+        #if DEBUG
+        NSLog("[RC-BRIDGE] sendRawBinaryFrame bytes=\(bytes.count) channel=\(ch)")
+        #endif
         var buffer = ch.allocator.buffer(capacity: bytes.count)
         buffer.writeBytes(bytes)
         let frame = WebSocketFrame(fin: true, opcode: .binary, data: buffer)

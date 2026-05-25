@@ -357,8 +357,15 @@ final class RemoteControlServer {
         if let view = terminalService.terminalView(for: bridge.sessionId) {
             view.onRawData = { [weak bridge] (_, slice) in
                 guard let bridge else { return }
-                bridge.handleRawData(slice)
+                // Explicit MainActor dispatch — dataReceived fires on PTY read thread,
+                // but handleRawData is @MainActor.
+                Task { @MainActor in
+                    bridge.handleRawData(slice)
+                }
             }
+            #if DEBUG
+            NSLog("[RC-BRIDGE] onRawData installed for session=\(bridge.sessionId) view=\(ObjectIdentifier(view))")
+            #endif
         } else {
             Logger.remoteControl.warning(
                 "registerBridge: no terminal view for session=\(bridge.sessionId)"

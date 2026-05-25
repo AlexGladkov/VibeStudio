@@ -65,7 +65,7 @@
   --radius-lg: 8px;
 
   /* Typography */
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+  --font-mono: 'Menlo', 'Courier New', monospace;
   --font-ui: -apple-system, 'SF Pro', system-ui, sans-serif;
 
   /* Terminal ANSI palette (dark default, overridden by theme_changed) */
@@ -261,6 +261,7 @@ input, select, textarea {
   padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+  overflow: hidden;
 }
 
 /* --- Top Bar --- */
@@ -375,12 +376,16 @@ input, select, textarea {
 /* xterm.js overrides */
 .terminal-container .xterm {
   height: 100%;
-  padding: var(--sp-xs) 0;
 }
 
 .terminal-container .xterm-viewport {
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent canvas sub-pixel gaps on high-DPI mobile */
+.terminal-container .xterm-screen canvas {
+  image-rendering: pixelated;
 }
 
 /* --- Prompt Input Bar --- */
@@ -449,7 +454,7 @@ input, select, textarea {
   align-items: center;
   gap: var(--sp-xxs);
   padding: var(--sp-xs) var(--sp-sm);
-  padding-bottom: calc(var(--sp-xs) + env(safe-area-inset-bottom, 0px) + 44px);
+  padding-bottom: calc(var(--sp-xs) + env(safe-area-inset-bottom, 0px));
   background: var(--surface-tab-bar);
   border-top: 1px solid var(--border-default);
   overflow-x: auto;

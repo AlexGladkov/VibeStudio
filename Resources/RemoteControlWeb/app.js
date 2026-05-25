@@ -516,12 +516,14 @@ class TerminalManager {
 
     this.term = new window.Terminal({
       fontSize: fontSize,
-      fontFamily: "'JetBrains Mono', 'SF Mono', 'Menlo', monospace",
+      fontFamily: "'Menlo', 'Courier New', monospace",
+      lineHeight: 1.0,
       scrollback: 5000,
       cursorBlink: true,
       cursorStyle: 'bar',
       allowProposedApi: true,
       convertEol: false,
+      overviewRulerWidth: 0,
       theme: {
         background: getComputedStyle(document.documentElement).getPropertyValue('--term-background').trim() || '#1A1B1E',
         foreground: getComputedStyle(document.documentElement).getPropertyValue('--term-foreground').trim() || '#D4D4D8',
@@ -537,6 +539,42 @@ class TerminalManager {
     this.term.loadAddon(this.webLinksAddon);
 
     this.term.open(this.container);
+    this._fitWithMinCols();
+  }
+
+  /** Fit terminal ensuring minimum 80 columns for TUI compatibility.
+   *  If viewport is too narrow, reduces font size until 80 cols fit.
+   *  Horizontal scroll doesn't work on mobile (xterm.js captures touch
+   *  events for vertical scrollback), so shrinking the font is the only
+   *  reliable way to guarantee 80-col TUI rendering. */
+  _fitWithMinCols() {
+    var MIN_COLS = 80;
+    var MIN_FONT = 6;
+    var xtermEl = this.container.querySelector('.xterm');
+
+    // Reset any forced width from previous attempts
+    if (xtermEl) xtermEl.style.width = '';
+
+    // Fit to container at current font size
+    this.fitAddon.fit();
+
+    if (this.term.cols >= MIN_COLS) return;
+
+    // Measure current cell width to calculate required font size
+    var core = this.term._core;
+    if (!core || !core._renderService) return;
+
+    var cellWidth = core._renderService.dimensions.css.cell.width;
+    if (cellWidth <= 0) return;
+
+    var containerWidth = this.container.clientWidth;
+    var neededCellWidth = containerWidth / MIN_COLS;
+    var scaleFactor = neededCellWidth / cellWidth;
+    var newFontSize = Math.floor(this.term.options.fontSize * scaleFactor);
+
+    if (newFontSize < MIN_FONT) newFontSize = MIN_FONT;
+
+    this.term.options.fontSize = newFontSize;
     this.fitAddon.fit();
   }
 
@@ -607,11 +645,11 @@ class TerminalManager {
     }
   }
 
-  /** Resize terminal to fit container. */
+  /** Resize terminal to fit container, enforcing minimum 80 columns. */
   fit() {
     if (this.fitAddon) {
       try {
-        this.fitAddon.fit();
+        this._fitWithMinCols();
       } catch (_e) {
         // fit may throw if container has zero dimensions
       }
@@ -752,6 +790,8 @@ class SpecialKeysBar {
 
     buttons.forEach(function (btn) {
       var key = btn.getAttribute('data-key');
+      // Skip buttons without data-key (Play/Stop/agent-picker are handled by App)
+      if (!key) return;
 
       // Use touchstart/touchend for arrows (long-press repeat)
       // and click for the rest.
@@ -797,6 +837,12 @@ class SpecialKeysBar {
 
     // Keyboard proxy input events (for Kbd virtual keyboard)
     this.proxy.addEventListener('input', function () {
+      // Skip if prompt-input is focused (avoid double-sending)
+      var promptEl = document.getElementById('prompt-input');
+      if (promptEl && document.activeElement === promptEl) {
+        self.proxy.value = '';
+        return;
+      }
       var text = self.proxy.value;
       if (text) {
         // If ctrl is active, send as ctrl+char
@@ -1060,7 +1106,15 @@ var App = (function () {
     function sendPromptInput() {
       var text = promptInput.value;
       if (!text) return;
-      terminalMgr.sendInput(text + '\r');
+      // Blur keyboard proxy to prevent echo from virtual keyboard
+      keyboardProxy.blur();
+      // Send text and Enter separately — Claude Code TUI treats combined
+      // text+\r as a paste and doesn't submit. Splitting with a small
+      // delay ensures the TUI processes Enter as a keypress.
+      terminalMgr.sendInput(text);
+      setTimeout(function () {
+        terminalMgr.sendInput('\r');
+      }, 50);
       promptInput.value = '';
     }
 
@@ -1424,21 +1478,41 @@ var App = (function () {
   // ------ iOS Keyboard Viewport ------
 
   function setupViewportHandling() {
-    if (window.visualViewport) {
-      var shell = document.querySelector('.app-shell');
-      if (!shell) return;
+    if (!window.visualViewport) return;
 
-      window.visualViewport.addEventListener('resize', function () {
+    var shell = document.querySelector('.app-shell');
+    if (!shell) return;
+
+    var fitTimer = null;
+
+    // On Android Chrome, `interactive-widget=resizes-content` in the viewport
+    // meta tag makes the layout viewport shrink when the keyboard opens, so
+    // CSS `100dvh` is always correct.  The JS handler below is a fallback for
+    // iOS Safari which ignores `interactive-widget`.
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    window.visualViewport.addEventListener('resize', function () {
+      if (isIOS) {
+        // iOS Safari: layout viewport doesn't resize for keyboard, so
+        // override the shell height with the visual viewport height.
         shell.style.height = window.visualViewport.height + 'px';
+      }
+
+      // Prevent any scroll offset the browser adds when focusing inputs.
+      window.scrollTo(0, 0);
+
+      // Debounce the expensive xterm.js relayout.
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(function () {
         terminalMgr.fit();
         terminalMgr.sendResize();
-      });
+      }, 100);
+    });
 
-      window.visualViewport.addEventListener('scroll', function () {
-        // Prevent scroll offset accumulation on iOS
-        window.scrollTo(0, 0);
-      });
-    }
+    window.visualViewport.addEventListener('scroll', function () {
+      // Prevent scroll offset accumulation on iOS.
+      window.scrollTo(0, 0);
+    });
   }
 
   // ------ Utilities ------

@@ -274,7 +274,16 @@ final class TerminalService: TerminalSessionManaging {
     }
 
     func resize(session sessionId: UUID, to size: TerminalSize) {
-        // SwiftTerm handles TIOCSWINSZ automatically when the NSView resizes.
+        guard let view = store.view(for: sessionId) else { return }
+        let fd = view.process.childfd
+        guard fd >= 0 else { return }
+        var ws = winsize(
+            ws_row: UInt16(clamping: size.rows),
+            ws_col: UInt16(clamping: size.columns),
+            ws_xpixel: 0,
+            ws_ypixel: 0
+        )
+        _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &ws)
     }
 
     func killSession(_ sessionId: UUID, force: Bool) {
