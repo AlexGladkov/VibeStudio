@@ -287,18 +287,36 @@ struct GeneralSettingsPane: View {
                         .frame(width: DSLayout.settingsLabelWidth)
 
                     VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Group {
-                            Text("1. ").foregroundStyle(DSColor.textMuted) +
-                            Text("brew install ngrok").foregroundStyle(DSColor.accentPrimary)
+                        HStack(spacing: 0) {
+                            Text("1. ")
+                                .foregroundStyle(DSColor.textMuted)
+                            Button("brew install ngrok") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString("brew install ngrok", forType: .string)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(DSColor.accentPrimary)
+                            .onHover { hovering in
+                                if hovering {
+                                    NSCursor.pointingHand.push()
+                                } else {
+                                    NSCursor.pop()
+                                }
+                            }
+                            Text("  ⌘ скопировать")
+                                .foregroundStyle(DSColor.textGhost)
                         }
-                        Group {
-                            Text("2. ").foregroundStyle(DSColor.textMuted) +
-                            Text("ngrok.com").foregroundStyle(DSColor.accentPrimary) +
-                            Text(" → регистрация (бесплатно) → скопировать authtoken").foregroundStyle(DSColor.textMuted)
+                        HStack(spacing: 0) {
+                            Text("2. ")
+                                .foregroundStyle(DSColor.textMuted)
+                            Link("ngrok.com", destination: URL(string: "https://dashboard.ngrok.com/signup")!)
+                                .foregroundStyle(DSColor.accentPrimary)
+                            Text(" → регистрация (бесплатно) → скопировать authtoken")
+                                .foregroundStyle(DSColor.textMuted)
                         }
-                        Group {
-                            Text("3. ").foregroundStyle(DSColor.textMuted) +
-                            Text("Вставить токен в поле выше → Подключить").foregroundStyle(DSColor.textMuted)
+                        HStack(spacing: 0) {
+                            Text("3. Вставить токен в поле выше → Подключить")
+                                .foregroundStyle(DSColor.textMuted)
                         }
                     }
                     .font(DSFont.monoSmall)
