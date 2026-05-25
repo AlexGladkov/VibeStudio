@@ -114,6 +114,7 @@
 		A1B2C3D400000001F0000003 /* TLSCertificateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000013 /* TLSCertificateManager.swift */; };
 		A1B2C3D400000001F0000004 /* RemoteControlModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000014 /* RemoteControlModels.swift */; };
 		A1B2C3D400000001F0000005 /* BonjourAdvertiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */; };
+		A1B2C3D400000003F0000001 /* NgrokTunnelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0000002 /* NgrokTunnelService.swift */; };
 		A1B2C3D400000001F0000006 /* RemoteControlServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000016 /* RemoteControlServer.swift */; };
 		A1B2C3D400000001F0000007 /* RemoteControlWeb in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000030 /* RemoteControlWeb */; };
 		91358488E087F84FACFA1FB7 /* ClaudeEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F601168AA86A8D5E3D6E0E /* ClaudeEditorSheet.swift */; };
@@ -410,6 +411,7 @@
 		A1B2C3D400000002F0000023 /* WebSocketHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketHandler.swift; sourceTree = "<group>"; };
 		A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAuditLog.swift; sourceTree = "<group>"; };
 		A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BonjourAdvertiser.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0000002 /* NgrokTunnelService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NgrokTunnelService.swift; sourceTree = "<group>"; };
 		A1B2C3D400000001F0000016 /* RemoteControlServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlServer.swift; sourceTree = "<group>"; };
 		A1B2C3D400000001F0000030 /* RemoteControlWeb */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RemoteControlWeb; sourceTree = "<group>"; };
 		D8F234EE05DA9FC0066D4261 /* VibeStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeStudioApp.swift; sourceTree = "<group>"; };
@@ -1209,6 +1211,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */,
+				A1B2C3D400000003F0000002 /* NgrokTunnelService.swift */,
 				A1B2C3D400000002F0000021 /* HTTPRequestRouter.swift */,
 				A1B2C3D400000001F0000012 /* RemoteAuthService.swift */,
 				A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */,
@@ -1507,6 +1510,7 @@
 				A1B2C3D400000002F0000003 /* WebSocketHandler.swift in Sources */,
 				A1B2C3D400000002F0000004 /* RemoteAuditLog.swift in Sources */,
 				A1B2C3D400000001F0000005 /* BonjourAdvertiser.swift in Sources */,
+				A1B2C3D400000003F0000001 /* NgrokTunnelService.swift in Sources */,
 				A1B2C3D400000001F0000006 /* RemoteControlServer.swift in Sources */,
 				DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */,
 				AEDAD0C1992DD642767C4522 /* GeneratedFile.swift in Sources */,

@@ -200,6 +200,75 @@ struct GeneralSettingsPane: View {
                 Spacer()
             }
 
+            // ngrok tunnel
+            HStack(spacing: DSSpacing.lg) {
+                Text("ngrok")
+                    .font(DSFont.sidebarItem)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
+
+                Toggle("", isOn: Binding(
+                    get: { remotePreferences.ngrokEnabled },
+                    set: { newValue in
+                        remotePreferences.ngrokEnabled = newValue
+                        if remoteServer.isRunning {
+                            if newValue {
+                                remoteServer.startNgrok()
+                            } else {
+                                remoteServer.stopNgrok()
+                            }
+                        }
+                    }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .disabled(!remotePreferences.remoteControlEnabled)
+
+                if remoteServer.isNgrokRunning, let url = remoteServer.ngrokTunnelURL {
+                    Text(url)
+                        .font(DSFont.monoSmall)
+                        .foregroundStyle(DSColor.accentPrimary)
+                        .textSelection(.enabled)
+                        .lineLimit(1)
+                } else if remoteServer.isNgrokRunning {
+                    Text("Запуск...")
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textMuted)
+                } else if let error = remoteServer.ngrokError {
+                    Text(error)
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.indicatorError)
+                        .lineLimit(2)
+                } else {
+                    Text("Доступ вне Wi-Fi")
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textMuted)
+                }
+
+                Spacer()
+            }
+
+            // ngrok authtoken
+            HStack(spacing: DSSpacing.lg) {
+                Text("Authtoken")
+                    .font(DSFont.sidebarItem)
+                    .foregroundStyle(DSColor.textPrimary)
+                    .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
+
+                SecureField("ngrok authtoken", text: Binding(
+                    get: { remotePreferences.ngrokAuthtoken },
+                    set: { remotePreferences.ngrokAuthtoken = $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 300)
+                .disabled(!remotePreferences.remoteControlEnabled)
+
+                Link("Получить", destination: URL(string: "https://dashboard.ngrok.com/get-started/your-authtoken")!)
+                    .font(DSFont.sidebarItemSmall)
+
+                Spacer()
+            }
+
             // PIN display
             HStack(spacing: DSSpacing.lg) {
                 Text("PIN")

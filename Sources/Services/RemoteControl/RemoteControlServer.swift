@@ -57,6 +57,15 @@ final class RemoteControlServer {
     /// The TCP port the server is bound to.
     var port: Int { preferences.remoteControlPort }
 
+    /// The public ngrok tunnel URL, if active.
+    var ngrokTunnelURL: String? { ngrok.tunnelURL }
+
+    /// Whether the ngrok tunnel is currently running.
+    var isNgrokRunning: Bool { ngrok.isRunning }
+
+    /// Ngrok error message, if any.
+    var ngrokError: String? { ngrok.error }
+
     /// Whether the server is in global lockout mode.
     var isLocked: Bool { authService.isLocked }
 
@@ -67,6 +76,7 @@ final class RemoteControlServer {
     let terminalService: TerminalService
     let projectManager: any ProjectManaging
     private let bonjour: BonjourAdvertiser
+    private let ngrok: NgrokTunnelService
 
     // MARK: - NIO State
 
@@ -120,6 +130,7 @@ final class RemoteControlServer {
         self.terminalService = terminalService
         self.projectManager = projectManager
         self.bonjour = BonjourAdvertiser()
+        self.ngrok = NgrokTunnelService()
     }
 
     /// Convenience init for previews and SwiftUI environment key defaults.
@@ -256,6 +267,13 @@ final class RemoteControlServer {
                         server.bonjour.publish(port: bindPort)
                     }
 
+                    if server.preferences.ngrokEnabled {
+                        server.ngrok.start(
+                            httpPort: bindPort + 1,
+                            authtoken: server.preferences.ngrokAuthtoken
+                        )
+                    }
+
                     Logger.remoteControl.info(
                         "RemoteControlServer started on \(bindHost, privacy: .public):\(bindPort)"
                     )
@@ -285,6 +303,7 @@ final class RemoteControlServer {
         connectedDeviceCount = 0
 
         bonjour.unpublish()
+        ngrok.stop()
         authService.revokeAllDevices()
 
         sessionObservationTask?.cancel()
@@ -320,6 +339,18 @@ final class RemoteControlServer {
     }
 
     // MARK: - PIN Management
+
+    /// Start the ngrok tunnel (called from settings toggle while server is running).
+    func startNgrok() {
+        guard isRunning else { return }
+        let httpPort = preferences.remoteControlPort + 1
+        ngrok.start(httpPort: httpPort, authtoken: preferences.ngrokAuthtoken)
+    }
+
+    /// Stop the ngrok tunnel.
+    func stopNgrok() {
+        ngrok.stop()
+    }
 
     /// Regenerate the authentication PIN.
     func regeneratePin() {

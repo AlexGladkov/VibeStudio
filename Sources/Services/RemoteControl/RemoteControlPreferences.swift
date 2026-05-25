@@ -22,6 +22,8 @@ final class RemoteControlPreferences {
         static let bindToLocalhost = "vs_remote_bind_localhost"
         static let bonjourEnabled = "vs_remote_bonjour_enabled"
         static let idleTimeoutMinutes = "vs_remote_idle_timeout"
+        static let ngrokEnabled = "vs_remote_ngrok_enabled"
+        static let ngrokAuthtoken = "vs_remote_ngrok_authtoken"
     }
 
     // MARK: - Preferences
@@ -58,6 +60,21 @@ final class RemoteControlPreferences {
         didSet { defaults.set(bonjourEnabled, forKey: Keys.bonjourEnabled) }
     }
 
+    /// Whether ngrok tunnel is enabled for remote access outside LAN.
+    ///
+    /// **SECURITY:** Default `false`. When enabled, the local server is exposed
+    /// to the internet via ngrok. PIN authentication still required.
+    var ngrokEnabled: Bool {
+        didSet { defaults.set(ngrokEnabled, forKey: Keys.ngrokEnabled) }
+    }
+
+    /// ngrok authtoken for authenticated tunnels.
+    ///
+    /// Required since ngrok v3. Get one for free at https://dashboard.ngrok.com/get-started/your-authtoken
+    var ngrokAuthtoken: String {
+        didSet { defaults.set(ngrokAuthtoken, forKey: Keys.ngrokAuthtoken) }
+    }
+
     /// Idle timeout in minutes before disconnecting inactive remote clients.
     /// Default: `30`.
     var idleTimeoutMinutes: Int {
@@ -90,6 +107,14 @@ final class RemoteControlPreferences {
         bonjourEnabled = defaults.object(forKey: Keys.bonjourEnabled) == nil
             ? false
             : defaults.bool(forKey: Keys.bonjourEnabled)
+
+        // ngrokEnabled defaults to false (SECURITY: opt-in only)
+        ngrokEnabled = defaults.object(forKey: Keys.ngrokEnabled) == nil
+            ? false
+            : defaults.bool(forKey: Keys.ngrokEnabled)
+
+        // ngrokAuthtoken defaults to empty
+        ngrokAuthtoken = defaults.string(forKey: Keys.ngrokAuthtoken) ?? ""
 
         // idleTimeoutMinutes defaults to 30
         idleTimeoutMinutes = defaults.object(forKey: Keys.idleTimeoutMinutes) == nil

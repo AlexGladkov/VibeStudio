@@ -607,9 +607,16 @@ struct ToolbarView: View {
     /// Build the full URL with auto-login PIN.
     /// Uses HTTP port (main port + 1) to avoid iOS Safari self-signed cert issues with WSS.
     private func remoteConnectionURL() -> String {
+        let pin = remoteServer.currentPin
+
+        // Prefer ngrok tunnel URL if active (works outside LAN).
+        if let ngrokURL = remoteServer.ngrokTunnelURL {
+            return "\(ngrokURL)/?pin=\(pin)"
+        }
+
+        // Fallback to LAN URL.
         let ip = NetworkUtility.localLANIPAddress() ?? "127.0.0.1"
         let port = remoteServer.port + 1
-        let pin = remoteServer.currentPin
         return "http://\(ip):\(port)/?pin=\(pin)"
     }
 

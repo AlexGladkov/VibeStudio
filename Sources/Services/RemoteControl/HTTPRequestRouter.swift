@@ -250,12 +250,19 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         if method == .GET && path == "/api/v1/debug/state" {
             let authSvc = authService
             let callerIP = remoteAddress
+            let serverRef = self.serverRef
             Task { @MainActor in
                 let devices = authSvc.connectedDevices.map { d in
                     "{\"id\":\"\(d.id)\",\"ip\":\"\(d.ipAddress)\"}"
                 }.joined(separator: ",")
                 let deviceCount = authSvc.connectedDevices.count
-                let json = "{\"caller_ip\":\"\(callerIP)\",\"devices\":[\(devices)],\"device_count\":\(deviceCount)}"
+                let ngrokURL = serverRef?.ngrokTunnelURL ?? "null"
+                let ngrokRunning = serverRef?.isNgrokRunning ?? false
+                let ngrokError = serverRef?.ngrokError ?? "null"
+                let json = """
+                {"caller_ip":"\(callerIP)","devices":[\(devices)],"device_count":\(deviceCount),\
+                "ngrok":{"running":\(ngrokRunning),"url":"\(ngrokURL)","error":"\(ngrokError)"}}
+                """
                 channel.eventLoop.execute {
                     self.sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
                 }
