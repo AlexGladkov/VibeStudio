@@ -207,39 +207,50 @@ struct GeneralSettingsPane: View {
                     .foregroundStyle(DSColor.textPrimary)
                     .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
 
-                Toggle("", isOn: Binding(
-                    get: { remotePreferences.ngrokEnabled },
-                    set: { newValue in
-                        remotePreferences.ngrokEnabled = newValue
-                        if remoteServer.isRunning {
-                            if newValue {
-                                remoteServer.startNgrok()
-                            } else {
-                                remoteServer.stopNgrok()
-                            }
-                        }
-                    }
-                ))
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .disabled(!remotePreferences.remoteControlEnabled)
-
                 if remoteServer.isNgrokRunning, let url = remoteServer.ngrokTunnelURL {
+                    // Connected — show URL + disconnect button
                     Text(url)
                         .font(DSFont.monoSmall)
                         .foregroundStyle(DSColor.accentPrimary)
                         .textSelection(.enabled)
                         .lineLimit(1)
+
+                    Button("Отключить") {
+                        remotePreferences.ngrokEnabled = false
+                        remoteServer.stopNgrok()
+                    }
+                    .font(DSFont.smallButtonLabel)
+                    .foregroundStyle(DSColor.indicatorError)
+
                 } else if remoteServer.isNgrokRunning {
-                    Text("Запуск...")
+                    // Starting...
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Подключение...")
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
-                } else if let error = remoteServer.ngrokError {
-                    Text(error)
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.indicatorError)
-                        .lineLimit(2)
+
+                } else if !remotePreferences.ngrokAuthtoken.isEmpty && remotePreferences.remoteControlEnabled {
+                    // Has token, ready to connect
+                    Button("Подключить") {
+                        remotePreferences.ngrokEnabled = true
+                        remoteServer.startNgrok()
+                    }
+                    .font(DSFont.smallButtonLabel)
+
+                    if let error = remoteServer.ngrokError {
+                        Text(error)
+                            .font(DSFont.sidebarItemSmall)
+                            .foregroundStyle(DSColor.indicatorError)
+                            .lineLimit(2)
+                    } else {
+                        Text("Доступ вне Wi-Fi")
+                            .font(DSFont.sidebarItemSmall)
+                            .foregroundStyle(DSColor.textMuted)
+                    }
+
                 } else {
+                    // No token — show setup hint
                     Text("Доступ вне Wi-Fi")
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
@@ -248,7 +259,7 @@ struct GeneralSettingsPane: View {
                 Spacer()
             }
 
-            // ngrok authtoken
+            // ngrok authtoken + setup guide
             HStack(spacing: DSSpacing.lg) {
                 Text("Authtoken")
                     .font(DSFont.sidebarItem)
@@ -261,7 +272,7 @@ struct GeneralSettingsPane: View {
                 ))
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 300)
-                .disabled(!remotePreferences.remoteControlEnabled)
+                .disabled(!remotePreferences.remoteControlEnabled || remoteServer.isNgrokRunning)
 
                 Link("Получить", destination: URL(string: "https://dashboard.ngrok.com/get-started/your-authtoken")!)
                     .font(DSFont.sidebarItemSmall)
@@ -269,29 +280,25 @@ struct GeneralSettingsPane: View {
                 Spacer()
             }
 
-            // ngrok setup guide
-            if remotePreferences.ngrokEnabled && remotePreferences.ngrokAuthtoken.isEmpty {
+            // Setup guide when no token
+            if remotePreferences.ngrokAuthtoken.isEmpty && remotePreferences.remoteControlEnabled {
                 HStack(spacing: DSSpacing.lg) {
                     Color.clear
                         .frame(width: DSLayout.settingsLabelWidth)
 
                     VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Text("Настройка ngrok:")
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.textSecondary)
-                            .fontWeight(.medium)
-
                         Group {
                             Text("1. ").foregroundStyle(DSColor.textMuted) +
                             Text("brew install ngrok").foregroundStyle(DSColor.accentPrimary)
                         }
                         Group {
-                            Text("2. Зарегистрируйтесь на ").foregroundStyle(DSColor.textMuted) +
+                            Text("2. ").foregroundStyle(DSColor.textMuted) +
                             Text("ngrok.com").foregroundStyle(DSColor.accentPrimary) +
-                            Text(" (бесплатно)").foregroundStyle(DSColor.textMuted)
+                            Text(" → регистрация (бесплатно) → скопировать authtoken").foregroundStyle(DSColor.textMuted)
                         }
                         Group {
-                            Text("3. Скопируйте authtoken и вставьте в поле выше").foregroundStyle(DSColor.textMuted)
+                            Text("3. ").foregroundStyle(DSColor.textMuted) +
+                            Text("Вставить токен в поле выше → Подключить").foregroundStyle(DSColor.textMuted)
                         }
                     }
                     .font(DSFont.monoSmall)

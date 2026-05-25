@@ -267,7 +267,7 @@ final class RemoteControlServer {
                         server.bonjour.publish(port: bindPort)
                     }
 
-                    if server.preferences.ngrokEnabled {
+                    if server.preferences.ngrokEnabled && !server.preferences.ngrokAuthtoken.isEmpty {
                         server.ngrok.start(
                             httpPort: bindPort + 1,
                             authtoken: server.preferences.ngrokAuthtoken
