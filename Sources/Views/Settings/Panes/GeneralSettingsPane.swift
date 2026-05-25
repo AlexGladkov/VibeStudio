@@ -269,6 +269,37 @@ struct GeneralSettingsPane: View {
                 Spacer()
             }
 
+            // ngrok setup guide
+            if remotePreferences.ngrokEnabled && remotePreferences.ngrokAuthtoken.isEmpty {
+                HStack(spacing: DSSpacing.lg) {
+                    Color.clear
+                        .frame(width: DSLayout.settingsLabelWidth)
+
+                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                        Text("Настройка ngrok:")
+                            .font(DSFont.sidebarItemSmall)
+                            .foregroundStyle(DSColor.textSecondary)
+                            .fontWeight(.medium)
+
+                        Group {
+                            Text("1. ").foregroundStyle(DSColor.textMuted) +
+                            Text("brew install ngrok").foregroundStyle(DSColor.accentPrimary)
+                        }
+                        Group {
+                            Text("2. Зарегистрируйтесь на ").foregroundStyle(DSColor.textMuted) +
+                            Text("ngrok.com").foregroundStyle(DSColor.accentPrimary) +
+                            Text(" (бесплатно)").foregroundStyle(DSColor.textMuted)
+                        }
+                        Group {
+                            Text("3. Скопируйте authtoken и вставьте в поле выше").foregroundStyle(DSColor.textMuted)
+                        }
+                    }
+                    .font(DSFont.monoSmall)
+
+                    Spacer()
+                }
+            }
+
             // PIN display
             HStack(spacing: DSSpacing.lg) {
                 Text("PIN")
