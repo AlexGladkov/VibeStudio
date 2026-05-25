@@ -36,14 +36,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             freeTabStore: freeTabStore,
             codeSpeak: codeSpeakService,
             syntaxParserRegistry: syntaxParserRegistry,
-            csPreferences: csPreferences
+            csPreferences: csPreferences,
+            generalPreferences: generalPreferences,
+            remoteControlServer: remoteControlServer,
+            remoteControlPreferences: remoteControlPreferences
         )
     }()
 
     // MARK: - Private Services
 
     private lazy var projectStore = ProjectStore()
-    private lazy var terminalService = TerminalService(themeService: themeService)
+    private lazy var terminalService = TerminalService(themeService: themeService, generalPreferences: generalPreferences)
     private lazy var gitService = GitService()
     private lazy var fileSystemWatcher = FileSystemWatcher()
     private lazy var sessionStore = SessionStore()
@@ -56,6 +59,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var freeTabStore = FreeTabStore()
     private lazy var codeSpeakService = CodeSpeakService()
     private lazy var csPreferences = CodeSpeakPreferences()
+    private lazy var generalPreferences = GeneralPreferences()
+    private lazy var remoteControlPreferences = RemoteControlPreferences()
+    private lazy var remoteAuthService = RemoteAuthService()
+    private lazy var remoteControlServer = RemoteControlServer(
+        authService: remoteAuthService,
+        preferences: remoteControlPreferences,
+        terminalService: terminalService,
+        projectManager: projectStore
+    )
     private lazy var syntaxParserRegistry: SyntaxParserRegistry = {
         let registry = SyntaxParserRegistry()
         registry.register(CodeSpeakParser())

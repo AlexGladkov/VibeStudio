@@ -22,17 +22,28 @@ struct TabItemView: View {
     /// Injecting the concrete type allows withObservationTracking to register
     /// the subscription correctly.
     @Environment(TerminalService.self) private var terminalService
+    @Environment(\.generalPreferences) private var generalPreferences
     @State private var isHovering = false
+    @State private var showCloseAlert = false
     @State private var pulseOpacity: Double = 1.0
     @State private var attentionOpacity: Double = 1.0
     @State private var showErrorGlow = false
     @State private var vm: TabItemViewModel?
 
-    private var viewModel: TabItemViewModel {
-        if let existing = vm { return existing }
-        let created = TabItemViewModel(projectManager: projectManager, terminalManager: terminalManager)
-        Task { @MainActor in vm = created }
-        return created
+    // MARK: - Close Action
+
+    /// Closes the project, using the view model when available.
+    ///
+    /// Falls back to a direct `projectManager` call to handle the race window
+    /// between view creation and `.onAppear` where `vm` is still `nil`.
+    private func closeProject() {
+        if let vm {
+            vm.closeProject(project.id)
+        } else {
+            projectManager.activeProjectId = projectManager.projects
+                .first(where: { $0.id != project.id })?.id
+            try? projectManager.removeProject(project.id)
+        }
     }
 
     private var activityState: TabActivityState {
@@ -61,7 +72,11 @@ struct TabItemView: View {
 
             if isActive || isHovering {
                 Button {
-                    viewModel.closeProject(project.id)
+                    if generalPreferences.confirmTabClose {
+                        showCloseAlert = true
+                    } else {
+                        closeProject()
+                    }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: DSLayout.tabCloseIconSize))
@@ -91,6 +106,14 @@ struct TabItemView: View {
                     .fill(DSColor.accentPrimary)
                     .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
+        }
+        .alert("Закрыть вкладку?", isPresented: $showCloseAlert) {
+            Button("Отмена", role: .cancel) {}
+            Button("Закрыть", role: .destructive) {
+                closeProject()
+            }
+        } message: {
+            Text("Терминальные сессии этой вкладки будут завершены.")
         }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.08)) {

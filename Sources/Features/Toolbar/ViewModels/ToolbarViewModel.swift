@@ -23,6 +23,12 @@ final class ToolbarViewModel {
     /// Maps projectId -> sessionId of the agent's dedicated PTY.
     private var agentSessionIds: [UUID: UUID] = [:]
 
+    // MARK: - Background Tasks
+
+    /// Stored handles for cancellation in `deinit`.
+    nonisolated(unsafe) private var sessionEventTask: Task<Void, Never>?
+    nonisolated(unsafe) private var projectCleanupTask: Task<Void, Never>?
+
     // MARK: - Dependencies
 
     private let projectManager: any ProjectManaging
@@ -46,6 +52,11 @@ final class ToolbarViewModel {
         startSessionEventObservation()
     }
 
+    deinit {
+        sessionEventTask?.cancel()
+        projectCleanupTask?.cancel()
+    }
+
     // MARK: - Cleanup
 
     /// Release all per-project cached state for a removed project.
@@ -59,7 +70,7 @@ final class ToolbarViewModel {
     /// when an agent's dedicated PTY process exits (e.g. the user exits the agent
     /// or it crashes). Without this the stop button stays red forever.
     private func startSessionEventObservation() {
-        Task { @MainActor [weak self] in
+        sessionEventTask = Task { @MainActor [weak self] in
             guard let self else { return }
             for await event in self.terminalManager.sessionEvents {
                 if case .processExited(let sessionId, let projectId, let exitCode) = event {
@@ -75,7 +86,7 @@ final class ToolbarViewModel {
 
     /// Observe the projects list and auto-cleanup entries for removed projects.
     private func startProjectCleanupObservation() {
-        Task { @MainActor [weak self] in
+        projectCleanupTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var knownIds = Set(self.projectManager.projects.map(\.id))
 

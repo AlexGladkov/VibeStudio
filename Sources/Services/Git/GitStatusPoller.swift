@@ -46,7 +46,8 @@ final class GitStatusPoller: GitStatusPolling {
     // Safe because deinit only runs when no other references exist.
     nonisolated(unsafe) private var pollingTask: Task<Void, Never>?
     /// Stored handle for the last refreshNow() task so rapid calls cancel the prior one.
-    private var refreshTask: Task<Void, Never>?
+    // nonisolated(unsafe): deinit must cancel this alongside pollingTask.
+    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
     private var currentRepository: URL?
     private var consecutiveErrors: Int = 0
 
@@ -58,6 +59,7 @@ final class GitStatusPoller: GitStatusPolling {
 
     deinit {
         pollingTask?.cancel()
+        refreshTask?.cancel()
     }
 
     // MARK: - Public API

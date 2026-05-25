@@ -14,6 +14,10 @@ final class MockProjectManager: ProjectManaging {
     private(set) var projects: [Project] = []
     var activeProjectId: UUID?
 
+    var recentHistory: [Project] {
+        Array(projects.sorted { $0.lastOpened > $1.lastOpened }.prefix(10))
+    }
+
     var recentProjects: [Project] {
         Array(projects.sorted { $0.lastOpened > $1.lastOpened }.prefix(10))
     }

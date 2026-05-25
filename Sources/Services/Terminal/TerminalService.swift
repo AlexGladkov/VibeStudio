@@ -54,9 +54,17 @@ final class TerminalService: TerminalSessionManaging {
     /// Long-running task observing `ThemeService.selectedAppearance`.
     nonisolated(unsafe) private var themeObservationTask: Task<Void, Never>?
 
+    /// Long-running task observing `GeneralPreferences.terminalFontSize`.
+    nonisolated(unsafe) private var fontObservationTask: Task<Void, Never>?
+
+    /// General preferences (font size).
+    private let generalPreferences: GeneralPreferences
+
     // MARK: - Init
 
-    init(themeService: ThemeService) {
+    init(themeService: ThemeService, generalPreferences: GeneralPreferences) {
+        self.generalPreferences = generalPreferences
+
         let (stream, continuation) = AsyncStream<TerminalSessionEvent>.makeStream()
         sessionEvents = stream
         eventContinuation = continuation
@@ -85,11 +93,34 @@ final class TerminalService: TerminalSessionManaging {
                 self?.refreshTerminalColors(for: themeService.selectedAppearance)
             }
         }
+
+        // Observe font size changes via @Observable -- same ContinuationHolder pattern.
+        fontObservationTask = Task { @MainActor [weak self, weak generalPreferences] in
+            guard let generalPreferences else { return }
+            while !Task.isCancelled {
+                let holder = ContinuationHolder()
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                        holder.set(c)
+                        withObservationTracking {
+                            _ = generalPreferences.terminalFontSize
+                        } onChange: {
+                            holder.resume()
+                        }
+                    }
+                } onCancel: {
+                    holder.resume()
+                }
+                guard !Task.isCancelled else { return }
+                self?.refreshTerminalFont(size: generalPreferences.terminalFontSize)
+            }
+        }
     }
 
     deinit {
         eventContinuation.finish()
         themeObservationTask?.cancel()
+        fontObservationTask?.cancel()
     }
 
     // MARK: - TerminalSessionManaging: Lifecycle
@@ -126,7 +157,7 @@ final class TerminalService: TerminalSessionManaging {
             frame: NSRect(x: 0, y: 0, width: 800, height: 600)
         )
 
-        appearance.configure(terminalView)
+        appearance.configure(terminalView, fontSize: generalPreferences.terminalFontSize)
         installCallbacks(on: terminalView, sessionId: sessionId, projectId: projectId)
 
         // Start the PTY process.
@@ -196,7 +227,7 @@ final class TerminalService: TerminalSessionManaging {
             frame: NSRect(x: 0, y: 0, width: 800, height: 600)
         )
 
-        appearance.configure(terminalView)
+        appearance.configure(terminalView, fontSize: generalPreferences.terminalFontSize)
         installCallbacks(on: terminalView, sessionId: sessionId, projectId: projectId)
 
         // Build environment for the agent via the allowlist-based builder.
@@ -254,6 +285,8 @@ final class TerminalService: TerminalSessionManaging {
         }
 
         if force {
+            view.onRangeChanged = nil
+            view.onProcessExited = nil
             sendSignal(to: view, signal: SIGKILL)
             removeSession(sessionId)
         } else {
@@ -328,6 +361,24 @@ final class TerminalService: TerminalSessionManaging {
         return (result?.isEmpty ?? true) ? nil : result
     }
 
+    /// Returns the TaggedTerminalView for a session (if it exists).
+    /// Used by Remote Control to install `onLinesChanged` callback for streaming.
+    func terminalView(for sessionId: UUID) -> TaggedTerminalView? {
+        store.view(for: sessionId)
+    }
+
+    /// Returns the full terminal buffer content WITHOUT requiring the view
+    /// to be in a window hierarchy. Used by Remote Control to serve
+    /// scrollback to WebSocket clients.
+    func rawScrollbackContent(for sessionId: UUID) -> String? {
+        guard let view = store.view(for: sessionId) else { return nil }
+        let terminal = view.getTerminal()
+        let data = terminal.getBufferAsData(kind: .active, encoding: .utf8)
+        let result = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (result?.isEmpty ?? true) ? nil : result
+    }
+
     // MARK: - TerminalSessionManaging: Input
 
     func sendInput(_ text: String, to sessionId: UUID) {
@@ -357,6 +408,12 @@ final class TerminalService: TerminalSessionManaging {
     func refreshTerminalColors(for appAppearance: AppAppearance? = nil) {
         appearance.refreshColors(for: store.allViews, appearance: appAppearance)
         Logger.terminal.info("TerminalService: refreshed colors for \(self.store.viewCount) views")
+    }
+
+    /// Re-apply font size to all currently live terminal views.
+    private func refreshTerminalFont(size: CGFloat) {
+        appearance.refreshFont(for: store.allViews, size: size)
+        Logger.terminal.info("TerminalService: refreshed font size to \(size) for \(self.store.viewCount) views")
     }
 
     // MARK: - Private: Terminal Configuration
@@ -439,9 +496,10 @@ final class TerminalService: TerminalSessionManaging {
             currentState: projectActivityStates[projectId],
             promptChecker: { [weak self] sid in
                 guard let self else { return false }
+                let store = self.store
                 return self.activityTracker.isAtShellPrompt(
                     sessionId: sid,
-                    viewProvider: { self.store.view(for: $0) }
+                    viewProvider: { store.view(for: $0) }
                 )
             }
         )

@@ -179,4 +179,12 @@ actor MockGitService: GitServicing {
     func aheadBehind(at repository: URL) async throws -> (ahead: Int, behind: Int) {
         try aheadBehindResult.get()
     }
+
+    // MARK: - Diff Stats
+
+    var diffStatsResult: Result<[String: GitDiffStat], Error> = .success([:])
+
+    func diffStats(at repository: URL) async throws -> [String: GitDiffStat] {
+        try diffStatsResult.get()
+    }
 }

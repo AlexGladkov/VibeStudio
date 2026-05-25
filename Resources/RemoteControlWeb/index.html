@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <title>VibeStudio Remote</title>
+  <link rel="stylesheet" href="/vendor/xterm.min.css">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+  <!-- PIN Authentication Screen -->
+  <div id="pin-screen" class="screen">
+    <div class="pin-container">
+      <div class="pin-logo">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <rect width="48" height="48" rx="12" fill="var(--accent-primary)" opacity="0.15"/>
+          <path d="M14 34V14h6l8 12V14h6v20h-6l-8-12v12h-6z" fill="var(--accent-primary)"/>
+        </svg>
+      </div>
+      <h1 class="pin-title">VibeStudio Remote</h1>
+      <p class="pin-subtitle">Enter the 6-digit PIN shown in VibeStudio</p>
+
+      <div class="pin-digits" id="pin-digits" role="group" aria-label="PIN code">
+        <input class="pin-digit" type="tel" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="one-time-code" aria-label="PIN digit 1" data-index="0">
+        <input class="pin-digit" type="tel" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="PIN digit 2" data-index="1">
+        <input class="pin-digit" type="tel" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="PIN digit 3" data-index="2">
+        <span class="pin-separator" aria-hidden="true"></span>
+        <input class="pin-digit" type="tel" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="PIN digit 4" data-index="3">
+        <input class="pin-digit" type="tel" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="PIN digit 5" data-index="4">
+        <input class="pin-digit" type="tel" inputmode="numeric" pattern="[0-9]" maxlength="1" aria-label="PIN digit 6" data-index="5">
+      </div>
+
+      <p class="pin-error" id="pin-error" role="alert" aria-live="polite"></p>
+
+      <div class="pin-blocked" id="pin-blocked" hidden>
+        <div class="pin-blocked-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 1a9 9 0 100 18A9 9 0 0010 1zm0 14a1 1 0 110-2 1 1 0 010 2zm1-4.5a1 1 0 01-2 0V6.5a1 1 0 012 0v4z" fill="var(--indicator-error)"/>
+          </svg>
+        </div>
+        <p class="pin-blocked-text">Too many attempts. Try again in <span id="pin-countdown">0:00</span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terminal Screen -->
+  <div id="terminal-screen" class="screen" hidden>
+    <div class="app-shell">
+
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div class="picker-group">
+          <select id="project-picker" class="picker" aria-label="Project">
+            <option value="">No projects</option>
+          </select>
+          <select id="session-picker" class="picker" aria-label="Session">
+            <option value="">No sessions</option>
+          </select>
+        </div>
+        <div class="top-bar-status">
+          <span class="status-dot" id="status-dot" aria-label="Connection status"></span>
+          <span class="status-label" id="status-label">Connecting</span>
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div class="terminal-container" id="terminal-container"></div>
+
+      <!-- Prompt Input Bar -->
+      <div class="input-bar" id="input-bar">
+        <input type="text" id="prompt-input" class="prompt-input"
+               placeholder="Type command or prompt..."
+               autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false">
+        <button class="input-send-btn" id="input-send-btn" aria-label="Send">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 14l12-6L2 2v4.5l7 1.5-7 1.5V14z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Special Keys Bar -->
+      <div class="keys-bar" id="keys-bar" role="toolbar" aria-label="Special keys">
+        <button class="key-btn key-btn--play" id="agent-play-btn" aria-label="Start agent">&#x25B6;</button>
+        <button class="key-btn key-btn--stop" id="agent-stop-btn" aria-label="Stop agent" hidden>&#x25A0;</button>
+        <select id="agent-picker" class="agent-picker-inline" aria-label="Agent">
+          <option value="claude">claude</option>
+          <option value="opencode">opencode</option>
+          <option value="codex">codex</option>
+          <option value="gemini">gemini</option>
+          <option value="qwenCode">qwen</option>
+        </select>
+        <span class="keys-separator" aria-hidden="true"></span>
+        <button class="key-btn" data-key="esc" aria-label="Escape">Esc</button>
+        <button class="key-btn" data-key="tab" aria-label="Tab">Tab</button>
+        <button class="key-btn key-btn--modifier" data-key="ctrl" aria-label="Control modifier" aria-pressed="false">Ctrl</button>
+        <button class="key-btn key-btn--arrow" data-key="up" aria-label="Arrow up">&#x2191;</button>
+        <button class="key-btn key-btn--arrow" data-key="down" aria-label="Arrow down">&#x2193;</button>
+        <button class="key-btn key-btn--arrow" data-key="left" aria-label="Arrow left">&#x2190;</button>
+        <button class="key-btn key-btn--arrow" data-key="right" aria-label="Arrow right">&#x2192;</button>
+        <button class="key-btn" data-key="pipe" aria-label="Pipe">|</button>
+        <button class="key-btn key-btn--kbd" data-key="kbd" aria-label="Toggle keyboard">Kbd</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Hidden keyboard proxy for iOS virtual keyboard -->
+  <input id="keyboard-proxy"
+         type="text"
+         autocapitalize="none"
+         autocomplete="off"
+         autocorrect="off"
+         spellcheck="false"
+         aria-hidden="true"
+         tabindex="-1"
+         style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;">
+
+  <script src="/vendor/xterm.min.js"></script>
+  <script src="/vendor/xterm-addon-fit.min.js"></script>
+  <script src="/vendor/xterm-addon-web-links.min.js"></script>
+  <script src="/app.js"></script>
+
+</body>
+</html>

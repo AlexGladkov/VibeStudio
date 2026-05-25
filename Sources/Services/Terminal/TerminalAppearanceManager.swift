@@ -21,8 +21,8 @@ struct TerminalAppearanceManager {
     ///
     /// Sets font, foreground/background colors, cursor, selection, palette,
     /// and enables `notifyUpdateChanges` for activity detection.
-    func configure(_ view: TaggedTerminalView) {
-        view.font = DSFont.terminalNSFont(size: 13)
+    func configure(_ view: TaggedTerminalView, fontSize: CGFloat = 13) {
+        view.font = DSFont.terminalNSFont(size: fontSize)
         view.nativeForegroundColor = DSTerminalColors.foreground
         view.nativeBackgroundColor = DSTerminalColors.background
         view.caretColor = DSTerminalColors.cursor
@@ -32,6 +32,21 @@ struct TerminalAppearanceManager {
         view.notifyUpdateChanges = true
 
         view.installColors(convertPalette(DSTerminalColors.palette))
+    }
+
+    // MARK: - Font Refresh
+
+    /// Update font size on all provided terminal views.
+    func refreshFont<C: Collection>(
+        for views: C,
+        size: CGFloat
+    ) where C.Element == TaggedTerminalView {
+        let font = DSFont.terminalNSFont(size: size)
+        for view in views {
+            guard view.window != nil else { continue }
+            view.font = font
+            view.setNeedsDisplay(view.bounds)
+        }
     }
 
     // MARK: - Theme Refresh

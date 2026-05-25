@@ -58,4 +58,9 @@ final class FreeTabStore {
         if let next = remaining.last { return next.id }
         return projects.first?.id
     }
+
+    /// Reorders free tabs using the standard `IndexSet` / offset convention.
+    func moveFreeTabs(from source: IndexSet, to destination: Int) {
+        freeTabs.move(fromOffsets: source, toOffset: destination)
+    }
 }

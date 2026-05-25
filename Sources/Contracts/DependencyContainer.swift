@@ -77,6 +77,22 @@ final class ServiceContainer {
     /// Concrete `@Observable` type for the same reason as `themeService`.
     let csPreferences: CodeSpeakPreferences
 
+    /// General app preferences (tab close confirmation, etc.).
+    ///
+    /// Concrete `@Observable` type for the same reason as `themeService`.
+    let generalPreferences: GeneralPreferences
+
+    /// Remote Control HTTP/WS server.
+    ///
+    /// Concrete `@Observable` type -- SwiftUI views observe `connectedDeviceCount`,
+    /// `isRunning`, `currentPin` for the toolbar indicator and settings pane.
+    let remoteControlServer: RemoteControlServer
+
+    /// Remote Control user preferences (port, enabled, etc.).
+    ///
+    /// Concrete `@Observable` type for the same reason as `generalPreferences`.
+    let remoteControlPreferences: RemoteControlPreferences
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -93,7 +109,10 @@ final class ServiceContainer {
         freeTabStore: FreeTabStore,
         codeSpeak: CodeSpeakService,
         syntaxParserRegistry: SyntaxParserRegistry,
-        csPreferences: CodeSpeakPreferences
+        csPreferences: CodeSpeakPreferences,
+        generalPreferences: GeneralPreferences,
+        remoteControlServer: RemoteControlServer,
+        remoteControlPreferences: RemoteControlPreferences
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -111,6 +130,9 @@ final class ServiceContainer {
         self.codeSpeak = codeSpeak
         self.syntaxParserRegistry = syntaxParserRegistry
         self.csPreferences = csPreferences
+        self.generalPreferences = generalPreferences
+        self.remoteControlServer = remoteControlServer
+        self.remoteControlPreferences = remoteControlPreferences
     }
 }
 
@@ -173,6 +195,18 @@ private struct SyntaxParserRegistryKey: EnvironmentKey {
 
 private struct CodeSpeakPreferencesKey: EnvironmentKey {
     @MainActor static let defaultValue: CodeSpeakPreferences = CodeSpeakPreferences()
+}
+
+private struct GeneralPreferencesKey: EnvironmentKey {
+    @MainActor static let defaultValue: GeneralPreferences = GeneralPreferences()
+}
+
+private struct RemoteControlServerKey: EnvironmentKey {
+    @MainActor static let defaultValue: RemoteControlServer = RemoteControlServer()
+}
+
+private struct RemoteControlPreferencesKey: EnvironmentKey {
+    @MainActor static let defaultValue: RemoteControlPreferences = RemoteControlPreferences()
 }
 
 extension EnvironmentValues {
@@ -245,6 +279,21 @@ extension EnvironmentValues {
         get { self[CodeSpeakPreferencesKey.self] }
         set { self[CodeSpeakPreferencesKey.self] = newValue }
     }
+
+    var generalPreferences: GeneralPreferences {
+        get { self[GeneralPreferencesKey.self] }
+        set { self[GeneralPreferencesKey.self] = newValue }
+    }
+
+    var remoteControlServer: RemoteControlServer {
+        get { self[RemoteControlServerKey.self] }
+        set { self[RemoteControlServerKey.self] = newValue }
+    }
+
+    var remoteControlPreferences: RemoteControlPreferences {
+        get { self[RemoteControlPreferencesKey.self] }
+        set { self[RemoteControlPreferencesKey.self] = newValue }
+    }
 }
 
 // MARK: - View Modifier for injecting all services
@@ -294,6 +343,12 @@ extension View {
             .environment(\.codeSpeak, container.codeSpeak)
             .environment(\.syntaxParserRegistry, container.syntaxParserRegistry)
             .environment(\.csPreferences, container.csPreferences)
+            .environment(\.generalPreferences, container.generalPreferences)
+            .environment(\.remoteControlServer, container.remoteControlServer)
+            .environment(\.remoteControlPreferences, container.remoteControlPreferences)
+            // Inject concrete @Observable types for direct property tracking.
+            .environment(container.remoteControlServer)
+            .environment(container.remoteControlPreferences)
     }
 }
 

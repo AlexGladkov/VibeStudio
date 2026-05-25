@@ -54,6 +54,7 @@
 		3D69A6E2F3C542DF7F187A37 /* DependencyContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2E5D7C3DC4E8C064261824 /* DependencyContainer.swift */; };
 		3E779CDD3B603AC15C961140 /* GitStatusParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917F43F9A8A8CA1F116CAB2E /* GitStatusParserTests.swift */; };
 		3ECDF3D9F19DC3040174713B /* VibeStudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F234EE05DA9FC0066D4261 /* VibeStudioApp.swift */; };
+		423F1DADDC4E688018396034 /* MockAPIKeyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD99828A8C37330D7B84902 /* MockAPIKeyResolver.swift */; };
 		43047583A3F911FC976E0C2F /* MockAICommitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE92A06BD5E52E78DE8ED8B /* MockAICommitService.swift */; };
 		4384DEFBCDFD0014C829F25C /* CommandEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11350E52FA33333905FF06BA /* CommandEditorSheet.swift */; };
 		443B61933659FBB3F580AFB7 /* CreateBranchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1FCA30A6F9404865A57376D /* CreateBranchViewModel.swift */; };
@@ -75,6 +76,7 @@
 		5306BC60493E06F371CCEF9E /* GitRemoteOperating.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098363B9EF1CB619C89F8F19 /* GitRemoteOperating.swift */; };
 		55B2C20D10E118D5EF4F4AA2 /* TraceabilityPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3D056A68AD93C20A822127 /* TraceabilityPanelViewModel.swift */; };
 		580AA666F21E61B92114E461 /* TerminalInputSending.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241AF3EF47162218F10F879B /* TerminalInputSending.swift */; };
+		5859F3D936AB727CB4CAB1AD /* MockAgentAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA2CEB280F51FF8C5FBE6D1 /* MockAgentAvailability.swift */; };
 		58CDB1D7E51D8382425D1540 /* TabItemViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E072146A96FB60E0D4D765 /* TabItemViewModel.swift */; };
 		58FD1FBD320D472385E79ED2 /* AppLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84D9134D54BC73E235230876 /* AppLifecycleCoordinator.swift */; };
 		59C2BDFBFE7FBAA6498CC3F4 /* SettingsSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A0C50E3E396630FD25AA8D3 /* SettingsSectionHeader.swift */; };
@@ -105,8 +107,18 @@
 		8DAFB6F280D8A61ADF288286 /* LLMSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37901A7BDC86CA199A3B9491 /* LLMSettingsPane.swift */; };
 		8F421BD9E898C1115C9776B0 /* FileSystemWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBBF538C3D21C65EF45A6BC /* FileSystemWatcher.swift */; };
 		8F7B8BC5FF98205E658148E7 /* URLExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99278091F7398A29BC89213A /* URLExtensions.swift */; };
+		905378C2AE7FD86E95111D52 /* GeneralPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121CB6E88795A177E5FD2314 /* GeneralPreferences.swift */; };
+		905378C2AE7FD86E95111D53 /* NetworkUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121CB6E88795A177E5FD2315 /* NetworkUtility.swift */; };
+		A1B2C3D400000001F0000001 /* RemoteControlPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000011 /* RemoteControlPreferences.swift */; };
+		A1B2C3D400000001F0000002 /* RemoteAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000012 /* RemoteAuthService.swift */; };
+		A1B2C3D400000001F0000003 /* TLSCertificateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000013 /* TLSCertificateManager.swift */; };
+		A1B2C3D400000001F0000004 /* RemoteControlModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000014 /* RemoteControlModels.swift */; };
+		A1B2C3D400000001F0000005 /* BonjourAdvertiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */; };
+		A1B2C3D400000001F0000006 /* RemoteControlServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000016 /* RemoteControlServer.swift */; };
+		A1B2C3D400000001F0000007 /* RemoteControlWeb in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000001F0000030 /* RemoteControlWeb */; };
 		91358488E087F84FACFA1FB7 /* ClaudeEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F601168AA86A8D5E3D6E0E /* ClaudeEditorSheet.swift */; };
 		915F31D8DA270AFC76946E9A /* FrontmatterParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF56F800B16699F0FFC46E4 /* FrontmatterParser.swift */; };
+		9353E712C9E322A6F1F60341 /* TabItemViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB3359449EC40BC289D54998 /* TabItemViewModelTests.swift */; };
 		952809027D6F957532FD4848 /* ThemeServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BC923781455F26405F3A9D /* ThemeServicing.swift */; };
 		964D9641863E72BBD701DBED /* KeychainAPIKeyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4873C99CA0F52EF8EBD83C6A /* KeychainAPIKeyResolver.swift */; };
 		9789C16411C5F8084B26B37C /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A3C3AB8FBA04005BE8BDB4 /* WelcomeView.swift */; };
@@ -121,9 +133,11 @@
 		A73FA0B88989570652FCBB5D /* LineNumberRulerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C607E01081DFDDB5309355F2 /* LineNumberRulerView.swift */; };
 		A7F36B11FB0884B707EDA08E /* GitBranchValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6097750939363FB52042A9D6 /* GitBranchValidationTests.swift */; };
 		A832A9506039B340E6310F2A /* GitStatusPolling.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF474238A8C2D84BBD35489 /* GitStatusPolling.swift */; };
+		A85EBF8AC61DC18334B3A897 /* GitStatusPollerDeinitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 420A92D1CFC0630CE9815E16 /* GitStatusPollerDeinitTests.swift */; };
 		AA2F9ACD9FDE98E57B21C11C /* GitChangesPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A06FBA06D054BA92162EFB /* GitChangesPanelViewModel.swift */; };
 		AEDAD0C1992DD642767C4522 /* GeneratedFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEFEDA26B2ED499A8B5AB8B /* GeneratedFile.swift */; };
 		B0D364AE979225B10A4A31A1 /* FileDiffSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792DE9B3E657958826F28470 /* FileDiffSheetView.swift */; };
+		B18C6301830DD69014AA0488 /* MockTerminalSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20519259AF6E744E446E095 /* MockTerminalSessionManager.swift */; };
 		B1F017B004B29B08566E325A /* CLIAgentPathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40C4442D41A15125E8561B01 /* CLIAgentPathResolver.swift */; };
 		B3C5A6D320582EEFF10216F4 /* SyntaxParserRegistering.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF54CF4299CA0EF519CFF85 /* SyntaxParserRegistering.swift */; };
 		B46850F147A68B3C4F951B8E /* AddProjectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F301F5F84EBE1EB4E4EBB2DF /* AddProjectViewModel.swift */; };
@@ -154,6 +168,7 @@
 		D2ACCEB2207489F4DE98111F /* ErrorDescriptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5744159FABFF3FC4C0F1FE77 /* ErrorDescriptionTests.swift */; };
 		D2EA04C57CC746156B87D8D2 /* CommitPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB5B6663DBCFBCF0EE7CDB8 /* CommitPanelView.swift */; };
 		D303673D574993E245CA1CD0 /* SpecEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C4ECAF13A364E7EE3F5685 /* SpecEditorSheet.swift */; };
+		D58388B1808EA64E44ED4E62 /* ToolbarViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06FB1B34B16FA22EBB97497E /* ToolbarViewModelTests.swift */; };
 		D84B2D07FED6FCBF893A8771 /* CodeSpeakSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C515625DC84FC37E461C699 /* CodeSpeakSettingsPane.swift */; };
 		D95DC3E03F7FAE0E93B9D59A /* AIAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 520529287B1667F83F70327E /* AIAssistant.swift */; };
 		DAE882752156324BB158C0D8 /* ClaudeSettingsPaneViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FFE360B8A493CC3B7FA4BDF /* ClaudeSettingsPaneViewModel.swift */; };
@@ -164,6 +179,7 @@
 		E069BD69A1F4951BF9FFA746 /* ContinuationHolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDAA7773FB14FCE4F533334E /* ContinuationHolder.swift */; };
 		E0B76E12C17D16FF428E0D94 /* GitStatusQuerying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0FE979401445A63E64D595 /* GitStatusQuerying.swift */; };
 		E0FBF0C870F014BDBDE8D206 /* DiffWindowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A8CE144559B306474ABE048 /* DiffWindowStore.swift */; };
+		E2356417246A11272ABB7038 /* TerminalActivityTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0153E640024BB045F99BA26 /* TerminalActivityTrackerTests.swift */; };
 		E4EBC5D980F6FC11FBF74BDC /* CommandSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F23BE33A47C1BC714CDDD2 /* CommandSelectorView.swift */; };
 		E4F09CC09A65CC148BA65C51 /* TerminalAreaViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D28064992901E91A7D0A5EB /* TerminalAreaViewModel.swift */; };
 		E627750CBB6947F06A096375 /* SpecBuildPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD888CC3237D90F2AEDA06F2 /* SpecBuildPanelViewModel.swift */; };
@@ -193,6 +209,17 @@
 		FF4B310BBBD98EDDFE4E1434 /* WindowToolbarRemover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98C4F5A58562BFC11ABF51F /* WindowToolbarRemover.swift */; };
 		FF954AE43ADA18597C77920A /* GitBranching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34012FF65A96F2F6727ECF1A /* GitBranching.swift */; };
 		FFEC61D2B8C01E446E4C4355 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFAA51FBA36F836A6E872587 /* DesignTokens.swift */; };
+		A1B2C3D400000002F0000001 /* HTTPRequestRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000021 /* HTTPRequestRouter.swift */; };
+		A1B2C3D400000002F0000002 /* RemoteSessionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000022 /* RemoteSessionBridge.swift */; };
+		A1B2C3D400000002F0000003 /* WebSocketHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000023 /* WebSocketHandler.swift */; };
+		A1B2C3D400000002F0000004 /* RemoteAuditLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */; };
+		A1B2C3D400000002F0000050 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000040 /* NIOCore */; };
+		A1B2C3D400000002F0000051 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000041 /* NIOPosix */; };
+		A1B2C3D400000002F0000052 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000042 /* NIOHTTP1 */; };
+		A1B2C3D400000002F0000053 /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000043 /* NIOWebSocket */; };
+		A1B2C3D400000002F0000054 /* NIOSSL in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000044 /* NIOSSL */; };
+		A1B2C3D400000002F0000055 /* X509 in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000045 /* X509 */; };
+		A1B2C3D400000002F0000056 /* WebSocketKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000046 /* WebSocketKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -213,6 +240,7 @@
 		02C3AF3C8729EE55522007DE /* Errors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Errors.swift; sourceTree = "<group>"; };
 		0308AFD60FC5D51B5266D037 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		03F6F100CC72F3DF3FBECB8B /* CodeSpeakRunBarState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakRunBarState.swift; sourceTree = "<group>"; };
+		06FB1B34B16FA22EBB97497E /* ToolbarViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarViewModelTests.swift; sourceTree = "<group>"; };
 		082E8033B21C63D5BEBFD52E /* SkillViewerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillViewerSheet.swift; sourceTree = "<group>"; };
 		098363B9EF1CB619C89F8F19 /* GitRemoteOperating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRemoteOperating.swift; sourceTree = "<group>"; };
 		0A1E6DAAE393BED9BA9DC0CB /* MockProjectManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockProjectManager.swift; sourceTree = "<group>"; };
@@ -227,6 +255,8 @@
 		11350E52FA33333905FF06BA /* CommandEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandEditorSheet.swift; sourceTree = "<group>"; };
 		11E69BACD8D19081B81E721D /* OpencodeSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpencodeSettingsPane.swift; sourceTree = "<group>"; };
 		11F23BE33A47C1BC714CDDD2 /* CommandSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandSelectorView.swift; sourceTree = "<group>"; };
+		121CB6E88795A177E5FD2314 /* GeneralPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralPreferences.swift; sourceTree = "<group>"; };
+		121CB6E88795A177E5FD2315 /* NetworkUtility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkUtility.swift; sourceTree = "<group>"; };
 		17ED02C629023773CE643F0C /* AppReadyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReadyState.swift; sourceTree = "<group>"; };
 		1C14BB4E1B0F42A1DB0D3A62 /* FreeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTab.swift; sourceTree = "<group>"; };
 		1C515625DC84FC37E461C699 /* CodeSpeakSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakSettingsPane.swift; sourceTree = "<group>"; };
@@ -260,6 +290,7 @@
 		40C4442D41A15125E8561B01 /* CLIAgentPathResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIAgentPathResolver.swift; sourceTree = "<group>"; };
 		4116ACB6ED66B7D356B30621 /* ProjectSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSettingsViewModel.swift; sourceTree = "<group>"; };
 		41A0250CD48257B99C273AC5 /* AICommitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommitService.swift; sourceTree = "<group>"; };
+		420A92D1CFC0630CE9815E16 /* GitStatusPollerDeinitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusPollerDeinitTests.swift; sourceTree = "<group>"; };
 		434897A2D38B91A85D935AFC /* TerminalSessionCreating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSessionCreating.swift; sourceTree = "<group>"; };
 		435D2AA86582ED053BD78FF9 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		4768876E4C8F1D377A0D788F /* ToolbarIconButtonModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarIconButtonModifier.swift; sourceTree = "<group>"; };
@@ -316,6 +347,7 @@
 		8AD76443F28B586A80702359 /* SyntaxHighlightTextStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxHighlightTextStorage.swift; sourceTree = "<group>"; };
 		8C004AE62EE748906A39B4FD /* YAMLFrontmatterParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YAMLFrontmatterParser.swift; sourceTree = "<group>"; };
 		8C0FEFA964F39D9F3698F963 /* SessionLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecycleCoordinator.swift; sourceTree = "<group>"; };
+		8CA2CEB280F51FF8C5FBE6D1 /* MockAgentAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAgentAvailability.swift; sourceTree = "<group>"; };
 		8E4E97835A993EC26995CBD7 /* AIConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConstants.swift; sourceTree = "<group>"; };
 		8EBBF538C3D21C65EF45A6BC /* FileSystemWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemWatcher.swift; sourceTree = "<group>"; };
 		917F43F9A8A8CA1F116CAB2E /* GitStatusParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusParserTests.swift; sourceTree = "<group>"; };
@@ -350,6 +382,7 @@
 		BEF2168AB155343AEA186350 /* TaggedTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaggedTerminalView.swift; sourceTree = "<group>"; };
 		C0E37CDC9F2B4A5A3E85280C /* CodeSpeakPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakPreferences.swift; sourceTree = "<group>"; };
 		C1FCA30A6F9404865A57376D /* CreateBranchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateBranchViewModel.swift; sourceTree = "<group>"; };
+		C20519259AF6E744E446E095 /* MockTerminalSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTerminalSessionManager.swift; sourceTree = "<group>"; };
 		C285049312BEE8B9F29A7BC8 /* BranchListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BranchListView.swift; sourceTree = "<group>"; };
 		C2C9A50A20CEEB35BD7B0C37 /* GitURLConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitURLConverter.swift; sourceTree = "<group>"; };
 		C3DA9269DAEA2C212E2D007B /* ToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarView.swift; sourceTree = "<group>"; };
@@ -361,14 +394,28 @@
 		CB31C7B54D77FFE30473D40D /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		CB4C1A1647BC2D99493A1721 /* MockGitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGitService.swift; sourceTree = "<group>"; };
 		CEF6837A8C9E60A3DD92E757 /* TerminalSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalSessionStore.swift; sourceTree = "<group>"; };
+		D0153E640024BB045F99BA26 /* TerminalActivityTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityTrackerTests.swift; sourceTree = "<group>"; };
 		D2F84B89DC75AF1AE355746B /* MarkdownParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownParser.swift; sourceTree = "<group>"; };
 		D3F601168AA86A8D5E3D6E0E /* ClaudeEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeEditorSheet.swift; sourceTree = "<group>"; };
 		D4F30680A4E8BBDC18E3F3AE /* StyledInputModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyledInputModifier.swift; sourceTree = "<group>"; };
 		D5F817AAE0A74E366D850D95 /* GeminiSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiSettingsPane.swift; sourceTree = "<group>"; };
 		D81A7D100A75DE8B897E44DB /* FileSystemWatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemWatching.swift; sourceTree = "<group>"; };
 		D84F2227A474AF4A519DACB2 /* QwenSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QwenSettingsPane.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000011 /* RemoteControlPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlPreferences.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000012 /* RemoteAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAuthService.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000013 /* TLSCertificateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLSCertificateManager.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000014 /* RemoteControlModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlModels.swift; sourceTree = "<group>"; };
+		A1B2C3D400000002F0000021 /* HTTPRequestRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPRequestRouter.swift; sourceTree = "<group>"; };
+		A1B2C3D400000002F0000022 /* RemoteSessionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSessionBridge.swift; sourceTree = "<group>"; };
+		A1B2C3D400000002F0000023 /* WebSocketHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketHandler.swift; sourceTree = "<group>"; };
+		A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAuditLog.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BonjourAdvertiser.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000016 /* RemoteControlServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlServer.swift; sourceTree = "<group>"; };
+		A1B2C3D400000001F0000030 /* RemoteControlWeb */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RemoteControlWeb; sourceTree = "<group>"; };
 		D8F234EE05DA9FC0066D4261 /* VibeStudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeStudioApp.swift; sourceTree = "<group>"; };
+		DAD99828A8C37330D7B84902 /* MockAPIKeyResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAPIKeyResolver.swift; sourceTree = "<group>"; };
 		DB04352B65EB81DE7B6AF29B /* GitStaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStaging.swift; sourceTree = "<group>"; };
+		DB3359449EC40BC289D54998 /* TabItemViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabItemViewModelTests.swift; sourceTree = "<group>"; };
 		DCEFEDA26B2ED499A8B5AB8B /* GeneratedFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedFile.swift; sourceTree = "<group>"; };
 		DDB5B6663DBCFBCF0EE7CDB8 /* CommitPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommitPanelView.swift; sourceTree = "<group>"; };
 		DE2E5D7C3DC4E8C064261824 /* DependencyContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyContainer.swift; sourceTree = "<group>"; };
@@ -401,6 +448,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				F2DE64D9DA8486DB084197E2 /* SwiftTerm in Frameworks */,
+				A1B2C3D400000002F0000050 /* NIOCore in Frameworks */,
+				A1B2C3D400000002F0000051 /* NIOPosix in Frameworks */,
+				A1B2C3D400000002F0000052 /* NIOHTTP1 in Frameworks */,
+				A1B2C3D400000002F0000053 /* NIOWebSocket in Frameworks */,
+				A1B2C3D400000002F0000054 /* NIOSSL in Frameworks */,
+				A1B2C3D400000002F0000055 /* X509 in Frameworks */,
+				A1B2C3D400000002F0000056 /* WebSocketKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -585,9 +639,19 @@
 		45270E538B82056B9AFF8D5B /* Terminal */ = {
 			isa = PBXGroup;
 			children = (
+				D0153E640024BB045F99BA26 /* TerminalActivityTrackerTests.swift */,
 				938D9E8D305117C87E15C664 /* TerminalServiceTests.swift */,
 			);
 			path = Terminal;
+			sourceTree = "<group>";
+		};
+		459CE27A2128CE2575E7000D /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				DB3359449EC40BC289D54998 /* TabItemViewModelTests.swift */,
+				06FB1B34B16FA22EBB97497E /* ToolbarViewModelTests.swift */,
+			);
+			path = ViewModels;
 			sourceTree = "<group>";
 		};
 		4AFBE4E1A1186F8A340E0ED9 /* ViewModels */ = {
@@ -645,6 +709,7 @@
 			children = (
 				6097750939363FB52042A9D6 /* GitBranchValidationTests.swift */,
 				917F43F9A8A8CA1F116CAB2E /* GitStatusParserTests.swift */,
+				420A92D1CFC0630CE9815E16 /* GitStatusPollerDeinitTests.swift */,
 				F692B4BD06857E954C89FEA4 /* GitStatusPollerTests.swift */,
 			);
 			path = Git;
@@ -853,10 +918,19 @@
 			path = Panes;
 			sourceTree = "<group>";
 		};
+		A1B2C3D400000001F0000040 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D400000001F0000030 /* RemoteControlWeb */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		9AC14D3B9800BE3817CF5CFD = {
 			isa = PBXGroup;
 			children = (
 				20ADDE6DC690CBDA02EDD8FA /* Sources */,
+				A1B2C3D400000001F0000040 /* Resources */,
 				B7EA324F74FDD2BC4D74EE14 /* Tests */,
 				BB3E2CAC2D248DDBF94D3EC4 /* Products */,
 			);
@@ -935,8 +1009,10 @@
 				2BBDFB75893B4859456CBAA0 /* CodeSpeak */,
 				87B62011A2943A1D57BB8CF0 /* FileTree */,
 				88DEC338DEF4FF3D572CCBE1 /* FreeTab */,
+				ECC683CE9EF6BE912E78E6BA /* General */,
 				BDA722745788381604927C6B /* Git */,
 				0A09B7EDD657949CA9FC3B7B /* Persistence */,
+				A1B2C3D400000001F0000020 /* RemoteControl */,
 				EAFBDED5A99990D6B9064373 /* Security */,
 				2EECC56F8C14A8CBD58D09BF /* Terminal */,
 				DD1C9EAC86CFD021E41B23A4 /* Theme */,
@@ -968,6 +1044,7 @@
 				E618304DEC64F456162F9E18 /* Mocks */,
 				5A8A9D0A2E1FF48E932629A0 /* Models */,
 				052A838A5DCAAB63432B3434 /* Services */,
+				459CE27A2128CE2575E7000D /* ViewModels */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -1098,9 +1175,12 @@
 		E618304DEC64F456162F9E18 /* Mocks */ = {
 			isa = PBXGroup;
 			children = (
+				8CA2CEB280F51FF8C5FBE6D1 /* MockAgentAvailability.swift */,
 				5CE92A06BD5E52E78DE8ED8B /* MockAICommitService.swift */,
+				DAD99828A8C37330D7B84902 /* MockAPIKeyResolver.swift */,
 				CB4C1A1647BC2D99493A1721 /* MockGitService.swift */,
 				0A1E6DAAE393BED9BA9DC0CB /* MockProjectManager.swift */,
+				C20519259AF6E744E446E095 /* MockTerminalSessionManager.swift */,
 			);
 			path = Mocks;
 			sourceTree = "<group>";
@@ -1114,6 +1194,32 @@
 				0308AFD60FC5D51B5266D037 /* KeychainHelper.swift */,
 			);
 			path = Security;
+			sourceTree = "<group>";
+		};
+		ECC683CE9EF6BE912E78E6BA /* General */ = {
+			isa = PBXGroup;
+			children = (
+				121CB6E88795A177E5FD2314 /* GeneralPreferences.swift */,
+				121CB6E88795A177E5FD2315 /* NetworkUtility.swift */,
+			);
+			path = General;
+			sourceTree = "<group>";
+		};
+		A1B2C3D400000001F0000020 /* RemoteControl */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */,
+				A1B2C3D400000002F0000021 /* HTTPRequestRouter.swift */,
+				A1B2C3D400000001F0000012 /* RemoteAuthService.swift */,
+				A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */,
+				A1B2C3D400000001F0000014 /* RemoteControlModels.swift */,
+				A1B2C3D400000001F0000011 /* RemoteControlPreferences.swift */,
+				A1B2C3D400000001F0000016 /* RemoteControlServer.swift */,
+				A1B2C3D400000002F0000022 /* RemoteSessionBridge.swift */,
+				A1B2C3D400000001F0000013 /* TLSCertificateManager.swift */,
+				A1B2C3D400000002F0000023 /* WebSocketHandler.swift */,
+			);
+			path = RemoteControl;
 			sourceTree = "<group>";
 		};
 		ECCB5AA7B8B79F82439455AA /* Sidebar */ = {
@@ -1228,6 +1334,13 @@
 			name = VibeStudio;
 			packageProductDependencies = (
 				3615091EFEA07EF308A8AE98 /* SwiftTerm */,
+				A1B2C3D400000002F0000040 /* NIOCore */,
+				A1B2C3D400000002F0000041 /* NIOPosix */,
+				A1B2C3D400000002F0000042 /* NIOHTTP1 */,
+				A1B2C3D400000002F0000043 /* NIOWebSocket */,
+				A1B2C3D400000002F0000044 /* NIOSSL */,
+				A1B2C3D400000002F0000045 /* X509 */,
+				A1B2C3D400000002F0000046 /* WebSocketKit */,
 			);
 			productName = VibeStudio;
 			productReference = BA12055B013FFBC787CC7C71 /* VibeStudio.app */;
@@ -1254,6 +1367,10 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				2180EC66AD1DDE3658FF3B35 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				A1B2C3D400000002F0000030 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				A1B2C3D400000002F0000031 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */,
+				A1B2C3D400000002F0000032 /* XCRemoteSwiftPackageReference "swift-certificates" */,
+				A1B2C3D400000002F0000033 /* XCRemoteSwiftPackageReference "websocket-kit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -1271,6 +1388,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				207388C9857537C56E0A7320 /* Assets.xcassets in Resources */,
+				A1B2C3D400000001F0000007 /* RemoteControlWeb in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1285,14 +1403,21 @@
 				D2ACCEB2207489F4DE98111F /* ErrorDescriptionTests.swift in Sources */,
 				A7F36B11FB0884B707EDA08E /* GitBranchValidationTests.swift in Sources */,
 				3E779CDD3B603AC15C961140 /* GitStatusParserTests.swift in Sources */,
+				A85EBF8AC61DC18334B3A897 /* GitStatusPollerDeinitTests.swift in Sources */,
 				21FC93EF1EAD09E92B138BCD /* GitStatusPollerTests.swift in Sources */,
 				C6EB79ACF7D4D6D7419271CE /* HexColorTests.swift in Sources */,
 				43047583A3F911FC976E0C2F /* MockAICommitService.swift in Sources */,
+				423F1DADDC4E688018396034 /* MockAPIKeyResolver.swift in Sources */,
+				5859F3D936AB727CB4CAB1AD /* MockAgentAvailability.swift in Sources */,
 				038403B01FE728FE72C877FE /* MockGitService.swift in Sources */,
 				44D02EE6AE590C8E33A12435 /* MockProjectManager.swift in Sources */,
+				B18C6301830DD69014AA0488 /* MockTerminalSessionManager.swift in Sources */,
 				1E0D6366A3F11D0829760CEB /* ProjectStoreTests.swift in Sources */,
 				261A1B520A922A8FB78617DD /* SessionStoreTests.swift in Sources */,
+				9353E712C9E322A6F1F60341 /* TabItemViewModelTests.swift in Sources */,
+				E2356417246A11272ABB7038 /* TerminalActivityTrackerTests.swift in Sources */,
 				5F156DF989B759576EB42C2C /* TerminalServiceTests.swift in Sources */,
+				D58388B1808EA64E44ED4E62 /* ToolbarViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1371,6 +1496,18 @@
 				52ED8B72D538CAE180DA498E /* FreeTabStore.swift in Sources */,
 				915F31D8DA270AFC76946E9A /* FrontmatterParser.swift in Sources */,
 				39A31F56398E5A5A181D44AE /* GeminiSettingsPane.swift in Sources */,
+				905378C2AE7FD86E95111D52 /* GeneralPreferences.swift in Sources */,
+				905378C2AE7FD86E95111D53 /* NetworkUtility.swift in Sources */,
+				A1B2C3D400000001F0000001 /* RemoteControlPreferences.swift in Sources */,
+				A1B2C3D400000001F0000002 /* RemoteAuthService.swift in Sources */,
+				A1B2C3D400000001F0000003 /* TLSCertificateManager.swift in Sources */,
+				A1B2C3D400000001F0000004 /* RemoteControlModels.swift in Sources */,
+				A1B2C3D400000002F0000001 /* HTTPRequestRouter.swift in Sources */,
+				A1B2C3D400000002F0000002 /* RemoteSessionBridge.swift in Sources */,
+				A1B2C3D400000002F0000003 /* WebSocketHandler.swift in Sources */,
+				A1B2C3D400000002F0000004 /* RemoteAuditLog.swift in Sources */,
+				A1B2C3D400000001F0000005 /* BonjourAdvertiser.swift in Sources */,
+				A1B2C3D400000001F0000006 /* RemoteControlServer.swift in Sources */,
 				DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */,
 				AEDAD0C1992DD642767C4522 /* GeneratedFile.swift in Sources */,
 				FF954AE43ADA18597C77920A /* GitBranching.swift in Sources */,
@@ -1728,6 +1865,38 @@
 				minimumVersion = 1.12.0;
 			};
 		};
+		A1B2C3D400000002F0000030 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.76.0;
+			};
+		};
+		A1B2C3D400000002F0000031 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssl.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.29.0;
+			};
+		};
+		A1B2C3D400000002F0000032 /* XCRemoteSwiftPackageReference "swift-certificates" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-certificates.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.0;
+			};
+		};
+		A1B2C3D400000002F0000033 /* XCRemoteSwiftPackageReference "websocket-kit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/vapor/websocket-kit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.15.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1735,6 +1904,41 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2180EC66AD1DDE3658FF3B35 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		A1B2C3D400000002F0000040 /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000030 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
+		A1B2C3D400000002F0000041 /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000030 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOPosix;
+		};
+		A1B2C3D400000002F0000042 /* NIOHTTP1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000030 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOHTTP1;
+		};
+		A1B2C3D400000002F0000043 /* NIOWebSocket */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000030 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOWebSocket;
+		};
+		A1B2C3D400000002F0000044 /* NIOSSL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000031 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */;
+			productName = NIOSSL;
+		};
+		A1B2C3D400000002F0000045 /* X509 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000032 /* XCRemoteSwiftPackageReference "swift-certificates" */;
+			productName = X509;
+		};
+		A1B2C3D400000002F0000046 /* WebSocketKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D400000002F0000033 /* XCRemoteSwiftPackageReference "websocket-kit" */;
+			productName = WebSocketKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

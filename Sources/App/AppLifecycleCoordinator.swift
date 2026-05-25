@@ -94,7 +94,10 @@ final class AppLifecycleCoordinator {
         activeProjectObservation?.cancel()
         fileEventObservation?.cancel()
 
-        // 4. Stop all file watchers (also finishes the events AsyncStream).
+        // 4. Stop Remote Control server.
+        container.remoteControlServer.stop()
+
+        // 5. Stop all file watchers (also finishes the events AsyncStream).
         container.fileSystemWatcher.unwatchAll()
     }
 
@@ -132,6 +135,11 @@ final class AppLifecycleCoordinator {
         // Resolve agent availability now that PATH is fully inherited from the
         // TCC-granted process environment.
         container.agentAvailability.refreshAll()
+
+        // Start Remote Control server if enabled in preferences.
+        if container.remoteControlPreferences.remoteControlEnabled {
+            container.remoteControlServer.start()
+        }
 
         // Safe to spawn PTY and git child processes.
         await restoreSession()

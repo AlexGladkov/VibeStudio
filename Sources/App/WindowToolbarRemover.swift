@@ -39,6 +39,10 @@ struct WindowToolbarRemover: NSViewRepresentable {
 
         required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             configure()

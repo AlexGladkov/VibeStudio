@@ -43,4 +43,12 @@ protocol FreeTabManaging: AnyObject, Observable {
     ///   - removedId: The identifier of the tab being closed.
     ///   - projects: The current list of projects to fall back to.
     func nextActiveId(after removedId: UUID, projects: [Project]) -> UUID?
+
+    /// Reorders free tabs using the standard `IndexSet` / offset convention
+    /// (matches `Array.move(fromOffsets:toOffset:)`).
+    ///
+    /// - Parameters:
+    ///   - source: The indices of the tabs being moved.
+    ///   - destination: The target offset in the resulting array.
+    func moveFreeTabs(from source: IndexSet, to destination: Int)
 }

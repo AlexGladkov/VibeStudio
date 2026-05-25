@@ -17,7 +17,9 @@ struct FreeTabItemView: View {
     @Environment(\.freeTabStore) private var freeTabStore
     @Environment(\.terminalSessionManager) private var terminalManager
     @Environment(\.projectManager) private var projectManager
+    @Environment(\.generalPreferences) private var generalPreferences
     @State private var isHovering = false
+    @State private var showCloseAlert = false
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
@@ -32,7 +34,11 @@ struct FreeTabItemView: View {
 
             if isActive || isHovering {
                 Button {
-                    closeFreeTab()
+                    if generalPreferences.confirmTabClose {
+                        showCloseAlert = true
+                    } else {
+                        closeFreeTab()
+                    }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: DSLayout.tabCloseIconSize))
@@ -62,6 +68,14 @@ struct FreeTabItemView: View {
                     .fill(DSColor.accentPrimary)
                     .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
+        }
+        .alert("Закрыть вкладку?", isPresented: $showCloseAlert) {
+            Button("Отмена", role: .cancel) {}
+            Button("Закрыть", role: .destructive) {
+                closeFreeTab()
+            }
+        } message: {
+            Text("Терминальная сессия будет завершена.")
         }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.08)) {

@@ -51,6 +51,14 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
     /// does not re-schedule a redundant highlight pass.
     private var isApplyingHighlight = false
 
+    /// Handle for the current highlighting task — cancelled when a new edit
+    /// arrives or the storage is deallocated.
+    nonisolated(unsafe) private var highlightTask: Task<Void, Never>?
+
+    deinit {
+        highlightTask?.cancel()
+    }
+
     // MARK: - NSTextStorage Required Overrides
     //
     // Apple documentation: primitive methods MUST NOT call beginEditing/endEditing.
@@ -148,7 +156,8 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
         let capturedColor = baseTextColor
         let fullLength = (text as NSString).length
 
-        Task.detached(priority: .userInitiated) { [weak self] in
+        highlightTask?.cancel()
+        highlightTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
 
             var tokens: [SyntaxToken] = []

@@ -28,6 +28,18 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     /// Callback invoked when the terminal title changes (xterm escape sequence).
     var onTitleChanged: ((UUID, String) -> Void)?
 
+    /// Callback for incremental terminal output -- provides changed line range.
+    /// Used by RemoteSessionBridge to stream output to WebSocket clients.
+    /// Parameters: (sessionId, startY, endY)
+    var onLinesChanged: ((UUID, Int, Int) -> Void)?
+
+    /// Callback for raw PTY output bytes -- used by RemoteSessionBridge
+    /// to relay unprocessed terminal data to the WebSocket client.
+    /// This preserves ANSI escape sequences so the remote xterm.js can
+    /// correctly render colors, cursor movements, and scrolling.
+    /// Parameters: (sessionId, rawBytes)
+    var onRawData: ((UUID, ArraySlice<UInt8>) -> Void)?
+
     // MARK: - Init
 
     /// Create a tagged terminal view for a specific session and project.
@@ -49,6 +61,17 @@ final class TaggedTerminalView: LocalProcessTerminalView {
 
     // MARK: - Overrides
 
+    /// Intercept raw PTY data before terminal emulation.
+    ///
+    /// Called by `LocalProcess` when bytes arrive from the PTY file descriptor.
+    /// We forward raw bytes to `onRawData` before passing them to SwiftTerm's
+    /// terminal emulator via `super.dataReceived`. This preserves ANSI escape
+    /// sequences for remote xterm.js rendering.
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        onRawData?(sessionId, slice)
+        super.dataReceived(slice: slice)
+    }
+
     /// Detect new terminal output for activity tracking.
     ///
     /// This method is called by SwiftTerm when terminal content changes.
@@ -56,6 +79,7 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     override func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
         super.rangeChanged(source: source, startY: startY, endY: endY)
         onRangeChanged?(sessionId)
+        onLinesChanged?(sessionId, startY, endY)
     }
 
     /// Handle process termination from SwiftTerm's `LocalProcessDelegate`.

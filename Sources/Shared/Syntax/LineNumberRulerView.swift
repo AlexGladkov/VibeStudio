@@ -56,6 +56,10 @@ final class LineNumberRulerView: NSRulerView {
         fatalError("init(coder:) not used")
     }
 
+    deinit {
+        stopObserving()
+    }
+
     // MARK: - Lifecycle
 
     override func viewDidMoveToSuperview() {
@@ -64,6 +68,7 @@ final class LineNumberRulerView: NSRulerView {
             stopObserving()
             return
         }
+        stopObserving()
         startObserving()
     }
 

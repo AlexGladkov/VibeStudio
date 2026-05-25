@@ -70,6 +70,9 @@ actor CodeSpeakProcessRunner {
         let myGen = generation
 
         return AsyncStream { continuation in
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.stop() }
+            }
             Task {
                 // 1. Resolve binary
                 guard let binaryPath = CLIAgentPathResolver.resolve("codespeak") else {

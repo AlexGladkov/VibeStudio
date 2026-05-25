@@ -13,6 +13,7 @@ import SwiftUI
 enum DiffWindowStore {
 
     private static var windows: [NSWindow] = []
+    private static var closeObservers: [ObjectIdentifier: NSObjectProtocol] = [:]
 
     /// Open a new resizable diff window for the given file.
     static func open(
@@ -44,7 +45,8 @@ enum DiffWindowStore {
 
         windows.append(window)
 
-        NotificationCenter.default.addObserver(
+        let windowKey = ObjectIdentifier(window)
+        let token = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
             queue: .main
@@ -52,8 +54,13 @@ enum DiffWindowStore {
             guard let window else { return }
             MainActor.assumeIsolated {
                 DiffWindowStore.windows.removeAll { $0 === window }
+                let key = ObjectIdentifier(window)
+                if let observer = DiffWindowStore.closeObservers.removeValue(forKey: key) {
+                    NotificationCenter.default.removeObserver(observer)
+                }
             }
         }
+        closeObservers[windowKey] = token
 
         window.makeKeyAndOrderFront(nil)
     }

@@ -57,6 +57,10 @@ final class TerminalActivityTracker {
         self.stateChanged = stateChanged
     }
 
+    deinit {
+        idleTimers.values.forEach { $0.cancel() }
+    }
+
     // MARK: - Public Interface
 
     /// Mark a project as seen by the user -- clears the yellow indicator.

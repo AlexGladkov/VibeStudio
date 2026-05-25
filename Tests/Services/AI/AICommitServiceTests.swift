@@ -17,7 +17,7 @@ final class AICommitServiceTests: XCTestCase {
     func testMaxDiffLengthIsReasonable() {
         // AICommitService truncates diffs to maxDiffLength characters
         // before sending to the API. Verify it is within a sane range.
-        let limit = AICommitService.maxDiffLength
+        let limit = AIConstants.maxDiffLength
 
         XCTAssertGreaterThan(limit, 1_000, "maxDiffLength should be at least 1000 characters")
         XCTAssertLessThan(limit, 100_000, "maxDiffLength should be less than 100000 characters")

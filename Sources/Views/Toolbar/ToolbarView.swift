@@ -2,6 +2,7 @@
 // Android Studio-style run-configuration bar above the tab bar.
 // macOS 14+, Swift 5.10
 
+import CoreImage.CIFilterBuiltins
 import OSLog
 import SwiftUI
 
@@ -22,26 +23,17 @@ struct ToolbarView: View {
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.freeTabStore) private var freeTabStore
     @Environment(\.openURL) private var openURL
+    @Environment(\.remoteControlServer) private var remoteServer
 
     @State private var vm: ToolbarViewModel?
     @State private var showingPicker = false
     @State private var showingProjectPicker = false
-
-    private var viewModel: ToolbarViewModel {
-        if let existing = vm { return existing }
-        let created = ToolbarViewModel(
-            projectManager: projectManager,
-            terminalManager: terminalManager,
-            agentAvailability: agentAvailability
-        )
-        Task { @MainActor in vm = created }
-        return created
-    }
+    @State private var showingRemotePopover = false
+    @State private var showingQRPopover = false
 
     private var activeProject: Project? { projectManager.activeProject }
 
     var body: some View {
-        let model = viewModel
         let isWelcomeScreen = (projectManager.projects.isEmpty || projectManager.activeProjectId == nil)
             && freeTabStore.freeTabs.isEmpty
         Group {
@@ -51,9 +43,13 @@ struct ToolbarView: View {
                 } else {
                     HStack(spacing: DSSpacing.sm) {
                         Spacer(minLength: 0)
-                        configPicker(model: model)
-                        playStopButton(model: model)
-                        openInBrowserButton(model: model)
+                        if let model = vm {
+                            configPicker(model: model)
+                            playStopButton(model: model)
+                            openInBrowserButton(model: model)
+                        }
+                        remoteQRButton()
+                        remoteIndicator()
                         settingsButton()
                         changesToggleButton()
                     }
@@ -114,6 +110,8 @@ struct ToolbarView: View {
             // Box 3 — right: run controls
             HStack(spacing: DSSpacing.sm) {
                 codeSpeakRunBar()
+                remoteQRButton()
+                remoteIndicator()
                 settingsButton()
             }
             .padding(.trailing, DSSpacing.md)
@@ -539,6 +537,196 @@ struct ToolbarView: View {
         }
         .buttonStyle(.plain)
         .help("Toggle Changes Panel (\u{2318}\u{21E7}G)")
+    }
+
+    // MARK: - Remote QR Button
+
+    /// QR code button — visible only when remote server is running.
+    /// Opens a popover with a QR containing the auto-login URL.
+    @ViewBuilder
+    private func remoteQRButton() -> some View {
+        if remoteServer.isRunning {
+            Button { showingQRPopover.toggle() } label: {
+                Image(systemName: "qrcode")
+                    .foregroundStyle(DSColor.textSecondary)
+                    .toolbarIconButton()
+            }
+            .buttonStyle(.plain)
+            .help("QR-код для подключения")
+            .popover(isPresented: $showingQRPopover, arrowEdge: .bottom) {
+                qrPopoverContent()
+            }
+        }
+    }
+
+    /// Popover with QR code image, URL, and copy button.
+    private func qrPopoverContent() -> some View {
+        let url = remoteConnectionURL()
+        return VStack(spacing: DSSpacing.md) {
+            // QR image
+            if let qrImage = generateQRCode(from: url) {
+                Image(nsImage: qrImage)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 200, height: 200)
+            }
+
+            // URL text
+            Text(url)
+                .font(DSFont.sidebarItemSmall)
+                .foregroundStyle(DSColor.textSecondary)
+                .textSelection(.enabled)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+
+            // Copy button
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(url, forType: .string)
+            } label: {
+                HStack(spacing: DSSpacing.xs) {
+                    Image(systemName: "doc.on.doc")
+                        .font(DSFont.iconSM)
+                    Text("Скопировать URL")
+                        .font(DSFont.smallButtonLabel)
+                }
+                .foregroundStyle(DSColor.accentPrimary)
+            }
+            .buttonStyle(.plain)
+
+            Text("Отсканируйте камерой телефона")
+                .font(DSFont.sidebarItemSmall)
+                .foregroundStyle(DSColor.textMuted)
+        }
+        .padding(DSSpacing.md)
+        .frame(width: 260)
+        .background(DSColor.surfaceOverlay)
+    }
+
+    /// Build the full URL with auto-login PIN.
+    /// Uses HTTP port (main port + 1) to avoid iOS Safari self-signed cert issues with WSS.
+    private func remoteConnectionURL() -> String {
+        let ip = NetworkUtility.localLANIPAddress() ?? "127.0.0.1"
+        let port = remoteServer.port + 1
+        let pin = remoteServer.currentPin
+        return "http://\(ip):\(port)/?pin=\(pin)"
+    }
+
+    /// Generate an `NSImage` QR code from a string using CoreImage.
+    private func generateQRCode(from string: String) -> NSImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+
+        guard let ciImage = filter.outputImage else { return nil }
+
+        // Scale up: CIFilter output is tiny (~27×27 px)
+        let scale = 200.0 / ciImage.extent.width
+        let scaled = ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+        let rep = NSCIImageRep(ciImage: scaled)
+        let nsImage = NSImage(size: rep.size)
+        nsImage.addRepresentation(rep)
+        return nsImage
+    }
+
+    // MARK: - Remote Control Indicator
+
+    /// Toolbar indicator showing connected remote device count.
+    ///
+    /// Only visible when at least one device is connected. Tapping opens
+    /// a popover with PIN, device list, and server status.
+    @ViewBuilder
+    private func remoteIndicator() -> some View {
+        if remoteServer.connectedDeviceCount > 0 {
+            Button { showingRemotePopover.toggle() } label: {
+                HStack(spacing: DSSpacing.xxs) {
+                    Image(systemName: "iphone")
+                        .font(DSFont.iconSM)
+                    Text("\(remoteServer.connectedDeviceCount)")
+                        .font(DSFont.smallButtonLabel)
+                        .monospacedDigit()
+                }
+                .foregroundStyle(DSColor.accentPrimary)
+            }
+            .buttonStyle(.plain)
+            .help("Remote Control")
+            .popover(isPresented: $showingRemotePopover, arrowEdge: .bottom) {
+                remotePopoverContent()
+            }
+        }
+    }
+
+    /// Popover content for the remote control indicator.
+    @ViewBuilder
+    private func remotePopoverContent() -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            // PIN section
+            HStack {
+                Text("PIN")
+                    .font(DSFont.sidebarItem)
+                    .foregroundStyle(DSColor.textSecondary)
+                Text(remoteServer.currentPin)
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .textSelection(.enabled)
+                Spacer()
+                Button { remoteServer.regeneratePin() } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(DSFont.iconSM)
+                }
+                .buttonStyle(.plain)
+                .help("Обновить PIN")
+            }
+
+            Divider()
+
+            // Connected devices
+            if remoteServer.connectedDevices.isEmpty {
+                Text("Нет подключённых устройств")
+                    .font(DSFont.sidebarItemSmall)
+                    .foregroundStyle(DSColor.textMuted)
+            } else {
+                ForEach(remoteServer.connectedDevices) { device in
+                    HStack {
+                        Image(systemName: "iphone")
+                            .font(DSFont.iconSM)
+                        VStack(alignment: .leading) {
+                            Text(device.displayName)
+                                .font(DSFont.sidebarItem)
+                            Text(device.ipAddress)
+                                .font(DSFont.sidebarItemSmall)
+                                .foregroundStyle(DSColor.textMuted)
+                        }
+                        Spacer()
+                        Button { remoteServer.disconnect(device.id) } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(DSColor.textMuted)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Отключить \(device.displayName)")
+                    }
+                }
+            }
+
+            Divider()
+
+            // Server info
+            HStack {
+                Text("Порт \(remoteServer.port)")
+                    .font(DSFont.sidebarItemSmall)
+                    .foregroundStyle(DSColor.textMuted)
+                Spacer()
+                Circle()
+                    .fill(remoteServer.isRunning ? DSColor.gitAdded : DSColor.actionStop)
+                    .frame(width: 6, height: 6)
+                Text(remoteServer.isRunning ? "Активен" : "Остановлен")
+                    .font(DSFont.sidebarItemSmall)
+                    .foregroundStyle(DSColor.textMuted)
+            }
+        }
+        .padding(DSSpacing.md)
+        .frame(minWidth: 240, maxWidth: 280)
     }
 
     // MARK: - Settings Button
