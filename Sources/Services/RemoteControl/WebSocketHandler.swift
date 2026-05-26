@@ -12,11 +12,17 @@ import OSLog
 /// After the HTTP-to-WebSocket upgrade completes, this handler manages
 /// the full lifecycle of a remote terminal session:
 ///
-/// 1. **Channel active:** Create a ``RemoteSessionBridge``, register with the server.
-/// 2. **Text frames:** Parse JSON, dispatch to bridge (input/resize/ping/detach).
-/// 3. **Binary frames:** Not expected from clients -- ignored.
-/// 4. **Close frame:** Clean up bridge, unregister from server.
-/// 5. **Heartbeat:** If no message for 60s, close with code 4004.
+/// 1. **Channel active:** Wait for authentication (first text message).
+/// 2. **First text frame:** Must be `{"type":"auth","token":"..."}`. Validates
+///    via ``RemoteAuthService``. On success, creates ``RemoteSessionBridge``.
+/// 3. **Subsequent text frames:** Parse JSON, dispatch to bridge (input/resize/ping/detach).
+/// 4. **Binary frames:** Not expected from clients -- ignored.
+/// 5. **Close frame:** Clean up bridge, unregister from server.
+/// 6. **Heartbeat:** If no message for 60s, close with code 4004.
+///
+/// **Security:**
+/// Token is sent as the first WS message (not in URL query params) to prevent
+/// leakage in server logs, browser history, and Referer headers.
 ///
 /// **Threading model:**
 /// This handler runs on a NIO `EventLoop` thread. All bridge operations
@@ -30,7 +36,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
 
     // MARK: - State
 
-    /// The session bridge (created on channel active, MainActor-owned).
+    /// The session bridge (created after authentication, MainActor-owned).
     /// Protected by `NSLock` to allow safe reads from the NIO event loop
     /// thread while writes occur from MainActor context.
     private let bridgeLock = NSLock()
@@ -42,8 +48,17 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     /// The terminal session ID extracted from the URL path.
     private let sessionId: UUID
 
-    /// Device info from the authentication token.
-    private let deviceInfo: RemoteDevice
+    /// Device info — nil until first message authenticates successfully.
+    private var deviceInfo: RemoteDevice?
+
+    /// Whether the connection has been authenticated via first WS message.
+    private var isAuthenticated = false
+
+    /// Auth service for validating the token on first message.
+    private let authService: RemoteAuthService?
+
+    /// Client IP for token validation.
+    private let clientIP: String
 
     /// Weak reference to the server for bridge registration.
     private weak var serverRef: RemoteControlServer?
@@ -57,8 +72,14 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     /// Heartbeat timer: close connection if no message received within 60 seconds.
     nonisolated(unsafe) private var heartbeatTask: Task<Void, Never>?
 
+    /// Auth timeout: close if no auth message within 10 seconds.
+    nonisolated(unsafe) private var authTimeoutTask: Task<Void, Never>?
+
     /// JSON decoder.
     private let decoder = JSONDecoder()
+
+    /// JSON encoder (reused across pong responses).
+    private let pongEncoder = JSONEncoder()
 
     // MARK: - Init
 
@@ -66,22 +87,29 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     ///
     /// - Parameters:
     ///   - sessionId: The terminal session to attach to.
-    ///   - deviceInfo: The authenticated remote device.
+    ///   - deviceInfo: Pre-authenticated device (nil = auth via first message).
     ///   - serverRef: The server for bridge registration/unregistration.
     ///   - terminalService: Terminal service for PTY I/O.
     ///   - idleTimeoutMinutes: Idle timeout from preferences.
+    ///   - authService: Auth service for first-message validation.
+    ///   - clientIP: Client IP for token validation.
     init(
         sessionId: UUID,
-        deviceInfo: RemoteDevice,
+        deviceInfo: RemoteDevice?,
         serverRef: RemoteControlServer?,
         terminalService: TerminalService,
-        idleTimeoutMinutes: Int
+        idleTimeoutMinutes: Int,
+        authService: RemoteAuthService? = nil,
+        clientIP: String = ""
     ) {
         self.sessionId = sessionId
         self.deviceInfo = deviceInfo
+        self.isAuthenticated = deviceInfo != nil
         self.serverRef = serverRef
         self.terminalService = terminalService
         self.idleTimeoutMinutes = idleTimeoutMinutes
+        self.authService = authService
+        self.clientIP = clientIP
     }
 
     // MARK: - Channel Lifecycle
@@ -90,10 +118,8 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         #if DEBUG
         HTTPRequestRouter.wsLog("[WSH] handlerAdded isActive=\(context.channel.isActive)")
         #endif
-        // When added to an already-active pipeline (manual WS upgrade),
-        // channelActive is not called. Initialize here instead.
         if context.channel.isActive {
-            initializeSession(channel: context.channel)
+            onChannelReady(channel: context.channel)
         }
     }
 
@@ -101,28 +127,39 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         #if DEBUG
         HTTPRequestRouter.wsLog("[WSH] channelActive fired")
         #endif
-        // When added during NIO's upgrade flow, channelActive fires after
-        // handlerAdded. Guard against double-init.
         if cachedChannel == nil {
-            initializeSession(channel: context.channel)
+            onChannelReady(channel: context.channel)
         }
     }
 
-    private func initializeSession(channel: Channel) {
+    /// Called when channel is ready. If pre-authenticated, initialize session
+    /// immediately. Otherwise, start auth timeout.
+    private func onChannelReady(channel: Channel) {
         cachedChannel = channel
+
+        if isAuthenticated, let deviceInfo {
+            initializeSession(channel: channel, device: deviceInfo)
+        } else {
+            // Start auth timeout — client must send auth within 10 seconds.
+            startAuthTimeout(channel: channel)
+        }
+
+        resetHeartbeat(channel: channel)
+    }
+
+    private func initializeSession(channel: Channel, device: RemoteDevice) {
         let sessionId = self.sessionId
-        let deviceInfo = self.deviceInfo
         let termSvc = self.terminalService
         let idleTimeout = self.idleTimeoutMinutes
         let serverRef = self.serverRef
 
         #if DEBUG
-        HTTPRequestRouter.wsLog("[WSH] initializeSession: session=\(sessionId) device=\(deviceInfo.id)")
+        HTTPRequestRouter.wsLog("[WSH] initializeSession: session=\(sessionId) device=\(device.id)")
         #endif
 
         Task { @MainActor [weak self] in
             let bridge = RemoteSessionBridge(
-                deviceId: deviceInfo.id,
+                deviceId: device.id,
                 sessionId: sessionId,
                 channel: channel,
                 terminalService: termSvc,
@@ -131,10 +168,8 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             self?.setBridge(bridge)
             bridge.startStreaming()
             serverRef?.registerBridge(bridge)
-            RemoteAuditLog.deviceConnect(device: deviceInfo, sessionId: sessionId)
+            RemoteAuditLog.deviceConnect(device: device, sessionId: sessionId)
         }
-
-        resetHeartbeat(channel: channel)
     }
 
     func channelInactive(context: ChannelHandlerContext) {
@@ -143,16 +178,20 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         #endif
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        authTimeoutTask?.cancel()
+        authTimeoutTask = nil
 
         let bridge = takeBridge()
         let serverRef = self.serverRef
-        let deviceId = deviceInfo.id
+        let deviceId = deviceInfo?.id
 
         Task { @MainActor in
             if let bridge {
                 serverRef?.unregisterBridge(bridge)
             }
-            RemoteAuditLog.deviceDisconnect(deviceId: deviceId, reason: "connection_closed")
+            if let deviceId {
+                RemoteAuditLog.deviceDisconnect(deviceId: deviceId, reason: "connection_closed")
+            }
         }
         cachedChannel = nil
     }
@@ -170,26 +209,22 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             handleTextFrame(frame, channel: context.channel)
 
         case .binary:
-            // Binary frames from client are not expected -- ignore.
             Logger.remoteControl.debug("RemoteWebSocketHandler: unexpected binary frame from client")
 
         case .connectionClose:
             handleClose(context: context, frame: frame)
 
         case .ping:
-            // Respond with pong.
             let pongFrame = WebSocketFrame(fin: true, opcode: .pong, data: frame.unmaskedData)
             context.writeAndFlush(wrapOutboundOut(pongFrame), promise: nil)
 
         case .pong:
-            // Client responded to our ping -- no action needed.
             break
 
         default:
             break
         }
 
-        // Reset heartbeat on any message.
         if let ch = cachedChannel {
             resetHeartbeat(channel: ch)
         }
@@ -208,7 +243,6 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     // MARK: - Private: Text Frame Processing
 
     private func handleTextFrame(_ frame: WebSocketFrame, channel: Channel) {
-        // Reject oversized frames (64KB limit for JSON control messages).
         guard frame.unmaskedData.readableBytes <= 65_536 else {
             Logger.remoteControl.warning(
                 "RemoteWebSocketHandler: oversized frame rejected (\(frame.unmaskedData.readableBytes) bytes)"
@@ -221,7 +255,6 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             return
         }
 
-        // Parse the discriminator "type" field first.
         struct TypeEnvelope: Decodable {
             let type: String
         }
@@ -231,9 +264,23 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             return
         }
 
+        // SECURITY: First message must be auth. All other messages rejected until authenticated.
+        if !isAuthenticated {
+            if envelope.type == "auth" {
+                handleAuthMessage(jsonData: jsonData, channel: channel)
+            } else {
+                sendErrorAndClose(code: 4000, reason: "Authentication required", channel: channel)
+            }
+            return
+        }
+
         let bridge = getBridge()
 
         switch envelope.type {
+        case "auth":
+            // Already authenticated — ignore duplicate auth messages.
+            break
+
         case "input":
             guard let msg = try? decoder.decode(WSInputMessage.self, from: jsonData) else { return }
             Task { @MainActor in
@@ -253,7 +300,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                 ts: msg.ts,
                 serverTs: Int64(Date().timeIntervalSince1970 * 1000)
             )
-            if let pongData = try? JSONEncoder().encode(pong),
+            if let pongData = try? self.pongEncoder.encode(pong),
                let pongString = String(data: pongData, encoding: .utf8) {
                 var buffer = channel.allocator.buffer(capacity: pongString.utf8.count)
                 buffer.writeString(pongString)
@@ -271,10 +318,87 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         }
     }
 
+    // MARK: - Private: Auth Message
+
+    /// Handle the first WS message: `{"type":"auth","token":"<jwt>"}`.
+    private func handleAuthMessage(jsonData: Data, channel: Channel) {
+        struct AuthEnvelope: Decodable {
+            let token: String
+        }
+
+        guard let authMsg = try? decoder.decode(AuthEnvelope.self, from: jsonData) else {
+            sendErrorAndClose(code: 4000, reason: "Invalid auth message format", channel: channel)
+            return
+        }
+
+        guard let authSvc = authService else {
+            sendErrorAndClose(code: 4000, reason: "Auth service unavailable", channel: channel)
+            return
+        }
+
+        let ip = clientIP
+        let token = authMsg.token
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let result = authSvc.validateToken(token, clientIP: ip)
+            switch result {
+            case .success(let device):
+                self.deviceInfo = device
+                self.isAuthenticated = true
+                self.authTimeoutTask?.cancel()
+                self.authTimeoutTask = nil
+
+                // Send auth success confirmation.
+                let ack = "{\"type\":\"auth_ok\"}"
+                self.sendTextOnEventLoop(ack, channel: channel)
+
+                self.initializeSession(channel: channel, device: device)
+
+            case .failure:
+                channel.eventLoop.execute {
+                    self.sendErrorAndClose(code: 4000, reason: "Authentication failed", channel: channel)
+                }
+            }
+        }
+    }
+
+    /// Send a text frame via eventLoop.
+    private func sendTextOnEventLoop(_ text: String, channel: Channel) {
+        channel.eventLoop.execute {
+            var buffer = channel.allocator.buffer(capacity: text.utf8.count)
+            buffer.writeString(text)
+            let frame = WebSocketFrame(fin: true, opcode: .text, data: buffer)
+            channel.writeAndFlush(NIOAny(frame), promise: nil)
+        }
+    }
+
+    /// Send error and close with custom code.
+    private func sendErrorAndClose(code: UInt16, reason: String, channel: Channel) {
+        var buffer = channel.allocator.buffer(capacity: 2 + reason.utf8.count)
+        buffer.writeInteger(code)
+        buffer.writeString(reason)
+        let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
+        channel.writeAndFlush(NIOAny(frame)).whenComplete { _ in
+            channel.close(promise: nil)
+        }
+    }
+
+    // MARK: - Private: Auth Timeout
+
+    /// Close connection if no auth message received within 10 seconds.
+    private func startAuthTimeout(channel: Channel) {
+        authTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled, let self, !self.isAuthenticated else { return }
+            Logger.remoteControl.warning("RemoteWebSocketHandler: auth timeout, closing unauthenticated connection")
+            self.sendErrorAndClose(code: 4000, reason: "Auth timeout", channel: channel)
+        }
+    }
+
     // MARK: - Private: Close Handling
 
     private func handleClose(context: ChannelHandlerContext, frame: WebSocketFrame) {
-        // Echo the close frame back per the WebSocket protocol.
         let closeData = frame.unmaskedData
         let closeFrame = WebSocketFrame(fin: true, opcode: .connectionClose, data: closeData)
         context.writeAndFlush(wrapOutboundOut(closeFrame)).whenComplete { _ in
@@ -312,7 +436,6 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         heartbeatTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(60))
             guard !Task.isCancelled else { return }
-            // No message received for 60 seconds -- close with idle timeout.
             Logger.remoteControl.info("RemoteWebSocketHandler: heartbeat timeout, closing connection")
             var buffer = channel.allocator.buffer(capacity: 2 + "Heartbeat timeout".utf8.count)
             buffer.writeInteger(UInt16(4004))

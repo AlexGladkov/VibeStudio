@@ -25,6 +25,21 @@ import SwiftASN1
 /// - Certificate uses ECDSA P-256 with SHA-256 signing.
 /// - Subject Alternative Names: `localhost`, `127.0.0.1`.
 /// - Validity: 1 year from generation.
+/// Errors thrown by ``TLSCertificateManager``.
+enum CertificateError: LocalizedError {
+    case invalidValidity
+    case encodingFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidValidity:
+            return "Failed to compute certificate validity period"
+        case .encodingFailed(let component):
+            return "Failed to encode \(component) to UTF-8"
+        }
+    }
+}
+
 struct TLSCertificateManager {
 
     // MARK: - Constants
@@ -35,10 +50,12 @@ struct TLSCertificateManager {
 
     /// Storage directory for TLS certificate and private key.
     private static let storageDir: URL = {
-        let appSupport = FileManager.default.urls(
+        guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first!
+        ).first else {
+            preconditionFailure("Application Support directory not found — sandbox misconfigured")
+        }
         return appSupport.appendingPathComponent("VibeStudio/remote-tls", isDirectory: true)
     }()
 
@@ -95,7 +112,9 @@ struct TLSCertificateManager {
 
         let now = Date()
         let notBefore = now
-        let notAfter = Calendar.current.date(byAdding: .day, value: validityDays, to: now)!
+        guard let notAfter = Calendar.current.date(byAdding: .day, value: validityDays, to: now) else {
+            throw CertificateError.invalidValidity
+        }
 
         // Subject Alternative Names: localhost + loopback IP.
         let extensions = try Certificate.Extensions {
@@ -151,12 +170,18 @@ struct TLSCertificateManager {
         var certSerializer = DER.Serializer()
         try cert.serialize(into: &certSerializer)
         let certPEM = PEMDocument(type: "CERTIFICATE", derBytes: certSerializer.serializedBytes)
-        try certPEM.pemString.data(using: .utf8)?.write(to: certPath)
+        guard let certData = certPEM.pemString.data(using: .utf8) else {
+            throw CertificateError.encodingFailed("certificate PEM")
+        }
+        try certData.write(to: certPath)
 
         // Serialize private key to PEM.
         let keyDER = key.derRepresentation
         let keyPEM = PEMDocument(type: "EC PRIVATE KEY", derBytes: Array(keyDER))
-        try keyPEM.pemString.data(using: .utf8)?.write(to: keyPath)
+        guard let keyData = keyPEM.pemString.data(using: .utf8) else {
+            throw CertificateError.encodingFailed("private key PEM")
+        }
+        try keyData.write(to: keyPath)
 
         // SECURITY: Restrict private key file permissions to owner-only.
         try fm.setAttributes(

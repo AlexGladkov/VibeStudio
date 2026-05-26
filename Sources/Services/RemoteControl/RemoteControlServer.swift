@@ -71,10 +71,10 @@ final class RemoteControlServer {
 
     // MARK: - Dependencies
 
-    let authService: RemoteAuthService
-    let preferences: RemoteControlPreferences
-    let terminalService: TerminalService
-    let projectManager: any ProjectManaging
+    private(set) var authService: RemoteAuthService
+    private(set) var preferences: RemoteControlPreferences
+    private(set) var terminalService: TerminalService
+    private(set) var projectManager: any ProjectManaging
     private let bonjour: BonjourAdvertiser
     private let ngrok: NgrokTunnelService
 
@@ -251,7 +251,9 @@ final class RemoteControlServer {
                     )
                     .childChannelInitializer(configureChildChannel)
 
-                let httpCh = try? await httpBootstrap.bind(host: bindHost, port: bindPort + 1).get()
+                // SECURITY: Plain HTTP always bound to loopback only, regardless of
+                // bindHost setting. This prevents cleartext credentials on the LAN.
+                let httpCh = try? await httpBootstrap.bind(host: "127.0.0.1", port: bindPort + 1).get()
 
                 await MainActor.run {
                     guard let server = weakSelf else { return }
@@ -458,6 +460,7 @@ final class RemoteControlServer {
                 guard !Task.isCancelled else { return }
 
                 // Sessions changed -- broadcast to all bridges.
+                let encoder = JSONEncoder()
                 for (projectId, sessions) in terminalService.sessionsByProject {
                     let sessionResponses = sessions.map { session in
                         SessionResponse(
@@ -478,7 +481,7 @@ final class RemoteControlServer {
                         projectId: projectId.uuidString,
                         sessions: sessionResponses
                     )
-                    if let data = try? JSONEncoder().encode(msg),
+                    if let data = try? encoder.encode(msg),
                        let json = String(data: data, encoding: .utf8) {
                         self.broadcastTextMessage(json)
                     }

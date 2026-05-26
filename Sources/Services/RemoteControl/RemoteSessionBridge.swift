@@ -50,12 +50,16 @@ final class RemoteSessionBridge {
     /// Task that fires the idle timeout closure.
     private var idleTimer: Task<Void, Never>?
 
-    /// Sliding window of input message timestamps for rate limiting.
-    /// Capped at 120 entries per minute.
-    private var inputTimestamps: [Date] = []
+    /// Rate limiter: O(1) sliding window counter.
+    /// Tracks message count and window start instead of storing all timestamps.
+    private var rateLimitCount: Int = 0
+    private var rateLimitWindowStart: Date = .distantPast
 
     /// Rate limit: maximum input messages per minute.
     private static let maxInputPerMinute = 120
+
+    /// Shared encoder for rate-limit messages.
+    private let jsonEncoder = JSONEncoder()
 
     /// Output throttle: batch terminal output for 16ms before sending.
     private var outputBufferTask: Task<Void, Never>?
@@ -154,17 +158,20 @@ final class RemoteSessionBridge {
     func handleInput(_ data: String) {
         resetIdleTimer()
 
-        // Rate limiting: 120 messages/min sliding window.
+        // Rate limiting: O(1) sliding window counter (120 messages/min).
         let now = Date()
-        let oneMinuteAgo = now.addingTimeInterval(-60)
-        inputTimestamps.removeAll { $0 < oneMinuteAgo }
+        if now.timeIntervalSince(rateLimitWindowStart) >= 60 {
+            // Window expired — reset.
+            rateLimitWindowStart = now
+            rateLimitCount = 0
+        }
 
-        if inputTimestamps.count >= Self.maxInputPerMinute {
+        if rateLimitCount >= Self.maxInputPerMinute {
             sendRateLimitWarning()
             return
         }
 
-        inputTimestamps.append(now)
+        rateLimitCount += 1
 
         // Relay to PTY.
         terminalService.sendInput(data, to: sessionId)
@@ -211,7 +218,7 @@ final class RemoteSessionBridge {
         outputBufferTask?.cancel()
         outputBufferTask = nil
         pendingRawBytes = []
-        inputTimestamps = []
+        rateLimitCount = 0
 
         Logger.remoteControl.info(
             "RemoteSessionBridge: detached session=\(self.sessionId) device=\(self.deviceId)"
@@ -260,7 +267,7 @@ final class RemoteSessionBridge {
             message: "Input rate limit exceeded. Messages are being dropped.",
             retryAfterMs: 500
         )
-        if let json = try? JSONEncoder().encode(msg),
+        if let json = try? jsonEncoder.encode(msg),
            let str = String(data: json, encoding: .utf8) {
             sendTextFrame(str)
         }

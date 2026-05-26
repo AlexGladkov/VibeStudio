@@ -4,27 +4,6 @@
 
 import Foundation
 
-// MARK: - Health
-
-/// `GET /api/v1/health` response.
-struct HealthResponse: Codable {
-    let status: String
-    let version: String
-    let apiVersion: String
-    let uptimeSeconds: Int
-    let connectedDevices: Int
-    let maxDevices: Int
-    let tls: String
-
-    enum CodingKeys: String, CodingKey {
-        case status, version, tls
-        case apiVersion = "api_version"
-        case uptimeSeconds = "uptime_seconds"
-        case connectedDevices = "connected_devices"
-        case maxDevices = "max_devices"
-    }
-}
-
 // MARK: - Authentication
 
 /// `POST /api/v1/auth/token` request body.
@@ -100,36 +79,6 @@ struct SessionResponse: Codable {
     }
 }
 
-/// Session detail with terminal info for `GET /api/v1/projects/{id}/sessions/{id}`.
-struct SessionDetailResponse: Codable {
-    let id: String
-    let projectId: String
-    let title: String
-    let state: String
-    let isAgent: Bool
-    let hasRemoteAttachment: Bool
-    let terminal: TerminalInfoResponse?
-
-    enum CodingKeys: String, CodingKey {
-        case id, title, state, terminal
-        case projectId = "project_id"
-        case isAgent = "is_agent"
-        case hasRemoteAttachment = "has_remote_attachment"
-    }
-}
-
-/// Terminal dimensions and scrollback info.
-struct TerminalInfoResponse: Codable {
-    let cols: Int
-    let rows: Int
-    let scrollbackLines: Int
-
-    enum CodingKeys: String, CodingKey {
-        case cols, rows
-        case scrollbackLines = "scrollback_lines"
-    }
-}
-
 /// `GET /api/v1/projects/{id}/sessions/{id}/scrollback` response.
 struct ScrollbackResponse: Codable {
     let content: String
@@ -151,6 +100,41 @@ struct ProjectsListResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case projects
         case activeProjectId = "active_project_id"
+    }
+}
+
+// MARK: - Recent Projects
+
+/// Lightweight recent project info for `GET /api/v1/projects/recent`.
+struct RecentProjectResponse: Codable {
+    let name: String
+    let path: String
+    let lastOpened: String
+
+    enum CodingKeys: String, CodingKey {
+        case name, path
+        case lastOpened = "last_opened"
+    }
+}
+
+/// Recent projects list wrapper for `GET /api/v1/projects/recent`.
+struct RecentProjectsListResponse: Codable {
+    let projects: [RecentProjectResponse]
+}
+
+/// `POST /api/v1/projects/open` request body.
+struct OpenProjectRequest: Codable {
+    let path: String
+}
+
+/// `POST /api/v1/projects/open` success response.
+struct OpenProjectResponse: Codable {
+    let ok: Bool
+    let projectId: String
+
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case projectId = "project_id"
     }
 }
 
@@ -330,10 +314,17 @@ enum AnyCodableValue: Codable, Equatable {
 
 /// Discriminator for client-to-server WebSocket messages.
 enum WSMessageType: String, Codable {
+    case auth
     case input
     case resize
     case ping
     case detach
+}
+
+/// Client-to-server: authentication (must be first message after WS connect).
+struct WSAuthMessage: Codable {
+    let type: WSMessageType
+    let token: String
 }
 
 /// Client-to-server: terminal text input.
@@ -353,11 +344,6 @@ struct WSResizeMessage: Codable {
 struct WSPingMessage: Codable {
     let type: WSMessageType
     let ts: Int64
-}
-
-/// Client-to-server: graceful session detach.
-struct WSDetachMessage: Codable {
-    let type: WSMessageType
 }
 
 // MARK: - WebSocket Messages (Server -> Client)

@@ -45,6 +45,9 @@ final class NgrokTunnelService {
     /// Stderr pipe for capturing error output.
     private var stderrPipe: Pipe?
 
+    /// Accumulated stderr output (read asynchronously during process lifetime).
+    private var accumulatedStderr: String = ""
+
     // MARK: - Start
 
     /// Start the ngrok tunnel for the given HTTP port.
@@ -65,17 +68,17 @@ final class NgrokTunnelService {
             return
         }
 
-        // Build minimal environment.
-        let env = Self.buildEnvironment()
+        // Build minimal environment. Pass authtoken via env var (not CLI args)
+        // to prevent it from being visible in `ps aux` process listings.
+        var env = Self.buildEnvironment()
+        if !authtoken.isEmpty {
+            env["NGROK_AUTHTOKEN"] = authtoken
+        }
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: ngrokPath)
 
-        var args = ["http", "\(httpPort)"]
-        if !authtoken.isEmpty {
-            args += ["--authtoken", authtoken]
-        }
-        proc.arguments = args
+        proc.arguments = ["http", "\(httpPort)"]
         proc.environment = env
 
         // Capture stderr for error diagnostics.
@@ -85,12 +88,24 @@ final class NgrokTunnelService {
         proc.standardOutput = Pipe()
 
         self.stderrPipe = errPipe
+        self.accumulatedStderr = ""
+
+        // Read stderr asynchronously during process lifetime to avoid
+        // blocking readDataToEndOfFile in the termination handler.
+        errPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty,
+                  let text = String(data: data, encoding: .utf8) else { return }
+            Task { @MainActor [weak self] in
+                self?.accumulatedStderr += text
+            }
+        }
 
         // Termination handler — reset state on MainActor.
         proc.terminationHandler = { [weak self] terminatedProcess in
             let exitCode = terminatedProcess.terminationStatus
-            let stderrData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Stop async reading — process is done.
+            errPipe.fileHandleForReading.readabilityHandler = nil
 
             Task { @MainActor [weak self] in
                 guard let self, self.process === terminatedProcess else { return }
@@ -100,9 +115,10 @@ final class NgrokTunnelService {
                 self.pollTask = nil
 
                 if exitCode != 0 && self.error == nil {
-                    self.error = stderrText?.isEmpty == false
-                        ? "ngrok: \(stderrText!)"
-                        : "ngrok завершился с кодом \(exitCode)"
+                    let stderrText = self.accumulatedStderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.error = stderrText.isEmpty
+                        ? "ngrok завершился с кодом \(exitCode)"
+                        : "ngrok: \(stderrText)"
                 }
 
                 Logger.remoteControl.info(
@@ -135,18 +151,35 @@ final class NgrokTunnelService {
     // MARK: - Stop
 
     /// Stop the ngrok tunnel and terminate the subprocess.
+    ///
+    /// Sends SIGTERM first, then SIGKILL after 5 seconds if the process
+    /// has not exited, preventing orphaned ngrok processes.
     func stop() {
         pollTask?.cancel()
         pollTask = nil
 
         if let proc = process, proc.isRunning {
+            let pid = proc.processIdentifier
             proc.terminate()
+
+            // Schedule SIGKILL fallback if SIGTERM is ignored.
+            Task.detached {
+                try? await Task.sleep(for: .seconds(5))
+                if proc.isRunning {
+                    kill(pid, SIGKILL)
+                    Logger.remoteControl.warning(
+                        "NgrokTunnelService: sent SIGKILL to ngrok (pid=\(pid))"
+                    )
+                }
+            }
         }
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
         process = nil
         isRunning = false
         tunnelURL = nil
         error = nil
         stderrPipe = nil
+        accumulatedStderr = ""
 
         Logger.remoteControl.info("NgrokTunnelService: stopped")
     }

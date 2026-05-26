@@ -85,7 +85,7 @@ class PinInput {
   // --- Private ---
 
   _bindEvents() {
-    var self = this;
+    const self = this;
 
     this.digits.forEach(function (digit, idx) {
       digit.addEventListener('input', function (e) {
@@ -107,7 +107,7 @@ class PinInput {
   }
 
   _onInput(_e, idx) {
-    var value = this.digits[idx].value;
+    const value = this.digits[idx].value;
     // Keep only last digit (handles some Android IME quirks)
     if (value.length > 1) {
       this.digits[idx].value = value.slice(-1);
@@ -143,11 +143,11 @@ class PinInput {
 
   _onPaste(e) {
     e.preventDefault();
-    var text = (e.clipboardData || window.clipboardData).getData('text').trim();
-    var digits = text.replace(/\D/g, '').slice(0, 6);
+    const text = (e.clipboardData || window.clipboardData).getData('text').trim();
+    const digits = text.replace(/\D/g, '').slice(0, 6);
     if (digits.length === 0) return;
 
-    for (var i = 0; i < digits.length && i < 6; i++) {
+    for (let i = 0; i < digits.length && i < 6; i++) {
       this.digits[i].value = digits[i];
     }
     if (digits.length >= 6) {
@@ -159,15 +159,15 @@ class PinInput {
   }
 
   _tryComplete() {
-    var pin = this.digits.map(function (d) { return d.value; }).join('');
+    const pin = this.digits.map(function (d) { return d.value; }).join('');
     if (pin.length === 6 && /^\d{6}$/.test(pin) && this.onComplete) {
       this.onComplete(pin);
     }
   }
 
   _startCountdown(totalSeconds) {
-    var self = this;
-    var remaining = totalSeconds;
+    const self = this;
+    let remaining = totalSeconds;
     self._updateCountdownDisplay(remaining);
 
     clearInterval(self._countdownTimer);
@@ -185,8 +185,8 @@ class PinInput {
   }
 
   _updateCountdownDisplay(seconds) {
-    var m = Math.floor(seconds / 60);
-    var s = seconds % 60;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
     this.countdownEl.textContent = m + ':' + (s < 10 ? '0' : '') + s;
   }
 }
@@ -227,13 +227,13 @@ class VibeStudioClient {
    * @returns {Promise<{ok: boolean, token?: string, error?: object}>}
    */
   async authenticate(pin) {
-    var resp = await fetch(this._baseUrl + '/api/v1/auth/token', {
+    const resp = await fetch(this._baseUrl + '/api/v1/auth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: pin })
     });
 
-    var data = await resp.json();
+    const data = await resp.json();
 
     if (resp.ok) {
       sessionStorage.setItem('vs_token', data.token);
@@ -253,7 +253,7 @@ class VibeStudioClient {
     if (!this.hasToken()) return false;
 
     try {
-      var resp = await this._fetch('/api/v1/auth/validate');
+      const resp = await this._fetch('/api/v1/auth/validate');
       if (!resp.ok) {
         if (resp.status === 401) this.clearToken();
         return false;
@@ -269,7 +269,7 @@ class VibeStudioClient {
    * @returns {Promise<{projects: Array, active_project_id: string}>}
    */
   async getProjects() {
-    var resp = await this._fetch('/api/v1/projects');
+    const resp = await this._fetch('/api/v1/projects');
     if (!resp.ok) throw new ApiError(resp.status, await resp.json());
     return resp.json();
   }
@@ -279,7 +279,7 @@ class VibeStudioClient {
    * @returns {Promise<object>}
    */
   async getStatus() {
-    var resp = await this._fetch('/api/v1/status');
+    const resp = await this._fetch('/api/v1/status');
     if (!resp.ok) throw new ApiError(resp.status, await resp.json());
     return resp.json();
   }
@@ -292,9 +292,9 @@ class VibeStudioClient {
    * @returns {Promise<{content: string, total_lines: number}>}
    */
   async getScrollback(projectId, sessionId, lines) {
-    var url = '/api/v1/projects/' + projectId + '/sessions/' + sessionId + '/scrollback';
+    let url = '/api/v1/projects/' + projectId + '/sessions/' + sessionId + '/scrollback';
     if (lines) url += '?lines=' + lines;
-    var resp = await this._fetch(url);
+    const resp = await this._fetch(url);
     if (!resp.ok) throw new ApiError(resp.status, await resp.json());
     return resp.json();
   }
@@ -305,8 +305,27 @@ class VibeStudioClient {
    * @returns {Promise<object>}
    */
   async activateProject(projectId) {
-    var resp = await this._fetchJSON('POST', '/api/v1/projects/' + projectId + '/activate');
+    const resp = await this._fetchJSON('POST', '/api/v1/projects/' + projectId + '/activate');
     return resp;
+  }
+
+  /**
+   * Fetch recently opened projects (not currently in sidebar).
+   * @returns {Promise<{projects: Array}>}
+   */
+  async getRecentProjects() {
+    const resp = await this._fetch('/api/v1/projects/recent');
+    if (!resp.ok) throw new ApiError(resp.status, await resp.json());
+    return resp.json();
+  }
+
+  /**
+   * Open a project by filesystem path (from recent history).
+   * @param {string} path — absolute path on Mac
+   * @returns {Promise<{ok: boolean, project_id: string}>}
+   */
+  async openProject(path) {
+    return this._fetchJSON('POST', '/api/v1/projects/open', { path: path });
   }
 
   /**
@@ -328,20 +347,20 @@ class VibeStudioClient {
 
   /** @private */
   async _fetch(path) {
-    var token = this.getToken();
-    var headers = {};
+    const token = this.getToken();
+    const headers = {};
     if (token) headers['Authorization'] = 'Bearer ' + token;
     return fetch(this._baseUrl + path, { headers: headers });
   }
 
   /** @private */
   async _fetchJSON(method, path, body) {
-    var token = this.getToken();
-    var headers = { 'Content-Type': 'application/json' };
+    const token = this.getToken();
+    const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
-    var opts = { method: method, headers: headers };
+    const opts = { method: method, headers: headers };
     if (body) opts.body = JSON.stringify(body);
-    var resp = await fetch(this._baseUrl + path, opts);
+    const resp = await fetch(this._baseUrl + path, opts);
     return resp.json();
   }
 }
@@ -416,7 +435,7 @@ class ReconnectingWS {
   _doConnect() {
     if (this._closed) return;
 
-    var self = this;
+    const self = this;
     if (this.onStatusChange) this.onStatusChange('connecting');
 
     try {
@@ -442,10 +461,6 @@ class ReconnectingWS {
 
     this.ws.onclose = function (evt) {
       clearInterval(self._pingInterval);
-      console.error('[WS] close code=' + evt.code + ' reason=' + evt.reason + ' url=' + self.url);
-      // Debug: show close code visually
-      var dbgLabel = document.getElementById('status-label');
-      if (dbgLabel) dbgLabel.textContent = 'WS close:' + evt.code + ' ' + (evt.reason || '');
       if (self.onStatusChange) self.onStatusChange('disconnected');
 
       if (self.onClose) self.onClose(evt.code, evt.reason);
@@ -457,17 +472,16 @@ class ReconnectingWS {
 
     this.ws.onerror = function (e) {
       // onclose will fire after onerror — reconnect handled there
-      console.error('[WS] error', self.url, e);
     };
   }
 
   /** @private */
   _scheduleReconnect() {
     if (this._closed) return;
-    var delay = this._attempt === 0 ? 0 : Math.min(1000 * Math.pow(2, this._attempt - 1), 30000);
+    const delay = this._attempt === 0 ? 0 : Math.min(1000 * Math.pow(2, this._attempt - 1), 30000);
     this._attempt++;
 
-    var self = this;
+    const self = this;
     clearTimeout(this._reconnectTimeout);
     this._reconnectTimeout = setTimeout(function () {
       self._doConnect();
@@ -476,7 +490,7 @@ class ReconnectingWS {
 
   /** @private — ping every 30s */
   _startPing() {
-    var self = this;
+    const self = this;
     clearInterval(this._pingInterval);
     this._pingInterval = setInterval(function () {
       self.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
@@ -512,7 +526,7 @@ class TerminalManager {
 
   /** Create and mount xterm.js terminal. */
   init() {
-    var fontSize = this._calcFontSize();
+    const fontSize = this._calcFontSize();
 
     this.term = new window.Terminal({
       fontSize: fontSize,
@@ -548,9 +562,9 @@ class TerminalManager {
    *  events for vertical scrollback), so shrinking the font is the only
    *  reliable way to guarantee 80-col TUI rendering. */
   _fitWithMinCols() {
-    var MIN_COLS = 80;
-    var MIN_FONT = 6;
-    var xtermEl = this.container.querySelector('.xterm');
+    const MIN_COLS = 80;
+    const MIN_FONT = 6;
+    const xtermEl = this.container.querySelector('.xterm');
 
     // Reset any forced width from previous attempts
     if (xtermEl) xtermEl.style.width = '';
@@ -560,17 +574,20 @@ class TerminalManager {
 
     if (this.term.cols >= MIN_COLS) return;
 
-    // Measure current cell width to calculate required font size
-    var core = this.term._core;
+    // Measure current cell width to calculate required font size.
+    // NOTE: Accesses xterm.js internal `_core._renderService` — no public API
+    // for cell dimensions exists. May break on xterm.js major version updates.
+    // Gracefully degrades: if internals change, columns stay at whatever fit() gives.
+    const core = this.term._core;
     if (!core || !core._renderService) return;
 
-    var cellWidth = core._renderService.dimensions.css.cell.width;
+    const cellWidth = core._renderService.dimensions.css.cell.width;
     if (cellWidth <= 0) return;
 
-    var containerWidth = this.container.clientWidth;
-    var neededCellWidth = containerWidth / MIN_COLS;
-    var scaleFactor = neededCellWidth / cellWidth;
-    var newFontSize = Math.floor(this.term.options.fontSize * scaleFactor);
+    const containerWidth = this.container.clientWidth;
+    const neededCellWidth = containerWidth / MIN_COLS;
+    const scaleFactor = neededCellWidth / cellWidth;
+    let newFontSize = Math.floor(this.term.options.fontSize * scaleFactor);
 
     if (newFontSize < MIN_FONT) newFontSize = MIN_FONT;
 
@@ -591,16 +608,12 @@ class TerminalManager {
    * @param {string} token
    */
   connect(sessionId, token) {
-    var self = this;
+    const self = this;
 
-    // Build WS URL
-    var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var wsUrl = proto + '//' + location.host + '/api/v1/terminal/' + sessionId + '?token=' + encodeURIComponent(token);
-    console.log('[WS] connecting to:', wsUrl);
-    // Debug: show WS URL in status label temporarily
-    var dbgLabel = document.getElementById('status-label');
-    if (dbgLabel) dbgLabel.textContent = 'WS→' + wsUrl.substring(0, 40);
-
+    // SECURITY: Token NOT in URL (prevents leakage in logs/history/Referer).
+    // Sent as first WS message after connection.
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = proto + '//' + location.host + '/api/v1/terminal/' + sessionId;
     // Close previous WS if any
     if (this.ws) {
       this.ws.close();
@@ -609,7 +622,9 @@ class TerminalManager {
     this.ws = new ReconnectingWS(wsUrl, {
       protocols: ['vibestudio.v1'],
       onOpen: function () {
-        // Send initial resize
+        // Send auth token as first message (not in URL query params).
+        self.ws.send(JSON.stringify({ type: 'auth', token: token }));
+        // Send initial resize after auth.
         if (self.term) {
           self.ws.send(JSON.stringify({
             type: 'resize',
@@ -681,7 +696,7 @@ class TerminalManager {
   applyTheme(colors) {
     if (!this.term || !colors) return;
 
-    var theme = {
+    const theme = {
       foreground: colors.foreground,
       background: colors.background,
       cursor: colors.cursor,
@@ -722,7 +737,7 @@ class TerminalManager {
 
   /** Calculate font size based on viewport width. */
   _calcFontSize() {
-    var w = window.innerWidth;
+    const w = window.innerWidth;
     if (w <= 375) return 11;
     if (w <= 430) return 12;
     if (w <= 768) return 13;
@@ -739,7 +754,7 @@ class TerminalManager {
 
     // Blob fallback — some browsers deliver binary as Blob despite binaryType='arraybuffer'
     if (evt.data instanceof Blob) {
-      var self = this;
+      const self = this;
       evt.data.arrayBuffer().then(function (ab) {
         self.term.write(new Uint8Array(ab));
       });
@@ -747,7 +762,7 @@ class TerminalManager {
     }
 
     // Text frame = control message
-    var msg;
+    let msg;
     try {
       msg = JSON.parse(evt.data);
     } catch (_e) {
@@ -785,11 +800,11 @@ class SpecialKeysBar {
   // --- Private ---
 
   _bind() {
-    var self = this;
-    var buttons = this.bar.querySelectorAll('.key-btn');
+    const self = this;
+    const buttons = this.bar.querySelectorAll('.key-btn');
 
     buttons.forEach(function (btn) {
-      var key = btn.getAttribute('data-key');
+      const key = btn.getAttribute('data-key');
       // Skip buttons without data-key (Play/Stop/agent-picker are handled by App)
       if (!key) return;
 
@@ -838,17 +853,17 @@ class SpecialKeysBar {
     // Keyboard proxy input events (for Kbd virtual keyboard)
     this.proxy.addEventListener('input', function () {
       // Skip if prompt-input is focused (avoid double-sending)
-      var promptEl = document.getElementById('prompt-input');
+      const promptEl = document.getElementById('prompt-input');
       if (promptEl && document.activeElement === promptEl) {
         self.proxy.value = '';
         return;
       }
-      var text = self.proxy.value;
+      const text = self.proxy.value;
       if (text) {
         // If ctrl is active, send as ctrl+char
         if (self._ctrlActive) {
-          for (var i = 0; i < text.length; i++) {
-            var code = text.charCodeAt(i);
+          for (let i = 0; i < text.length; i++) {
+            const code = text.charCodeAt(i);
             // a-z -> Ctrl+A-Z (1-26), A-Z also
             if (code >= 97 && code <= 122) {
               self.tm.sendInput(String.fromCharCode(code - 96));
@@ -924,7 +939,7 @@ class SpecialKeysBar {
   }
 
   _sendArrow(dir) {
-    var seq;
+    let seq;
     switch (dir) {
       case 'up':    seq = '\x1b[A'; break;
       case 'down':  seq = '\x1b[B'; break;
@@ -948,7 +963,7 @@ class SpecialKeysBar {
   }
 
   _startRepeat(dir) {
-    var self = this;
+    const self = this;
     clearTimeout(this._repeatTimer);
     clearInterval(this._repeatInterval);
 
@@ -966,7 +981,7 @@ class SpecialKeysBar {
 
   _deactivateCtrl() {
     this._ctrlActive = false;
-    var ctrlBtn = this.bar.querySelector('[data-key="ctrl"]');
+    const ctrlBtn = this.bar.querySelector('[data-key="ctrl"]');
     if (ctrlBtn) ctrlBtn.setAttribute('aria-pressed', 'false');
   }
 
@@ -991,8 +1006,8 @@ class ThemeManager {
   static apply(themeData) {
     if (!themeData) return;
 
-    var root = document.documentElement.style;
-    var colors = themeData.terminal_colors;
+    const root = document.documentElement.style;
+    const colors = themeData.terminal_colors;
 
     if (colors) {
       if (colors.foreground) root.setProperty('--term-foreground', colors.foreground);
@@ -1045,29 +1060,29 @@ class ThemeManager {
 // 7. App — Orchestrator
 // ---------------------------------------------------------------------------
 
-var App = (function () {
+const App = (function () {
   /** @type {VibeStudioClient} */
-  var client;
+  let client;
   /** @type {PinInput} */
-  var pinInput;
+  let pinInput;
   /** @type {TerminalManager} */
-  var terminalMgr;
+  let terminalMgr;
   /** @type {SpecialKeysBar} */
-  var keysBar;
+  let keysBar;
 
   // DOM refs
-  var pinScreen;
-  var terminalScreen;
-  var projectPicker;
-  var sessionPicker;
-  var statusDot;
-  var statusLabel;
-  var keyboardProxy;
+  let pinScreen;
+  let terminalScreen;
+  let projectPicker;
+  let sessionPicker;
+  let statusDot;
+  let statusLabel;
+  let keyboardProxy;
 
   // State
-  var currentProjectId = null;
-  var currentSessionId = null;
-  var projectsData = null;
+  let currentProjectId = null;
+  let currentSessionId = null;
+  let projectsData = null;
 
   // ------ Init ------
 
@@ -1100,11 +1115,11 @@ var App = (function () {
     terminalMgr.onStatusChange = updateConnectionStatus;
 
     // Prompt input bar
-    var promptInput = document.getElementById('prompt-input');
-    var sendBtn = document.getElementById('input-send-btn');
+    const promptInput = document.getElementById('prompt-input');
+    const sendBtn = document.getElementById('input-send-btn');
 
     function sendPromptInput() {
-      var text = promptInput.value;
+      const text = promptInput.value;
       if (!text) return;
       // Blur keyboard proxy to prevent echo from virtual keyboard
       keyboardProxy.blur();
@@ -1130,13 +1145,13 @@ var App = (function () {
     });
 
     // Agent play/stop buttons
-    var agentPicker = document.getElementById('agent-picker');
-    var agentPlayBtn = document.getElementById('agent-play-btn');
-    var agentStopBtn = document.getElementById('agent-stop-btn');
-    var agentRunning = false;
+    const agentPicker = document.getElementById('agent-picker');
+    const agentPlayBtn = document.getElementById('agent-play-btn');
+    const agentStopBtn = document.getElementById('agent-stop-btn');
+    let agentRunning = false;
 
     agentPlayBtn.addEventListener('click', function () {
-      var agent = agentPicker.value;
+      const agent = agentPicker.value;
       client.startAssistant(agent).then(function (resp) {
         if (resp.ok) {
           agentRunning = true;
@@ -1173,16 +1188,9 @@ var App = (function () {
       }
     }, 150));
 
-    // Auto-login via ?pin= query parameter (QR code flow)
-    var urlPin = new URLSearchParams(window.location.search).get('pin');
-    if (urlPin && /^\d{6}$/.test(urlPin)) {
-      // Strip PIN from URL immediately
-      history.replaceState(null, '', window.location.pathname);
-      // Clear any stale token from previous session before re-auth
-      client.clearToken();
-      handlePinComplete(urlPin);
-      return;
-    }
+    // SECURITY: ?pin= auto-login removed (PIN leaked in server logs, proxy logs,
+    // browser history despite replaceState). QR code should link to the app URL
+    // without credentials; user enters PIN manually.
 
     // Check existing token
     if (client.hasToken()) {
@@ -1230,19 +1238,19 @@ var App = (function () {
   // ------ PIN Handling ------
 
   async function handlePinComplete(pin) {
-    var result = await client.authenticate(pin);
+    const result = await client.authenticate(pin);
 
     if (result.ok) {
       showTerminalScreen();
       return;
     }
 
-    var err = result.error || {};
+    const err = result.error || {};
     if (result.status === 429) {
-      var seconds = (err.details && err.details.retry_after_seconds) || 300;
+      const seconds = (err.details && err.details.retry_after_seconds) || 300;
       pinInput.setBlocked(seconds);
     } else if (result.status === 401) {
-      var msg = err.message || 'Incorrect PIN';
+      let msg = err.message || 'Incorrect PIN';
       if (err.details && typeof err.details.attempts_remaining === 'number') {
         msg = 'Incorrect PIN. ' + err.details.attempts_remaining + ' attempt' +
               (err.details.attempts_remaining !== 1 ? 's' : '') + ' remaining.';
@@ -1257,13 +1265,22 @@ var App = (function () {
 
   async function loadProjectsAndConnect() {
     try {
-      var data = await client.getProjects();
+      const data = await client.getProjects();
       projectsData = data;
-      populateProjectPicker(data.projects, data.active_project_id);
+
+      // Fetch recent projects (non-critical)
+      let recentData = null;
+      try {
+        recentData = await client.getRecentProjects();
+      } catch (_e) {
+        // Non-critical — recent projects just won't show
+      }
+
+      populateProjectPicker(data.projects, data.active_project_id, recentData ? recentData.projects : []);
 
       // Also fetch theme from status
       try {
-        var status = await client.getStatus();
+        const status = await client.getStatus();
         if (status && status.theme) {
           ThemeManager.apply(status.theme);
           terminalMgr.applyTheme(status.theme.terminal_colors);
@@ -1281,33 +1298,54 @@ var App = (function () {
     }
   }
 
-  function populateProjectPicker(projects, activeId) {
+  function populateProjectPicker(projects, activeId, recentProjects) {
     projectPicker.innerHTML = '';
 
-    if (!projects || projects.length === 0) {
+    if ((!projects || projects.length === 0) && (!recentProjects || recentProjects.length === 0)) {
       projectPicker.innerHTML = '<option value="">No projects</option>';
       sessionPicker.innerHTML = '<option value="">No sessions</option>';
       return;
     }
 
-    projects.forEach(function (p) {
-      var opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      projectPicker.appendChild(opt);
-    });
+    // Open projects
+    if (projects && projects.length > 0) {
+      const openGroup = document.createElement('optgroup');
+      openGroup.label = '\u041E\u0442\u043A\u0440\u044B\u0442\u044B\u0435';
+      projects.forEach(function (p) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        openGroup.appendChild(opt);
+      });
+      projectPicker.appendChild(openGroup);
+    }
+
+    // Recent projects (closed)
+    if (recentProjects && recentProjects.length > 0) {
+      const recentGroup = document.createElement('optgroup');
+      recentGroup.label = '\u041D\u0435\u0434\u0430\u0432\u043D\u0438\u0435';
+      recentProjects.forEach(function (p) {
+        const opt = document.createElement('option');
+        opt.value = 'recent:' + p.path;
+        opt.textContent = p.name;
+        recentGroup.appendChild(opt);
+      });
+      projectPicker.appendChild(recentGroup);
+    }
 
     // Select active project or first
-    var targetId = activeId || projects[0].id;
-    projectPicker.value = targetId;
-    selectProject(targetId);
+    if (projects && projects.length > 0) {
+      const targetId = activeId || projects[0].id;
+      projectPicker.value = targetId;
+      selectProject(targetId);
+    }
   }
 
   function selectProject(projectId) {
     currentProjectId = projectId;
     if (!projectsData) return;
 
-    var project = projectsData.projects.find(function (p) { return p.id === projectId; });
+    const project = projectsData.projects.find(function (p) { return p.id === projectId; });
     if (!project) return;
 
     populateSessionPicker(project.sessions);
@@ -1322,9 +1360,9 @@ var App = (function () {
     }
 
     sessions.forEach(function (s) {
-      var opt = document.createElement('option');
+      const opt = document.createElement('option');
       opt.value = s.id;
-      var label = s.title || 'Session';
+      let label = s.title || 'Session';
       if (s.is_agent) label += ' [agent]';
       if (s.state === 'exited') label += ' (exited)';
       opt.textContent = label;
@@ -1345,7 +1383,7 @@ var App = (function () {
     updateConnectionStatus('connecting');
 
     try {
-      var scrollback = await client.getScrollback(currentProjectId, sessionId);
+      const scrollback = await client.getScrollback(currentProjectId, sessionId);
       if (scrollback && scrollback.content) {
         terminalMgr.writeScrollback(scrollback.content);
       }
@@ -1359,25 +1397,41 @@ var App = (function () {
     }
 
     // Open WebSocket
-    var token = client.getToken();
-    statusLabel.textContent = 'WS: token=' + (token ? token.substring(0,8) + '...' : 'null') + ' sid=' + sessionId.substring(0,8);
+    const token = client.getToken();
     if (token) {
       terminalMgr.connect(sessionId, token);
     }
   }
 
-  function handleProjectChange() {
-    var newProjectId = projectPicker.value;
-    if (newProjectId && newProjectId !== currentProjectId) {
-      // Activate project on the server (so VibeStudio switches too)
-      client.activateProject(newProjectId);
+  async function handleProjectChange() {
+    const newValue = projectPicker.value;
+    if (!newValue) return;
+
+    // Recent project — open it first, then reload
+    if (newValue.indexOf('recent:') === 0) {
+      const path = newValue.substring(7);
+      try {
+        updateConnectionStatus('connecting');
+        const result = await client.openProject(path);
+        terminalMgr.disconnect();
+        // Reload full project list — the opened project is now in the open group
+        await loadProjectsAndConnect();
+      } catch (e) {
+        updateConnectionStatus('disconnected');
+      }
+      return;
+    }
+
+    // Regular open project — activate
+    if (newValue !== currentProjectId) {
+      client.activateProject(newValue);
       terminalMgr.disconnect();
-      selectProject(newProjectId);
+      selectProject(newValue);
     }
   }
 
   function handleSessionChange() {
-    var newSessionId = sessionPicker.value;
+    const newSessionId = sessionPicker.value;
     if (newSessionId && newSessionId !== currentSessionId) {
       terminalMgr.disconnect();
       connectToSession(newSessionId);
@@ -1420,10 +1474,10 @@ var App = (function () {
       case 'sessions_changed':
         if (msg.project_id === currentProjectId) {
           // Update session picker without losing current selection
-          var prevSession = currentSessionId;
+          const prevSession = currentSessionId;
           populateSessionPicker(msg.sessions);
           // Re-select if still available
-          var still = msg.sessions.find(function (s) { return s.id === prevSession; });
+          const still = msg.sessions.find(function (s) { return s.id === prevSession; });
           if (still) {
             sessionPicker.value = prevSession;
             currentSessionId = prevSession;
@@ -1447,7 +1501,7 @@ var App = (function () {
         break;
 
       case 'device_disconnected':
-        var deviceId = client.getDeviceId();
+        const deviceId = client.getDeviceId();
         if (msg.device_id === deviceId) {
           client.clearToken();
           showPinScreen();
@@ -1460,17 +1514,16 @@ var App = (function () {
 
   function updateConnectionStatus(status) {
     statusDot.setAttribute('data-status', status);
-    var wsUrl = terminalMgr.ws ? terminalMgr.ws.url : 'no-ws';
 
     switch (status) {
       case 'connected':
         statusLabel.textContent = 'Connected';
         break;
       case 'connecting':
-        statusLabel.textContent = 'WS→' + wsUrl.substring(0, 40);
+        statusLabel.textContent = 'Connecting...';
         break;
       case 'disconnected':
-        statusLabel.textContent = 'DC:' + wsUrl.substring(0, 40);
+        statusLabel.textContent = 'Disconnected';
         break;
     }
   }
@@ -1480,16 +1533,16 @@ var App = (function () {
   function setupViewportHandling() {
     if (!window.visualViewport) return;
 
-    var shell = document.querySelector('.app-shell');
+    const shell = document.querySelector('.app-shell');
     if (!shell) return;
 
-    var fitTimer = null;
+    let fitTimer = null;
 
     // On Android Chrome, `interactive-widget=resizes-content` in the viewport
     // meta tag makes the layout viewport shrink when the keyboard opens, so
     // CSS `100dvh` is always correct.  The JS handler below is a fallback for
     // iOS Safari which ignores `interactive-widget`.
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
     window.visualViewport.addEventListener('resize', function () {
       if (isIOS) {
@@ -1518,7 +1571,7 @@ var App = (function () {
   // ------ Utilities ------
 
   function debounce(fn, ms) {
-    var timer;
+    let timer;
     return function () {
       clearTimeout(timer);
       timer = setTimeout(fn, ms);

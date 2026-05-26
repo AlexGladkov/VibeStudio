@@ -331,13 +331,21 @@ final class RemoteAuthService {
     // MARK: - Private: Helpers
 
     /// Constant-time string comparison to mitigate timing side-channel attacks.
+    ///
+    /// Both inputs are padded to equal length before comparison, preventing
+    /// length-based information leakage. PIN is always 6 digits, but this
+    /// function handles arbitrary inputs safely.
     private func constantTimeEqual(_ a: String, _ b: String) -> Bool {
         let aBytes = [UInt8](a.utf8)
         let bBytes = [UInt8](b.utf8)
-        guard aBytes.count == bBytes.count else { return false }
-        var result: UInt8 = 0
-        for i in 0..<aBytes.count {
-            result |= aBytes[i] ^ bBytes[i]
+        let maxLen = max(aBytes.count, bBytes.count)
+        guard maxLen > 0 else { return true }
+        // XOR length mismatch into result (non-zero if lengths differ).
+        var result: UInt8 = UInt8(truncatingIfNeeded: aBytes.count ^ bBytes.count)
+        for i in 0..<maxLen {
+            let aByte = i < aBytes.count ? aBytes[i] : 0
+            let bByte = i < bBytes.count ? bBytes[i] : 0
+            result |= aByte ^ bByte
         }
         return result == 0
     }

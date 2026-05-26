@@ -44,10 +44,9 @@ final class RemoteControlPreferences {
 
     /// Bind the server to localhost only (127.0.0.1).
     ///
-    /// **SECURITY:** Default `true`. When enabled, the server is unreachable
-    /// from other devices on the LAN -- only local connections and SSH tunnels
-    /// can reach it. Set to `false` to allow LAN access (e.g. from a phone on
-    /// the same Wi-Fi network).
+    /// **SECURITY:** Default `false` (LAN access enabled for phone control).
+    /// When set to `true`, the server is unreachable from other devices on the
+    /// LAN -- only local connections and SSH tunnels can reach it.
     var bindToLocalhost: Bool {
         didSet { defaults.set(bindToLocalhost, forKey: Keys.bindToLocalhost) }
     }

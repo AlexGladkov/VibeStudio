@@ -234,18 +234,6 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
             return
         }
-        // Debug-only: return current PIN for testing.
-        if method == .GET && path == "/api/v1/debug/pin" {
-            let authSvc = authService
-            Task { @MainActor in
-                let pin = authSvc.currentPin
-                let json = "{\"pin\":\"\(pin)\"}"
-                channel.eventLoop.execute {
-                    self.sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
-                }
-            }
-            return
-        }
         // Debug-only: show connected devices, tokens, IPs, and caller IP.
         if method == .GET && path == "/api/v1/debug/state" {
             let authSvc = authService
@@ -391,6 +379,16 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
+        // GET /api/v1/projects/recent (must be before :id pattern)
+        if method == .GET && path == "/api/v1/projects/recent" {
+            handleListRecentProjects(
+                projectManager: projectManager,
+                channel: channel,
+                encoder: encoder
+            )
+            return
+        }
+
         // GET /api/v1/projects/:id
         if method == .GET, let projectId = extractUUID(from: path, pattern: "/api/v1/projects/"),
            !path.contains("/sessions/") {
@@ -436,8 +434,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
            let deviceId = extractUUID(from: path, pattern: "/api/v1/devices/") {
             handleDisconnectDevice(
                 deviceId: deviceId,
+                requestingDevice: device,
                 serverRef: serverRef,
-                channel: channel
+                channel: channel,
+                encoder: encoder
             )
             return
         }
@@ -460,6 +460,17 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
            path.hasSuffix("/activate") {
             handleActivateProject(
                 projectId: projectId,
+                projectManager: projectManager,
+                channel: channel,
+                encoder: encoder
+            )
+            return
+        }
+
+        // POST /api/v1/projects/open
+        if method == .POST && path == "/api/v1/projects/open" {
+            handleOpenProject(
+                body: body,
                 projectManager: projectManager,
                 channel: channel,
                 encoder: encoder
@@ -596,11 +607,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             projects: projectResponses,
             activeProjectId: projectManager.activeProjectId?.uuidString
         )
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     @MainActor
@@ -616,11 +623,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             let resp = ErrorResponse(
                 error: ErrorDetail(code: "PROJECT_NOT_FOUND", message: "Unknown project ID.")
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .notFound, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .notFound, channel: channel, encoder: encoder)
             return
         }
         let resp = buildProjectResponse(
@@ -629,11 +632,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             terminalService: terminalService,
             serverRef: serverRef
         )
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     @MainActor
@@ -655,26 +654,22 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                     message: "You can only read scrollback for sessions you are attached to."
                 )
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .forbidden, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
             return
         }
 
-        let content = terminalService.rawScrollbackContent(for: sessionId) ?? ""
-        let lines = content.components(separatedBy: "\n")
+        let fullContent = terminalService.rawScrollbackContent(for: sessionId) ?? ""
+        let allLines = fullContent.components(separatedBy: "\n")
+        // Cap returned content to last 10000 lines to prevent excessive payloads.
+        let maxLines = 10_000
+        let returnedLines = allLines.suffix(maxLines)
+        let content = returnedLines.joined(separator: "\n")
         let resp = ScrollbackResponse(
             content: content,
-            totalLines: lines.count,
-            returnedLines: lines.count
+            totalLines: allLines.count,
+            returnedLines: returnedLines.count
         )
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     @MainActor
@@ -696,19 +691,28 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             )
         }
         let resp = DevicesListResponse(devices: deviceResponses, maxDevices: 3)
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     @MainActor
     private func handleDisconnectDevice(
         deviceId: UUID,
+        requestingDevice: RemoteDevice,
         serverRef: RemoteControlServer?,
-        channel: Channel
+        channel: Channel,
+        encoder: JSONEncoder
     ) {
+        // SECURITY: A device can only disconnect itself.
+        guard deviceId == requestingDevice.id else {
+            let resp = ErrorResponse(
+                error: ErrorDetail(
+                    code: "FORBIDDEN",
+                    message: "You can only disconnect your own device."
+                )
+            )
+            sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
+            return
+        }
         serverRef?.disconnect(deviceId)
         channel.eventLoop.execute { [weak self] in
             self?.sendEmptyResponse(status: .noContent, channel: channel)
@@ -753,11 +757,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 )
             )
         )
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     // MARK: - Endpoint Handlers: Project Activate / Assistant Start / Stop
@@ -773,19 +773,84 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             let resp = ErrorResponse(
                 error: ErrorDetail(code: "PROJECT_NOT_FOUND", message: "Unknown project ID.")
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .notFound, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .notFound, channel: channel, encoder: encoder)
             return
         }
         projectManager.activeProjectId = projectId
         let resp = OKResponse(ok: true)
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
+    }
+
+    @MainActor
+    private func handleListRecentProjects(
+        projectManager: any ProjectManaging,
+        channel: Channel,
+        encoder: JSONEncoder
+    ) {
+        let isoFormatter = ISO8601DateFormatter()
+        let recentResponses = projectManager.recentProjects.map { project in
+            RecentProjectResponse(
+                name: project.name,
+                path: project.path.path,
+                lastOpened: isoFormatter.string(from: project.lastOpened)
+            )
+        }
+        let resp = RecentProjectsListResponse(projects: recentResponses)
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
+    }
+
+    @MainActor
+    private func handleOpenProject(
+        body: ByteBuffer?,
+        projectManager: any ProjectManaging,
+        channel: Channel,
+        encoder: JSONEncoder
+    ) {
+        guard let body,
+              let bodyData = body.getBytes(at: body.readerIndex, length: body.readableBytes).map({ Data($0) }),
+              let request = try? decoder.decode(OpenProjectRequest.self, from: bodyData) else {
+            let resp = ErrorResponse(
+                error: ErrorDetail(code: "INVALID_BODY", message: "Expected JSON with 'path' field.")
+            )
+            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
+            return
+        }
+
+        let pathURL = URL(fileURLWithPath: request.path).standardizedFileURL
+
+        // SECURITY: Reject paths outside user's home directory to prevent
+        // arbitrary filesystem traversal. Only allow opening projects within
+        // the user's home directory tree.
+        let homePath = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        guard pathURL.path.hasPrefix(homePath) else {
+            let resp = ErrorResponse(
+                error: ErrorDetail(
+                    code: "PATH_FORBIDDEN",
+                    message: "Only paths within the user's home directory are allowed."
+                )
+            )
+            sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
+            return
+        }
+
+        // If project already open — just activate it.
+        if let existing = projectManager.project(at: pathURL) {
+            projectManager.activeProjectId = existing.id
+            let resp = OpenProjectResponse(ok: true, projectId: existing.id.uuidString)
+            sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
+            return
+        }
+
+        do {
+            let project = try projectManager.addProject(at: pathURL)
+            projectManager.activeProjectId = project.id
+            let resp = OpenProjectResponse(ok: true, projectId: project.id.uuidString)
+            sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
+        } catch {
+            let resp = ErrorResponse(
+                error: ErrorDetail(code: "OPEN_FAILED", message: error.localizedDescription)
+            )
+            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
         }
     }
 
@@ -802,11 +867,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             let resp = ErrorResponse(
                 error: ErrorDetail(code: "NO_ACTIVE_PROJECT", message: "No active project is set.")
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .badRequest, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
             return
         }
 
@@ -832,11 +893,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                     message: "No shell session available for the active project."
                 )
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .serviceUnavailable, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .serviceUnavailable, channel: channel, encoder: encoder)
             return
         }
 
@@ -848,11 +905,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             assistant: agent.rawValue,
             sessionId: shellSession.id.uuidString
         )
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     @MainActor
@@ -866,11 +919,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             let resp = ErrorResponse(
                 error: ErrorDetail(code: "NO_ACTIVE_PROJECT", message: "No active project is set.")
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .badRequest, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
             return
         }
 
@@ -884,11 +933,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                     message: "No terminal session found for the active project."
                 )
             )
-            if let data = try? encoder.encode(resp) {
-                channel.eventLoop.execute { [weak self] in
-                    self?.sendRawJSON(status: .serviceUnavailable, data: data, channel: channel)
-                }
-            }
+            sendEncodableResponse(resp, status: .serviceUnavailable, channel: channel, encoder: encoder)
             return
         }
 
@@ -900,11 +945,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         terminalService.sendInput("\u{03}", to: targetSession.id)
 
         let resp = OKResponse(ok: true)
-        if let data = try? encoder.encode(resp) {
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
     // MARK: - WebSocket Upgrade
@@ -932,10 +973,12 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 }?.deviceId.uuidString
             )
         }
+        // SECURITY: Only expose the last path component (directory name) instead
+        // of the full filesystem path, to prevent information leakage.
         return ProjectResponse(
             id: project.id.uuidString,
             name: project.name,
-            path: project.path.path,
+            path: project.path.lastPathComponent,
             color: project.color?.value,
             isActive: isActive,
             git: nil,
@@ -961,13 +1004,9 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
-        // Token from query params (browser WS API doesn't support Authorization header).
-        let queryItems = URLComponents(string: head.uri)?.queryItems
-        guard let token = queryItems?.first(where: { $0.name == "token" })?.value else {
-            sendErrorJSON(status: .unauthorized, code: "AUTH_REQUIRED",
-                          message: "Token required in query params.", channel: channel)
-            return
-        }
+        // SECURITY: Token is NOT passed in query params (would leak in logs/history).
+        // Instead, the client sends the token as the first WS text message after connect.
+        // Authentication is handled by RemoteWebSocketHandler.
 
         guard let wsKey = head.headers["Sec-WebSocket-Key"].first else {
             sendErrorJSON(status: .badRequest, code: "INVALID_REQUEST",
@@ -983,61 +1022,49 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         weak var server = serverRef
 
         #if DEBUG
-        HTTPRequestRouter.wsLog("[WS] handleWebSocketUpgrade: session=\(sessionId) token=\(String(token.prefix(8)))... ip=\(clientIP)")
+        HTTPRequestRouter.wsLog("[WS] handleWebSocketUpgrade: session=\(sessionId) ip=\(clientIP)")
         #endif
 
-        Task { @MainActor in
-            let result = authSvc.validateToken(token, clientIP: clientIP)
-            switch result {
-            case .failure(let err):
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] auth FAILED: \(err) ip=\(clientIP)")
-                #endif
-                let (status, code, message) = self.authErrorResponse(err)
-                channel.eventLoop.execute {
-                    self.sendErrorJSON(status: status, code: code, message: message, channel: channel)
+        // Upgrade immediately — auth happens on first WS message.
+        do {
+            // Sec-WebSocket-Accept per RFC 6455 §4.2.2.
+            let magicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+            let hash = Insecure.SHA1.hash(data: Data((wsKey + magicGUID).utf8))
+            let acceptValue = Data(hash).base64EncodedString()
+
+            // Create handler that expects auth as first message.
+            let wsHandler = RemoteWebSocketHandler(
+                sessionId: sessionId,
+                deviceInfo: nil, // authenticated on first message
+                serverRef: server,
+                terminalService: termSvc,
+                idleTimeoutMinutes: prefs.idleTimeoutMinutes,
+                authService: authSvc,
+                clientIP: clientIP
+            )
+
+            channel.eventLoop.execute {
+                // Pause reads so incoming WS frames don't hit the HTTP decoder
+                // during the pipeline swap (race condition: Safari sends WS frame
+                // immediately after receiving 101).
+                channel.setOption(ChannelOptions.autoRead, value: false)
+                    .whenFailure { _ in }
+
+                // Send 101 Switching Protocols via the existing HTTP encoder.
+                var headers = HTTPHeaders()
+                headers.add(name: "Upgrade", value: "websocket")
+                headers.add(name: "Connection", value: "upgrade")
+                headers.add(name: "Sec-WebSocket-Accept", value: acceptValue)
+                if let proto = requestedProtocol {
+                    headers.add(name: "Sec-WebSocket-Protocol", value: proto)
                 }
 
-            case .success(let device):
-                // Sec-WebSocket-Accept per RFC 6455 §4.2.2.
-                let magicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-                let hash = Insecure.SHA1.hash(data: Data((wsKey + magicGUID).utf8))
-                let acceptValue = Data(hash).base64EncodedString()
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] auth OK: device=\(device.id) → sending 101")
-                #endif
-
-                let wsHandler = RemoteWebSocketHandler(
-                    sessionId: sessionId,
-                    deviceInfo: device,
-                    serverRef: server,
-                    terminalService: termSvc,
-                    idleTimeoutMinutes: prefs.idleTimeoutMinutes
+                let responseHead = HTTPResponseHead(
+                    version: .http1_1, status: .switchingProtocols, headers: headers
                 )
-
-                channel.eventLoop.execute {
-                    // Pause reads so incoming WS frames don't hit the HTTP decoder
-                    // during the pipeline swap (race condition: Safari sends WS frame
-                    // immediately after receiving 101).
-                    channel.setOption(ChannelOptions.autoRead, value: false)
-                        .whenFailure { _ in }
-
-                    // Send 101 Switching Protocols via the existing HTTP encoder.
-                    var headers = HTTPHeaders()
-                    headers.add(name: "Upgrade", value: "websocket")
-                    headers.add(name: "Connection", value: "upgrade")
-                    headers.add(name: "Sec-WebSocket-Accept", value: acceptValue)
-                    if let proto = requestedProtocol {
-                        headers.add(name: "Sec-WebSocket-Protocol", value: proto)
-                    }
-
-                    let responseHead = HTTPResponseHead(
-                        version: .http1_1, status: .switchingProtocols, headers: headers
-                    )
-                    channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
-                    channel.writeAndFlush(self.wrapOutboundOut(.end(nil))).whenSuccess {
-                        self.installWebSocketPipeline(channel: channel, handler: wsHandler)
-                    }
+                channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
+                channel.writeAndFlush(self.wrapOutboundOut(.end(nil))).whenSuccess {
+                    self.installWebSocketPipeline(channel: channel, handler: wsHandler)
                 }
             }
         }
@@ -1130,9 +1157,20 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     }
 
     private func sendEncodable<T: Encodable>(_ value: T, channel: Channel, encoder: JSONEncoder) {
+        sendEncodableResponse(value, status: .ok, channel: channel, encoder: encoder)
+    }
+
+    /// Encode a value and send as JSON response via eventLoop.execute.
+    /// Consolidates the repeated encode → execute → sendRawJSON pattern.
+    private func sendEncodableResponse<T: Encodable>(
+        _ value: T,
+        status: HTTPResponseStatus,
+        channel: Channel,
+        encoder: JSONEncoder
+    ) {
         guard let data = try? encoder.encode(value) else { return }
         channel.eventLoop.execute { [weak self] in
-            self?.sendRawJSON(status: .ok, data: data, channel: channel)
+            self?.sendRawJSON(status: status, data: data, channel: channel)
         }
     }
 
@@ -1235,8 +1273,13 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             // No Origin header — same-origin or non-browser request; no CORS header needed.
             return nil
         }
-        let allowedHosts = ["localhost", "127.0.0.1", "[::1]"]
-        return allowedHosts.contains(host) ? origin : nil
+        let allowedHosts: Set<String> = ["localhost", "127.0.0.1", "[::1]"]
+        if allowedHosts.contains(host) { return origin }
+        // Allow ngrok tunnel origins (*.ngrok-free.app, *.ngrok.io).
+        if host.hasSuffix(".ngrok-free.app") || host.hasSuffix(".ngrok.io") {
+            return origin
+        }
+        return nil
     }
 
     private func extractBearerToken(from head: HTTPRequestHead) -> String? {
