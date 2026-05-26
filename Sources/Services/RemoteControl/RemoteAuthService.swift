@@ -90,6 +90,9 @@ final class RemoteAuthService {
     /// failed authentication attempts. Must be reset manually.
     private(set) var isLocked: Bool = false
 
+    /// Called when the server should shut down due to excessive failed auth attempts.
+    var onSecurityLockout: (() -> Void)?
+
     // MARK: - Private State
 
     /// Active tokens: token string -> entry.
@@ -294,6 +297,7 @@ final class RemoteAuthService {
         if globalFailedCount >= Constants.globalLockoutThreshold {
             isLocked = true
             Logger.remoteControl.error("Global lockout activated after \(self.globalFailedCount) total failures")
+            onSecurityLockout?()
         }
     }
 

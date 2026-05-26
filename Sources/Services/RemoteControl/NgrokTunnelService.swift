@@ -78,7 +78,7 @@ final class NgrokTunnelService {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: ngrokPath)
 
-        proc.arguments = ["http", "\(httpPort)"]
+        proc.arguments = ["http", "https://localhost:\(httpPort)"]
         proc.environment = env
 
         // Capture stderr for error diagnostics.

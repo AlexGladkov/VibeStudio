@@ -10,6 +10,7 @@ import NIOWebSocket
 import NIOSSL
 import Observation
 import OSLog
+import UserNotifications
 
 // WebSocket upgrade is handled manually in HTTPRequestRouter (not via NIO's
 // HTTPServerUpgradeHandler, which is one-shot and breaks on HTTP/1.1 keep-alive).
@@ -264,6 +265,9 @@ final class RemoteControlServer {
                     server.isTransitioning = false
                     server.startedAt = Date()
                     server.startSessionObservation()
+                    server.authService.onSecurityLockout = { [weak server] in
+                        server?.handleSecurityLockout()
+                    }
 
                     if server.preferences.bonjourEnabled && !server.preferences.bindToLocalhost {
                         server.bonjour.publish(port: bindPort)
@@ -271,7 +275,7 @@ final class RemoteControlServer {
 
                     if server.preferences.ngrokEnabled && !server.preferences.ngrokAuthtoken.isEmpty {
                         server.ngrok.start(
-                            httpPort: bindPort + 1,
+                            httpPort: bindPort,
                             authtoken: server.preferences.ngrokAuthtoken
                         )
                     }
@@ -345,8 +349,7 @@ final class RemoteControlServer {
     /// Start the ngrok tunnel (called from settings toggle while server is running).
     func startNgrok() {
         guard isRunning else { return }
-        let httpPort = preferences.remoteControlPort + 1
-        ngrok.start(httpPort: httpPort, authtoken: preferences.ngrokAuthtoken)
+        ngrok.start(httpPort: preferences.remoteControlPort, authtoken: preferences.ngrokAuthtoken)
     }
 
     /// Stop the ngrok tunnel.
@@ -357,6 +360,31 @@ final class RemoteControlServer {
     /// Regenerate the authentication PIN.
     func regeneratePin() {
         authService.regeneratePin()
+    }
+
+    // MARK: - Security Lockout
+
+    /// Handle global lockout: send notification and stop server.
+    private func handleSecurityLockout() {
+        Logger.remoteControl.error("Security lockout triggered — stopping Remote Control server")
+
+        let content = UNMutableNotificationContent()
+        content.title = "Remote Control отключён"
+        content.body = "Обнаружено 10 неудачных попыток входа. Сервер остановлен в целях безопасности."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "rc-security-lockout-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                Logger.remoteControl.error("Failed to deliver lockout notification: \(error.localizedDescription)")
+            }
+        }
+
+        stop()
     }
 
     // MARK: - Device Management

@@ -4,6 +4,7 @@
 
 import Foundation
 import Observation
+import Security
 
 /// UserDefaults-backed preferences for the embedded Remote Control server.
 ///
@@ -23,7 +24,6 @@ final class RemoteControlPreferences {
         static let bonjourEnabled = "vs_remote_bonjour_enabled"
         static let idleTimeoutMinutes = "vs_remote_idle_timeout"
         static let ngrokEnabled = "vs_remote_ngrok_enabled"
-        static let ngrokAuthtoken = "vs_remote_ngrok_authtoken"
     }
 
     // MARK: - Preferences
@@ -71,7 +71,7 @@ final class RemoteControlPreferences {
     ///
     /// Required since ngrok v3. Get one for free at https://dashboard.ngrok.com/get-started/your-authtoken
     var ngrokAuthtoken: String {
-        didSet { defaults.set(ngrokAuthtoken, forKey: Keys.ngrokAuthtoken) }
+        didSet { KeychainHelper.save(account: "vs_ngrok_authtoken", value: ngrokAuthtoken) }
     }
 
     /// Idle timeout in minutes before disconnecting inactive remote clients.
@@ -112,8 +112,14 @@ final class RemoteControlPreferences {
             ? false
             : defaults.bool(forKey: Keys.ngrokEnabled)
 
-        // ngrokAuthtoken defaults to empty
-        ngrokAuthtoken = defaults.string(forKey: Keys.ngrokAuthtoken) ?? ""
+        // Migrate from UserDefaults to Keychain (one-time).
+        if let legacyToken = defaults.string(forKey: "vs_remote_ngrok_authtoken"), !legacyToken.isEmpty {
+            KeychainHelper.save(account: "vs_ngrok_authtoken", value: legacyToken)
+            defaults.removeObject(forKey: "vs_remote_ngrok_authtoken")
+            ngrokAuthtoken = legacyToken
+        } else {
+            ngrokAuthtoken = KeychainHelper.load(account: "vs_ngrok_authtoken") ?? ""
+        }
 
         // idleTimeoutMinutes defaults to 30
         idleTimeoutMinutes = defaults.object(forKey: Keys.idleTimeoutMinutes) == nil

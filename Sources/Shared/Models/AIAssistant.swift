@@ -56,7 +56,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// SwiftTerm prepends `execName` as argv[0], so these are argv[1..N].
     var launchArguments: [String] {
         switch self {
-        case .claude:     return ["--dangerously-skip-permissions"]
+        case .claude:     return []
         case .opencode:   return []
         case .codex:      return []
         case .gemini:     return []
@@ -85,7 +85,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// New agents use the dedicated PTY launch via `TerminalService.startAgentSession`.
     var launchCommand: String {
         switch self {
-        case .claude:     return "claude --dangerously-skip-permissions\n"
+        case .claude:     return "claude\n"
         case .opencode:   return "opencode\n"
         case .codex:      return "codex\n"
         case .gemini:     return "gemini\n"
