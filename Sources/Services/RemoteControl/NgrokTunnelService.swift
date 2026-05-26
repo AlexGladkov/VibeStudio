@@ -18,6 +18,8 @@ import OSLog
 /// - Launches `ngrok http <port>` as a child process with an allowlisted environment.
 /// - Polls the ngrok local API (`localhost:4040/api/tunnels`) to obtain the public URL.
 /// - Terminates the process on `stop()` or when the tunnel exits unexpectedly.
+/// - Tracks the PID of our own ngrok process in `/tmp/vibestudio-ngrok.pid` to
+///   avoid killing unrelated ngrok instances owned by other applications.
 @Observable
 @MainActor
 final class NgrokTunnelService {
@@ -48,6 +50,14 @@ final class NgrokTunnelService {
     /// Accumulated stderr output (read asynchronously during process lifetime).
     private var accumulatedStderr: String = ""
 
+    // MARK: - PID File
+
+    /// File used to track the PID of our ngrok subprocess across app launches.
+    ///
+    /// Writing only *our* PID — not a system-wide kill of every ngrok process —
+    /// ensures other apps' tunnels are never disrupted.
+    private static let pidFileURL = URL(fileURLWithPath: "/tmp/vibestudio-ngrok.pid")
+
     // MARK: - Start
 
     /// Start the ngrok tunnel for the given HTTP port.
@@ -61,11 +71,8 @@ final class NgrokTunnelService {
         error = nil
         tunnelURL = nil
 
-        // Kill any stale ngrok processes from previous sessions to avoid
-        // "endpoint already online" errors.
-        Self.killStaleNgrokProcesses()
-
-        // Resolve ngrok binary from trusted directories.
+        // Resolve ngrok binary from trusted directories before going async,
+        // so we can surface the error synchronously on the current call frame.
         guard let ngrokPath = CLIAgentPathResolver.resolve("ngrok") else {
             error = "ngrok не найден. Установите: brew install ngrok"
             Logger.remoteControl.warning("NgrokTunnelService: ngrok binary not found in trusted directories")
@@ -79,9 +86,75 @@ final class NgrokTunnelService {
             env["NGROK_AUTHTOKEN"] = authtoken
         }
 
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: ngrokPath)
+        // Kill any stale ngrok process from a previous VibeStudio session
+        // off the MainActor so `waitUntilExit()` never blocks the UI thread.
+        // We then launch ngrok proper once cleanup has had a moment to settle.
+        Task.detached(priority: .utility) {
+            // Reads the PID file and sends SIGTERM to that specific process only.
+            // This avoids disturbing unrelated ngrok instances running on the system.
+            Self.killPreviousOwnedNgrokProcess()
 
+            // Give the killed process a moment to release port 4040 / ngrok's
+            // "endpoint already online" lock before we start the new one.
+            try? await Task.sleep(for: .milliseconds(500))
+
+            // Continue launch on MainActor so we can mutate observable state.
+            await MainActor.run {
+                self.launchNgrok(path: ngrokPath, httpPort: httpPort, env: env)
+            }
+        }
+    }
+
+    // MARK: - Stop
+
+    /// Stop the ngrok tunnel and terminate the subprocess.
+    ///
+    /// Sends SIGTERM first, then SIGKILL after 5 seconds if the process
+    /// has not exited, preventing orphaned ngrok processes.
+    func stop() {
+        pollTask?.cancel()
+        pollTask = nil
+
+        if let proc = process, proc.isRunning {
+            let pid = proc.processIdentifier
+            proc.terminate()
+
+            // Schedule SIGKILL fallback if SIGTERM is ignored.
+            Task.detached {
+                try? await Task.sleep(for: .seconds(5))
+                if proc.isRunning {
+                    kill(pid, SIGKILL)
+                    Logger.remoteControl.warning(
+                        "NgrokTunnelService: sent SIGKILL to ngrok (pid=\(pid))"
+                    )
+                }
+            }
+        }
+
+        // Remove the PID file so a subsequent start() does not attempt to kill
+        // a PID that no longer belongs to us.
+        Self.removePIDFile()
+
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
+        process = nil
+        isRunning = false
+        tunnelURL = nil
+        error = nil
+        stderrPipe = nil
+        accumulatedStderr = ""
+
+        Logger.remoteControl.info("NgrokTunnelService: stopped")
+    }
+
+    // MARK: - Private: Launch
+
+    /// Perform the actual `Process.run()` call and update observable state.
+    ///
+    /// Must be called on `MainActor`. Separated from `start()` so it can be
+    /// dispatched after the background cleanup task completes.
+    private func launchNgrok(path: String, httpPort: Int, env: [String: String]) {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: path)
         proc.arguments = ["http", "https://localhost:\(httpPort)", "--verify-upstream-tls=false"]
         proc.environment = env
 
@@ -141,6 +214,9 @@ final class NgrokTunnelService {
             return
         }
 
+        // Persist our PID so the next start() can kill precisely this process.
+        Self.writePIDFile(pid: proc.processIdentifier)
+
         self.process = proc
         self.isRunning = true
 
@@ -150,42 +226,6 @@ final class NgrokTunnelService {
 
         // Poll the ngrok API for the public tunnel URL.
         startPollingForURL()
-    }
-
-    // MARK: - Stop
-
-    /// Stop the ngrok tunnel and terminate the subprocess.
-    ///
-    /// Sends SIGTERM first, then SIGKILL after 5 seconds if the process
-    /// has not exited, preventing orphaned ngrok processes.
-    func stop() {
-        pollTask?.cancel()
-        pollTask = nil
-
-        if let proc = process, proc.isRunning {
-            let pid = proc.processIdentifier
-            proc.terminate()
-
-            // Schedule SIGKILL fallback if SIGTERM is ignored.
-            Task.detached {
-                try? await Task.sleep(for: .seconds(5))
-                if proc.isRunning {
-                    kill(pid, SIGKILL)
-                    Logger.remoteControl.warning(
-                        "NgrokTunnelService: sent SIGKILL to ngrok (pid=\(pid))"
-                    )
-                }
-            }
-        }
-        stderrPipe?.fileHandleForReading.readabilityHandler = nil
-        process = nil
-        isRunning = false
-        tunnelURL = nil
-        error = nil
-        stderrPipe = nil
-        accumulatedStderr = ""
-
-        Logger.remoteControl.info("NgrokTunnelService: stopped")
     }
 
     // MARK: - Private: URL Polling
@@ -283,29 +323,91 @@ final class NgrokTunnelService {
         return result
     }
 
-    // MARK: - Private: Stale Process Cleanup
+    // MARK: - Private: PID File Management
 
-    /// Kill any orphaned ngrok processes from previous app sessions.
+    /// Write the PID of the ngrok subprocess we own to a well-known temp file.
     ///
-    /// Prevents "endpoint already online" errors when relaunching.
-    private static func killStaleNgrokProcesses() {
-        let pipe = Pipe()
+    /// The file is read on the next `start()` to kill only *our* previous
+    /// process, leaving any unrelated ngrok instances untouched.
+    private static func writePIDFile(pid: Int32) {
+        let content = "\(pid)\n"
+        try? content.write(to: pidFileURL, atomically: true, encoding: .utf8)
+        Logger.remoteControl.debug("NgrokTunnelService: wrote PID file pid=\(pid)")
+    }
+
+    /// Delete the PID file, called from `stop()` after the process is gone.
+    private nonisolated static func removePIDFile() {
+        try? FileManager.default.removeItem(at: pidFileURL)
+    }
+
+    /// Read the PID file and send SIGTERM to that specific process if it exists.
+    ///
+    /// This method is `nonisolated` and `static` so it can be called safely
+    /// from a `Task.detached` block without crossing actor boundaries.
+    /// `waitUntilExit()` is used here deliberately: this runs on a background
+    /// executor, so blocking is acceptable and keeps the cleanup synchronous
+    /// before we release the lock.
+    private nonisolated static func killPreviousOwnedNgrokProcess() {
+        guard let content = try? String(contentsOf: pidFileURL, encoding: .utf8),
+              let pid = Int32(content.trimmingCharacters(in: .whitespacesAndNewlines)),
+              pid > 1 else {
+            return
+        }
+
+        // Verify the PID actually corresponds to an ngrok process before killing,
+        // because PIDs are recycled by the OS and we must not kill a reused PID
+        // that now belongs to a different application.
+        guard Self.processNameMatches(pid: pid, expectedName: "ngrok") else {
+            Logger.remoteControl.debug(
+                "NgrokTunnelService: PID \(pid) from pid file is no longer an ngrok process — skipping kill"
+            )
+            removePIDFile()
+            return
+        }
+
+        kill(pid, SIGTERM)
+        Logger.remoteControl.info("NgrokTunnelService: sent SIGTERM to previous owned ngrok pid=\(pid)")
+
+        // Wait briefly for the process to exit so port 4040 is released.
+        // We use `ps` in a subprocess rather than `waitpid` because the process
+        // is not our direct child in this launch (it was started in a prior session).
+        var waited = 0
+        while waited < 10 {
+            Thread.sleep(forTimeInterval: 0.1)
+            waited += 1
+            if kill(pid, 0) != 0 { break } // process gone (errno == ESRCH)
+        }
+
+        if kill(pid, 0) == 0 {
+            // Process still alive after 1 second — escalate to SIGKILL.
+            kill(pid, SIGKILL)
+            Logger.remoteControl.warning("NgrokTunnelService: escalated to SIGKILL for previous owned ngrok pid=\(pid)")
+        }
+
+        removePIDFile()
+    }
+
+    /// Verify that the process with `pid` has `expectedName` as its executable name.
+    ///
+    /// Uses `/bin/ps` to avoid depending on `/usr/bin/pgrep` flag differences
+    /// across macOS versions.
+    private nonisolated static func processNameMatches(pid: Int32, expectedName: String) -> Bool {
         let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        proc.arguments = ["-x", "ngrok"]
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-p", "\(pid)", "-o", "comm="]
+
+        let pipe = Pipe()
         proc.standardOutput = pipe
         proc.standardError = Pipe()
-        try? proc.run()
+
+        guard (try? proc.run()) != nil else { return false }
         proc.waitUntilExit()
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else { return }
+        guard let output = String(data: data, encoding: .utf8) else { return false }
 
-        for line in output.split(separator: "\n") {
-            if let pid = Int32(line.trimmingCharacters(in: .whitespaces)) {
-                kill(pid, SIGTERM)
-                Logger.remoteControl.info("NgrokTunnelService: killed stale ngrok process pid=\(pid)")
-            }
-        }
+        // `comm=` emits the executable base name, e.g. "ngrok"
+        let name = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name == expectedName
     }
 }

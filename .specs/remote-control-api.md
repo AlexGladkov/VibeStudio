@@ -126,7 +126,7 @@ and validator.
 `SecRandomCopyBytes`). The secret lives only in memory and is never persisted --
 all tokens are invalidated on app restart.
 
-**Token lifetime:** 24 hours. No refresh mechanism -- user re-authenticates with
+**Token lifetime:** 4 hours. No refresh mechanism -- user re-authenticates with
 a new PIN after expiry. This is intentional: the threat model assumes a local
 network where re-authentication is trivial.
 
@@ -299,7 +299,7 @@ GET /api/v1/health
   "api_version": "1.0.0",
   "uptime_seconds": 3600,
   "connected_devices": 1,
-  "max_devices": 3,
+  "max_devices": 10,
   "tls": "self-signed"
 }
 ```
@@ -379,9 +379,9 @@ Headers: `Retry-After: 300`
 {
   "error": {
     "code": "MAX_DEVICES_REACHED",
-    "message": "Maximum of 3 devices already connected. Disconnect a device first.",
+    "message": "Maximum of 10 devices already connected. Disconnect a device first.",
     "details": {
-      "max_devices": 3,
+      "max_devices": 10,
       "connected_devices": [
         {"device_id": "d-abc123", "ip": "192.168.1.42", "connected_since": "2026-05-14T10:00:00Z"}
       ]
@@ -576,7 +576,7 @@ GET /api/v1/devices
       "is_self": true
     }
   ],
-  "max_devices": 3
+  "max_devices": 10
 }
 ```
 
@@ -599,8 +599,10 @@ DELETE /api/v1/devices/{deviceId}
 - All WebSocket connections from that device are closed with code `4001`
 - `device_disconnected` event broadcast to remaining connections
 
-**Note:** A device can disconnect itself. The Settings pane on macOS also uses
-this endpoint (via local loopback) to kick remote devices.
+**Note:** A device can only disconnect **itself** (the `deviceId` must match the
+requesting device's ID). Returns 403 `FORBIDDEN` if attempting to disconnect
+another device. The Settings pane on macOS disconnects devices directly via
+the `RemoteControlServer.disconnect()` method (not through this API).
 
 ---
 
@@ -626,7 +628,7 @@ GET /api/v1/status
   },
   "connections": {
     "connected_devices": 2,
-    "max_devices": 3,
+    "max_devices": 10,
     "active_websockets": 3
   },
   "theme": {
@@ -657,14 +659,30 @@ colors on initial load and after reconnection.
 ### Connection
 
 ```
-WSS /api/v1/terminal/{sessionId}?token={jwt}
+WSS /api/v1/terminal/{sessionId}
 ```
 
 **Subprotocol:** `Sec-WebSocket-Protocol: vibestudio.v1`
 
-**Why query param for token:** The WebSocket API in browsers does not support
-custom headers. The token is passed as a query parameter. The server validates
-it identically to the `Authorization` header flow.
+**Authentication:** The WebSocket upgrade is unauthenticated. The client must
+send an `auth` message as the **first frame** after connection. The server
+rejects connections that do not authenticate within 10 seconds (close code 4000).
+
+```json
+// Client -> Server (first frame)
+{ "type": "auth", "token": "<bearer-token>" }
+
+// Server -> Client (on success)
+{ "type": "auth_ok", "session_id": "<uuid>" }
+
+// Server -> Client (on failure)
+{ "type": "auth_error", "message": "Invalid or expired token" }
+// followed by close code 4000
+```
+
+**Why first-frame auth (not query param):** Tokens in URL query strings leak
+into server logs, browser history, and Referer headers. First-frame auth keeps
+the token out of URLs entirely.
 
 **Connection limits:**
 - 1 WebSocket per session per device (attempting a second returns 409)
@@ -1053,7 +1071,7 @@ through an authenticated tunnel. The primary threats are:
 2. **Token theft** -- mitigated by IP binding and 24h expiry
 3. **Brute-force PIN** -- mitigated by rate limiting (3 attempts / 5 min lockout)
 4. **Session hijacking via WebSocket** -- mitigated by token validation on upgrade
-5. **Cross-site WebSocket hijacking** -- mitigated by token-in-query-param (not cookie-based)
+5. **Cross-site WebSocket hijacking** -- mitigated by first-frame token auth (not cookie-based)
 6. **Denial of service** -- mitigated by connection limits (3 devices, rate limiting)
 
 ### What This API Does NOT Expose
@@ -1117,7 +1135,12 @@ Static files are served with:
 | GET     | `/api/v1/devices`                                       | Yes   | Connected devices list         |
 | DELETE  | `/api/v1/devices/{deviceId}`                            | Yes   | Disconnect a device            |
 | GET     | `/api/v1/status`                                        | Yes   | Server status + theme          |
-| WSS     | `/api/v1/terminal/{sessionId}?token={jwt}`              | Token | Bidirectional terminal I/O     |
+| GET     | `/api/v1/projects/recent`                               | Yes   | Recently opened projects       |
+| POST    | `/api/v1/projects/open`                                 | Yes   | Open project by path           |
+| POST    | `/api/v1/projects/{projectId}/activate`                 | Yes   | Activate (switch to) project   |
+| POST    | `/api/v1/assistant/start`                               | Yes   | Start AI assistant in session  |
+| POST    | `/api/v1/assistant/stop`                                | Yes   | Stop AI assistant in session   |
+| WSS     | `/api/v1/terminal/{sessionId}`                          | First-frame | Bidirectional terminal I/O |
 | OPTIONS | `/api/v1/*`                                             | No    | CORS preflight                 |
 
 ---

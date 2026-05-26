@@ -94,8 +94,9 @@ final class AppLifecycleCoordinator {
         activeProjectObservation?.cancel()
         fileEventObservation?.cancel()
 
-        // 4. Stop Remote Control server.
-        container.remoteControlServer.stop()
+        // 4. Stop Remote Control server and await full NIO shutdown so that
+        //    event loop threads are joined before the process exits.
+        await container.remoteControlServer.stopAsync()
 
         // 5. Stop all file watchers (also finishes the events AsyncStream).
         container.fileSystemWatcher.unwatchAll()

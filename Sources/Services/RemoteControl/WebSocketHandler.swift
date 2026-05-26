@@ -54,6 +54,11 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     /// Whether the connection has been authenticated via first WS message.
     private var isAuthenticated = false
 
+    /// Guards against a data race where two rapid frames both pass `!isAuthenticated`
+    /// before the MainActor auth Task has a chance to set `isAuthenticated = true`.
+    /// Set synchronously on the NIO event loop thread before dispatching to MainActor.
+    private var authInProgress = false
+
     /// Auth service for validating the token on first message.
     private let authService: RemoteAuthService?
 
@@ -70,9 +75,12 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     private let idleTimeoutMinutes: Int
 
     /// Heartbeat timer: close connection if no message received within 60 seconds.
+    /// Accessed from the NIO event loop thread only — protected by `bridgeLock`
+    /// to satisfy Swift strict concurrency checking.
     nonisolated(unsafe) private var heartbeatTask: Task<Void, Never>?
 
     /// Auth timeout: close if no auth message within 10 seconds.
+    /// Accessed from the NIO event loop thread only — protected by `bridgeLock`.
     nonisolated(unsafe) private var authTimeoutTask: Task<Void, Never>?
 
     /// JSON decoder.
@@ -265,8 +273,18 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         }
 
         // SECURITY: First message must be auth. All other messages rejected until authenticated.
+        // Both `isAuthenticated` and `authInProgress` are read and written exclusively on the
+        // NIO event loop thread (this call stack), closing the race window that existed when only
+        // `isAuthenticated` was checked and the flag was set later inside a MainActor Task.
         if !isAuthenticated {
             if envelope.type == "auth" {
+                guard !authInProgress else {
+                    // A concurrent auth Task is already in flight — ignore the duplicate frame.
+                    return
+                }
+                // Mark auth as in-progress synchronously before any async dispatch so that
+                // a second frame arriving on the same event loop iteration cannot also enter here.
+                authInProgress = true
                 handleAuthMessage(jsonData: jsonData, channel: channel)
             } else {
                 sendErrorAndClose(code: 4000, reason: "Authentication required", channel: channel)
@@ -283,6 +301,18 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
 
         case "input":
             guard let msg = try? decoder.decode(WSInputMessage.self, from: jsonData) else { return }
+            // SECURITY: Limit PTY input to 4096 bytes to prevent oversized payloads from being
+            // forwarded directly to the PTY, which could exhaust kernel buffers or trigger bugs
+            // in terminal applications relying on bounded line lengths.
+            let maxInputBytes = 4096
+            guard msg.data.utf8.count <= maxInputBytes else {
+                Logger.remoteControl.warning(
+                    "RemoteWebSocketHandler: input payload exceeds \(maxInputBytes) bytes, rejected"
+                )
+                let errPayload = "{\"type\":\"error\",\"message\":\"Input too large (max \(maxInputBytes) bytes)\"}"
+                sendTextOnEventLoop(errPayload, channel: channel)
+                return
+            }
             Task { @MainActor in
                 bridge?.handleInput(msg.data)
             }
@@ -357,6 +387,9 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
 
             case .failure:
                 channel.eventLoop.execute {
+                    // Reset authInProgress on the event loop thread so the flag stays
+                    // consistent with the thread that originally set it.
+                    self.authInProgress = false
                     self.sendErrorAndClose(code: 4000, reason: "Authentication failed", channel: channel)
                 }
             }

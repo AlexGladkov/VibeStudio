@@ -58,7 +58,14 @@ enum AuthError: Error, Equatable {
 @MainActor
 final class RemoteAuthService {
 
-    // MARK: - Constants
+    // MARK: - Public Constants
+
+    /// Maximum number of simultaneously connected remote devices.
+    /// Exposed so other components (HTTPRequestRouter, UI) can reference
+    /// the single source of truth rather than duplicating the magic number.
+    static let maxDevices = 3
+
+    // MARK: - Private Constants
 
     private enum Constants {
         /// Number of random bytes for the PIN source.
@@ -74,8 +81,6 @@ final class RemoteAuthService {
         /// Global failure threshold -- after this many total failures, the
         /// server locks out completely until manual reset.
         static let globalLockoutThreshold = 10
-        /// Maximum number of simultaneously connected remote devices.
-        static let maxDevices = 10
     }
 
     // MARK: - Observable State
@@ -158,8 +163,8 @@ final class RemoteAuthService {
         }
 
         // Check max connected devices.
-        if connectedDevices.count >= Constants.maxDevices {
-            Logger.remoteControl.warning("PIN validation rejected: max devices (\(Constants.maxDevices)) reached (IP: \(clientIP, privacy: .public))")
+        if connectedDevices.count >= RemoteAuthService.maxDevices {
+            Logger.remoteControl.warning("PIN validation rejected: max devices (\(RemoteAuthService.maxDevices)) reached (IP: \(clientIP, privacy: .public))")
             return .failure(.maxDevicesReached)
         }
 

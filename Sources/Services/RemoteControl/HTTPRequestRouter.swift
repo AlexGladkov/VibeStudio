@@ -46,6 +46,17 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     /// Weak reference to the server for bridge registration.
     private weak var serverRef: RemoteControlServer?
 
+    /// In-memory static file cache pre-loaded at server start.
+    /// Keys are relative paths like `"index.html"` or `"vendor/xterm.js"`.
+    /// Values are `(data, contentType)`. Empty when the bundle is missing
+    /// (falls back to disk reads in `serveStaticFile`).
+    private let staticFileCache: [String: (Data, String)]
+
+    /// Shared reference to the current ngrok tunnel hostname.
+    /// Updated by ``RemoteControlServer`` when the ngrok URL is resolved.
+    /// Read here to enforce exact-host CORS instead of a broad wildcard.
+    private let ngrokHostRef: NgrokHostRef
+
     // MARK: - Connection State
 
     /// Real TCP-level remote address captured in `channelActive`.
@@ -100,7 +111,9 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         projectManager: any ProjectManaging,
         preferences: RemoteControlPreferences,
         idleTimeoutMinutes: Int,
-        serverRef: RemoteControlServer?
+        serverRef: RemoteControlServer?,
+        staticFileCache: [String: (Data, String)] = [:],
+        ngrokHostRef: NgrokHostRef = NgrokHostRef()
     ) {
         self.authService = authService
         self.terminalService = terminalService
@@ -108,6 +121,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         self.preferences = preferences
         self.cachedIdleTimeoutMinutes = idleTimeoutMinutes
         self.serverRef = serverRef
+        self.staticFileCache = staticFileCache
+        self.ngrokHostRef = ngrokHostRef
     }
 
     // MARK: - ChannelInboundHandler
@@ -137,8 +152,29 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         case .body(var body):
             // Reject oversized request bodies (64KB limit for API requests).
             if (requestBody?.readableBytes ?? 0) + body.readableBytes > 65_536 {
+                // Send 413 Payload Too Large and close the channel so the
+                // connection does not hang waiting for a response.
                 requestHead = nil
                 requestBody = nil
+                let channel = context.channel
+                let json = #"{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body exceeds the 64 KB limit."}}"#
+                let data = Data(json.utf8)
+                var headers = HTTPHeaders()
+                headers.add(name: "Content-Type", value: "application/json; charset=utf-8")
+                headers.add(name: "Content-Length", value: "\(data.count)")
+                headers.add(name: "Connection", value: "close")
+                let head = HTTPResponseHead(
+                    version: .http1_1,
+                    status: .payloadTooLarge,
+                    headers: headers
+                )
+                var buffer = channel.allocator.buffer(capacity: data.count)
+                buffer.writeBytes(data)
+                channel.write(wrapOutboundOut(.head(head)), promise: nil)
+                channel.write(wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
+                channel.writeAndFlush(wrapOutboundOut(.end(nil))).whenComplete { _ in
+                    channel.close(promise: nil)
+                }
                 return
             }
             requestBody?.writeBuffer(&body)
@@ -221,8 +257,20 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
 
         #if DEBUG
+        // Debug endpoints are gated behind an opt-in environment variable
+        // (VS_DEBUG_API=1) so they are never accidentally reachable in
+        // TestFlight / Ad-Hoc builds distributed to external testers.
+        // Set `VS_DEBUG_API=1` in the scheme's Run > Arguments > Environment
+        // Variables to enable these endpoints locally.
+        let debugAPIEnabled = ProcessInfo.processInfo.environment["VS_DEBUG_API"] != nil
+
         // Debug-only: expose current PIN for automated testing.
         if method == .GET && path == "/api/v1/debug/pin" {
+            guard debugAPIEnabled else {
+                sendErrorJSON(status: .notFound, code: "NOT_FOUND",
+                              message: "The requested resource was not found.", channel: channel)
+                return
+            }
             let authSvc = authService
             Task { @MainActor in
                 let pin = authSvc.currentPin
@@ -235,6 +283,11 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
         // Debug-only: show WS upgrade log.
         if method == .GET && path == "/api/v1/debug/wslog" {
+            guard debugAPIEnabled else {
+                sendErrorJSON(status: .notFound, code: "NOT_FOUND",
+                              message: "The requested resource was not found.", channel: channel)
+                return
+            }
             let log = HTTPRequestRouter.wsDebugLog
             let json = "[" + log.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ",") + "]"
             sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
@@ -242,6 +295,11 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
         // Debug-only: show connected devices, tokens, IPs, and caller IP.
         if method == .GET && path == "/api/v1/debug/state" {
+            guard debugAPIEnabled else {
+                sendErrorJSON(status: .notFound, code: "NOT_FOUND",
+                              message: "The requested resource was not found.", channel: channel)
+                return
+            }
             let authSvc = authService
             let callerIP = remoteAddress
             let serverRef = self.serverRef
@@ -531,9 +589,29 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - Endpoint Handlers
 
     private func handleHealth(channel: Channel) {
-        let resp = ["status": "healthy"]
-        guard let data = try? encoder.encode(resp) else { return }
-        sendRawJSON(status: .ok, data: data, channel: channel)
+        // Enrich the health response with runtime diagnostics so monitoring
+        // tools and the client UI can display uptime, capacity, and version
+        // without needing an authenticated /api/v1/status call.
+        let authSvc = authService
+        let serverRefCopy = serverRef
+        let enc = encoder
+        Task { @MainActor in
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+            let uptimeSeconds = serverRefCopy?.uptimeSeconds ?? 0
+            let connectedDevices = authSvc.connectedDevices.count
+            let resp = HealthResponse(
+                status: "healthy",
+                version: version,
+                uptimeSeconds: uptimeSeconds,
+                connectedDevices: connectedDevices,
+                maxDevices: RemoteAuthService.maxDevices,
+                tls: "self-signed"
+            )
+            guard let data = try? enc.encode(resp) else { return }
+            channel.eventLoop.execute { [weak self] in
+                self?.sendRawJSON(status: .ok, data: data, channel: channel)
+            }
+        }
     }
 
     private func handleAuthToken(head: HTTPRequestHead, body: ByteBuffer?, channel: Channel) {
@@ -651,18 +729,13 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         channel: Channel,
         encoder: JSONEncoder
     ) {
-        // Only allow scrollback access for sessions this device is attached to.
-        let isAttached = serverRef?.activeBridges[device.id]?.sessionId == sessionId
-        guard isAttached else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(
-                    code: "SESSION_NOT_ATTACHED",
-                    message: "You can only read scrollback for sessions you are attached to."
-                )
-            )
-            sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
-            return
-        }
+        // Allow scrollback access for any authenticated device (valid bearer token).
+        // Previously this required an active WS bridge (`isAttached`), which broke
+        // reconnect flows: the client needs scrollback to restore its view before
+        // the WS handshake completes. Authentication is sufficient authorization
+        // here — the session belongs to the local user who chose to share it.
+        // (No session ownership check is needed because all remote clients share
+        // the same local user context.)
 
         let fullContent = terminalService.rawScrollbackContent(for: sessionId) ?? ""
         let allLines = fullContent.components(separatedBy: "\n")
@@ -696,7 +769,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 isSelf: dev.id == device.id
             )
         }
-        let resp = DevicesListResponse(devices: deviceResponses, maxDevices: 3)
+        let resp = DevicesListResponse(devices: deviceResponses, maxDevices: RemoteAuthService.maxDevices)
         sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
@@ -744,7 +817,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             ),
             connections: .init(
                 connectedDevices: authService.connectedDevices.count,
-                maxDevices: 3,
+                maxDevices: RemoteAuthService.maxDevices,
                 activeWebsockets: serverRef?.activeBridges.count ?? 0
             ),
             theme: .init(
@@ -795,9 +868,11 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     ) {
         let isoFormatter = ISO8601DateFormatter()
         let recentResponses = projectManager.recentProjects.map { project in
+            // SECURITY: Expose only the last path component (directory name), not
+            // the full filesystem path, to prevent information leakage to remote clients.
             RecentProjectResponse(
                 name: project.name,
-                path: project.path.path,
+                path: project.path.lastPathComponent,
                 lastOpened: isoFormatter.string(from: project.lastOpened)
             )
         }
@@ -1061,8 +1136,12 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 headers.add(name: "Upgrade", value: "websocket")
                 headers.add(name: "Connection", value: "upgrade")
                 headers.add(name: "Sec-WebSocket-Accept", value: acceptValue)
-                if let proto = requestedProtocol {
-                    headers.add(name: "Sec-WebSocket-Protocol", value: proto)
+                // SECURITY: Only echo the subprotocol if the client requested
+                // exactly "vibestudio.v1". Echoing an arbitrary subprotocol back
+                // to the client would allow an attacker to spoof our WebSocket
+                // negotiation by claiming any protocol name.
+                if requestedProtocol == "vibestudio.v1" {
+                    headers.add(name: "Sec-WebSocket-Protocol", value: "vibestudio.v1")
                 }
 
                 let responseHead = HTTPResponseHead(
@@ -1139,14 +1218,41 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
     // MARK: - Helpers: Response Writing
 
+    /// Append security headers common to all responses.
+    ///
+    /// - Parameters:
+    ///   - headers: The mutable header set to augment.
+    ///   - isHTML: When `true`, the `Content-Security-Policy` is tuned for
+    ///     the web UI (allows inline styles, WebSocket connections).
+    ///     When `false` (API JSON), a restrictive `default-src 'none'` policy
+    ///     is emitted.
+    private func addSecurityHeaders(to headers: inout HTTPHeaders, isHTML: Bool) {
+        headers.add(name: "X-Content-Type-Options", value: "nosniff")
+        headers.add(name: "X-Frame-Options", value: "DENY")
+        headers.add(name: "Referrer-Policy", value: "no-referrer")
+        if isHTML {
+            // Web UI CSP: allow same-origin resources, inline styles for
+            // xterm.js theming, and ws:/wss: for the terminal WebSocket.
+            headers.add(
+                name: "Content-Security-Policy",
+                value: "default-src 'self'; " +
+                       "script-src 'self'; " +
+                       "style-src 'self' 'unsafe-inline'; " +
+                       "connect-src 'self' wss: ws:"
+            )
+        } else {
+            // API JSON responses have no need to load any sub-resources.
+            headers.add(name: "Content-Security-Policy", value: "default-src 'none'")
+        }
+    }
+
     private func sendRawJSON(status: HTTPResponseStatus, data: Data, channel: Channel) {
         var headers = HTTPHeaders()
         headers.add(name: "Content-Type", value: "application/json; charset=utf-8")
         headers.add(name: "Content-Length", value: "\(data.count)")
         headers.add(name: "API-Version", value: "1.0.0")
         headers.add(name: "Cache-Control", value: "no-store")
-        headers.add(name: "X-Content-Type-Options", value: "nosniff")
-        headers.add(name: "X-Frame-Options", value: "DENY")
+        addSecurityHeaders(to: &headers, isHTML: false)
         if let origin = corsOrigin {
             headers.add(name: "Access-Control-Allow-Origin", value: origin)
             headers.add(name: "Vary", value: "Origin")
@@ -1225,6 +1331,19 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - Helpers: Static Files
 
     private func serveStaticFile(_ fileName: String, contentType: String, channel: Channel) {
+        // Fast path: serve from in-memory cache pre-loaded at server start.
+        if let (cachedData, cachedContentType) = staticFileCache[fileName] {
+            sendStaticFileData(
+                data: cachedData,
+                contentType: cachedContentType,
+                fileName: fileName,
+                channel: channel
+            )
+            return
+        }
+
+        // Fallback: read from disk (used when bundle was not found at startup,
+        // e.g. during unit tests or if the cache is empty).
         guard let baseURL = Bundle.main.url(forResource: "RemoteControlWeb", withExtension: nil) else {
             sendErrorJSON(status: .notFound, code: "NOT_FOUND", message: "Static file not found.", channel: channel)
             return
@@ -1243,7 +1362,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             )
             return
         }
+        sendStaticFileData(data: data, contentType: contentType, fileName: fileName, channel: channel)
+    }
 
+    private func sendStaticFileData(data: Data, contentType: String, fileName: String, channel: Channel) {
         var headers = HTTPHeaders()
         headers.add(name: "Content-Type", value: contentType)
         headers.add(name: "Content-Length", value: "\(data.count)")
@@ -1253,9 +1375,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             ? "public, max-age=31536000, immutable"
             : "no-cache"
         )
-        headers.add(name: "X-Content-Type-Options", value: "nosniff")
-        headers.add(name: "X-Frame-Options", value: "DENY")
-
+        // HTML files get the web-UI CSP (allows inline styles + WebSocket).
+        // Everything else (JS, CSS, vendor assets) gets the restrictive API CSP.
+        let isHTML = contentType.hasPrefix("text/html")
+        addSecurityHeaders(to: &headers, isHTML: isHTML)
 
         let head = HTTPResponseHead(version: .http1_1, status: .ok, headers: headers)
         var buffer = channel.allocator.buffer(capacity: data.count)
@@ -1270,8 +1393,12 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
     /// Build a safe CORS origin value. Only reflects the Origin header when it
     /// matches `localhost`, `127.0.0.1`, or `[::1]` on any port (the server's
-    /// own Web UI). All other origins are rejected with `nil`, which means no
-    /// `Access-Control-Allow-Origin` header is emitted.
+    /// own Web UI), or the exact ngrok host currently stored in `ngrokHostRef`.
+    ///
+    /// The previous broad `*.ngrok-free.app` wildcard is replaced with an
+    /// exact-host match: only the specific subdomain obtained from the ngrok
+    /// local API is allowed. This prevents any other ngrok-free.app host from
+    /// being accepted as a CORS origin.
     private func allowedOrigin(from head: HTTPRequestHead) -> String? {
         guard let origin = head.headers["Origin"].first,
               let url = URL(string: origin),
@@ -1281,8 +1408,9 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
         let allowedHosts: Set<String> = ["localhost", "127.0.0.1", "[::1]"]
         if allowedHosts.contains(host) { return origin }
-        // Allow ngrok tunnel origins (*.ngrok-free.app, *.ngrok.io).
-        if host.hasSuffix(".ngrok-free.app") || host.hasSuffix(".ngrok.io") {
+
+        // Allow only the exact ngrok host currently active (not a wildcard).
+        if let ngrokHost = ngrokHostRef.host, host == ngrokHost {
             return origin
         }
         return nil
@@ -1356,7 +1484,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         case .ipMismatch:
             return (.forbidden, "AUTH_IP_MISMATCH", "Token was issued to a different IP address.")
         case .maxDevicesReached:
-            return (.forbidden, "AUTH_MAX_DEVICES", "Maximum number of connected devices reached.")
+            // 503 Service Unavailable: the server is at capacity, not that the
+            // client is forbidden. This lets the client distinguish "try later"
+            // (503) from "you are not allowed" (403).
+            return (.serviceUnavailable, "MAX_DEVICES_REACHED", "Maximum number of connected devices reached. Try again later.")
         }
     }
 }
