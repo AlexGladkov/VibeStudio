@@ -270,6 +270,9 @@ final class RemoteControlServer {
                     server.authService.onSecurityLockout = { [weak server] in
                         server?.handleSecurityLockout()
                     }
+                    server.authService.onDevicesChanged = { [weak server] count in
+                        server?.connectedDeviceCount = count
+                    }
 
                     if server.preferences.bonjourEnabled && !server.preferences.bindToLocalhost {
                         server.bonjour.publish(port: bindPort)

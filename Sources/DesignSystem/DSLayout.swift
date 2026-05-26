@@ -217,7 +217,7 @@ enum DSLayout {
     /// Settings sidebar width.
     static let settingsSidebarWidth: CGFloat = 200
     /// Settings label column width (for aligned form rows).
-    static let settingsLabelWidth: CGFloat = 80
+    static let settingsLabelWidth: CGFloat = 170
     /// Settings picker width.
     static let settingsPickerWidth: CGFloat = 240
     /// Max height for large scrollable settings lists.

@@ -93,6 +93,9 @@ final class RemoteAuthService {
     /// Called when the server should shut down due to excessive failed auth attempts.
     var onSecurityLockout: (() -> Void)?
 
+    /// Called when the connected devices list changes (add/remove).
+    var onDevicesChanged: ((_ count: Int) -> Void)?
+
     // MARK: - Private State
 
     /// Active tokens: token string -> entry.
@@ -201,6 +204,7 @@ final class RemoteAuthService {
 
         tokens[token] = entry
         connectedDevices.append(device)
+        onDevicesChanged?(connectedDevices.count)
 
         // Clear failed attempts for this IP on success.
         failedAttempts.removeValue(forKey: clientIP)
@@ -261,6 +265,7 @@ final class RemoteAuthService {
     func revokeAllDevices() {
         tokens.removeAll()
         connectedDevices.removeAll()
+        onDevicesChanged?(0)
         Logger.remoteControl.info("All devices revoked")
     }
 
@@ -330,6 +335,7 @@ final class RemoteAuthService {
     /// Remove a device from the connected devices list.
     private func removeDevice(_ deviceId: UUID) {
         connectedDevices.removeAll { $0.id == deviceId }
+        onDevicesChanged?(connectedDevices.count)
     }
 
     // MARK: - Private: Helpers

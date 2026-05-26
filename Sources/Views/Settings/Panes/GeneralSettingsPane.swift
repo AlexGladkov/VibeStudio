@@ -68,14 +68,6 @@ struct GeneralSettingsPane: View {
                 Spacer()
             }
 
-            Divider().background(DSColor.borderDefault)
-
-            Text("Вкладки")
-                .font(DSFont.settingsTitle)
-                .foregroundStyle(DSColor.textPrimary)
-
-            Divider().background(DSColor.borderDefault)
-
             HStack(spacing: DSSpacing.lg) {
                 Text("Подтверждать закрытие")
                     .font(DSFont.sidebarItem)
@@ -88,6 +80,10 @@ struct GeneralSettingsPane: View {
                 ))
                 .toggleStyle(.switch)
                 .labelsHidden()
+
+                Text("Спрашивать перед закрытием вкладок")
+                    .font(DSFont.sidebarItemSmall)
+                    .foregroundStyle(DSColor.textMuted)
 
                 Spacer()
             }
