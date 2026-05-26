@@ -93,6 +93,10 @@ struct TerminalAppearanceManager {
         env["COLORTERM"] = "truecolor"
         env["LANG"] = env["LANG"] ?? "en_US.UTF-8"
 
+        // Allow git to prompt for credentials via the PTY (fixes #6:
+        // "Device not configured" when git push needs authentication).
+        env["GIT_TERMINAL_PROMPT"] = "1"
+
         // Strip Claude Code session vars so nested invocations don't fail.
         let keysToStrip = env.keys.filter { key in
             key.hasPrefix("CLAUDE_") || key == "CLAUDECODE" ||
