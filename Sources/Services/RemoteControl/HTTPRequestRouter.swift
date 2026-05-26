@@ -39,6 +39,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     /// Preferences -- same pattern.
     private let preferences: RemoteControlPreferences
 
+    /// Cached idle timeout (captured at init on MainActor) for use in
+    /// nonisolated NIO handler context (WebSocket upgrade).
+    private let cachedIdleTimeoutMinutes: Int
+
     /// Weak reference to the server for bridge registration.
     private weak var serverRef: RemoteControlServer?
 
@@ -95,12 +99,14 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         terminalService: TerminalService,
         projectManager: any ProjectManaging,
         preferences: RemoteControlPreferences,
+        idleTimeoutMinutes: Int,
         serverRef: RemoteControlServer?
     ) {
         self.authService = authService
         self.terminalService = terminalService
         self.projectManager = projectManager
         self.preferences = preferences
+        self.cachedIdleTimeoutMinutes = idleTimeoutMinutes
         self.serverRef = serverRef
     }
 
@@ -1017,7 +1023,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         let clientIP = remoteAddress
         let authSvc = authService
         let termSvc = terminalService
-        let prefs = preferences
+        let idleTimeout = cachedIdleTimeoutMinutes
         let requestedProtocol = head.headers["Sec-WebSocket-Protocol"].first
         weak var server = serverRef
 
@@ -1038,7 +1044,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 deviceInfo: nil, // authenticated on first message
                 serverRef: server,
                 terminalService: termSvc,
-                idleTimeoutMinutes: prefs.idleTimeoutMinutes,
+                idleTimeoutMinutes: idleTimeout,
                 authService: authSvc,
                 clientIP: clientIP
             )

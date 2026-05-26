@@ -123,9 +123,16 @@ final class AppLifecycleCoordinator {
         // shows the splash, so we can resize it without any visible flash.
         if let window = NSApp.windows.first(where: { !($0 is NSPanel) && $0.contentView != nil }),
            window.frame.width < DSLayout.windowDefaultWidth {
+            let screenFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
             var frame = window.frame
-            frame.size.width = DSLayout.windowDefaultWidth
-            frame.size.height = max(frame.size.height, DSLayout.windowDefaultHeight)
+            frame.size.width = min(DSLayout.windowDefaultWidth, screenFrame.width)
+            frame.size.height = min(
+                max(frame.size.height, DSLayout.windowDefaultHeight),
+                screenFrame.height
+            )
+            // Keep window within screen bounds.
+            frame.origin.x = max(screenFrame.minX, min(frame.origin.x, screenFrame.maxX - frame.size.width))
+            frame.origin.y = max(screenFrame.minY, min(frame.origin.y, screenFrame.maxY - frame.size.height))
             window.setFrame(frame, display: false)
         }
 

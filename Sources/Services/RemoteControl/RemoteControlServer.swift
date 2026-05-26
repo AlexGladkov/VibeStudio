@@ -177,6 +177,7 @@ final class RemoteControlServer {
         let termSvc = self.terminalService
         let projMgr = self.projectManager
         let prefs = self.preferences
+        let idleTimeout = self.preferences.idleTimeoutMinutes
 
         isTransitioning = true
         weak var weakSelf = self
@@ -217,6 +218,7 @@ final class RemoteControlServer {
                         terminalService: termSvc,
                         projectManager: projMgr,
                         preferences: prefs,
+                        idleTimeoutMinutes: idleTimeout,
                         serverRef: weakSelf
                     )
                     return channel.pipeline.addHandler(encoder, name: "http_encoder").flatMap {
