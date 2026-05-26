@@ -176,6 +176,7 @@
 		DD39569B80F337B1BB2FABEE /* ToolbarIconButtonModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4768876E4C8F1D377A0D788F /* ToolbarIconButtonModifier.swift */; };
 		DE5730F01E08EE877B1BE35E /* BranchListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C285049312BEE8B9F29A7BC8 /* BranchListView.swift */; };
 		DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE17C585B5800BE32F71A70 /* GeneralSettingsPane.swift */; };
+		4EC04F989C484F35F3DFB0D0 /* RemoteControlSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480FCFD667748661A4BA3432 /* RemoteControlSettingsPane.swift */; };
 		E02F4D88B327E5B9C3976A78 /* AppNavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F5EDDA260D3D2E53BCBF86 /* AppNavigationCoordinator.swift */; };
 		E069BD69A1F4951BF9FFA746 /* ContinuationHolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDAA7773FB14FCE4F533334E /* ContinuationHolder.swift */; };
 		E0B76E12C17D16FF428E0D94 /* GitStatusQuerying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0FE979401445A63E64D595 /* GitStatusQuerying.swift */; };
@@ -248,6 +249,7 @@
 		0A372E521A7E297CA82B888D /* CodeSpeakPromptSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakPromptSheet.swift; sourceTree = "<group>"; };
 		0A87365E5716CFCF96D80EA7 /* GitRemoteSetupViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRemoteSetupViewModel.swift; sourceTree = "<group>"; };
 		0AE17C585B5800BE32F71A70 /* GeneralSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsPane.swift; sourceTree = "<group>"; };
+		480FCFD667748661A4BA3432 /* RemoteControlSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlSettingsPane.swift; sourceTree = "<group>"; };
 		0BACD8DB07884C4BACBCEDF5 /* SpecsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecsPanelView.swift; sourceTree = "<group>"; };
 		0C48EAB10D339D6539A44834 /* AgentAvailabilityChecking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAvailabilityChecking.swift; sourceTree = "<group>"; };
 		0D90213D392EF4680F03BF42 /* SyntaxToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxToken.swift; sourceTree = "<group>"; };
@@ -916,6 +918,7 @@
 				37901A7BDC86CA199A3B9491 /* LLMSettingsPane.swift */,
 				11E69BACD8D19081B81E721D /* OpencodeSettingsPane.swift */,
 				D84F2227A474AF4A519DACB2 /* QwenSettingsPane.swift */,
+				480FCFD667748661A4BA3432 /* RemoteControlSettingsPane.swift */,
 			);
 			path = Panes;
 			sourceTree = "<group>";
@@ -1513,6 +1516,7 @@
 				A1B2C3D400000003F0000001 /* NgrokTunnelService.swift in Sources */,
 				A1B2C3D400000001F0000006 /* RemoteControlServer.swift in Sources */,
 				DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */,
+				4EC04F989C484F35F3DFB0D0 /* RemoteControlSettingsPane.swift in Sources */,
 				AEDAD0C1992DD642767C4522 /* GeneratedFile.swift in Sources */,
 				FF954AE43ADA18597C77920A /* GitBranching.swift in Sources */,
 				B957B64A31CC9D01AFE6A974 /* GitChangesPanelView.swift in Sources */,
