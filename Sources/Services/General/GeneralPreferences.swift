@@ -20,6 +20,7 @@ final class GeneralPreferences {
     private enum Keys {
         static let confirmTabClose = "vs_confirm_tab_close"
         static let terminalFontSize = "vs_terminal_font_size"
+        static let claudeSkipPermissions = "vs_claude_skip_permissions"
     }
 
     // MARK: - Preferences
@@ -27,6 +28,11 @@ final class GeneralPreferences {
     /// Show a confirmation alert before closing a tab. Default: `true`.
     var confirmTabClose: Bool {
         didSet { defaults.set(confirmTabClose, forKey: Keys.confirmTabClose) }
+    }
+
+    /// Launch Claude with `--dangerously-skip-permissions`. Default: `false`.
+    var claudeSkipPermissions: Bool {
+        didSet { defaults.set(claudeSkipPermissions, forKey: Keys.claudeSkipPermissions) }
     }
 
     /// Terminal font size in points. Default: `13`. Range: 9…24.
@@ -45,6 +51,9 @@ final class GeneralPreferences {
         confirmTabClose = defaults.object(forKey: Keys.confirmTabClose) == nil
             ? true
             : defaults.bool(forKey: Keys.confirmTabClose)
+
+        // claudeSkipPermissions defaults to false on first launch
+        claudeSkipPermissions = defaults.bool(forKey: Keys.claudeSkipPermissions)
 
         // terminalFontSize defaults to 13pt on first launch
         terminalFontSize = defaults.object(forKey: Keys.terminalFontSize) == nil

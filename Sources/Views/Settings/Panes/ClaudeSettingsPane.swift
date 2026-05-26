@@ -13,6 +13,8 @@ import AppKit
 /// and skills from `~/.claude/skills/`.
 struct ClaudeSettingsPane: View {
 
+    @Environment(\.generalPreferences) private var generalPreferences
+
     // MARK: ViewModel (lazy init)
 
     @State private var vm: ClaudeSettingsPaneViewModel?
@@ -53,6 +55,8 @@ struct ClaudeSettingsPane: View {
                     .foregroundStyle(DSColor.textPrimary)
 
                 Divider().background(DSColor.borderDefault)
+
+                launchOptionsSection
 
                 fileRow(model: model)
 
@@ -120,6 +124,35 @@ struct ClaudeSettingsPane: View {
             Button("Отмена", role: .cancel) {}
         } message: { cmd in
             Text("Файл \u{00AB}\(cmd.filename)\u{00BB} будет удалён без возможности восстановления.")
+        }
+    }
+
+    // MARK: - Launch Options
+
+    private var launchOptionsSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            Text("Запуск")
+                .font(DSFont.buttonLabel)
+                .foregroundStyle(DSColor.textSecondary)
+
+            HStack(spacing: DSSpacing.md) {
+                Toggle(isOn: Binding(
+                    get: { generalPreferences.claudeSkipPermissions },
+                    set: { generalPreferences.claudeSkipPermissions = $0 }
+                )) {
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        Text("--dangerously-skip-permissions")
+                            .font(DSFont.monoPath)
+                            .foregroundStyle(DSColor.textPrimary)
+                        Text("Запускать Claude без подтверждений на выполнение команд")
+                            .font(DSFont.sidebarItemSmall)
+                            .foregroundStyle(DSColor.textMuted)
+                    }
+                }
+                .toggleStyle(.switch)
+            }
+            .padding(DSSpacing.md)
+            .settingsCard()
         }
     }
 

@@ -978,8 +978,12 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
-        // Send the launch command into the shell session.
-        terminalService.sendInput(agent.launchCommand, to: shellSession.id)
+        // Build launch command, appending --dangerously-skip-permissions for Claude when enabled.
+        var command = agent.launchCommand
+        if agent == .claude && UserDefaults.standard.bool(forKey: "vs_claude_skip_permissions") {
+            command = "claude --dangerously-skip-permissions\n"
+        }
+        terminalService.sendInput(command, to: shellSession.id)
 
         let resp = AssistantStartResponse(
             ok: true,

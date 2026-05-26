@@ -235,10 +235,16 @@ final class TerminalService: TerminalSessionManaging {
         // keys are injected explicitly from Keychain or settings.
         let agentEnv = AgentEnvironmentBuilder.build(for: agent, apiKeyValue: apiKeyValue)
 
+        // Build arguments, appending --dangerously-skip-permissions for Claude when enabled.
+        var args = agent.launchArguments
+        if agent == .claude && generalPreferences.claudeSkipPermissions {
+            args.append("--dangerously-skip-permissions")
+        }
+
         // Start the agent process in a dedicated PTY.
         terminalView.startProcess(
             executable: resolvedPath,
-            args: agent.launchArguments,
+            args: args,
             environment: agentEnv,
             execName: agent.executableName,
             currentDirectory: workingDirectory
