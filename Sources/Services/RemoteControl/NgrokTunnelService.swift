@@ -61,6 +61,10 @@ final class NgrokTunnelService {
         error = nil
         tunnelURL = nil
 
+        // Kill any stale ngrok processes from previous sessions to avoid
+        // "endpoint already online" errors.
+        Self.killStaleNgrokProcesses()
+
         // Resolve ngrok binary from trusted directories.
         guard let ngrokPath = CLIAgentPathResolver.resolve("ngrok") else {
             error = "ngrok не найден. Установите: brew install ngrok"
@@ -78,7 +82,7 @@ final class NgrokTunnelService {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: ngrokPath)
 
-        proc.arguments = ["http", "https://localhost:\(httpPort)"]
+        proc.arguments = ["http", "https://localhost:\(httpPort)", "--verify-upstream-tls=false"]
         proc.environment = env
 
         // Capture stderr for error diagnostics.
@@ -277,5 +281,31 @@ final class NgrokTunnelService {
         }
 
         return result
+    }
+
+    // MARK: - Private: Stale Process Cleanup
+
+    /// Kill any orphaned ngrok processes from previous app sessions.
+    ///
+    /// Prevents "endpoint already online" errors when relaunching.
+    private static func killStaleNgrokProcesses() {
+        let pipe = Pipe()
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        proc.arguments = ["-x", "ngrok"]
+        proc.standardOutput = pipe
+        proc.standardError = Pipe()
+        try? proc.run()
+        proc.waitUntilExit()
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else { return }
+
+        for line in output.split(separator: "\n") {
+            if let pid = Int32(line.trimmingCharacters(in: .whitespaces)) {
+                kill(pid, SIGTERM)
+                Logger.remoteControl.info("NgrokTunnelService: killed stale ngrok process pid=\(pid)")
+            }
+        }
     }
 }
