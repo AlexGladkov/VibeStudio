@@ -2,8 +2,10 @@
 
 package studio.vibe.desktop.ui
 
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -15,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,30 +25,32 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
-import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.GitFile
 import studio.vibe.shared.model.GitFileStatus
+
+// ── GitPanel ──────────────────────────────────────────────────────────────────
 
 @Composable
 fun GitPanel(
@@ -72,9 +75,9 @@ fun GitPanel(
     val untrackedFiles = status?.untrackedFiles ?: emptyList()
     val totalCount = stagedFiles.size + unstagedFiles.size + untrackedFiles.size
 
-    val commitSummary = activeProjectId?.let { gitState.commitSummaries[it] } ?: ""
-    val isCommitting = activeProjectId?.let { it in gitState.committingProjects } ?: false
-    val commitError = activeProjectId?.let { gitState.commitPanelErrors[it] }
+    // Diff sheet state — which file is open and whether it is staged
+    var diffSheetFile by remember { mutableStateOf<GitFile?>(null) }
+    var diffSheetStaged by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.background(DSColor.surfaceRaised)) {
         // Header: "CHANGES" + count badge
@@ -145,7 +148,33 @@ fun GitPanel(
                         SectionHeader("STAGED", stagedFiles.size, DSColor.gitAdded)
                     }
                     items(stagedFiles, key = { "s-${it.path}" }) { file ->
-                        GitFileRow(file)
+                        GitFileRow(
+                            file = file,
+                            isStaged = true,
+                            onOpenDiff = {
+                                diffSheetFile = file
+                                diffSheetStaged = true
+                            },
+                            onStageToggle = {
+                                activeProject?.let { proj ->
+                                    container.gitSidebarViewModel.let { vm ->
+                                        // Unstage
+                                        activeProjectId?.let { id ->
+                                            val scope = container.scope
+                                            scope.launch {
+                                                runCatching {
+                                                    container.gitService.unstage(
+                                                        files = listOf(file.path),
+                                                        at = proj.path,
+                                                    )
+                                                    vm.loadGitInfo(id, proj.path)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        )
                     }
                 }
 
@@ -155,7 +184,30 @@ fun GitPanel(
                         SectionHeader("MODIFIED", unstagedFiles.size, DSColor.gitModified)
                     }
                     items(unstagedFiles, key = { "u-${it.path}" }) { file ->
-                        GitFileRow(file)
+                        GitFileRow(
+                            file = file,
+                            isStaged = false,
+                            onOpenDiff = {
+                                diffSheetFile = file
+                                diffSheetStaged = false
+                            },
+                            onStageToggle = {
+                                activeProject?.let { proj ->
+                                    activeProjectId?.let { id ->
+                                        val scope = container.scope
+                                        scope.launch {
+                                            runCatching {
+                                                container.gitService.stage(
+                                                    files = listOf(file.path),
+                                                    at = proj.path,
+                                                )
+                                                container.gitSidebarViewModel.loadGitInfo(id, proj.path)
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        )
                     }
                 }
 
@@ -165,92 +217,59 @@ fun GitPanel(
                         SectionHeader("UNTRACKED", untrackedFiles.size, DSColor.gitUntracked)
                     }
                     items(untrackedFiles, key = { "t-${it.path}" }) { file ->
-                        GitFileRow(file)
+                        GitFileRow(
+                            file = file,
+                            isStaged = false,
+                            onOpenDiff = {
+                                diffSheetFile = file
+                                diffSheetStaged = false
+                            },
+                            onStageToggle = {
+                                activeProject?.let { proj ->
+                                    activeProjectId?.let { id ->
+                                        val scope = container.scope
+                                        scope.launch {
+                                            runCatching {
+                                                container.gitService.stage(
+                                                    files = listOf(file.path),
+                                                    at = proj.path,
+                                                )
+                                                container.gitSidebarViewModel.loadGitInfo(id, proj.path)
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        )
                     }
                 }
             }
 
-            // Commit section at bottom
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(DSColor.borderDefault),
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(DSSpacing.sm),
-                verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
-            ) {
-                OutlinedTextField(
-                    value = commitSummary,
-                    onValueChange = { value ->
-                        activeProjectId?.let {
-                            container.gitSidebarViewModel.updateCommitSummary(it, value)
-                        }
-                    },
-                    placeholder = {
-                        Text(
-                            "Commit message...",
-                            style = DSFont.commitInput,
-                            color = DSColor.textMuted,
-                        )
-                    },
-                    textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = DSLayout.commitInputMinHeight, max = DSLayout.commitInputMaxHeight),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = DSColor.borderFocus,
-                        unfocusedBorderColor = DSColor.borderDefault,
-                        cursorColor = DSColor.accentPrimary,
-                        focusedContainerColor = DSColor.surfaceInput,
-                        unfocusedContainerColor = DSColor.surfaceInput,
-                    ),
-                    shape = RoundedCornerShape(DSRadius.md),
+            // Commit panel at bottom — delegates to CommitPanel composable
+            if (activeProjectId != null && activeProject != null) {
+                CommitPanel(
+                    container = container,
+                    projectId = activeProjectId!!,
+                    projectPath = activeProject.path,
                 )
-
-                // Error message
-                commitError?.let { err ->
-                    Text(
-                        text = err,
-                        style = DSFont.sidebarItemSmall,
-                        color = DSColor.gitDeleted,
-                    )
-                }
-
-                Button(
-                    onClick = {
-                        if (activeProjectId != null && activeProject != null) {
-                            container.gitSidebarViewModel.performCommit(
-                                activeProjectId!!,
-                                activeProject.path,
-                            )
-                        }
-                    },
-                    enabled = commitSummary.isNotBlank() && !isCommitting,
-                    shape = RoundedCornerShape(DSRadius.md),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DSColor.buttonPrimaryBg,
-                        contentColor = DSColor.buttonPrimaryText,
-                        disabledContainerColor = DSColor.surfaceOverlay,
-                        disabledContentColor = DSColor.textDisabled,
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(DSLayout.gitButtonHeight),
-                ) {
-                    Text(
-                        text = if (isCommitting) "Committing..." else "Commit",
-                        style = DSFont.buttonLabel,
-                    )
-                }
             }
         }
     }
+
+    // Diff sheet overlay — rendered outside the Column so it creates its own window
+    val sheetFile = diffSheetFile
+    if (sheetFile != null && activeProject != null) {
+        FileDiffSheet(
+            container = container,
+            file = sheetFile,
+            projectPath = activeProject.path.path,
+            staged = diffSheetStaged,
+            onDismiss = { diffSheetFile = null },
+        )
+    }
 }
+
+// ── Section header ────────────────────────────────────────────────────────────
 
 @Composable
 private fun SectionHeader(label: String, count: Int, accentColor: Color) {
@@ -275,56 +294,57 @@ private fun SectionHeader(label: String, count: Int, accentColor: Color) {
     }
 }
 
+// ── File row ──────────────────────────────────────────────────────────────────
+
 @Composable
-private fun GitFileRow(file: GitFile) {
+private fun GitFileRow(
+    file: GitFile,
+    isStaged: Boolean,
+    onOpenDiff: () -> Unit,
+    onStageToggle: () -> Unit,
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(DSLayout.changesFileRowHeight)
-            .hoverable(interactionSource)
-            .background(if (isHovered) DSColor.surfaceOverlay else Color.Transparent)
-            .padding(horizontal = DSLayout.sidebarHorizontalPadding),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Filename (basename only)
-        Text(
-            text = file.path.substringAfterLast('/'),
-            style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+    val contextMenuItems = listOf(
+        ContextMenuItem("View Diff") { onOpenDiff() },
+        ContextMenuItem(if (isStaged) "Unstage" else "Stage") { onStageToggle() },
+    )
 
-        Spacer(Modifier.width(DSSpacing.xs))
+    ContextMenuArea(items = { contextMenuItems }) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.changesFileRowHeight)
+                .hoverable(interactionSource)
+                .background(if (isHovered) DSColor.surfaceOverlay else Color.Transparent)
+                .pointerInput(file.path) {
+                    detectTapGestures(
+                        onDoubleTap = { onOpenDiff() },
+                    )
+                }
+                .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Filename (basename only)
+            Text(
+                text = file.path.substringAfterLast('/'),
+                style = DSFont.sidebarItem,
+                color = DSColor.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
 
-        // Status letter
-        Text(
-            text = statusLetter(file.status),
-            style = DSFont.gitStatus,
-            color = statusColor(file.status),
-            modifier = Modifier.width(DSLayout.statusLetterWidth),
-        )
+            Spacer(Modifier.width(DSSpacing.xs))
+
+            // Status letter
+            Text(
+                text = statusLetterFor(file.status),
+                style = DSFont.gitStatus,
+                color = statusColorFor(file.status),
+                modifier = Modifier.width(DSLayout.statusLetterWidth),
+            )
+        }
     }
-}
-
-private fun statusLetter(status: GitFileStatus): String = when (status) {
-    GitFileStatus.MODIFIED -> "M"
-    GitFileStatus.ADDED -> "A"
-    GitFileStatus.DELETED -> "D"
-    GitFileStatus.RENAMED -> "R"
-    GitFileStatus.COPIED -> "C"
-    GitFileStatus.UNTRACKED -> "?"
-}
-
-private fun statusColor(status: GitFileStatus): Color = when (status) {
-    GitFileStatus.MODIFIED -> DSColor.gitModified
-    GitFileStatus.ADDED -> DSColor.gitAdded
-    GitFileStatus.DELETED -> DSColor.gitDeleted
-    GitFileStatus.RENAMED -> DSColor.gitRenamed
-    GitFileStatus.COPIED -> DSColor.gitAdded
-    GitFileStatus.UNTRACKED -> DSColor.gitUntracked
 }

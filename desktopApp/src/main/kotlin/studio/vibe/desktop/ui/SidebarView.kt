@@ -4,6 +4,8 @@ package studio.vibe.desktop.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -64,12 +66,20 @@ import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.DirectoryEntry
 import studio.vibe.shared.model.FileEntry
 import studio.vibe.shared.model.FileTreeNode
+import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
 import studio.vibe.shared.model.GitFileStatus
 import studio.vibe.shared.model.Project
 
 private enum class SidebarTab { FILES, GIT, SPECS }
 
+/**
+ * Root sidebar composable.
+ *
+ * Houses the icon strip and main content column. The GIT tab now hosts
+ * a full branch list with context menus and a "New Branch" action button
+ * that surfaces a [CreateBranchSheet] dialog.
+ */
 @Composable
 fun SidebarView(
     container: DesktopServiceContainer,
@@ -99,14 +109,14 @@ fun SidebarView(
                     projects = projects,
                     activeProjectId = activeProjectId,
                 )
-                SidebarTab.GIT -> GitBranchSection(container)
+                SidebarTab.GIT  -> GitBranchSection(container)
                 SidebarTab.SPECS -> SpecsPlaceholder()
             }
         }
     }
 }
 
-// ── Icon Strip ───────────────────────────────────────────────────────────────
+// ── Icon Strip ────────────────────────────────────────────────────────────────
 
 @Composable
 private fun IconStrip(
@@ -183,7 +193,7 @@ private fun IconStripButton(
     }
 }
 
-// ── Multi-Project File Tree ─────────────────────────────────────────────────
+// ── Multi-Project File Tree ───────────────────────────────────────────────────
 
 @Composable
 private fun MultiProjectFileTree(
@@ -191,21 +201,16 @@ private fun MultiProjectFileTree(
     projects: List<Project>,
     activeProjectId: Uuid?,
 ) {
-    // Track which projects are expanded
     var expandedProjects by remember { mutableStateOf(setOf<Uuid>()) }
-    // Track expanded dirs within file trees
     var expandedDirs by remember { mutableStateOf(setOf<String>()) }
-    // File tree cache per project
     var fileTrees by remember { mutableStateOf(mapOf<Uuid, List<FileTreeNode>>()) }
 
-    // Auto-expand active project
     LaunchedEffect(activeProjectId) {
         if (activeProjectId != null && activeProjectId !in expandedProjects) {
             expandedProjects = expandedProjects + activeProjectId
         }
     }
 
-    // Load file trees for expanded projects
     for (project in projects) {
         if (project.id in expandedProjects && project.id !in fileTrees) {
             LaunchedEffect(project.id) {
@@ -230,9 +235,7 @@ private fun MultiProjectFileTree(
                     project = project,
                     isActive = isActive,
                     isExpanded = isExpanded,
-                    onClick = {
-                        container.projectStore.setActiveProjectId(project.id)
-                    },
+                    onClick = { container.projectStore.setActiveProjectId(project.id) },
                     onToggleExpand = {
                         expandedProjects = if (isExpanded) {
                             expandedProjects - project.id
@@ -273,7 +276,6 @@ private fun MultiProjectFileTree(
     }
 }
 
-// Flatten tree for LazyColumn (avoids nested LazyColumn)
 private data class FlatTreeItem(
     val id: String,
     val node: FileTreeNode,
@@ -320,7 +322,6 @@ private fun ProjectHeaderRow(
             .padding(horizontal = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Chevron
         Box(
             modifier = Modifier
                 .size(DSLayout.chevronFrameWidth)
@@ -335,7 +336,6 @@ private fun ProjectHeaderRow(
             )
         }
 
-        // Folder icon
         Icon(
             Icons.Default.Folder,
             contentDescription = null,
@@ -345,7 +345,6 @@ private fun ProjectHeaderRow(
 
         Spacer(Modifier.width(DSSpacing.xs))
 
-        // Project name
         Text(
             text = project.name,
             style = DSFont.sidebarItem,
@@ -382,7 +381,6 @@ private fun DirectoryRow(
             .padding(start = (depth * 16 + 4).dp, end = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Chevron
         Box(
             modifier = Modifier.size(DSLayout.chevronFrameWidth),
             contentAlignment = Alignment.Center,
@@ -433,10 +431,8 @@ private fun FileRow(
             .padding(start = (depth * 16 + 4).dp, end = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Alignment spacer (no chevron for files)
         Spacer(Modifier.width(DSLayout.chevronFrameWidth))
 
-        // File icon by extension
         val (icon, iconColor) = fileIconAndColor(ext)
         Icon(
             icon,
@@ -456,7 +452,6 @@ private fun FileRow(
             modifier = Modifier.weight(1f),
         )
 
-        // Git status
         entry.gitStatus?.let { status ->
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
@@ -470,27 +465,27 @@ private fun FileRow(
 }
 
 private fun fileIconAndColor(ext: String): Pair<ImageVector, Color> = when (ext) {
-    "kt", "kts" -> Icons.Default.Code to DSColor.accentPrimary
-    "swift" -> Icons.Default.Code to Color(0xFFF05138)
-    "java" -> Icons.Default.Code to Color(0xFFB07219)
-    "json", "yaml", "yml", "toml" -> Icons.Default.Settings to DSColor.textSecondary
-    "md", "txt", "rst" -> Icons.Default.Description to DSColor.textSecondary
-    "xml", "html", "css" -> Icons.Default.Code to DSColor.gitModified
-    "gradle" -> Icons.Default.Settings to DSColor.textSecondary
+    "kt", "kts"                             -> Icons.Default.Code to DSColor.accentPrimary
+    "swift"                                 -> Icons.Default.Code to Color(0xFFF05138)
+    "java"                                  -> Icons.Default.Code to Color(0xFFB07219)
+    "json", "yaml", "yml", "toml"           -> Icons.Default.Settings to DSColor.textSecondary
+    "md", "txt", "rst"                      -> Icons.Default.Description to DSColor.textSecondary
+    "xml", "html", "css"                    -> Icons.Default.Code to DSColor.gitModified
+    "gradle"                                -> Icons.Default.Settings to DSColor.textSecondary
     "png", "jpg", "jpeg", "svg", "gif", "webp" -> Icons.Default.Image to DSColor.textSecondary
     else -> Icons.AutoMirrored.Filled.InsertDriveFile to DSColor.textSecondary
 }
 
 private fun gitStatusColor(status: GitFileStatus): Color = when (status) {
-    GitFileStatus.MODIFIED -> DSColor.gitModified
-    GitFileStatus.ADDED -> DSColor.gitAdded
-    GitFileStatus.DELETED -> DSColor.gitDeleted
-    GitFileStatus.RENAMED -> DSColor.gitRenamed
-    GitFileStatus.COPIED -> DSColor.gitAdded
+    GitFileStatus.MODIFIED  -> DSColor.gitModified
+    GitFileStatus.ADDED     -> DSColor.gitAdded
+    GitFileStatus.DELETED   -> DSColor.gitDeleted
+    GitFileStatus.RENAMED   -> DSColor.gitRenamed
+    GitFileStatus.COPIED    -> DSColor.gitAdded
     GitFileStatus.UNTRACKED -> DSColor.gitUntracked
 }
 
-// ── Git Branch Section ───────────────────────────────────────────────────────
+// ── Git Branch Section ────────────────────────────────────────────────────────
 
 @Composable
 private fun GitBranchSection(container: DesktopServiceContainer) {
@@ -499,6 +494,7 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
     val projects by container.projectStore.projects.collectAsState()
 
     val activeProject = projects.find { it.id == activeProjectId }
+
     LaunchedEffect(activeProjectId) {
         if (activeProject != null && activeProjectId != null) {
             container.gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
@@ -506,10 +502,15 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
     }
 
     val branches = activeProjectId?.let { gitState.projectBranches[it] } ?: emptyList()
-    val status = activeProjectId?.let { gitState.projectGitStatuses[it] }
+    val gitStatus = activeProjectId?.let { gitState.projectGitStatuses[it] }
     val isNonGit = activeProjectId?.let { it in gitState.nonGitProjects } ?: false
 
+    // State controlling the CreateBranchSheet dialog visibility
+    var showCreateBranch by remember { mutableStateOf(false) }
+    var createBranchFromBranch: String? by remember { mutableStateOf(null) }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        // Section header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -525,93 +526,353 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
         when {
             isNonGit -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Not a git repository", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                    Text(
+                        "Not a git repository",
+                        style = DSFont.sidebarItem,
+                        color = DSColor.textMuted,
+                    )
                 }
             }
-            branches.isEmpty() && status == null -> {
+            branches.isEmpty() && gitStatus == null -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Loading...", style = DSFont.sidebarItem, color = DSColor.textMuted)
                 }
             }
-            branches.isEmpty() -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No branches", style = DSFont.sidebarItem, color = DSColor.textMuted)
+            else -> {
+                val localBranches = branches.filter { !it.isRemote }
+                val remoteBranches = branches.filter { it.isRemote && !it.name.endsWith("/HEAD") }
+                val currentBranch = localBranches.find { it.isCurrent }
+                val aheadCount = gitStatus?.aheadCount ?: 0
+                val behindCount = gitStatus?.behindCount ?: 0
+                val remoteUnavailable = activeProjectId?.let {
+                    it in gitState.remoteUnavailableProjects
+                } ?: false
+
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    // Current branch row (highlighted)
+                    if (currentBranch != null) {
+                        item(key = "current-${currentBranch.name}") {
+                            BranchRow(
+                                branch = currentBranch,
+                                aheadCount = aheadCount,
+                                behindCount = behindCount,
+                                projectPath = activeProject?.path,
+                                onCheckout = null, // already current
+                                onPull = { path ->
+                                    activeProjectId?.let { id ->
+                                        container.gitSidebarViewModel.gitBranchPull(
+                                            projectId = id,
+                                            branch = currentBranch.name,
+                                            isCurrent = true,
+                                            path = path,
+                                        )
+                                    }
+                                },
+                                onPush = { path ->
+                                    activeProjectId?.let { id ->
+                                        container.gitSidebarViewModel.gitBranchPush(
+                                            projectId = id,
+                                            branch = currentBranch.name,
+                                            path = path,
+                                        )
+                                    }
+                                },
+                                onCreateFrom = {
+                                    createBranchFromBranch = currentBranch.name
+                                    showCreateBranch = true
+                                },
+                            )
+                        }
+                    }
+
+                    // Other local branches
+                    val otherLocal = localBranches.filter { !it.isCurrent }
+                    items(otherLocal, key = { "local-${it.name}" }) { branch ->
+                        BranchRow(
+                            branch = branch,
+                            aheadCount = 0,
+                            behindCount = 0,
+                            projectPath = activeProject?.path,
+                            onCheckout = { path ->
+                                activeProjectId?.let { id ->
+                                    container.gitSidebarViewModel.checkout(id, branch.name, path)
+                                }
+                            },
+                            onPull = { path ->
+                                activeProjectId?.let { id ->
+                                    container.gitSidebarViewModel.gitBranchPull(
+                                        projectId = id,
+                                        branch = branch.name,
+                                        isCurrent = false,
+                                        path = path,
+                                    )
+                                }
+                            },
+                            onPush = { path ->
+                                activeProjectId?.let { id ->
+                                    container.gitSidebarViewModel.gitBranchPush(
+                                        projectId = id,
+                                        branch = branch.name,
+                                        path = path,
+                                    )
+                                }
+                            },
+                            onCreateFrom = {
+                                createBranchFromBranch = branch.name
+                                showCreateBranch = true
+                            },
+                        )
+                    }
+
+                    // Remote section separator
+                    if (remoteUnavailable || remoteBranches.isNotEmpty()) {
+                        item(key = "remote-separator") {
+                            RemoteSectionSeparator()
+                        }
+                    }
+
+                    if (remoteUnavailable) {
+                        item(key = "remote-unavailable") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(DSLayout.gitFileRowHeight - 8.dp)
+                                    .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "unavailable",
+                                    style = DSFont.sidebarItemSmall,
+                                    color = DSColor.textMuted,
+                                )
+                            }
+                        }
+                    } else {
+                        items(remoteBranches, key = { "remote-${it.name}" }) { branch ->
+                            RemoteBranchRow(branch)
+                        }
+                    }
+
+                    // "New Branch" action row — always at bottom of branch list
+                    item(key = "new-branch-action") {
+                        NewBranchRow(
+                            onClick = {
+                                createBranchFromBranch = null
+                                showCreateBranch = true
+                            },
+                        )
+                    }
                 }
             }
-            else -> {
-                // Current branch at top
-                val currentBranch = branches.find { it.isCurrent }
-                if (currentBranch != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(DSLayout.treeRowHeight)
-                            .background(DSColor.surfaceOverlay.copy(alpha = 0.5f))
-                            .padding(horizontal = DSLayout.sidebarHorizontalPadding),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier.size(6.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(DSColor.accentPrimary),
-                        )
-                        Spacer(Modifier.width(DSSpacing.xs))
-                        Text(
-                            text = currentBranch.name,
-                            style = DSFont.sidebarItem,
-                            color = DSColor.textPrimary,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+        }
+    }
 
-                // Other branches
-                val otherBranches = branches.filter { !it.isCurrent }
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(otherBranches, key = { it.name }) { branch ->
-                        BranchRow(branch)
-                    }
-                }
+    // CreateBranchSheet dialog
+    if (showCreateBranch && activeProject != null && activeProjectId != null) {
+        CreateBranchSheet(
+            container = container,
+            projectId = activeProjectId!!,
+            projectPath = activeProject.path,
+            fromBranch = createBranchFromBranch,
+            onDismiss = {
+                showCreateBranch = false
+                createBranchFromBranch = null
+            },
+        )
+    }
+}
+
+// ── Branch Rows ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun BranchRow(
+    branch: GitBranch,
+    aheadCount: Int,
+    behindCount: Int,
+    projectPath: FilePath?,
+    onCheckout: ((FilePath) -> Unit)?,
+    onPull: (FilePath) -> Unit,
+    onPush: (FilePath) -> Unit,
+    onCreateFrom: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    val menuItems = buildList {
+        if (!branch.isCurrent && onCheckout != null) {
+            add(
+                ContextMenuItem("Checkout") {
+                    projectPath?.let { onCheckout(it) }
+                },
+            )
+        }
+        add(
+            ContextMenuItem("Pull") {
+                projectPath?.let { onPull(it) }
+            },
+        )
+        add(
+            ContextMenuItem("Push") {
+                projectPath?.let { onPush(it) }
+            },
+        )
+        add(
+            ContextMenuItem("Create Branch From This") {
+                onCreateFrom()
+            },
+        )
+    }
+
+    ContextMenuArea(items = { menuItems }) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.gitFileRowHeight)
+                .hoverable(interactionSource)
+                .background(
+                    when {
+                        branch.isCurrent -> DSColor.surfaceOverlay.copy(alpha = 0.5f)
+                        isHovered        -> DSColor.surfaceOverlay
+                        else             -> Color.Transparent
+                    },
+                )
+                .then(
+                    if (!branch.isCurrent && onCheckout != null) {
+                        Modifier.clickable { projectPath?.let { onCheckout(it) } }
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Current indicator dot
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        if (branch.isCurrent) DSColor.accentPrimary else Color.Transparent,
+                    ),
+            )
+
+            Spacer(Modifier.width(DSSpacing.xs))
+
+            Text(
+                text = branch.name,
+                style = DSFont.sidebarItem,
+                color = if (branch.isCurrent) DSColor.textPrimary else DSColor.textSecondary,
+                fontWeight = if (branch.isCurrent) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+
+            // Ahead / behind counts — only for the current branch
+            if (branch.isCurrent && (aheadCount > 0 || behindCount > 0)) {
+                Spacer(Modifier.width(DSSpacing.xs))
+                AheadBehindBadge(aheadCount = aheadCount, behindCount = behindCount)
             }
         }
     }
 }
 
 @Composable
-private fun BranchRow(branch: GitBranch) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
+private fun AheadBehindBadge(aheadCount: Int, behindCount: Int) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(DSSpacing.xxs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (aheadCount > 0) {
+            Text(
+                text = "\u2191$aheadCount",
+                style = DSFont.gitAheadBehind,
+                color = DSColor.gitAdded,
+            )
+        }
+        if (behindCount > 0) {
+            Text(
+                text = "\u2193$behindCount",
+                style = DSFont.gitAheadBehind,
+                color = DSColor.gitDeleted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RemoteSectionSeparator() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = DSSpacing.xs, horizontal = DSLayout.sidebarHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DSSpacing.xs),
+    ) {
+        Box(Modifier.weight(1f).height(1.dp).background(DSColor.borderSubtle))
+        Text("origin", style = DSFont.sidebarItemSmall, color = DSColor.textMuted)
+        Box(Modifier.weight(1f).height(1.dp).background(DSColor.borderSubtle))
+    }
+}
+
+@Composable
+private fun RemoteBranchRow(branch: GitBranch) {
+    val displayName = branch.name.removePrefix("origin/")
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(DSLayout.treeRowHeight)
-            .hoverable(interactionSource)
-            .background(if (isHovered) DSColor.surfaceOverlay else Color.Transparent)
+            .height(DSLayout.gitFileRowHeight - 6.dp)
             .padding(horizontal = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.width(6.dp + DSSpacing.xs))
 
         Text(
-            text = branch.name,
-            style = DSFont.sidebarItem,
-            color = DSColor.textSecondary,
+            text = displayName,
+            style = DSFont.sidebarItemSmall,
+            color = DSColor.textMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
 
-        if (branch.isRemote) {
-            Spacer(Modifier.width(DSSpacing.xs))
-            Text(text = "remote", style = DSFont.badgeSmall, color = DSColor.textMuted)
-        }
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text("remote", style = DSFont.badgeSmall, color = DSColor.textMuted)
     }
 }
 
-// ── Specs Placeholder ────────────────────────────────────────────────────────
+@Composable
+private fun NewBranchRow(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.gitFileRowHeight)
+            .hoverable(interactionSource)
+            .clickable(onClick = onClick)
+            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Add,
+            contentDescription = null,
+            tint = DSColor.accentPrimary,
+            modifier = Modifier.size(DSFont.iconBase.value.dp),
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text(
+            "New branch",
+            style = DSFont.sidebarItemSmall,
+            color = DSColor.accentPrimary,
+        )
+    }
+}
+
+// ── Specs Placeholder ─────────────────────────────────────────────────────────
 
 @Composable
 private fun SpecsPlaceholder() {
