@@ -97,3 +97,32 @@ clean: ## Remove all build artifacts
 	@rm -rf $(BUILD_DIR)
 	@rm -rf $(CURDIR)/.build
 	@echo "Build artifacts cleaned."
+
+# =============================================================================
+# Compose Desktop (KMP) targets
+# =============================================================================
+
+.PHONY: kmp-build kmp-test kmp-run kmp-package-dmg kmp-package-msi kmp-package-deb kmp-package-all kmp-clean
+
+kmp-build: ## Compile Kotlin sources for Compose Desktop
+	./gradlew :desktopApp:compileKotlin
+
+kmp-test: ## Run shared and desktop unit tests
+	./gradlew :shared:jvmTest :desktopApp:test
+
+kmp-run: ## Run Compose Desktop app in development mode
+	./gradlew :desktopApp:run
+
+kmp-package-dmg: ## Package Compose Desktop app as macOS DMG
+	./gradlew :desktopApp:packageDmg
+
+kmp-package-msi: ## Package Compose Desktop app as Windows MSI
+	./gradlew :desktopApp:packageMsi
+
+kmp-package-deb: ## Package Compose Desktop app as Linux DEB
+	./gradlew :desktopApp:packageDeb
+
+kmp-package-all: kmp-package-dmg kmp-package-msi kmp-package-deb ## Package Compose Desktop app for all platforms
+
+kmp-clean: ## Remove Gradle build artifacts
+	./gradlew clean

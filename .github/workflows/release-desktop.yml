@@ -1,0 +1,271 @@
+# ============================================================
+# VibeStudio Desktop — Multi-Platform Release Pipeline
+# Triggers on push of desktop version tags (desktop-v*).
+# Builds DMG (macOS), MSI (Windows), DEB (Linux) via
+# Compose Desktop packaging, then creates a GitHub Release
+# with all three artifacts and SHA-256 checksums.
+#
+# NOTE: The original release.yml builds the Swift/Xcode macOS
+# app on v* tags. This file is completely independent and must
+# NOT be merged with or replace that workflow.
+# ============================================================
+
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+
+# Cancel redundant in-progress runs for the same ref
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+# ---------------------------------------------------------------------------
+# Job 1 — macOS  →  DMG
+# ---------------------------------------------------------------------------
+jobs:
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-macos-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-macos-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Run shared tests
+        run: ./gradlew :shared:jvmTest --no-daemon
+
+      - name: Package DMG
+        run: ./gradlew :desktopApp:packageDmg --no-daemon
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: desktopApp/build/compose/binaries/main/dmg/*.dmg
+          retention-days: 7
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Job 2 — Windows  →  MSI
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Build Windows MSI
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-windows-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-windows-
+
+      - name: Package MSI
+        run: gradlew.bat :desktopApp:packageMsi --no-daemon
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: desktopApp/build/compose/binaries/main/msi/*.msi
+          retention-days: 7
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Job 3 — Linux  →  DEB
+  # ---------------------------------------------------------------------------
+  build-linux:
+    name: Build Linux DEB
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-linux-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-linux-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Package DEB
+        run: ./gradlew :desktopApp:packageDeb --no-daemon
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: desktopApp/build/compose/binaries/main/deb/*.deb
+          retention-days: 7
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Job 4 — Publish GitHub Release
+  # ---------------------------------------------------------------------------
+  release:
+    name: Publish GitHub Release
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: |
+          # desktop-v1.2.3  →  1.2.3
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Releasing version: ${VERSION}"
+
+      - name: Download macOS DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: artifacts/macos/
+
+      - name: Download Windows MSI
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-msi
+          path: artifacts/windows/
+
+      - name: Download Linux DEB
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-deb
+          path: artifacts/linux/
+
+      - name: Compute SHA-256 checksums
+        id: checksums
+        run: |
+          DMG=$(find artifacts/macos -name '*.dmg' | head -1)
+          MSI=$(find artifacts/windows -name '*.msi' | head -1)
+          DEB=$(find artifacts/linux  -name '*.deb' | head -1)
+
+          SHA_DMG=$(sha256sum "${DMG}" | awk '{print $1}')
+          SHA_MSI=$(sha256sum "${MSI}" | awk '{print $1}')
+          SHA_DEB=$(sha256sum "${DEB}" | awk '{print $1}')
+
+          echo "sha256_dmg=${SHA_DMG}" >> "${GITHUB_OUTPUT}"
+          echo "sha256_msi=${SHA_MSI}" >> "${GITHUB_OUTPUT}"
+          echo "sha256_deb=${SHA_DEB}" >> "${GITHUB_OUTPUT}"
+
+          echo "DMG  SHA-256: ${SHA_DMG}"
+          echo "MSI  SHA-256: ${SHA_MSI}"
+          echo "DEB  SHA-256: ${SHA_DEB}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VibeStudio Desktop v${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          generate_release_notes: true
+          body: |
+            ## VibeStudio Desktop v${{ steps.version.outputs.version }}
+
+            Cross-platform Compose Desktop release. Choose the installer for your OS below.
+
+            ---
+
+            ### macOS — DMG
+            1. Download `VibeStudio-${{ steps.version.outputs.version }}.dmg`
+            2. Open the DMG and drag **VibeStudio** to Applications
+            3. First launch: right-click → **Open** to bypass Gatekeeper (unsigned build)
+
+            **System requirements:** macOS 12 Monterey or later · Apple Silicon or Intel
+
+            ---
+
+            ### Windows — MSI
+            1. Download `VibeStudio-${{ steps.version.outputs.version }}.msi`
+            2. Run the installer and follow the setup wizard
+            3. Launch **VibeStudio** from the Start menu or desktop shortcut
+
+            **System requirements:** Windows 10 / 11 (64-bit) · 4 GB RAM recommended
+
+            ---
+
+            ### Linux — DEB
+            ```bash
+            sudo dpkg -i VibeStudio-${{ steps.version.outputs.version }}.deb
+            # or
+            sudo apt install ./VibeStudio-${{ steps.version.outputs.version }}.deb
+            ```
+
+            **System requirements:** Ubuntu 20.04+ or any Debian-based distro · x86_64
+
+            ---
+
+            ### SHA-256 Checksums
+            ```
+            ${{ steps.checksums.outputs.sha256_dmg }}  VibeStudio-${{ steps.version.outputs.version }}.dmg
+            ${{ steps.checksums.outputs.sha256_msi }}  VibeStudio-${{ steps.version.outputs.version }}.msi
+            ${{ steps.checksums.outputs.sha256_deb }}  VibeStudio-${{ steps.version.outputs.version }}.deb
+            ```
+
+            > **Note:** Builds are unsigned and unnotarized. Intended for development and testing.
+          files: |
+            artifacts/macos/*.dmg
+            artifacts/windows/*.msi
+            artifacts/linux/*.deb

@@ -1,0 +1,195 @@
+# ============================================================
+# VibeStudio KMP — Continuous Integration
+#
+# Runs on every push to main / feature/** branches and on
+# every PR targeting main.
+#
+# Jobs:
+#   lint   — fast compilation check (ubuntu only)
+#   build  — full test matrix (macOS / Linux / Windows)
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+# Cancel an in-progress run for the same ref when a newer commit arrives.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # =========================================================================
+  # Job: lint
+  # Fast compilation-only check on ubuntu-latest.
+  # Catches syntax errors and unresolved references in < 5 minutes without
+  # running any test suites.
+  # =========================================================================
+  lint:
+    name: Lint (compile check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      # Override the hardcoded java.home now that JAVA_HOME is available.
+      - name: Override org.gradle.java.home for CI
+        run: echo "GRADLE_OPTS=-Dorg.gradle.java.home=${JAVA_HOME} -Dorg.gradle.daemon=false" >> "$GITHUB_ENV"
+
+      - name: Cache Gradle wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-wrapper-
+
+      - name: Cache Gradle caches
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: gradle-caches-lint-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-caches-lint-
+            gradle-caches-
+
+      - name: Compile shared (JVM) + desktopApp
+        run: >-
+          ./gradlew
+          :shared:compileKotlinJvm
+          :desktopApp:compileKotlin
+          --no-daemon
+          --stacktrace
+
+  # =========================================================================
+  # Job: build
+  # Full test matrix across macOS, Linux, and Windows.
+  # =========================================================================
+  build:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false       # let all OS legs finish even if one fails
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      # Must run after setup-java so that JAVA_HOME is already exported.
+      - name: Override org.gradle.java.home for CI
+        shell: bash
+        run: echo "GRADLE_OPTS=-Dorg.gradle.java.home=${JAVA_HOME} -Dorg.gradle.daemon=false" >> "$GITHUB_ENV"
+
+      # -----------------------------------------------------------------------
+      # Gradle wrapper cache — keyed on wrapper properties only (rarely changes)
+      # -----------------------------------------------------------------------
+      - name: Cache Gradle wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-wrapper-
+
+      # -----------------------------------------------------------------------
+      # Gradle dependency + build-output cache.
+      # Include the OS in the key so native caches don't cross-contaminate.
+      # -----------------------------------------------------------------------
+      - name: Cache Gradle caches
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: gradle-caches-${{ matrix.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-caches-${{ matrix.os }}-
+            gradle-caches-
+
+      # -----------------------------------------------------------------------
+      # Step 1 — shared module JVM tests (all platforms)
+      # -----------------------------------------------------------------------
+      - name: Run shared JVM tests
+        shell: bash
+        run: >-
+          ${{ matrix.os == 'windows-latest' && 'gradlew.bat' || './gradlew' }}
+          :shared:jvmTest
+          --no-daemon
+          --continue
+          --stacktrace
+
+      # -----------------------------------------------------------------------
+      # Step 2 — desktopApp compilation check (all platforms)
+      # -----------------------------------------------------------------------
+      - name: Compile desktopApp
+        shell: bash
+        run: >-
+          ${{ matrix.os == 'windows-latest' && 'gradlew.bat' || './gradlew' }}
+          :desktopApp:compileKotlin
+          --no-daemon
+          --stacktrace
+
+      # -----------------------------------------------------------------------
+      # Step 3 — desktopApp tests (all platforms)
+      # Gradle returns exit 0 when no test sources exist, so this is safe even
+      # before any test classes are added to desktopApp.
+      # -----------------------------------------------------------------------
+      - name: Run desktopApp tests
+        shell: bash
+        run: >-
+          ${{ matrix.os == 'windows-latest' && 'gradlew.bat' || './gradlew' }}
+          :desktopApp:test
+          --no-daemon
+          --continue
+          --stacktrace
+
+      # -----------------------------------------------------------------------
+      # Step 4 — macOS-only: Kotlin/Native tests for macosArm64
+      # Skipped automatically on Linux and Windows via the `if` condition.
+      # -----------------------------------------------------------------------
+      - name: Run shared macosArm64 tests (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: >-
+          ./gradlew
+          :shared:macosArm64Test
+          --no-daemon
+          --continue
+          --stacktrace
+
+      # -----------------------------------------------------------------------
+      # Upload test reports on failure so they are visible in the Actions UI.
+      # -----------------------------------------------------------------------
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

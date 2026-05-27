@@ -32,10 +32,20 @@ class FakePersistenceStore(
         directories.add(path.path)
     }
 
-    override suspend fun listDirectory(path: FilePath): List<FilePath> =
-        files.keys
-            .filter { it.startsWith(path.path + "/") && !it.removePrefix(path.path + "/").contains("/") }
+    override suspend fun listDirectory(path: FilePath): List<FilePath> {
+        val prefix = path.path + "/"
+        // Immediate file children: entries in the files map whose path starts with
+        // the prefix and has no further '/' after the prefix.
+        val fileChildren = files.keys
+            .filter { it.startsWith(prefix) && !it.removePrefix(prefix).contains("/") }
             .map { FilePath(it) }
+        // Immediate directory children: entries in the directories set whose path
+        // starts with the prefix and has no further '/' after the prefix.
+        val dirChildren = directories
+            .filter { it.startsWith(prefix) && !it.removePrefix(prefix).contains("/") }
+            .map { FilePath(it) }
+        return (fileChildren + dirChildren).distinctBy { it.path }
+    }
 
     override suspend fun deleteFile(path: FilePath) {
         files.remove(path.path)

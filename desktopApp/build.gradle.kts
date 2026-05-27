@@ -29,18 +29,45 @@ dependencies {
     implementation("io.ktor:ktor-server-websockets:3.5.0")
     implementation("io.ktor:ktor-server-content-negotiation:3.5.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
+
+    // Test dependencies
+    testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation(compose.desktop.uiTestJUnit4)
 }
+
+val appVersion = project.findProperty("app.version")?.toString() ?: "1.0.0"
 
 compose.desktop {
     application {
         mainClass = "studio.vibe.desktop.MainKt"
 
+        jvmArgs += listOf(
+            "-Xmx2g",
+            "-Xms256m",
+            "-XX:+UseG1GC",
+            "-Dsun.java2d.opengl=true",
+            "-Dapple.awt.application.appearance=system",
+        )
+
+        buildTypes.release {
+            proguard {
+                // Compose Desktop + reflection = ProGuard issues; disabled for now.
+                // TODO: Enable with proper keep rules when ready.
+                // Rules prepared in desktopApp/proguard-rules.pro.
+                isEnabled.set(false)
+                configurationFiles.from(project.file("proguard-rules.pro"))
+            }
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "VibeStudio"
-            packageVersion = "1.0.0"
+            packageVersion = appVersion
             description = "VibeStudio — AI-powered terminal IDE"
             vendor = "VibeStudio"
+            copyright = "© 2024-2026 VibeStudio"
+            licenseFile.set(rootProject.file("LICENSE"))
 
             macOS {
                 bundleID = "studio.vibe.desktop"
@@ -53,6 +80,8 @@ compose.desktop {
             }
             linux {
                 iconFile.set(project.file("icons/icon.png"))
+                debMaintainer = "dev@vibestudio.tech"
+                appCategory = "Development"
             }
         }
     }
