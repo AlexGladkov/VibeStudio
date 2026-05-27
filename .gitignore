@@ -52,6 +52,11 @@ AuthKey_*.p8
 .env.local
 *.env
 
+# --- Gradle / KMP ---
+.gradle/
+local.properties
+*.hprof
+
 # --- Misc ---
 *.log
 *.tmp
