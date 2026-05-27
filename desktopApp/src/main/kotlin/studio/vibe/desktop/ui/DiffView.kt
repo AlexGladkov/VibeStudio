@@ -1,4 +1,5 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+@file:Suppress("DEPRECATION")
 
 package studio.vibe.desktop.ui
 

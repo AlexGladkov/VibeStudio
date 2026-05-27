@@ -103,9 +103,13 @@ import kotlin.uuid.Uuid
  * container's coroutine scope. All cross-panel state is hoisted here.
  *
  * @param container Application-scoped DI container.
+ * @param modifier  Modifier applied to the outermost [Row].
  */
 @Composable
-public fun CodeSpeakModeView(container: DesktopServiceContainer) {
+public fun CodeSpeakModeView(
+    container: DesktopServiceContainer,
+    modifier: Modifier = Modifier,
+) {
     // ── ViewModels ──────────────────────────────────────────────────────────
     val modeVm = remember {
         CodeSpeakModeViewModel(
@@ -143,7 +147,7 @@ public fun CodeSpeakModeView(container: DesktopServiceContainer) {
     val density = LocalDensity.current
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(DSColor.surfaceBase),
     ) {

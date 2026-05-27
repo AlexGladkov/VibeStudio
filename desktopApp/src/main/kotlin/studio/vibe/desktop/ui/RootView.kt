@@ -2,6 +2,9 @@
 
 package studio.vibe.desktop.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
@@ -21,7 +24,6 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.terminal.TerminalView
@@ -29,11 +31,21 @@ import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSLayout
 import java.awt.Cursor
 
+/**
+ * Regular-mode root layout: sidebar | center (tabs + terminal) | git panel.
+ *
+ * @param showGitPanel   When true the right-side git changes panel is shown.
+ * @param showSidebar    When false the left sidebar and its resize handle are
+ *                       hidden with a horizontal slide animation. Toggled via
+ *                       the Cmd+B keyboard shortcut.
+ * @param onToggleGitPanel Callback to flip [showGitPanel] in the parent.
+ */
 @Composable
 fun RootView(
     container: DesktopServiceContainer,
     onOpenProject: () -> Unit,
     showGitPanel: Boolean,
+    showSidebar: Boolean = true,
     onToggleGitPanel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -43,25 +55,31 @@ fun RootView(
     val density = LocalDensity.current
 
     Row(modifier = modifier.fillMaxSize()) {
-        // Sidebar
-        SidebarView(
-            container = container,
-            onToggleGitPanel = onToggleGitPanel,
-            onOpenProject = onOpenProject,
-            modifier = Modifier
-                .width(sidebarWidth)
-                .fillMaxHeight(),
-        )
+        // ── Sidebar (collapsible via Cmd+B) ──────────────────────────────────
+        AnimatedVisibility(
+            visible = showSidebar,
+            enter = expandHorizontally(),
+            exit = shrinkHorizontally(),
+        ) {
+            Row {
+                SidebarView(
+                    container = container,
+                    onToggleGitPanel = onToggleGitPanel,
+                    onOpenProject = onOpenProject,
+                    modifier = Modifier
+                        .width(sidebarWidth)
+                        .fillMaxHeight(),
+                )
+                ResizeHandle(
+                    onDrag = { delta ->
+                        val newWidth = sidebarWidth + with(density) { delta.toDp() }
+                        sidebarWidth = newWidth.coerceIn(180.dp, 400.dp)
+                    },
+                )
+            }
+        }
 
-        // Sidebar resize handle
-        ResizeHandle(
-            onDrag = { delta ->
-                val newWidth = sidebarWidth + with(density) { delta.toDp() }
-                sidebarWidth = newWidth.coerceIn(180.dp, 400.dp)
-            },
-        )
-
-        // Center: Tab bar + terminal
+        // ── Center: Tab bar + terminal ────────────────────────────────────────
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             TabBarView(
                 container = container,
@@ -85,7 +103,7 @@ fun RootView(
             }
         }
 
-        // Git changes panel (right side)
+        // ── Git changes panel (right side) ────────────────────────────────────
         if (showGitPanel && activeProject != null) {
             ResizeHandle(
                 onDrag = { delta ->
@@ -107,7 +125,7 @@ fun RootView(
 
 /**
  * Draggable resize handle between panels.
- * Shows as 1px visible line with ~8px hit area and EW-resize cursor.
+ * Shows as 5dp wide visible line with EW-resize cursor.
  */
 @Composable
 private fun ResizeHandle(
