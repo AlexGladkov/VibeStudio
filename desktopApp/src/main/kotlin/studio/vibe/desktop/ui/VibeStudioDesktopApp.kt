@@ -31,6 +31,7 @@ import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.model.ProjectManagerError
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -79,7 +80,12 @@ fun VibeStudioDesktopApp(
         scope.launch {
             val dir = pickFolder()
             if (dir != null) {
-                container.projectStore.addProject(FilePath(dir))
+                try {
+                    val project = container.projectStore.addProject(FilePath(dir))
+                    container.projectStore.setActiveProjectId(project.id)
+                } catch (e: ProjectManagerError.Duplicate) {
+                    container.projectStore.setActiveProjectId(e.existingId)
+                } catch (_: ProjectManagerError) { /* ignore */ }
             }
         }
     }

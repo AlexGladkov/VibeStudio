@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
 package studio.vibe.desktop
 
 import androidx.compose.runtime.getValue
@@ -19,6 +21,7 @@ import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.model.ProjectManagerError
 import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.Frame
@@ -26,6 +29,15 @@ import java.io.File
 
 fun main() = application {
     val serviceContainer = remember { DesktopServiceContainer() }
+
+    // Auto-activate first project if none active after load
+    remember(serviceContainer) {
+        val projects = serviceContainer.projectStore.projects.value
+        if (serviceContainer.projectStore.activeProjectId.value == null && projects.isNotEmpty()) {
+            serviceContainer.projectStore.setActiveProjectId(projects.first().id)
+        }
+        true // remember requires a return value
+    }
 
     // ── App-level UI state hoisted to the Window scope so MenuBar callbacks
     //    can toggle the same state that VibeStudioDesktopApp reads. ────────────
@@ -60,7 +72,12 @@ fun main() = application {
                         scope.launch {
                             val dir = pickFolder()
                             if (dir != null) {
-                                serviceContainer.projectStore.addProject(FilePath(dir))
+                                try {
+                                    val project = serviceContainer.projectStore.addProject(FilePath(dir))
+                                    serviceContainer.projectStore.setActiveProjectId(project.id)
+                                } catch (e: ProjectManagerError.Duplicate) {
+                                    serviceContainer.projectStore.setActiveProjectId(e.existingId)
+                                } catch (_: ProjectManagerError) { /* ignore */ }
                             }
                         }
                     },

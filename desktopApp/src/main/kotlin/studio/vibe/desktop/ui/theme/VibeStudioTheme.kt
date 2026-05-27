@@ -140,8 +140,8 @@ object DSLayout {
     val sidebarMinWidth         = 180.dp
     val sidebarMaxWidth         = 400.dp
     val sidebarHorizontalPadding = 12.dp
-    val iconStripWidth          = 32.dp
-    val iconStripButtonSize     = 24.dp
+    val iconStripWidth          = 44.dp
+    val iconStripButtonSize     = 28.dp
     val sidebarActionButtonSize = 20.dp
     val chevronFrameWidth       = 14.dp
 
