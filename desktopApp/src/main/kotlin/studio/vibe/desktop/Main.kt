@@ -1,11 +1,11 @@
 package studio.vibe.desktop
 
 import androidx.compose.runtime.remember
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
+import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 
 fun main() = application {
@@ -17,7 +17,10 @@ fun main() = application {
             exitApplication()
         },
         title = "VibeStudio",
-        state = rememberWindowState(width = 1280.dp, height = 800.dp),
+        state = rememberWindowState(
+            width = DSLayout.windowDefaultWidth,
+            height = DSLayout.windowDefaultHeight,
+        ),
         undecorated = false,
     ) {
         VibeStudioTheme {

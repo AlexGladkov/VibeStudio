@@ -4,11 +4,15 @@ package studio.vibe.desktop.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,16 +21,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.outlined.ChangeHistory
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -38,23 +40,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
-import studio.vibe.desktop.ui.theme.ColorAccentBlue
-import studio.vibe.desktop.ui.theme.ColorSurfaceContainer
-import studio.vibe.desktop.ui.theme.ColorTextSecondary
+import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSFont
+import studio.vibe.desktop.ui.theme.DSLayout
+import studio.vibe.desktop.ui.theme.DSRadius
+import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.Project
 
-/**
- * Left sidebar containing:
- *  - Section tabs: Projects / Files / Git
- *  - Project list with active indicator
- *  - Placeholder file tree and git branches sections
- */
+private enum class SidebarTab { FILES, GIT, SEARCH }
+
 @Composable
 fun SidebarView(
     container: DesktopServiceContainer,
@@ -63,237 +63,214 @@ fun SidebarView(
 ) {
     val projects by container.projectStore.projects.collectAsState()
     val activeProjectId by container.projectStore.activeProjectId.collectAsState()
+    var activeTab by remember { mutableStateOf(SidebarTab.FILES) }
 
-    var activeTab by remember { mutableStateOf(SidebarTab.PROJECTS) }
-
-    Column(
-        modifier = modifier.background(MaterialTheme.colorScheme.surface),
-    ) {
-        // Tab bar
-        SidebarTabBar(
+    Row(modifier = modifier.background(DSColor.surfaceRaised)) {
+        // Icon strip (left edge, 32dp)
+        IconStrip(
             activeTab = activeTab,
             onTabSelected = { activeTab = it },
-            onToggleGitPanel = onToggleGitPanel,
+            onAddProject = { /* TODO: file picker */ },
         )
 
-        // Content for active tab
-        when (activeTab) {
-            SidebarTab.PROJECTS -> ProjectListSection(
-                projects = projects,
-                activeProjectId = activeProjectId,
-                onProjectSelected = { container.projectStore.setActiveProjectId(it.id) },
-                onAddProject = { /* TODO: file picker */ },
-            )
-            SidebarTab.FILES -> FilesPlaceholderSection()
-            SidebarTab.GIT -> GitBranchesPlaceholderSection()
+        // 1px vertical divider
+        Box(
+            Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(DSColor.borderDefault),
+        )
+
+        // Content panel
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            when (activeTab) {
+                SidebarTab.FILES -> ProjectFileSection(
+                    projects = projects,
+                    activeProjectId = activeProjectId,
+                    onProjectSelected = { container.projectStore.setActiveProjectId(it.id) },
+                )
+                SidebarTab.GIT -> GitSidebarPlaceholder()
+                SidebarTab.SEARCH -> SearchPlaceholder()
+            }
         }
     }
 }
 
-// ── Tab model ─────────────────────────────────────────────────────────────────
-
-private enum class SidebarTab { PROJECTS, FILES, GIT }
-
-// ── Tab bar ───────────────────────────────────────────────────────────────────
+// ── Icon Strip ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun SidebarTabBar(
+private fun IconStrip(
     activeTab: SidebarTab,
     onTabSelected: (SidebarTab) -> Unit,
-    onToggleGitPanel: () -> Unit,
+    onAddProject: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(36.dp)
-            .background(MaterialTheme.colorScheme.surface),
-        verticalAlignment = Alignment.CenterVertically,
+            .width(DSLayout.iconStripWidth)
+            .fillMaxHeight()
+            .padding(top = DSSpacing.sm),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
     ) {
-        SidebarTabButton(
-            icon = {
-                Icon(
-                    Icons.Default.FolderOpen,
-                    contentDescription = "Projects",
-                    modifier = Modifier.size(16.dp),
-                )
-            },
-            selected = activeTab == SidebarTab.PROJECTS,
-            onClick = { onTabSelected(SidebarTab.PROJECTS) },
-            modifier = Modifier.weight(1f),
-        )
-        SidebarTabButton(
-            icon = {
-                Icon(
-                    Icons.Default.AccountTree,
-                    contentDescription = "Files",
-                    modifier = Modifier.size(16.dp),
-                )
-            },
-            selected = activeTab == SidebarTab.FILES,
+        IconStripButton(
+            icon = Icons.Default.Folder,
+            contentDescription = "Files",
+            isActive = activeTab == SidebarTab.FILES,
             onClick = { onTabSelected(SidebarTab.FILES) },
-            modifier = Modifier.weight(1f),
         )
-        SidebarTabButton(
-            icon = {
-                Icon(
-                    Icons.Outlined.ChangeHistory,
-                    contentDescription = "Git",
-                    modifier = Modifier.size(16.dp),
-                )
-            },
-            selected = activeTab == SidebarTab.GIT,
+        IconStripButton(
+            icon = Icons.Default.AccountTree,
+            contentDescription = "Git",
+            isActive = activeTab == SidebarTab.GIT,
             onClick = { onTabSelected(SidebarTab.GIT) },
-            modifier = Modifier.weight(1f),
         )
+        IconStripButton(
+            icon = Icons.Default.Search,
+            contentDescription = "Search",
+            isActive = activeTab == SidebarTab.SEARCH,
+            onClick = { onTabSelected(SidebarTab.SEARCH) },
+        )
+
+        Spacer(Modifier.weight(1f))
+
+        IconButton(
+            onClick = onAddProject,
+            modifier = Modifier.size(DSLayout.iconStripButtonSize),
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Add project",
+                tint = DSColor.textMuted,
+                modifier = Modifier.size(DSFont.iconLG.value.dp),
+            )
+        }
+
+        Spacer(Modifier.height(DSSpacing.sm))
     }
 }
 
 @Composable
-private fun SidebarTabButton(
-    icon: @Composable () -> Unit,
-    selected: Boolean,
+private fun IconStripButton(
+    icon: ImageVector,
+    contentDescription: String,
+    isActive: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .clickable(onClick = onClick)
-            .then(
-                if (selected) Modifier.background(color = ColorAccentBlue.copy(alpha = 0.15f))
-                else Modifier,
-            ),
+        modifier = Modifier
+            .size(DSLayout.iconStripButtonSize)
+            .clip(RoundedCornerShape(DSRadius.sm))
+            .background(if (isActive) DSColor.surfaceOverlay else Color.Transparent)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = if (selected) Modifier
-                .background(color = ColorAccentBlue, shape = RoundedCornerShape(3.dp))
-                .padding(4.dp)
-            else Modifier.padding(4.dp),
-        ) {
-            icon()
-        }
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (isActive) DSColor.accentPrimary else DSColor.textMuted,
+            modifier = Modifier.size(DSFont.iconLG.value.dp),
+        )
     }
 }
 
-// ── Projects section ──────────────────────────────────────────────────────────
+// ── Project + File Section ───────────────────────────────────────────────────
 
 @Composable
-private fun ProjectListSection(
+private fun ProjectFileSection(
     projects: List<Project>,
     activeProjectId: Uuid?,
     onProjectSelected: (Project) -> Unit,
-    onAddProject: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Section header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "PROJECTS",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = ColorTextSecondary,
-                letterSpacing = 0.8.sp,
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(top = DSSpacing.sm),
+    ) {
+        items(projects, key = { it.id.toString() }) { project ->
+            val isActive = project.id == activeProjectId
+            ProjectHeaderRow(
+                project = project,
+                isActive = isActive,
+                onClick = { onProjectSelected(project) },
             )
-            IconButton(
-                onClick = onAddProject,
-                modifier = Modifier.size(20.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add project",
-                    tint = ColorTextSecondary,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-        }
-
-        // Project rows
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(projects, key = { it.id.toString() }) { project ->
-                ProjectRow(
-                    project = project,
-                    isActive = project.id == activeProjectId,
-                    onClick = { onProjectSelected(project) },
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun ProjectRow(
+private fun ProjectHeaderRow(
     project: Project,
     isActive: Boolean,
     onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .height(DSLayout.treeRowHeight)
+            .hoverable(interactionSource)
             .clickable(onClick = onClick)
-            .background(if (isActive) ColorSurfaceContainer else Color.Transparent)
-            .padding(horizontal = 12.dp),
+            .background(
+                when {
+                    isHovered -> DSColor.hoverOverlay
+                    else -> Color.Transparent
+                },
+            )
+            .padding(horizontal = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Active indicator dot
-        if (isActive) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(ColorAccentBlue),
-            )
-            Spacer(Modifier.width(6.dp))
-        } else {
-            Spacer(Modifier.width(12.dp))
-        }
+        // Chevron placeholder
+        Box(Modifier.width(DSLayout.chevronFrameWidth))
 
+        // Folder icon
+        Icon(
+            Icons.Default.Folder,
+            contentDescription = null,
+            tint = if (isActive) DSColor.accentPrimary else DSColor.gitModified,
+            modifier = Modifier.size(DSFont.iconLG.value.dp),
+        )
+
+        Spacer(Modifier.width(DSSpacing.xs))
+
+        // Project name
         Text(
             text = project.name,
-            fontSize = 13.sp,
-            color = if (isActive) MaterialTheme.colorScheme.onSurface else ColorTextSecondary,
+            style = DSFont.sidebarItem,
+            color = if (isActive) DSColor.textPrimary else DSColor.textSecondary,
             fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
-// ── Files placeholder ─────────────────────────────────────────────────────────
+// ── Placeholder sections ─────────────────────────────────────────────────────
 
 @Composable
-private fun FilesPlaceholderSection() {
+private fun GitSidebarPlaceholder() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "File tree\npending",
-            fontSize = 12.sp,
-            color = ColorTextSecondary,
+            text = "Git branches",
+            style = DSFont.sidebarItem,
+            color = DSColor.textMuted,
         )
     }
 }
 
-// ── Git branches placeholder ──────────────────────────────────────────────────
-
 @Composable
-private fun GitBranchesPlaceholderSection() {
+private fun SearchPlaceholder() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "Git branches\npending",
-            fontSize = 12.sp,
-            color = ColorTextSecondary,
+            text = "Search",
+            style = DSFont.sidebarItem,
+            color = DSColor.textMuted,
         )
     }
 }

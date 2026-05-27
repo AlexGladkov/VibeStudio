@@ -5,7 +5,6 @@ package studio.vibe.desktop.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,14 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -35,20 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.DesktopServiceContainer
-import studio.vibe.desktop.ui.theme.ColorAccentBlue
-import studio.vibe.desktop.ui.theme.ColorAccentRed
-import studio.vibe.desktop.ui.theme.ColorBorder
-import studio.vibe.desktop.ui.theme.ColorTextSecondary
+import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSFont
+import studio.vibe.desktop.ui.theme.DSLayout
+import studio.vibe.desktop.ui.theme.DSRadius
+import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.AIAssistant
 
-/**
- * Top toolbar:
- *   [spacer] [agent picker dropdown] [play/stop button] [settings icon]
- *
- * Mirrors the macOS ToolbarView right-side layout: agent selector + run controls + settings.
- */
 @Composable
 fun ToolbarView(container: DesktopServiceContainer) {
     val toolbarState by container.toolbarViewModel.state.collectAsState()
@@ -56,16 +48,10 @@ fun ToolbarView(container: DesktopServiceContainer) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(
-                width = 1.dp,
-                color = ColorBorder,
-                shape = RoundedCornerShape(0.dp),
-            )
-            .padding(horizontal = 8.dp),
+            .height(DSLayout.toolbarHeight)
+            .background(DSColor.surfaceToolbar)
+            .padding(horizontal = DSSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End,
     ) {
         Spacer(Modifier.weight(1f))
 
@@ -75,64 +61,65 @@ fun ToolbarView(container: DesktopServiceContainer) {
             onSelectAssistant = { container.toolbarViewModel.selectAssistant(it) },
         )
 
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(DSSpacing.sm))
 
-        // Play / Stop button
-        if (toolbarState.isAgentRunning) {
-            IconButton(
-                onClick = { container.toolbarViewModel.stopAgent() },
-                modifier = Modifier.size(28.dp),
-            ) {
+        // Play / Stop
+        Box(
+            modifier = Modifier
+                .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+                .clickable {
+                    if (toolbarState.isAgentRunning) container.toolbarViewModel.stopAgent()
+                    else container.toolbarViewModel.launchAgent()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (toolbarState.isAgentRunning) {
                 Icon(
-                    imageVector = Icons.Default.Stop,
+                    Icons.Default.Stop,
                     contentDescription = "Stop agent",
-                    tint = ColorAccentRed,
-                    modifier = Modifier.size(18.dp),
+                    tint = DSColor.actionStop,
+                    modifier = Modifier.size(13.dp),
                 )
-            }
-        } else {
-            IconButton(
-                onClick = { container.toolbarViewModel.launchAgent() },
-                modifier = Modifier.size(28.dp),
-            ) {
+            } else {
                 Icon(
-                    imageVector = Icons.Default.PlayArrow,
+                    Icons.Default.PlayArrow,
                     contentDescription = "Launch agent",
-                    tint = ColorAccentBlue,
-                    modifier = Modifier.size(18.dp),
+                    tint = DSColor.actionRun,
+                    modifier = Modifier.size(13.dp),
                 )
             }
         }
 
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(DSSpacing.sm))
 
         // Settings
-        IconButton(
-            onClick = { /* TODO: open settings panel */ },
-            modifier = Modifier.size(28.dp),
+        Box(
+            modifier = Modifier
+                .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+                .clickable { /* TODO: open settings */ },
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Default.Settings,
+                Icons.Default.Settings,
                 contentDescription = "Settings",
-                tint = ColorTextSecondary,
-                modifier = Modifier.size(16.dp),
+                tint = DSColor.textSecondary,
+                modifier = Modifier.size(DSFont.iconBase.value.dp),
             )
         }
 
-        // Error snackbar hint (non-blocking inline display)
+        // Error inline
         toolbarState.errorMessage?.let { msg ->
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(DSSpacing.sm))
             Text(
                 text = msg,
-                fontSize = 11.sp,
-                color = ColorAccentRed,
-                modifier = Modifier.padding(end = 8.dp),
+                style = DSFont.sidebarItemSmall,
+                color = DSColor.gitDeleted,
             )
         }
     }
 }
 
-// ── Agent picker ──────────────────────────────────────────────────────────────
+// ── Agent picker ─────────────────────────────────────────────────────────────
 
 @Composable
 private fun AgentPickerButton(
@@ -142,17 +129,34 @@ private fun AgentPickerButton(
     var expanded by remember { mutableStateOf(false) }
 
     Box {
-        Box(
+        Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .border(1.dp, ColorBorder, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(DSRadius.md))
+                .background(DSColor.toolbarControlBg)
+                .border(1.dp, DSColor.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
                 .clickable { expanded = true }
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xxs),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Agent icon placeholder — colored dot per agent
+            Box(
+                Modifier
+                    .size(DSFont.iconLG.value.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(agentColor(selectedAssistant)),
+            )
+            Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = selectedAssistant.displayName,
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = DSFont.tabTitle,
+                color = DSColor.textPrimary,
+            )
+            Spacer(Modifier.width(DSSpacing.xxs))
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = DSColor.textSecondary,
+                modifier = Modifier.size(DSFont.iconSM.value.dp),
             )
         }
 
@@ -163,10 +167,20 @@ private fun AgentPickerButton(
             AIAssistant.entries.forEach { assistant ->
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            text = assistant.displayName,
-                            fontSize = 13.sp,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .size(12.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(agentColor(assistant)),
+                            )
+                            Spacer(Modifier.width(DSSpacing.sm))
+                            Text(
+                                text = assistant.displayName,
+                                style = DSFont.sidebarItem,
+                                color = DSColor.textPrimary,
+                            )
+                        }
                     },
                     onClick = {
                         onSelectAssistant(assistant)
@@ -176,4 +190,13 @@ private fun AgentPickerButton(
             }
         }
     }
+}
+
+private fun agentColor(assistant: AIAssistant): androidx.compose.ui.graphics.Color = when (assistant) {
+    AIAssistant.CLAUDE -> DSColor.agentClaude
+    AIAssistant.OPENCODE -> DSColor.agentOpenCode
+    AIAssistant.CODEX -> DSColor.agentCodex
+    AIAssistant.GEMINI -> DSColor.agentGemini
+    AIAssistant.QWEN_CODE -> DSColor.agentQwen
+    AIAssistant.CODE_SPEAK -> DSColor.agentCodeSpeak
 }
