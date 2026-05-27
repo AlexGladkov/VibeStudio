@@ -51,6 +51,7 @@ fun VibeStudioDesktopApp(
             WelcomeView(
                 onOpenProject = openFolderPicker,
                 onCreateNew = openFolderPicker,
+                container = container,
                 modifier = Modifier.weight(1f),
             )
         } else {

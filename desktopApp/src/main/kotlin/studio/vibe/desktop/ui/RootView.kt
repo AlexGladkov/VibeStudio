@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSLayout
 import java.awt.Cursor
@@ -67,9 +68,21 @@ fun RootView(
                 onOpenProject = onOpenProject,
             )
 
-            TerminalPlaceholder(
-                modifier = Modifier.weight(1f),
-            )
+            // Terminal area — real pty4j + JediTerm
+            if (activeProject != null) {
+                val projects by container.projectStore.projects.collectAsState()
+                val project = projects.find { it.id == activeProject }
+                TerminalView(
+                    service = container.terminalService,
+                    projectId = activeProject!!,
+                    workingDirectory = project?.path?.path,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                TerminalPlaceholder(
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
 
         // Git changes panel (right side)

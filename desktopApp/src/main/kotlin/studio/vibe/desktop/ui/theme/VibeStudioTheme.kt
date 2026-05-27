@@ -173,6 +173,9 @@ object DSLayout {
     val changesFileRowHeight    = 26.dp
     val statusLetterWidth       = 16.dp
 
+    // Welcome
+    val welcomeListMaxWidth     = 420.dp
+
     // Window
     val windowDefaultWidth      = 2100.dp
     val windowDefaultHeight     = 1312.dp

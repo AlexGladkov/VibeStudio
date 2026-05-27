@@ -15,8 +15,14 @@ dependencies {
     // Coroutines Swing dispatcher (provides Dispatchers.Main on Desktop JVM)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
 
-    // Terminal emulation
+    // Terminal emulation — PTY process management
     implementation("org.jetbrains.pty4j:pty4j:0.13.11")
+    // Terminal emulation — JediTerm ANSI/VT100 emulator and Swing widget
+    // Version 3.68 is the latest stable release on intellij-dependencies maven.
+    // The original requirement of 3.72 does not exist upstream; 3.68 is the
+    // correct artifact to use.
+    implementation("org.jetbrains.jediterm:jediterm-core:3.68")
+    implementation("org.jetbrains.jediterm:jediterm-ui:3.68")
 
     // Embedded HTTP server for Remote Control
     implementation("io.ktor:ktor-server-netty:3.5.0")

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +24,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,11 +67,14 @@ fun GitPanel(
     }
 
     val status = activeProjectId?.let { gitState.projectGitStatuses[it] }
-    val allFiles = buildList {
-        status?.stagedFiles?.let { addAll(it) }
-        status?.unstagedFiles?.let { addAll(it) }
-        status?.untrackedFiles?.let { addAll(it) }
-    }
+    val stagedFiles = status?.stagedFiles ?: emptyList()
+    val unstagedFiles = status?.unstagedFiles ?: emptyList()
+    val untrackedFiles = status?.untrackedFiles ?: emptyList()
+    val totalCount = stagedFiles.size + unstagedFiles.size + untrackedFiles.size
+
+    val commitSummary = activeProjectId?.let { gitState.commitSummaries[it] } ?: ""
+    val isCommitting = activeProjectId?.let { it in gitState.committingProjects } ?: false
+    val commitError = activeProjectId?.let { gitState.commitPanelErrors[it] }
 
     Column(modifier = modifier.background(DSColor.surfaceRaised)) {
         // Header: "CHANGES" + count badge
@@ -83,17 +91,19 @@ fun GitPanel(
                 style = DSFont.sidebarSection,
                 color = DSColor.textSecondary,
             )
-            Box(
-                modifier = Modifier
-                    .background(DSColor.accentPrimary, RoundedCornerShape(50))
-                    .padding(horizontal = DSSpacing.xs, vertical = 1.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = allFiles.size.toString(),
-                    style = DSFont.badgeSmall,
-                    color = DSColor.textInverse,
-                )
+            if (totalCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .background(DSColor.accentPrimary, RoundedCornerShape(50))
+                        .padding(horizontal = DSSpacing.xs, vertical = 1.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = totalCount.toString(),
+                        style = DSFont.badgeSmall,
+                        color = DSColor.textInverse,
+                    )
+                }
             }
         }
 
@@ -105,7 +115,7 @@ fun GitPanel(
                 .background(DSColor.borderDefault),
         )
 
-        if (allFiles.isEmpty()) {
+        if (totalCount == 0) {
             // Empty state
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -127,13 +137,141 @@ fun GitPanel(
                 }
             }
         } else {
-            // File list
+            // File list with sections
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(allFiles, key = { it.path }) { file ->
-                    GitFileRow(file)
+                // Staged files
+                if (stagedFiles.isNotEmpty()) {
+                    item(key = "header-staged") {
+                        SectionHeader("STAGED", stagedFiles.size, DSColor.gitAdded)
+                    }
+                    items(stagedFiles, key = { "s-${it.path}" }) { file ->
+                        GitFileRow(file)
+                    }
+                }
+
+                // Unstaged files
+                if (unstagedFiles.isNotEmpty()) {
+                    item(key = "header-unstaged") {
+                        SectionHeader("MODIFIED", unstagedFiles.size, DSColor.gitModified)
+                    }
+                    items(unstagedFiles, key = { "u-${it.path}" }) { file ->
+                        GitFileRow(file)
+                    }
+                }
+
+                // Untracked files
+                if (untrackedFiles.isNotEmpty()) {
+                    item(key = "header-untracked") {
+                        SectionHeader("UNTRACKED", untrackedFiles.size, DSColor.gitUntracked)
+                    }
+                    items(untrackedFiles, key = { "t-${it.path}" }) { file ->
+                        GitFileRow(file)
+                    }
+                }
+            }
+
+            // Commit section at bottom
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(DSColor.borderDefault),
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(DSSpacing.sm),
+                verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
+            ) {
+                OutlinedTextField(
+                    value = commitSummary,
+                    onValueChange = { value ->
+                        activeProjectId?.let {
+                            container.gitSidebarViewModel.updateCommitSummary(it, value)
+                        }
+                    },
+                    placeholder = {
+                        Text(
+                            "Commit message...",
+                            style = DSFont.commitInput,
+                            color = DSColor.textMuted,
+                        )
+                    },
+                    textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = DSLayout.commitInputMinHeight, max = DSLayout.commitInputMaxHeight),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = DSColor.borderFocus,
+                        unfocusedBorderColor = DSColor.borderDefault,
+                        cursorColor = DSColor.accentPrimary,
+                        focusedContainerColor = DSColor.surfaceInput,
+                        unfocusedContainerColor = DSColor.surfaceInput,
+                    ),
+                    shape = RoundedCornerShape(DSRadius.md),
+                )
+
+                // Error message
+                commitError?.let { err ->
+                    Text(
+                        text = err,
+                        style = DSFont.sidebarItemSmall,
+                        color = DSColor.gitDeleted,
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        if (activeProjectId != null && activeProject != null) {
+                            container.gitSidebarViewModel.performCommit(
+                                activeProjectId!!,
+                                activeProject.path,
+                            )
+                        }
+                    },
+                    enabled = commitSummary.isNotBlank() && !isCommitting,
+                    shape = RoundedCornerShape(DSRadius.md),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DSColor.buttonPrimaryBg,
+                        contentColor = DSColor.buttonPrimaryText,
+                        disabledContainerColor = DSColor.surfaceOverlay,
+                        disabledContentColor = DSColor.textDisabled,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DSLayout.gitButtonHeight),
+                ) {
+                    Text(
+                        text = if (isCommitting) "Committing..." else "Commit",
+                        style = DSFont.buttonLabel,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(label: String, count: Int, accentColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.gitSectionHeaderHeight)
+            .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = DSFont.sidebarSection,
+            color = DSColor.textSecondary,
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text(
+            text = count.toString(),
+            style = DSFont.sidebarItemSmall,
+            color = accentColor,
+        )
     }
 }
 
@@ -151,7 +289,7 @@ private fun GitFileRow(file: GitFile) {
             .padding(horizontal = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Filename
+        // Filename (basename only)
         Text(
             text = file.path.substringAfterLast('/'),
             style = DSFont.sidebarItem,

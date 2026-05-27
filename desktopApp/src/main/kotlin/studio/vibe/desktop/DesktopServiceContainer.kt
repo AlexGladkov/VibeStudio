@@ -34,6 +34,7 @@ import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitCommandExecutor
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.shared.service.persistence.ProjectStoreImpl
+import studio.vibe.desktop.terminal.DesktopTerminalService
 import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.shared.viewmodel.ToolbarViewModel
 
@@ -75,12 +76,15 @@ class DesktopServiceContainer {
 
     val fileTreeBuilder: FileTreeBuilder = FileTreeBuilder(persistenceStore)
 
+    /** Real pty4j-backed terminal service.  Replaces [StubTerminalSessionManaging]. */
+    val terminalService: DesktopTerminalService = DesktopTerminalService(serviceScope = scope)
+
     // ── ViewModels ────────────────────────────────────────────────────────────
 
     val toolbarViewModel: ToolbarViewModel by lazy {
         ToolbarViewModel(
             projectManaging = projectStore,
-            terminalSessionManaging = StubTerminalSessionManaging(),
+            terminalSessionManaging = terminalService,
             agentAvailabilityChecking = agentAvailabilityChecking,
             apiKeyResolving = apiKeyResolving,
             scope = scope,
@@ -111,6 +115,7 @@ class DesktopServiceContainer {
 
     fun dispose() {
         projectStore.save()
+        terminalService.dispose()   // kills all live PTY processes before scope cancel
         scope.cancel()
     }
 }
