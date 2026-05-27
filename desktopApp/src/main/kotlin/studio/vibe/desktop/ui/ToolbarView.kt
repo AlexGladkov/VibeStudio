@@ -5,9 +5,7 @@ package studio.vibe.desktop.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,13 +19,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSFont
@@ -49,9 +42,11 @@ import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.AIAssistant
 
 @Composable
-fun ToolbarView(container: DesktopServiceContainer) {
+fun ToolbarView(
+    container: DesktopServiceContainer,
+    onOpenSettings: () -> Unit = {},
+) {
     val toolbarState by container.toolbarViewModel.state.collectAsState()
-    var showSettings by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -101,27 +96,18 @@ fun ToolbarView(container: DesktopServiceContainer) {
         Spacer(Modifier.width(DSSpacing.sm))
 
         // Settings
-        Box {
-            Box(
-                modifier = Modifier
-                    .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
-                    .clickable { showSettings = !showSettings },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = if (showSettings) DSColor.accentPrimary else DSColor.textSecondary,
-                    modifier = Modifier.size(DSFont.iconBase.value.dp),
-                )
-            }
-
-            if (showSettings) {
-                SettingsPopup(
-                    container = container,
-                    onDismiss = { showSettings = false },
-                )
-            }
+        Box(
+            modifier = Modifier
+                .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+                .clickable(onClick = onOpenSettings),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = DSColor.textSecondary,
+                modifier = Modifier.size(DSFont.iconBase.value.dp),
+            )
         }
 
         // Error inline
@@ -218,86 +204,3 @@ private fun agentColor(assistant: AIAssistant): androidx.compose.ui.graphics.Col
     AIAssistant.CODE_SPEAK -> DSColor.agentCodeSpeak
 }
 
-// ── Settings Popup ──────────────────────────────────────────────────────────
-
-@Composable
-private fun SettingsPopup(
-    container: DesktopServiceContainer,
-    onDismiss: () -> Unit,
-) {
-    val prefs = container.generalPreferences
-    var confirmTabClose by remember { mutableStateOf(prefs.confirmTabClose) }
-    var skipPermissions by remember { mutableStateOf(prefs.claudeSkipPermissions) }
-    var fontSize by remember { mutableStateOf(prefs.terminalFontSize.toFloat()) }
-
-    Popup(
-        alignment = Alignment.TopEnd,
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .width(260.dp)
-                .background(DSColor.surfaceRaised, RoundedCornerShape(DSRadius.md))
-                .border(1.dp, DSColor.borderDefault, RoundedCornerShape(DSRadius.md))
-                .padding(DSSpacing.md),
-            verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
-        ) {
-            Text("Settings", style = DSFont.sidebarSection, color = DSColor.textPrimary)
-
-            Spacer(Modifier.height(DSSpacing.xs))
-
-            // Confirm tab close
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = confirmTabClose,
-                    onCheckedChange = {
-                        confirmTabClose = it
-                        prefs.confirmTabClose = it
-                    },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = DSColor.accentPrimary,
-                        uncheckedColor = DSColor.textMuted,
-                    ),
-                )
-                Spacer(Modifier.width(DSSpacing.xs))
-                Text("Confirm tab close", style = DSFont.sidebarItem, color = DSColor.textPrimary)
-            }
-
-            // Skip permissions
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = skipPermissions,
-                    onCheckedChange = {
-                        skipPermissions = it
-                        prefs.claudeSkipPermissions = it
-                    },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = DSColor.agentClaude,
-                        uncheckedColor = DSColor.textMuted,
-                    ),
-                )
-                Spacer(Modifier.width(DSSpacing.xs))
-                Text("Skip permissions (Claude)", style = DSFont.sidebarItem, color = DSColor.textPrimary)
-            }
-
-            // Font size
-            Text(
-                "Terminal font size: ${fontSize.toInt()}pt",
-                style = DSFont.sidebarItem,
-                color = DSColor.textSecondary,
-            )
-            Slider(
-                value = fontSize,
-                onValueChange = { fontSize = it },
-                onValueChangeFinished = { prefs.terminalFontSize = fontSize.toInt() },
-                valueRange = 9f..24f,
-                steps = 14,
-                colors = SliderDefaults.colors(
-                    thumbColor = DSColor.accentPrimary,
-                    activeTrackColor = DSColor.accentPrimary,
-                    inactiveTrackColor = DSColor.surfaceOverlay,
-                ),
-            )
-        }
-    }
-}

@@ -30,6 +30,7 @@ import studio.vibe.shared.platform.JvmPersistenceStore
 import studio.vibe.shared.platform.JvmProcessRunner
 import studio.vibe.shared.platform.JvmSettingsStorage
 import studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl
+import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitCommandExecutor
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.shared.service.persistence.ProjectStoreImpl
@@ -71,6 +72,8 @@ class DesktopServiceContainer {
     val aiCommitService: AICommitServicing = StubAICommitService()
 
     val generalPreferences: GeneralPreferences = GeneralPreferences(settingsStorage)
+
+    val fileTreeBuilder: FileTreeBuilder = FileTreeBuilder(persistenceStore)
 
     // ── ViewModels ────────────────────────────────────────────────────────────
 

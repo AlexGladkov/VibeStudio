@@ -24,9 +24,14 @@ import java.awt.Frame
 import java.io.File
 
 @Composable
-fun VibeStudioDesktopApp(container: DesktopServiceContainer) {
+fun VibeStudioDesktopApp(
+    container: DesktopServiceContainer,
+    onOpenFolder: () -> Unit = {},
+) {
     val projects by container.projectStore.projects.collectAsState()
     val scope = rememberCoroutineScope()
+    var showGitPanel by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     val openFolderPicker: () -> Unit = {
         scope.launch {
@@ -43,21 +48,32 @@ fun VibeStudioDesktopApp(container: DesktopServiceContainer) {
             .background(DSColor.surfaceBase),
     ) {
         if (projects.isEmpty()) {
-            // Swift: toolbar NOT shown on welcome screen
             WelcomeView(
                 onOpenProject = openFolderPicker,
-                onCreateNew = openFolderPicker, // reuse folder picker for now
+                onCreateNew = openFolderPicker,
                 modifier = Modifier.weight(1f),
             )
         } else {
-            // Toolbar only in IDE mode
-            ToolbarView(container)
+            ToolbarView(
+                container = container,
+                onOpenSettings = { showSettings = true },
+            )
             RootView(
                 container = container,
                 onOpenProject = openFolderPicker,
+                showGitPanel = showGitPanel,
+                onToggleGitPanel = { showGitPanel = !showGitPanel },
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+
+    // Settings dialog
+    if (showSettings) {
+        SettingsView(
+            container = container,
+            onDismiss = { showSettings = false },
+        )
     }
 }
 

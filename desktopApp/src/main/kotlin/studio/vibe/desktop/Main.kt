@@ -4,6 +4,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -15,6 +17,7 @@ import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
+import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -29,11 +32,13 @@ fun main() = application {
         },
         title = "VibeStudio",
         state = rememberWindowState(
-            width = DSLayout.windowDefaultWidth,
-            height = DSLayout.windowDefaultHeight,
+            size = DpSize(DSLayout.windowDefaultWidth, DSLayout.windowDefaultHeight),
         ),
         undecorated = false,
     ) {
+        // Enforce minimum window size
+        window.minimumSize = Dimension(960, 600)
+
         val scope = rememberCoroutineScope()
 
         MenuBar {
@@ -58,13 +63,6 @@ fun main() = application {
                         serviceContainer.dispose()
                         exitApplication()
                     },
-                )
-            }
-            Menu("View") {
-                Item(
-                    "Toggle Git Panel",
-                    shortcut = KeyShortcut(Key.G, meta = true, shift = true),
-                    onClick = { /* toggled via sidebar icon strip */ },
                 )
             }
         }
