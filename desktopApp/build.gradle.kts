@@ -12,6 +12,9 @@ dependencies {
     implementation(compose.material3)
     implementation(compose.materialIconsExtended)
 
+    // Coroutines Swing dispatcher (provides Dispatchers.Main on Desktop JVM)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
+
     // Terminal emulation
     implementation("org.jetbrains.pty4j:pty4j:0.13.11")
 
