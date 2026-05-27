@@ -153,11 +153,14 @@ public fun CodeSpeakModeView(
     ) {
         // ── LEFT: Specs list ──────────────────────────────────────────────
         SpecsListColumn(
+            container = container,
             specs = modeState.specs,
             selectedSpecId = modeState.selectedSpec?.id,
             isLoading = modeState.isLoading,
+            activeProjectId = activeProjectId,
             onSelectSpec = { modeVm.selectSpec(it) },
             onRefresh = { activeProjectId?.let { modeVm.loadSpecs(it) } },
+            onSpecsChanged = { activeProjectId?.let { modeVm.loadSpecs(it) } },
             modifier = Modifier
                 .width(specsWidth)
                 .fillMaxHeight(),
@@ -207,16 +210,32 @@ public fun CodeSpeakModeView(
 
 // ── Left column — Specs list ──────────────────────────────────────────────────
 
+/**
+ * Sealed dialog state for CodeSpeak left panel.
+ * - [None]   — no dialog open.
+ * - [Editor] — [SpecEditorSheet] open for a specific spec.
+ * - [Wizard] — [SpecWizardSheet] open for creating a new spec.
+ */
+private sealed class SpecsPanelDialog {
+    data object None : SpecsPanelDialog()
+    data class Editor(val spec: SpecFile) : SpecsPanelDialog()
+    data object Wizard : SpecsPanelDialog()
+}
+
 @Composable
 private fun SpecsListColumn(
+    container: DesktopServiceContainer,
     specs: List<SpecFile>,
     selectedSpecId: Uuid?,
     isLoading: Boolean,
+    activeProjectId: Uuid?,
     onSelectSpec: (SpecFile) -> Unit,
     onRefresh: () -> Unit,
+    onSpecsChanged: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var sectionExpanded by remember { mutableStateOf(true) }
+    var activeDialog by remember { mutableStateOf<SpecsPanelDialog>(SpecsPanelDialog.None) }
 
     Column(modifier = modifier.background(DSColor.surfaceRaised)) {
 
@@ -267,7 +286,10 @@ private fun SpecsListColumn(
                             SpecRow(
                                 spec = spec,
                                 isSelected = spec.id == selectedSpecId,
-                                onClick = { onSelectSpec(spec) },
+                                onClick = {
+                                    onSelectSpec(spec)
+                                    activeDialog = SpecsPanelDialog.Editor(spec)
+                                },
                             )
                         }
                     }
@@ -282,22 +304,53 @@ private fun SpecsListColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(DSLayout.gitButtonHeight)
-                .clickable { /* TODO: spec creation dialog */ }
+                .clickable(enabled = activeProjectId != null) {
+                    activeDialog = SpecsPanelDialog.Wizard
+                }
                 .padding(horizontal = DSSpacing.md),
         ) {
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = "New Spec",
-                tint = DSColor.textSecondary,
+                tint = if (activeProjectId != null) DSColor.textSecondary else DSColor.textDisabled,
                 modifier = Modifier.size(13.dp),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = "New Spec",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = if (activeProjectId != null) DSColor.textSecondary else DSColor.textDisabled,
             )
         }
+    }
+
+    // ── Dialog overlays ──────────────────────────────────────────────────
+    when (val dialog = activeDialog) {
+        is SpecsPanelDialog.Editor -> {
+            SpecEditorSheet(
+                container = container,
+                specFile = dialog.spec,
+                onDismiss = { activeDialog = SpecsPanelDialog.None },
+            )
+        }
+        is SpecsPanelDialog.Wizard -> {
+            val projects by container.projectStore.projects.collectAsState()
+            val project = remember(activeProjectId, projects) {
+                activeProjectId?.let { id -> projects.find { it.id == id } }
+            }
+            if (project != null) {
+                SpecWizardSheet(
+                    container = container,
+                    projectId = project.id,
+                    projectPath = project.path,
+                    onCreated = { onSpecsChanged() },
+                    onDismiss = { activeDialog = SpecsPanelDialog.None },
+                )
+            } else {
+                activeDialog = SpecsPanelDialog.None
+            }
+        }
+        SpecsPanelDialog.None -> Unit
     }
 }
 

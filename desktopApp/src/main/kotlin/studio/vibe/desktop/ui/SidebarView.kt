@@ -73,6 +73,12 @@ import studio.vibe.shared.model.Project
 
 private enum class SidebarTab { FILES, GIT, SPECS }
 
+/** Tracks which project-level dialog is open, and for which project. */
+private sealed class SidebarDialog {
+    data class ProjectSettings(val project: Project) : SidebarDialog()
+    data class GitRemoteSetup(val project: Project) : SidebarDialog()
+}
+
 /**
  * Root sidebar composable.
  *
@@ -204,6 +210,7 @@ private fun MultiProjectFileTree(
     var expandedProjects by remember { mutableStateOf(setOf<Uuid>()) }
     var expandedDirs by remember { mutableStateOf(setOf<String>()) }
     var fileTrees by remember { mutableStateOf(mapOf<Uuid, List<FileTreeNode>>()) }
+    var activeDialog by remember { mutableStateOf<SidebarDialog?>(null) }
 
     LaunchedEffect(activeProjectId) {
         if (activeProjectId != null && activeProjectId !in expandedProjects) {
@@ -243,6 +250,8 @@ private fun MultiProjectFileTree(
                             expandedProjects + project.id
                         }
                     },
+                    onOpenSettings = { activeDialog = SidebarDialog.ProjectSettings(project) },
+                    onOpenGitRemote = { activeDialog = SidebarDialog.GitRemoteSetup(project) },
                 )
             }
 
@@ -274,6 +283,26 @@ private fun MultiProjectFileTree(
             }
         }
     }
+
+    // ── Dialogs ───────────────────────────────────────────────────────────────
+
+    when (val dialog = activeDialog) {
+        is SidebarDialog.ProjectSettings -> ProjectSettingsSheet(
+            container = container,
+            projectId = dialog.project.id,
+            projectName = dialog.project.name,
+            projectPath = dialog.project.path.path,
+            onDismiss = { activeDialog = null },
+        )
+        is SidebarDialog.GitRemoteSetup -> GitRemoteSetupSheet(
+            container = container,
+            projectId = dialog.project.id,
+            projectPath = dialog.project.path,
+            projectName = dialog.project.name,
+            onDismiss = { activeDialog = null },
+        )
+        null -> Unit
+    }
 }
 
 private data class FlatTreeItem(
@@ -304,6 +333,8 @@ private fun ProjectHeaderRow(
     isExpanded: Boolean,
     onClick: () -> Unit,
     onToggleExpand: () -> Unit,
+    onOpenSettings: () -> Unit = {},
+    onOpenGitRemote: () -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -312,6 +343,12 @@ private fun ProjectHeaderRow(
         animationSpec = tween(150),
     )
 
+    val menuItems = listOf(
+        ContextMenuItem("Project Settings") { onOpenSettings() },
+        ContextMenuItem("Configure Git Remote") { onOpenGitRemote() },
+    )
+
+    ContextMenuArea(items = { menuItems }) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -355,6 +392,7 @@ private fun ProjectHeaderRow(
             modifier = Modifier.weight(1f),
         )
     }
+    } // end ContextMenuArea
 }
 
 @Composable
