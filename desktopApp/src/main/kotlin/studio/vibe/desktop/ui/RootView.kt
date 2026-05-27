@@ -4,6 +4,7 @@ package studio.vibe.desktop.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,21 +24,24 @@ import studio.vibe.desktop.ui.theme.DSLayout
 @Composable
 fun RootView(
     container: DesktopServiceContainer,
+    onOpenProject: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activeProject by container.projectStore.activeProjectId.collectAsState()
+    val projects by container.projectStore.projects.collectAsState()
     var showGitPanel by remember { mutableStateOf(false) }
 
     Row(modifier = modifier.fillMaxSize()) {
         SidebarView(
             container = container,
             onToggleGitPanel = { showGitPanel = !showGitPanel },
+            onOpenProject = onOpenProject,
             modifier = Modifier
                 .width(DSLayout.sidebarDefaultWidth)
                 .fillMaxHeight(),
         )
 
-        // 1px border between sidebar and content
+        // 1px border
         Box(
             Modifier
                 .width(1.dp)
@@ -45,12 +49,17 @@ fun RootView(
                 .background(DSColor.borderDefault),
         )
 
-        // Tab bar + terminal area
-        TerminalPlaceholder(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-        )
+        // Center: Tab bar + terminal
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            TabBarView(
+                container = container,
+                onOpenProject = onOpenProject,
+            )
+
+            TerminalPlaceholder(
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         if (showGitPanel && activeProject != null) {
             Box(

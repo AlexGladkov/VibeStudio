@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +60,7 @@ private enum class SidebarTab { FILES, GIT, SEARCH }
 fun SidebarView(
     container: DesktopServiceContainer,
     onToggleGitPanel: () -> Unit,
+    onOpenProject: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val projects by container.projectStore.projects.collectAsState()
@@ -70,7 +72,7 @@ fun SidebarView(
         IconStrip(
             activeTab = activeTab,
             onTabSelected = { activeTab = it },
-            onAddProject = { /* TODO: file picker */ },
+            onAddProject = onOpenProject,
         )
 
         // 1px vertical divider
@@ -89,7 +91,7 @@ fun SidebarView(
                     activeProjectId = activeProjectId,
                     onProjectSelected = { container.projectStore.setActiveProjectId(it.id) },
                 )
-                SidebarTab.GIT -> GitSidebarPlaceholder()
+                SidebarTab.GIT -> GitBranchSection(container)
                 SidebarTab.SEARCH -> SearchPlaceholder()
             }
         }
@@ -245,21 +247,121 @@ private fun ProjectHeaderRow(
     }
 }
 
-// ── Placeholder sections ─────────────────────────────────────────────────────
+// ── Git Branch Section ───────────────────────────────────────────────────────
 
 @Composable
-private fun GitSidebarPlaceholder() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "Git branches",
-            style = DSFont.sidebarItem,
-            color = DSColor.textMuted,
+private fun GitBranchSection(container: DesktopServiceContainer) {
+    val gitState by container.gitSidebarViewModel.state.collectAsState()
+    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
+    val projects by container.projectStore.projects.collectAsState()
+
+    val activeProject = projects.find { it.id == activeProjectId }
+    LaunchedEffect(activeProjectId) {
+        if (activeProject != null && activeProjectId != null) {
+            container.gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
+        }
+    }
+
+    val branches = activeProjectId?.let { gitState.projectBranches[it] } ?: emptyList()
+    val status = activeProjectId?.let { gitState.projectGitStatuses[it] }
+    val isNonGit = activeProjectId?.let { it in gitState.nonGitProjects } ?: false
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.gitSectionHeaderHeight)
+                .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "BRANCHES",
+                style = DSFont.sidebarSection,
+                color = DSColor.textSecondary,
+            )
+        }
+
+        Box(
+            Modifier.fillMaxWidth().height(1.dp).background(DSColor.borderDefault),
         )
+
+        when {
+            isNonGit -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Not a git repository", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                }
+            }
+            branches.isEmpty() && status == null -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Loading...", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                }
+            }
+            branches.isEmpty() -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No branches", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                }
+            }
+            else -> {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(branches, key = { it.name }) { branch ->
+                        BranchRow(branch)
+                    }
+                }
+            }
+        }
     }
 }
+
+@Composable
+private fun BranchRow(branch: studio.vibe.shared.model.GitBranch) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.treeRowHeight)
+            .hoverable(interactionSource)
+            .background(if (isHovered) DSColor.surfaceOverlay else Color.Transparent)
+            .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Current branch indicator
+        if (branch.isCurrent) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(DSColor.accentPrimary),
+            )
+            Spacer(Modifier.width(DSSpacing.xs))
+        } else {
+            Spacer(Modifier.width(6.dp + DSSpacing.xs))
+        }
+
+        Text(
+            text = branch.name,
+            style = DSFont.sidebarItem,
+            color = if (branch.isCurrent) DSColor.textPrimary else DSColor.textSecondary,
+            fontWeight = if (branch.isCurrent) FontWeight.Medium else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+
+        if (branch.isRemote) {
+            Spacer(Modifier.width(DSSpacing.xs))
+            Text(
+                text = "remote",
+                style = DSFont.badgeSmall,
+                color = DSColor.textMuted,
+            )
+        }
+    }
+}
+
+// ── Placeholder sections ─────────────────────────────────────────────────────
 
 @Composable
 private fun SearchPlaceholder() {

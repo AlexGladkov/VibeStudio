@@ -36,6 +36,7 @@ import studio.vibe.desktop.ui.theme.DSSpacing
 @Composable
 fun WelcomeView(
     onOpenProject: () -> Unit,
+    onCreateNew: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -99,7 +100,7 @@ fun WelcomeView(
 
                 // Secondary: Create New
                 OutlinedButton(
-                    onClick = { /* TODO */ },
+                    onClick = onCreateNew,
                     shape = RoundedCornerShape(DSRadius.md),
                     border = androidx.compose.foundation.BorderStroke(1.dp, DSColor.borderDefault),
                     colors = ButtonDefaults.outlinedButtonColors(
