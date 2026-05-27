@@ -9,8 +9,8 @@ plugins {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
-    implementation(compose.material3)
-    implementation(compose.materialIconsExtended)
+    implementation("org.jetbrains.compose.material3:material3:1.9.0")
+    implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
 
     // Coroutines Swing dispatcher (provides Dispatchers.Main on Desktop JVM)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
