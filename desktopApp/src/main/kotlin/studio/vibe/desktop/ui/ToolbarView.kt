@@ -232,6 +232,11 @@ private fun AgentPickerButton(
                     color = popoverColors.surfaceOverlay,
                     shadowElevation = 8.dp,
                     border = androidx.compose.foundation.BorderStroke(1.dp, popoverColors.borderDefault),
+                    // Without an explicit width constraint the Surface inside a
+                    // Popup defaults to the available native window width and
+                    // the position-provider's `coerceIn` then clamps the X
+                    // back to 0, dropping the popup at the screen's left edge.
+                    modifier = Modifier.width(220.dp),
                 ) {
                     Column(modifier = Modifier.padding(vertical = DSSpacing.xs)) {
                         available.forEach { assistant ->
