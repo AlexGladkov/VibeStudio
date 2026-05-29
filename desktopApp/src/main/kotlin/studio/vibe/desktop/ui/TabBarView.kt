@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -92,6 +93,7 @@ fun TabBarView(
     var draggedId by remember { mutableStateOf<Uuid?>(null) }
     var dragOffset by remember { mutableStateOf(0f) }
     var tabWidthPx by remember { mutableStateOf(0f) }
+    var showAddPopover by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
@@ -162,20 +164,46 @@ fun TabBarView(
             }
         }
 
-        // Add / open project button — always visible at the right edge
-        Box(
-            modifier = Modifier
-                .size(DSLayout.tabAddButtonSize)
-                .clip(RoundedCornerShape(DSRadius.md))
-                .clickable(onClick = onOpenProject),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Default.Add,
-                contentDescription = "New project",
-                tint = LocalDSColors.current.textSecondary,
-                modifier = Modifier.size(DSFont.tabTitle.fontSize.value.dp),
-            )
+        // Add / open project button — always visible at the right edge.
+        // When at least one project is already open, clicking the button shows
+        // the Recents popover (mirrors AddProjectPopover.swift on macOS). When
+        // no projects are open yet, fall through directly to the folder
+        // picker since the Welcome screen already handles discovery.
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(DSLayout.tabAddButtonSize)
+                    .clip(RoundedCornerShape(DSRadius.md))
+                    .clickable {
+                        if (projects.isEmpty()) {
+                            onOpenProject()
+                        } else {
+                            showAddPopover = true
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "New project",
+                    tint = LocalDSColors.current.textSecondary,
+                    modifier = Modifier.size(DSFont.tabTitle.fontSize.value.dp),
+                )
+            }
+
+            DropdownMenu(
+                expanded = showAddPopover,
+                onDismissRequest = { showAddPopover = false },
+            ) {
+                AddProjectPopover(
+                    container = container,
+                    onOpenFolder = {
+                        showAddPopover = false
+                        onOpenProject()
+                    },
+                    onDismiss = { showAddPopover = false },
+                )
+            }
         }
 
         Spacer(Modifier.width(DSSpacing.xs))
