@@ -231,7 +231,8 @@ private class StubTerminalSessionManaging : TerminalSessionManaging {
         projectId: Uuid,
         workingDirectory: String,
         apiKeyValue: String?,
-    ): TerminalSession? = null  // No-op: toolbar will show error message
+    ): Result<TerminalSession> =
+        Result.failure(IllegalStateException("No active project — open a folder first"))
 
     override fun session(id: Uuid): TerminalSession? = null
 

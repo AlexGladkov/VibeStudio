@@ -1,6 +1,9 @@
 package studio.vibe.shared.service.agent
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.AgentAvailabilityChecking
 import studio.vibe.shared.contract.AgentAvailabilityStatus
@@ -44,17 +47,14 @@ class AgentAvailabilityServiceImpl(
 
     // ── State ─────────────────────────────────────────────────────────────────
 
-    // AgentAvailabilityChecking exposes Map<AIAssistant, AgentAvailabilityStatus>.
-    // We keep a mutable backing map and publish snapshots as a new immutable map on each update.
-    private val _availability: MutableMap<AIAssistant, AgentAvailabilityStatus> =
-        AIAssistant.entries.associateWithTo(mutableMapOf()) { AgentAvailabilityStatus.Checking }
+    // Backing StateFlow — emits a fresh immutable snapshot on every status change.
+    private val _availabilityFlow: MutableStateFlow<Map<AIAssistant, AgentAvailabilityStatus>> =
+        MutableStateFlow(
+            AIAssistant.entries.associateWith { AgentAvailabilityStatus.Checking },
+        )
 
-    /**
-     * Snapshot of the current availability for every known [AIAssistant].
-     * Always contains an entry for every value in [AIAssistant.entries].
-     */
-    override val availability: Map<AIAssistant, AgentAvailabilityStatus>
-        get() = _availability.toMap()
+    override val availabilityFlow: StateFlow<Map<AIAssistant, AgentAvailabilityStatus>> =
+        _availabilityFlow.asStateFlow()
 
     /** Timestamp of the most recent completed (or in-flight) full refresh. */
     private var lastRefreshAt: Instant = Instant.DISTANT_PAST
@@ -99,10 +99,9 @@ class AgentAvailabilityServiceImpl(
                 }
             }
 
-            // Write results back — runs on the scope's dispatcher.
-            for ((agent, status) in results) {
-                _availability[agent] = status
-            }
+            // Atomic update — observers see a single transition from the old
+            // snapshot (which still has Checking entries) to the new one.
+            _availabilityFlow.value = results.toMap()
         }
     }
 
@@ -118,7 +117,7 @@ class AgentAvailabilityServiceImpl(
         if (elapsed > CACHE_TTL) {
             refreshAll()
         }
-        return _availability[agent] ?: AgentAvailabilityStatus.Checking
+        return _availabilityFlow.value[agent] ?: AgentAvailabilityStatus.Checking
     }
 
     /**

@@ -312,7 +312,7 @@ class DesktopTerminalService(
         projectId: Uuid,
         workingDirectory: String,
         apiKeyValue: String?,
-    ): TerminalSession? {
+    ): Result<TerminalSession> {
         return runCatching {
             // Remove lingering exited agent sessions before launching a new one
             val exitedAgentIds = _sessions.value.entries
@@ -382,7 +382,7 @@ class DesktopTerminalService(
             sendInput(agent.launchCommand, session.id)
 
             session
-        }.getOrNull()
+        }
     }
 
     // ── TerminalSessionQuerying ─────────────────────────────────────────────

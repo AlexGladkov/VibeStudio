@@ -128,7 +128,7 @@ class ToolbarViewModel(
             val workingDirectory = project.path.path
             // startAgentSession calls PtyProcessBuilder.start() which blocks —
             // must run on IO dispatcher, not Main (EDT).
-            val session = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 terminalSessionManaging.startAgentSession(
                     agent = assistant,
                     projectId = projectId,
@@ -136,13 +136,15 @@ class ToolbarViewModel(
                     apiKeyValue = apiKeyValue,
                 )
             }
-            if (session != null) {
+            result.onSuccess { session ->
                 runningAssistants[projectId] = true
                 agentSessionIds[projectId] = session.id
                 rebuildState()
                 _state.update { it.copy(errorMessage = null) }
-            } else {
-                _state.update { it.copy(errorMessage = "Failed to start agent session") }
+            }.onFailure { e ->
+                val msg = e.message?.takeIf { it.isNotBlank() }
+                    ?: "Failed to start ${assistant.displayName}: ${e::class.simpleName}"
+                _state.update { it.copy(errorMessage = msg) }
             }
         }
     }

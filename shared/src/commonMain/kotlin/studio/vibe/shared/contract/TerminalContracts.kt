@@ -42,12 +42,20 @@ interface TerminalSessionCreating {
         size: TerminalSize = TerminalSize(columns = 80, rows = 24),
     ): TerminalSession
 
+    /**
+     * Spawn a new agent CLI session for [agent] inside [projectId].
+     *
+     * Failures (binary missing, PTY creation failed, session-limit hit, etc.)
+     * are wrapped in [Result.failure] so callers can surface the original
+     * exception's message to the user. Earlier returns of plain `null` made
+     * every failure look identical from the UI.
+     */
     fun startAgentSession(
         agent: AIAssistant,
         projectId: Uuid,
         workingDirectory: String,
         apiKeyValue: String?,
-    ): TerminalSession?
+    ): Result<TerminalSession>
 }
 
 // Session querying

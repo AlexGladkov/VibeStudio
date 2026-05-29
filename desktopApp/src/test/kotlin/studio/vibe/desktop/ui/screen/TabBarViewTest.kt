@@ -73,7 +73,7 @@ class TabBarViewTest {
     }
 
     @Test
-    fun tabBarView_addButtonFiresCallback_whenClicked() {
+    fun tabBarView_addButtonOpensRecentsPopover_thenForwardsToOnOpenProject() {
         var callbackFired = false
 
         composeTestRule.setContent {
@@ -86,9 +86,17 @@ class TabBarViewTest {
         }
 
         composeTestRule.waitForIdle()
+        // 1. Click the + button — should expand AddProjectPopover, not fire the callback yet.
         composeTestRule.onNodeWithContentDescription("New project").performClick()
         composeTestRule.waitForIdle()
+        kotlin.test.assertFalse(
+            callbackFired,
+            "Clicking + should open the popover, not bypass it directly",
+        )
 
+        // 2. Click "Open Folder..." inside the popover — this is what now triggers onOpenProject.
+        composeTestRule.onNodeWithText("Open Folder...").performClick()
+        composeTestRule.waitForIdle()
         kotlin.test.assertTrue(callbackFired)
     }
 
