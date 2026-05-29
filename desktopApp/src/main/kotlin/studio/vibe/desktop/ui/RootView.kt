@@ -125,10 +125,12 @@ fun RootView(
             if (activeProject != null) {
                 val project = projects.find { it.id == activeProject }
                 val toolbarState by container.toolbarViewModel.state.collectAsState()
+                val terminalFontSize by container.generalPreferences.terminalFontSizeFlow.collectAsState()
                 TerminalView(
                     service = container.terminalService,
                     projectId = activeProject!!,
                     targetSessionId = toolbarState.activeAgentSessionId,
+                    terminalFontSize = terminalFontSize.toFloat(),
                     workingDirectory = project?.path?.path,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )

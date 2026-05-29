@@ -93,9 +93,11 @@ fun TerminalAreaView(
                     .background(LocalDSColors.current.borderDefault),
             )
 
+            val terminalFontSize by container.generalPreferences.terminalFontSizeFlow.collectAsState()
             TerminalView(
                 service = container.terminalService,
                 projectId = activeProjectId!!,
+                terminalFontSize = terminalFontSize.toFloat(),
                 workingDirectory = project?.path?.path,
                 modifier = Modifier.weight(1f),
             )
