@@ -107,6 +107,20 @@ private class Pty4JConnector(
         )
     }
 
+    /**
+     * Override: do NOT destroy the PTY process when JediTerm closes the widget.
+     *
+     * Process lifecycle is owned exclusively by [DesktopTerminalService] — it
+     * decides when to SIGTERM/SIGKILL via [killSession] / [killAllSessions].
+     * Letting JediTerm destroy the process here means switching tabs (which
+     * unmounts the widget) would silently kill agent CLIs (Claude, OpenCode,
+     * etc.) the user had running in that project, even though they are
+     * conceptually still active.
+     */
+    override fun close() {
+        // intentionally no-op — service owns the process
+    }
+
     override fun getName(): String = "pty4j"
 }
 
@@ -151,11 +165,15 @@ fun TerminalView(
     // Key on projectId, targetSessionId, fontSize, and palette so we re-create
     // when the theme changes (otherwise the existing widget keeps its old colors).
     LaunchedEffect(projectId, targetSessionId, terminalFontSize, colors) {
-        // A session is "live" only when its PTY process is still tracked.
-        // Stale entries (PTY exited or session removed) must be skipped or the
-        // widget never gets created and the terminal appears blank.
-        fun isLive(s: studio.vibe.shared.model.TerminalSession?): Boolean =
-            s != null && service.ptyProcessForSession(s.id) != null
+        // A session is "live" only when its PTY process is both tracked by the
+        // service AND its underlying OS process has not exited. Skipping stale
+        // entries is what keeps the terminal from going blank after a tab
+        // switch — `_sessions` may still hold a TerminalSession whose pty died.
+        fun isLive(s: studio.vibe.shared.model.TerminalSession?): Boolean {
+            if (s == null) return false
+            val pty = service.ptyProcessForSession(s.id) ?: return false
+            return pty.isAlive
+        }
 
         // 1. Resolve session: target → most recent live project session → create new
         var session: studio.vibe.shared.model.TerminalSession? = null
