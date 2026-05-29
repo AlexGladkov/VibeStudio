@@ -1,5 +1,8 @@
 package studio.vibe.shared.preferences
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import studio.vibe.shared.contract.SettingsStorage
 
 /**
@@ -18,9 +21,14 @@ public enum class AppTheme {
 /**
  * Key-value backed general application preferences.
  *
+ * Each field exposes a hot [StateFlow] that emits on every mutation so any
+ * [collectAsState] consumer rebuilds when the value changes — including UI
+ * surfaces that did not originate the mutation. The convenience `var`
+ * accessors remain for ergonomic call-sites.
+ *
  * Keys are prefixed with `vs_` to avoid collisions with other services.
  * Backed by [SettingsStorage] for cross-platform persistence (UserDefaults on macOS,
- * SharedPreferences on Android, etc.).
+ * java.util.prefs on JVM, etc.).
  */
 public class GeneralPreferences(private val storage: SettingsStorage) {
 
@@ -31,38 +39,66 @@ public class GeneralPreferences(private val storage: SettingsStorage) {
         const val APP_THEME = "vs_app_theme"
     }
 
-    /**
-     * Show a confirmation alert before closing a tab. Default: `true`.
-     */
+    // ── confirmTabClose ──────────────────────────────────────────────────────
+
+    private val _confirmTabClose = MutableStateFlow(loadConfirmTabClose())
+    public val confirmTabCloseFlow: StateFlow<Boolean> = _confirmTabClose.asStateFlow()
+
+    /** Show a confirmation alert before closing a tab. Default: `true`. */
     public var confirmTabClose: Boolean
-        get() = storage.getString(Keys.CONFIRM_TAB_CLOSE)?.toBooleanStrictOrNull() ?: true
-        set(value) { storage.setBool(Keys.CONFIRM_TAB_CLOSE, value) }
+        get() = _confirmTabClose.value
+        set(value) {
+            storage.setBool(Keys.CONFIRM_TAB_CLOSE, value)
+            _confirmTabClose.value = value
+        }
 
-    /**
-     * Launch Claude with `--dangerously-skip-permissions`. Default: `false`.
-     */
+    // ── claudeSkipPermissions ────────────────────────────────────────────────
+
+    private val _claudeSkipPermissions = MutableStateFlow(storage.getBool(Keys.CLAUDE_SKIP_PERMISSIONS))
+    public val claudeSkipPermissionsFlow: StateFlow<Boolean> = _claudeSkipPermissions.asStateFlow()
+
+    /** Launch Claude with `--dangerously-skip-permissions`. Default: `false`. */
     public var claudeSkipPermissions: Boolean
-        get() = storage.getBool(Keys.CLAUDE_SKIP_PERMISSIONS)
-        set(value) { storage.setBool(Keys.CLAUDE_SKIP_PERMISSIONS, value) }
+        get() = _claudeSkipPermissions.value
+        set(value) {
+            storage.setBool(Keys.CLAUDE_SKIP_PERMISSIONS, value)
+            _claudeSkipPermissions.value = value
+        }
 
-    /**
-     * Terminal font size in points. Default: `13`. Range: 9..24.
-     */
+    // ── terminalFontSize ─────────────────────────────────────────────────────
+
+    private val _terminalFontSize = MutableStateFlow(storage.getInt(Keys.TERMINAL_FONT_SIZE) ?: 13)
+    public val terminalFontSizeFlow: StateFlow<Int> = _terminalFontSize.asStateFlow()
+
+    /** Terminal font size in points. Default: `13`. Clamped to 9..24. */
     public var terminalFontSize: Int
-        get() = storage.getInt(Keys.TERMINAL_FONT_SIZE) ?: 13
+        get() = _terminalFontSize.value
         set(value) {
             val clamped = value.coerceIn(9, 24)
             storage.setInt(Keys.TERMINAL_FONT_SIZE, clamped)
+            _terminalFontSize.value = clamped
         }
 
-    /**
-     * Application color theme. Default: [AppTheme.DARK].
-     *
-     * Stored as the enum name string so it is human-readable in the backing store.
-     */
+    // ── theme ────────────────────────────────────────────────────────────────
+
+    private val _theme = MutableStateFlow(loadTheme())
+    public val themeFlow: StateFlow<AppTheme> = _theme.asStateFlow()
+
+    /** Application color theme. Default: [AppTheme.DARK]. Stored as enum name. */
     public var theme: AppTheme
-        get() = storage.getString(Keys.APP_THEME)
+        get() = _theme.value
+        set(value) {
+            storage.setString(Keys.APP_THEME, value.name)
+            _theme.value = value
+        }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private fun loadConfirmTabClose(): Boolean =
+        storage.getString(Keys.CONFIRM_TAB_CLOSE)?.toBooleanStrictOrNull() ?: true
+
+    private fun loadTheme(): AppTheme =
+        storage.getString(Keys.APP_THEME)
             ?.let { runCatching { AppTheme.valueOf(it) }.getOrNull() }
             ?: AppTheme.DARK
-        set(value) { storage.setString(Keys.APP_THEME, value.name) }
 }

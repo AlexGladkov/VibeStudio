@@ -3,6 +3,7 @@
 package studio.vibe.desktop
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,9 +49,9 @@ fun main() = application {
     var showSidebar by remember { mutableStateOf(true) }
     var isCodeSpeakMode by remember { mutableStateOf(false) }
 
-    // ── Theme preference — read once on startup; updated reactively via the
-    //    settings pane through the same GeneralPreferences instance. ──────────
-    var appTheme by remember { mutableStateOf(serviceContainer.generalPreferences.theme) }
+    // ── Theme preference — collected reactively so palette switches as soon
+    //    as the user picks a different option in Settings. ─────────────────────
+    val appTheme by serviceContainer.generalPreferences.themeFlow.collectAsState()
 
     Window(
         onCloseRequest = {
@@ -146,7 +147,6 @@ fun main() = application {
                 onToggleSettings = { showSettings = it },
                 onToggleSidebar = { showSidebar = !showSidebar },
                 onToggleCodeSpeakMode = { isCodeSpeakMode = !isCodeSpeakMode },
-                onThemeChange = { newTheme -> appTheme = newTheme },
             )
         }
     }

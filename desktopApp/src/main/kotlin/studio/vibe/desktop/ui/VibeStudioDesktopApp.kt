@@ -67,12 +67,6 @@ fun VibeStudioDesktopApp(
     onToggleSettings: (Boolean) -> Unit = {},
     onToggleSidebar: () -> Unit = {},
     onToggleCodeSpeakMode: () -> Unit = {},
-    /**
-     * Called when the user changes the theme from the Settings pane.
-     * The caller ([Main.kt]) must update its own `appTheme` state variable so
-     * that the new palette is applied to the entire window immediately.
-     */
-    onThemeChange: (AppTheme) -> Unit = {},
     /** @deprecated Pass [onOpenFolder] from caller; currently unused stub. */
     onOpenFolder: () -> Unit = {},
 ) {
@@ -175,7 +169,6 @@ fun VibeStudioDesktopApp(
         SettingsView(
             container = container,
             onDismiss = { onToggleSettings(false) },
-            onThemeChange = onThemeChange,
         )
     }
 

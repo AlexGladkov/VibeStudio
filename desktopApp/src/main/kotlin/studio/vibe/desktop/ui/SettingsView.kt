@@ -28,7 +28,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +53,7 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
+import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.SettingsItem
 import studio.vibe.shared.model.SettingsSectionGroup
@@ -74,9 +77,14 @@ import studio.vibe.shared.preferences.AppTheme
 fun SettingsView(
     container: DesktopServiceContainer,
     onDismiss: () -> Unit,
-    onThemeChange: (AppTheme) -> Unit = {},
 ) {
     val dialogState = rememberDialogState(size = DpSize(860.dp, 680.dp))
+    val theme by container.generalPreferences.themeFlow.collectAsState()
+    val isDark = when (theme) {
+        AppTheme.SYSTEM -> isSystemInDarkTheme()
+        AppTheme.DARK -> true
+        AppTheme.LIGHT -> false
+    }
 
     DialogWindow(
         onCloseRequest = onDismiss,
@@ -84,11 +92,15 @@ fun SettingsView(
         title = "Settings",
         resizable = false,
     ) {
-        SettingsContent(
-            container = container,
-            onDismiss = onDismiss,
-            onThemeChange = onThemeChange,
-        )
+        // The DialogWindow opens an OS-level window outside the main composition,
+        // so the theme provider must be re-applied here. Without this, LocalDSColors
+        // falls back to the [error("...")] default and crashes the dialog.
+        VibeStudioTheme(isDark = isDark) {
+            SettingsContent(
+                container = container,
+                onDismiss = onDismiss,
+            )
+        }
     }
 }
 
@@ -98,7 +110,6 @@ fun SettingsView(
 private fun SettingsContent(
     container: DesktopServiceContainer,
     onDismiss: () -> Unit,
-    onThemeChange: (AppTheme) -> Unit,
 ) {
     val colors = LocalDSColors.current
     // Default selection: first item in GENERAL group
@@ -139,7 +150,6 @@ private fun SettingsContent(
                 SettingsContentPane(
                     item = selectedItem,
                     container = container,
-                    onThemeChange = onThemeChange,
                 )
             }
         }
@@ -286,12 +296,10 @@ private fun SidebarItemIcon(item: SettingsItem, tint: Color) {
 private fun SettingsContentPane(
     item: SettingsItem,
     container: DesktopServiceContainer,
-    onThemeChange: (AppTheme) -> Unit,
 ) {
     when (item) {
         is SettingsItem.Appearance -> GeneralSettingsPane(
             container = container,
-            onThemeChange = onThemeChange,
         )
         is SettingsItem.RemoteControl -> RemoteControlSettingsPane(container = container)
         is SettingsItem.LlmAssistant -> LlmSettingsPane(

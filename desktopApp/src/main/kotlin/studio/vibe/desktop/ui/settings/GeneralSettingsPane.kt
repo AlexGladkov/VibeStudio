@@ -20,6 +20,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,22 +45,26 @@ import studio.vibe.shared.preferences.AppTheme
  * Provides: theme/appearance, terminal font size, confirm-tab-close toggle,
  * and Claude skip-permissions toggle.
  *
- * @param onThemeChange Called immediately when the user selects a different
- *   [AppTheme] so the parent window can recompose with the new palette.
+ * All preference values are sourced from reactive StateFlows on
+ * [GeneralPreferences]; mutations propagate to every observer that
+ * collects those flows.
  */
 @Composable
 fun GeneralSettingsPane(
     container: DesktopServiceContainer,
     modifier: Modifier = Modifier,
-    onThemeChange: (AppTheme) -> Unit = {},
 ) {
     val prefs = container.generalPreferences
     val colors = LocalDSColors.current
 
-    var confirmTabClose by remember { mutableStateOf(prefs.confirmTabClose) }
-    var skipPermissions by remember { mutableStateOf(prefs.claudeSkipPermissions) }
-    var fontSize by remember { mutableStateOf(prefs.terminalFontSize.toFloat()) }
-    var selectedTheme by remember { mutableStateOf(prefs.theme) }
+    val confirmTabClose by prefs.confirmTabCloseFlow.collectAsState()
+    val skipPermissions by prefs.claudeSkipPermissionsFlow.collectAsState()
+    val persistedFontSize by prefs.terminalFontSizeFlow.collectAsState()
+    val selectedTheme by prefs.themeFlow.collectAsState()
+
+    // Slider holds a transient in-drag value; commits to prefs on release.
+    var fontSize by remember { mutableStateOf(persistedFontSize.toFloat()) }
+    LaunchedEffect(persistedFontSize) { fontSize = persistedFontSize.toFloat() }
 
     Column(
         modifier = modifier
@@ -95,11 +101,7 @@ fun GeneralSettingsPane(
 
                         ThemeSegmentedControl(
                             selected = selectedTheme,
-                            onSelect = { theme ->
-                                selectedTheme = theme
-                                prefs.theme = theme
-                                onThemeChange(theme)
-                            },
+                            onSelect = { theme -> prefs.theme = theme },
                         )
                     }
                 }
@@ -195,10 +197,7 @@ fun GeneralSettingsPane(
 
                         Checkbox(
                             checked = confirmTabClose,
-                            onCheckedChange = { checked ->
-                                confirmTabClose = checked
-                                prefs.confirmTabClose = checked
-                            },
+                            onCheckedChange = { checked -> prefs.confirmTabClose = checked },
                             colors = CheckboxDefaults.colors(
                                 checkedColor = colors.accentPrimary,
                                 uncheckedColor = colors.textMuted,
@@ -234,10 +233,7 @@ fun GeneralSettingsPane(
 
                         Checkbox(
                             checked = skipPermissions,
-                            onCheckedChange = { checked ->
-                                skipPermissions = checked
-                                prefs.claudeSkipPermissions = checked
-                            },
+                            onCheckedChange = { checked -> prefs.claudeSkipPermissions = checked },
                             colors = CheckboxDefaults.colors(
                                 checkedColor = colors.agentClaude,
                                 uncheckedColor = colors.textMuted,
