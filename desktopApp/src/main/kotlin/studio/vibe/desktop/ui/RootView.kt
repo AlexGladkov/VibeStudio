@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,9 +52,41 @@ fun RootView(
     modifier: Modifier = Modifier,
 ) {
     val activeProject by container.projectStore.activeProjectId.collectAsState()
+    val projects by container.projectStore.projects.collectAsState()
     var sidebarWidth by remember { mutableStateOf(DSLayout.sidebarDefaultWidth) }
     var gitPanelWidth by remember { mutableStateOf(DSLayout.changesPanelDefaultWidth) }
     val density = LocalDensity.current
+
+    // ── File system watching ──────────────────────────────────────────────────
+    // Restarts when the active project changes; stops when project is null.
+    // Debounce (500 ms) is applied inside FileTreeViewModel.startWatching so
+    // rapid burst saves don't trigger excessive tree reloads.
+    LaunchedEffect(activeProject) {
+        val projectPath = projects.find { it.id == activeProject }?.path
+        if (projectPath != null) {
+            container.fileTreeViewModel.loadTree(projectPath)
+            container.fileTreeViewModel.startWatching(projectPath)
+        } else {
+            container.fileTreeViewModel.stopWatching()
+        }
+    }
+
+    // ── Git status polling ────────────────────────────────────────────────────
+    // Polls every 3 s (active) / 30 s (background) with exponential backoff.
+    // showGitPanel is checked so we only poll at active rate when the panel is
+    // visible; when hidden we fall back to background rate automatically via
+    // GitStatusPollerImpl's isActive flag.
+    LaunchedEffect(activeProject, showGitPanel) {
+        val projectPath = projects.find { it.id == activeProject }?.path
+        if (projectPath != null) {
+            container.gitStatusPoller.startPolling(
+                repository = projectPath,
+                isActive = showGitPanel,
+            )
+        } else {
+            container.gitStatusPoller.stopPolling()
+        }
+    }
 
     Row(modifier = modifier.fillMaxSize()) {
         // ── Sidebar (collapsible via Cmd+B) ──────────────────────────────────
@@ -88,13 +122,14 @@ fun RootView(
 
             // Terminal area — real pty4j + JediTerm
             if (activeProject != null) {
-                val projects by container.projectStore.projects.collectAsState()
                 val project = projects.find { it.id == activeProject }
+                val toolbarState by container.toolbarViewModel.state.collectAsState()
                 TerminalView(
                     service = container.terminalService,
                     projectId = activeProject!!,
+                    targetSessionId = toolbarState.activeAgentSessionId,
                     workingDirectory = project?.path?.path,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
             } else {
                 TerminalPlaceholder(

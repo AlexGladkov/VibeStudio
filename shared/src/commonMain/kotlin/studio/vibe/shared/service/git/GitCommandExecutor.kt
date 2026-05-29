@@ -372,6 +372,13 @@ class GitCommandExecutor(
         runGit(args, at)
     }
 
+    override suspend fun deleteBranch(name: String, force: Boolean, at: FilePath) {
+        validateBranchName(name)
+        // -d = safe delete (refuses if unmerged); -D = force delete.
+        val flag = if (force) "-D" else "-d"
+        runGit(listOf("branch", flag, name), at)
+    }
+
     // -------------------------------------------------------------------------
     // GitRepositoryInspection
     // -------------------------------------------------------------------------

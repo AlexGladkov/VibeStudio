@@ -2,6 +2,7 @@
 
 package studio.vibe.desktop
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,7 @@ import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.ProjectManagerError
+import studio.vibe.shared.preferences.AppTheme
 import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.Frame
@@ -45,6 +47,10 @@ fun main() = application {
     var showSettings by remember { mutableStateOf(false) }
     var showSidebar by remember { mutableStateOf(true) }
     var isCodeSpeakMode by remember { mutableStateOf(false) }
+
+    // ── Theme preference — read once on startup; updated reactively via the
+    //    settings pane through the same GeneralPreferences instance. ──────────
+    var appTheme by remember { mutableStateOf(serviceContainer.generalPreferences.theme) }
 
     Window(
         onCloseRequest = {
@@ -123,7 +129,13 @@ fun main() = application {
             }
         }
 
-        VibeStudioTheme {
+        val isDark = when (appTheme) {
+            AppTheme.SYSTEM -> isSystemInDarkTheme()
+            AppTheme.DARK   -> true
+            AppTheme.LIGHT  -> false
+        }
+
+        VibeStudioTheme(isDark = isDark) {
             VibeStudioDesktopApp(
                 container = serviceContainer,
                 showGitPanel = showGitPanel,
@@ -134,6 +146,7 @@ fun main() = application {
                 onToggleSettings = { showSettings = it },
                 onToggleSidebar = { showSidebar = !showSidebar },
                 onToggleCodeSpeakMode = { isCodeSpeakMode = !isCodeSpeakMode },
+                onThemeChange = { newTheme -> appTheme = newTheme },
             )
         }
     }

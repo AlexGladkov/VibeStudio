@@ -90,8 +90,11 @@ internal class PtySessionState(
  * down all active PTY processes gracefully.
  *
  * ### Output
- * PTY output is read on [Dispatchers.IO] and emitted to a per-session
- * [MutableSharedFlow].  Call [outputFlow] to subscribe from the UI.
+ * PTY output is read by JediTerm via [com.jediterm.terminal.ProcessTtyConnector].
+ * The connector feeds captured chunks back to this service via [receiveOutput]
+ * for scrollback accumulation, activity tracking, and [outputFlow] emission.
+ * This single-reader design avoids the data-race that occurs when two threads
+ * compete for the same [java.io.InputStream].
  *
  * ### Thread safety
  * [_sessions] is a [MutableStateFlow] of an immutable [Map] — mutations happen
@@ -103,6 +106,10 @@ internal class PtySessionState(
 class DesktopTerminalService(
     private val serviceScope: CoroutineScope,
 ) : TerminalSessionManaging {
+
+    // ── Session limits ─────────────────────────────────────────────────────
+
+    private val maxSessionsPerProject = 8
 
     // ── Internal session registry ──────────────────────────────────────────
 
@@ -148,6 +155,11 @@ class DesktopTerminalService(
         workingDirectory: FilePath?,
         size: TerminalSize,
     ): TerminalSession {
+        val existingCount = _sessions.value.values.count { it.session.projectId == projectId }
+        if (existingCount >= maxSessionsPerProject) {
+            error("Session limit reached for project $projectId (max $maxSessionsPerProject)")
+        }
+
         val shellPath = shell ?: resolveDefaultShell()
         val workDir = workingDirectory?.path ?: System.getProperty("user.home", "/")
         val sessionTitle = shellPath.substringAfterLast('/')
@@ -199,10 +211,11 @@ class DesktopTerminalService(
         _sessions.update { it + (session.id to state) }
         rebuildProjectSessions()
 
-        // Launch output reader
-        sessionScope.launch {
-            readPtyOutput(session.id, state)
-        }
+        // NOTE: No output reader coroutine here.  JediTerm reads the PTY
+        // InputStream via ProcessTtyConnector and feeds captured chunks back
+        // to this service through [receiveOutput].  Launching a competing
+        // reader would split bytes between the two threads, leaving JediTerm
+        // with partial or no output (the original blank-terminal bug).
 
         // Launch process-exit watcher
         sessionScope.launch {
@@ -223,17 +236,30 @@ class DesktopTerminalService(
         }
     }
 
-    /** Kills a session.  If [force] is true, uses SIGKILL; otherwise SIGTERM. */
+    /**
+     * Kills a session.
+     *
+     * When [force] is true the process is SIGKILLed immediately and the session
+     * is removed synchronously.  When [force] is false, SIGTERM is sent first and
+     * the session is removed after a 2-second grace period (or immediately once
+     * the process has already died), matching Swift TerminalService behaviour.
+     */
     override fun killSession(sessionId: Uuid, force: Boolean) {
         val state = _sessions.value[sessionId] ?: return
-        runCatching {
-            if (force) {
-                state.ptyProcess.destroyForcibly()
-            } else {
-                state.ptyProcess.destroy()
+        if (force) {
+            runCatching { state.ptyProcess.destroyForcibly() }
+            removeSession(sessionId)
+        } else {
+            runCatching { state.ptyProcess.destroy() }  // sends SIGTERM
+            // Grace period: wait 2 seconds, then SIGKILL if still alive
+            serviceScope.launch(Dispatchers.IO) {
+                kotlinx.coroutines.delay(2_000)
+                if (state.ptyProcess.isAlive) {
+                    runCatching { state.ptyProcess.destroyForcibly() }
+                }
+                removeSession(sessionId)
             }
         }
-        removeSession(sessionId)
     }
 
     /** Kills all sessions belonging to [projectId]. */
@@ -273,9 +299,13 @@ class DesktopTerminalService(
     /**
      * Creates a session that immediately launches an AI agent CLI tool.
      *
-     * If the agent uses [AIAssistant.launchViaShellInput] the command is typed
-     * into an interactive shell after it starts; otherwise the shell is
-     * launched with the command as `$SHELL -l -c <cmd>`.
+     * The session is a login shell whose environment is built via [buildAgentEnv]
+     * (allowlist-based, no credential leakage).  The agent API key is injected
+     * directly into the process environment instead of being echoed via an
+     * `export` command, which would expose it in the visible terminal output.
+     *
+     * Lingering exited agent sessions for the same project are cleaned up before
+     * the new session is created, matching Swift TerminalService behaviour.
      */
     override fun startAgentSession(
         agent: AIAssistant,
@@ -284,34 +314,74 @@ class DesktopTerminalService(
         apiKeyValue: String?,
     ): TerminalSession? {
         return runCatching {
+            // Remove lingering exited agent sessions before launching a new one
+            val exitedAgentIds = _sessions.value.entries
+                .filter { (_, s) ->
+                    s.session.projectId == projectId &&
+                        s.session.isAgentSession &&
+                        s.session.state is TerminalSessionState.Exited
+                }
+                .map { it.key }
+            exitedAgentIds.forEach { removeSession(it) }
+
+            // Check per-project session limit
+            val existingCount = _sessions.value.values.count { it.session.projectId == projectId }
+            if (existingCount >= maxSessionsPerProject) {
+                error("Session limit reached for project $projectId (max $maxSessionsPerProject)")
+            }
+
             val size = TerminalSize(columns = 220, rows = 50)
-            val session = createSession(
+
+            // Build agent-specific env with allowlist — API key injected here,
+            // not echoed as a visible shell command.
+            val agentEnv = buildAgentEnv(agent, apiKeyValue)
+
+            val shellPath = resolveDefaultShell()
+            val command: Array<String> = arrayOf(shellPath, "-l")
+
+            val ptyProcess = PtyProcessBuilder(command)
+                .setEnvironment(agentEnv)
+                .setDirectory(workingDirectory)
+                .setInitialColumns(size.columns)
+                .setInitialRows(size.rows)
+                .setConsole(false)
+                .setUseWinConPty(isWindows)
+                .start()
+
+            val session = TerminalSession(
                 projectId = projectId,
-                shell = null,
-                workingDirectory = FilePath(workingDirectory),
-                size = size,
-            )
-            // Mark it as an agent session
-            val agentSession = session.copy(
                 title = agent.displayName,
+                state = TerminalSessionState.Running,
                 isAgentSession = true,
             )
-            updateSessionModel(agentSession)
 
-            // Inject API key if needed
-            val envVar = agent.apiKeyEnvironmentVariable
-            if (envVar != null && apiKeyValue != null) {
-                sendInput("export $envVar=$apiKeyValue\n", agentSession.id)
-            }
+            val outputFlow = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 512)
+            val scrollback = StringBuilder()
+            val sessionScope = CoroutineScope(
+                SupervisorJob(serviceScope.coroutineContext[kotlinx.coroutines.Job]) +
+                    Dispatchers.IO,
+            )
+            val inputWriter = BufferedWriter(OutputStreamWriter(ptyProcess.outputStream, Charsets.UTF_8))
 
-            // Launch the agent
-            if (agent.launchViaShellInput) {
-                sendInput(agent.launchCommand, agentSession.id)
-            } else {
-                sendInput(agent.launchCommand, agentSession.id)
-            }
+            val ptyState = PtySessionState(
+                session = session,
+                ptyProcess = ptyProcess,
+                inputWriter = inputWriter,
+                outputFlow = outputFlow,
+                scrollback = scrollback,
+                scope = sessionScope,
+            )
 
-            agentSession
+            _sessions.update { it + (session.id to ptyState) }
+            rebuildProjectSessions()
+
+            // Watch for process exit (includes 10-second visibility window for agents)
+            sessionScope.launch { watchProcessExit(session.id, projectId, ptyState) }
+
+            // Send launch command — API key is already in the env, no export needed
+            sendInput(agent.launchCommand, session.id)
+
+            session
         }.getOrNull()
     }
 
@@ -399,38 +469,33 @@ class DesktopTerminalService(
         serviceScope.cancel()
     }
 
-    // ── Private helpers ─────────────────────────────────────────────────────
+    // ── Output capture (called from Pty4JConnector) ────────────────────────
 
     /**
-     * Reads raw bytes from the PTY output stream and emits them as UTF-8
-     * chunks into [PtySessionState.outputFlow].
+     * Receives a chunk of terminal output captured by [Pty4JConnector.read].
      *
-     * Runs on [Dispatchers.IO].  Exits when the process closes its output
-     * stream (EOF) or an I/O exception occurs.
+     * This is the **single entry point** for PTY output into the service.
+     * JediTerm's [com.jediterm.terminal.ProcessTtyConnector] is the sole reader
+     * of the PTY [java.io.InputStream]; after reading, the connector forwards
+     * each chunk here for:
+     *
+     *  1. [PtySessionState.outputFlow] emission (subscribers, Remote Control).
+     *  2. [PtySessionState.scrollback] accumulation (capped at 100 KB).
+     *  3. Project activity signalling.
      */
-    private suspend fun readPtyOutput(sessionId: Uuid, state: PtySessionState) {
-        val buffer = ByteArray(4096)
-        val inputStream = state.ptyProcess.inputStream
-        withContext(Dispatchers.IO) {
-            runCatching {
-                while (true) {
-                    val bytesRead = inputStream.read(buffer)
-                    if (bytesRead == -1) break
-                    val chunk = String(buffer, 0, bytesRead, Charsets.UTF_8)
-                    state.outputFlow.tryEmit(chunk)
-                    synchronized(state.scrollback) {
-                        state.scrollback.append(chunk)
-                        // Trim scrollback to ~100k characters to avoid unbounded growth
-                        if (state.scrollback.length > 100_000) {
-                            state.scrollback.delete(0, state.scrollback.length - 80_000)
-                        }
-                    }
-                    // Signal activity to the project
-                    markSessionActivity(sessionId, state.session.projectId)
-                }
+    internal fun receiveOutput(sessionId: Uuid, chunk: String) {
+        val state = _sessions.value[sessionId] ?: return
+        state.outputFlow.tryEmit(chunk)
+        synchronized(state.scrollback) {
+            state.scrollback.append(chunk)
+            if (state.scrollback.length > 100_000) {
+                state.scrollback.delete(0, state.scrollback.length - 80_000)
             }
         }
+        markSessionActivity(sessionId, state.session.projectId)
     }
+
+    // ── Private helpers ─────────────────────────────────────────────────────
 
     /**
      * Waits for the PTY process to exit and emits a [TerminalSessionEvent.ProcessExited]
@@ -455,6 +520,14 @@ class DesktopTerminalService(
                     exitCode = exitCode,
                 ),
             )
+
+            if (state.session.isAgentSession) {
+                // Keep agent session visible for 10 s so the user can read error output
+                // before it disappears from the session list.
+                kotlinx.coroutines.delay(10_000)
+            }
+
+            removeSession(sessionId)
             state.scope.cancel()
         }
     }
@@ -509,5 +582,72 @@ class DesktopTerminalService(
             // Ensure $HOME is present — some minimal envs omit it
             putIfAbsent("HOME", System.getProperty("user.home", "/"))
         }
+    }
+
+    /**
+     * Builds a minimal, allowlist-based environment for agent PTY sessions.
+     *
+     * Unlike [buildEnv], this method does **not** inherit the entire parent
+     * process environment.  Only a curated set of variables is forwarded to
+     * prevent credential leakage from the host environment into the agent
+     * sandbox.  Trusted binary directories are prepended to `PATH` so that
+     * package-manager-installed agent binaries are always discoverable.
+     *
+     * The agent's API key is injected via the [AIAssistant.apiKeyEnvironmentVariable]
+     * entry — it never needs to be sent as a visible shell command.
+     *
+     * @param agent       The AI assistant whose API key variable should be set.
+     * @param apiKeyValue The resolved secret value, or `null` if unavailable.
+     */
+    private fun buildAgentEnv(agent: AIAssistant, apiKeyValue: String?): Map<String, String> {
+        val allowedVars = setOf(
+            "HOME", "USER", "LOGNAME",
+            "LANG", "LC_ALL", "LC_CTYPE",
+            "TERM", "COLORTERM",
+            "PATH", "SSH_AUTH_SOCK",
+            "SHELL", "TMPDIR",
+            "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+        )
+
+        val env = mutableMapOf<String, String>()
+        val processEnv = System.getenv()
+
+        for (key in allowedVars) {
+            processEnv[key]?.let { env[key] = it }
+        }
+
+        // Ensure terminal capabilities are always present
+        env["TERM"] = "xterm-256color"
+        env["COLORTERM"] = "truecolor"
+        env.putIfAbsent("LANG", "en_US.UTF-8")
+        env.putIfAbsent("HOME", System.getProperty("user.home", "/"))
+
+        // Prepend trusted binary directories to PATH so agent tools are found
+        // even if the login shell profile has not been sourced yet.
+        val trustedDirs = listOf(
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "${System.getProperty("user.home")}/.local/bin",
+            "${System.getProperty("user.home")}/.npm-global/bin",
+            "${System.getProperty("user.home")}/.cargo/bin",
+            "${System.getProperty("user.home")}/.opencode/bin",
+            "/usr/bin",
+        )
+        val currentPath = env["PATH"] ?: "/usr/bin:/bin:/usr/sbin:/sbin"
+        val existingParts = currentPath.split(":")
+        val missingDirs = trustedDirs.filter { it !in existingParts }
+        if (missingDirs.isNotEmpty()) {
+            env["PATH"] = (missingDirs + existingParts).joinToString(":")
+        }
+
+        // Inject the agent-specific API key directly into the environment so it
+        // is never echoed as visible terminal output.
+        val envVar = agent.apiKeyEnvironmentVariable
+        if (envVar != null && !apiKeyValue.isNullOrBlank()) {
+            env[envVar] = apiKeyValue
+        }
+
+        return env
     }
 }

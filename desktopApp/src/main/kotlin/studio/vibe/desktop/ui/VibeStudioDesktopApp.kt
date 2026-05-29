@@ -29,9 +29,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.ProjectManagerError
+import studio.vibe.shared.preferences.AppTheme
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -65,6 +67,12 @@ fun VibeStudioDesktopApp(
     onToggleSettings: (Boolean) -> Unit = {},
     onToggleSidebar: () -> Unit = {},
     onToggleCodeSpeakMode: () -> Unit = {},
+    /**
+     * Called when the user changes the theme from the Settings pane.
+     * The caller ([Main.kt]) must update its own `appTheme` state variable so
+     * that the new palette is applied to the entire window immediately.
+     */
+    onThemeChange: (AppTheme) -> Unit = {},
     /** @deprecated Pass [onOpenFolder] from caller; currently unused stub. */
     onOpenFolder: () -> Unit = {},
 ) {
@@ -126,7 +134,7 @@ fun VibeStudioDesktopApp(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DSColor.surfaceBase),
+                .background(LocalDSColors.current.surfaceBase),
         ) {
             if (projects.isEmpty()) {
                 WelcomeView(
@@ -167,6 +175,7 @@ fun VibeStudioDesktopApp(
         SettingsView(
             container = container,
             onDismiss = { onToggleSettings(false) },
+            onThemeChange = onThemeChange,
         )
     }
 

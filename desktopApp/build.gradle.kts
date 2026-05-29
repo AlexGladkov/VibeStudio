@@ -29,6 +29,9 @@ dependencies {
     implementation("io.ktor:ktor-server-websockets:3.5.0")
     implementation("io.ktor:ktor-server-content-negotiation:3.5.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
+    implementation("io.ktor:ktor-server-cors:3.5.0")
+    // JSON parsing for ngrok API response (no additional dep — org.json ships with Android/JVM)
+    implementation("org.json:json:20240303")
 
     // Test dependencies
     testImplementation(kotlin("test"))

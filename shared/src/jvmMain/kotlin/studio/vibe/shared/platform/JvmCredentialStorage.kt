@@ -3,50 +3,70 @@ package studio.vibe.shared.platform
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import studio.vibe.shared.contract.CredentialStorage
-import java.util.Base64
-import java.util.prefs.Preferences
+
+private const val ACCOUNT_NAME = "VibeStudio"
 
 /**
- * JVM credential storage backed by java.util.prefs.Preferences.
+ * JVM credential storage backed by the macOS Keychain via the `security` CLI.
  *
- * Current implementation uses Base64 encoding, which provides obfuscation only.
- * TODO: Replace with platform-native secure storage:
- *   - Windows: DPAPI via JNA (CryptProtectData / CryptUnprotectData)
- *   - Linux: libsecret via JNA (org.gnome.keyring / Secret Service D-Bus API)
- *   - macOS JVM target: Security framework via JNA (SecKeychainAddGenericPassword)
+ * Credentials are stored as generic passwords with:
+ *   - account  = [ACCOUNT_NAME] ("VibeStudio")
+ *   - service  = the caller-supplied [account] key
+ *   - password = the plaintext [value]
  *
- * For a proper cross-platform approach consider:
- *   - AES-256-GCM with a key derived from a machine-unique secret stored separately
- *   - Or delegate to the OS keyring via a JNA binding
+ * The `-U` flag on `add-generic-password` makes the call idempotent: it updates
+ * an existing item rather than failing with "already exists".
+ *
+ * All subprocess calls run on [Dispatchers.IO]. Errors during [load] and [delete]
+ * are swallowed gracefully — [load] returns `null`, [delete] is a no-op on failure.
  */
 class JvmCredentialStorage : CredentialStorage {
 
-    private val prefs: Preferences = Preferences.userRoot().node("studio/vibe/vibstudio/credentials")
-    private val encoder: Base64.Encoder = Base64.getEncoder()
-    private val decoder: Base64.Decoder = Base64.getDecoder()
-
-    override suspend fun save(account: String, value: String) = withContext(Dispatchers.IO) {
-        val encoded = encoder.encodeToString(value.toByteArray(Charsets.UTF_8))
-        prefs.put(sanitizeKey(account), encoded)
-        prefs.flush()
+    override suspend fun save(account: String, value: String): Unit = withContext(Dispatchers.IO) {
+        ProcessBuilder(
+            "security", "add-generic-password",
+            "-a", ACCOUNT_NAME,
+            "-s", account,
+            "-w", value,
+            "-U",
+        )
+            .redirectErrorStream(true)
+            .start()
+            .waitFor()
     }
 
     override suspend fun load(account: String): String? = withContext(Dispatchers.IO) {
-        val encoded = prefs.get(sanitizeKey(account), null) ?: return@withContext null
         runCatching {
-            String(decoder.decode(encoded), Charsets.UTF_8)
+            val process = ProcessBuilder(
+                "security", "find-generic-password",
+                "-a", ACCOUNT_NAME,
+                "-s", account,
+                "-w",
+            )
+                .redirectErrorStream(false)
+                .start()
+
+            val exitCode = process.waitFor()
+            if (exitCode != 0) return@runCatching null
+
+            process.inputStream
+                .bufferedReader(Charsets.UTF_8)
+                .readText()
+                .trimEnd('\n')
         }.getOrNull()
     }
 
-    override suspend fun delete(account: String) = withContext(Dispatchers.IO) {
-        prefs.remove(sanitizeKey(account))
-        prefs.flush()
+    override suspend fun delete(account: String): Unit = withContext(Dispatchers.IO) {
+        runCatching {
+            ProcessBuilder(
+                "security", "delete-generic-password",
+                "-a", ACCOUNT_NAME,
+                "-s", account,
+            )
+                .redirectErrorStream(true)
+                .start()
+                .waitFor()
+        }
+        Unit
     }
-
-    /**
-     * Preferences keys must be printable ASCII, max 80 chars.
-     * Replace characters outside that range with underscores.
-     */
-    private fun sanitizeKey(key: String): String =
-        key.replace(Regex("[^\\x21-\\x7E]"), "_").take(80)
 }

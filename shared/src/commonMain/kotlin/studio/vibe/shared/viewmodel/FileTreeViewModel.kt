@@ -5,6 +5,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.FileSystemWatchingService
@@ -16,6 +17,7 @@ import studio.vibe.shared.model.FileChangeKind
 import studio.vibe.shared.model.FileEntry
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.FileTreeNode
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.ExperimentalUuidApi
 
 @OptIn(ExperimentalUuidApi::class)
@@ -25,6 +27,9 @@ data class FileTreeState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )
+
+/** Minimum interval between file-tree refreshes triggered by FS events (ms). */
+private const val FILE_WATCH_DEBOUNCE_MS = 500L
 
 @OptIn(ExperimentalUuidApi::class)
 class FileTreeViewModel(
@@ -59,16 +64,18 @@ class FileTreeViewModel(
             options = WatchOptions.DEFAULT,
         )
         watchJob = scope.launch {
-            fileSystemWatchingService.events.collect { event ->
-                when (event.kind) {
-                    FileChangeKind.CREATED,
-                    FileChangeKind.MODIFIED,
-                    FileChangeKind.DELETED,
-                    FileChangeKind.RENAMED -> {
-                        currentRootPath?.let { loadTree(it) }
+            fileSystemWatchingService.events
+                .debounce(FILE_WATCH_DEBOUNCE_MS.milliseconds)
+                .collect { event ->
+                    when (event.kind) {
+                        FileChangeKind.CREATED,
+                        FileChangeKind.MODIFIED,
+                        FileChangeKind.DELETED,
+                        FileChangeKind.RENAMED -> {
+                            currentRootPath?.let { loadTree(it) }
+                        }
                     }
                 }
-            }
         }
     }
 

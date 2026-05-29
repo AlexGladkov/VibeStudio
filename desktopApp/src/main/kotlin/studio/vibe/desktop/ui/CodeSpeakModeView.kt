@@ -29,7 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.selection.SelectionContainer // used in BuildOutputLines
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -64,10 +64,21 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.DesktopServiceContainer
@@ -76,11 +87,15 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.shared.contract.LineContext
+import studio.vibe.shared.contract.SyntaxTokenKind
 import studio.vibe.shared.model.CodeSpeakCommand
+import studio.vibe.shared.model.GeneratedFile
 import studio.vibe.shared.model.Project
 import studio.vibe.shared.model.SpecFile
 import studio.vibe.shared.model.SpecStats
 import studio.vibe.shared.model.SpecStatus
+import studio.vibe.shared.service.syntax.CodeSpeakSyntaxParser
 import studio.vibe.shared.viewmodel.CodeSpeakModeViewModel
 import studio.vibe.shared.viewmodel.SpecBuildPanelState
 import studio.vibe.shared.viewmodel.SpecBuildPanelViewModel
@@ -141,6 +156,11 @@ public fun CodeSpeakModeView(
         activeProjectId?.let { modeVm.loadSpecs(it) }
     }
 
+    // Scan for generated files when the active project changes
+    LaunchedEffect(activeProjectId) {
+        activeProjectId?.let { modeVm.scanGeneratedFiles(it) }
+    }
+
     // ── Panel widths (user-resizable) ───────────────────────────────────────
     var specsWidth by remember { mutableStateOf(220.dp) }
     var buildWidth by remember { mutableStateOf(280.dp) }
@@ -149,7 +169,22 @@ public fun CodeSpeakModeView(
     Row(
         modifier = modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase),
+            .background(DSColor.surfaceBase)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.isMetaPressed) {
+                    when (event.key) {
+                        Key.S -> {
+                            modeVm.saveCurrentSpec()
+                            true
+                        }
+                        Key.Enter -> {
+                            activeProjectId?.let { buildVm.runCommand(it, modeState.selectedSpec) }
+                            true
+                        }
+                        else -> false
+                    }
+                } else false
+            },
     ) {
         // ── LEFT: Specs list ──────────────────────────────────────────────
         SpecsListColumn(
@@ -178,6 +213,8 @@ public fun CodeSpeakModeView(
         EditorColumn(
             selectedSpec = modeState.selectedSpec,
             editorContent = modeState.editorContent,
+            isEditorDirty = modeState.isEditorDirty,
+            onContentChange = { modeVm.updateEditorContent(it) },
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight(),
@@ -196,6 +233,7 @@ public fun CodeSpeakModeView(
             buildState = buildState,
             activeProjectId = activeProjectId,
             selectedSpec = modeState.selectedSpec,
+            generatedFiles = modeState.generatedFiles,
             onSelectCommand = { buildVm.selectCommand(it) },
             onUpdateTaskName = { buildVm.updateTaskName(it) },
             onUpdateChangeMessage = { buildVm.updateChangeMessage(it) },
@@ -485,34 +523,38 @@ private fun specStatusColor(status: SpecStatus): Color = when (status) {
 private fun EditorColumn(
     selectedSpec: SpecFile?,
     editorContent: String,
+    isEditorDirty: Boolean,
+    onContentChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.background(DSColor.surfaceBase)) {
         if (selectedSpec != null) {
             // Breadcrumb — top of center column, left-aligned per CLAUDE.md invariant
-            EditorBreadcrumb(spec = selectedSpec)
+            EditorBreadcrumb(spec = selectedSpec, isEditorDirty = isEditorDirty)
             HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
 
-            // Read-only syntax-highlighted content (monospace scroll view)
+            // Editable syntax-highlighted content (monospace scroll view)
             val scrollState = rememberScrollState()
-            SelectionContainer(
+            BasicTextField(
+                value = editorContent,
+                onValueChange = onContentChange,
+                textStyle = TextStyle(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = DSColor.textPrimary,
+                    lineHeight = 18.sp,
+                ),
+                cursorBrush = SolidColor(DSColor.accentPrimary),
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
                     .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
-            ) {
-                Text(
-                    text = editorContent.ifEmpty { "// Loading\u2026" },
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = DSColor.textPrimary,
-                        lineHeight = 18.sp,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+                visualTransformation = { text ->
+                    val annotated = highlightCodeSpeak(text.text)
+                    TransformedText(annotated, OffsetMapping.Identity)
+                },
+            )
         } else {
             EditorEmptyState()
         }
@@ -526,7 +568,7 @@ private fun EditorColumn(
  * Placement: ВЕРХ ЦЕНТРАЛЬНОЙ ПАНЕЛИ, по ЛЕВОМУ КРАЮ — per CLAUDE.md invariant.
  */
 @Composable
-private fun EditorBreadcrumb(spec: SpecFile) {
+private fun EditorBreadcrumb(spec: SpecFile, isEditorDirty: Boolean = false) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -543,6 +585,14 @@ private fun EditorBreadcrumb(spec: SpecFile) {
         )
         BreadcrumbSeparator()
         Text(text = spec.name, style = DSFont.sidebarItemSmall, color = DSColor.textPrimary)
+        if (isEditorDirty) {
+            Spacer(Modifier.width(DSSpacing.xs))
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(DSColor.gitModified, CircleShape),
+            )
+        }
     }
 }
 
@@ -578,6 +628,7 @@ private fun BuildOutputColumn(
     buildState: SpecBuildPanelState,
     activeProjectId: Uuid?,
     selectedSpec: SpecFile?,
+    generatedFiles: List<GeneratedFile>,
     onSelectCommand: (CodeSpeakCommand) -> Unit,
     onUpdateTaskName: (String) -> Unit,
     onUpdateChangeMessage: (String) -> Unit,
@@ -610,6 +661,11 @@ private fun BuildOutputColumn(
             BuildEmptyState(command = buildState.selectedCommand)
         } else {
             BuildOutputLines(lines = outputLines, isRunning = buildState.isRunning)
+        }
+
+        if (generatedFiles.isNotEmpty()) {
+            HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+            GeneratedFilesSection(files = generatedFiles)
         }
     }
 }
@@ -952,6 +1008,127 @@ private fun BuildEmptyState(command: CodeSpeakCommand) {
             )
         }
     }
+}
+
+// ── Generated files section ───────────────────────────────────────────────────
+
+@Composable
+private fun GeneratedFilesSection(files: List<GeneratedFile>) {
+    var expanded by remember { mutableStateOf(true) }
+
+    Column {
+        // Section header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.gitSectionHeaderHeight)
+                .clickable { expanded = !expanded }
+                .padding(start = DSSpacing.sm, end = DSSpacing.md),
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
+                contentDescription = if (expanded) "Collapse generated files" else "Expand generated files",
+                tint = DSColor.textMuted,
+                modifier = Modifier.size(DSLayout.chevronFrameWidth),
+            )
+            Spacer(Modifier.width(DSSpacing.xs))
+            Text(
+                text = "GENERATED",
+                style = DSFont.sidebarSection,
+                color = DSColor.textSecondary,
+            )
+            Spacer(Modifier.width(DSSpacing.xs))
+            Text(
+                text = "${files.size}",
+                style = DSFont.sidebarItemSmall,
+                color = DSColor.textMuted,
+            )
+        }
+
+        if (expanded) {
+            files.forEach { file ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DSLayout.gitFileRowHeight)
+                        .padding(horizontal = DSSpacing.sm),
+                ) {
+                    Spacer(Modifier.width(DSLayout.chevronFrameWidth))
+                    Spacer(Modifier.width(DSSpacing.xs))
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = DSColor.gitAdded,
+                        modifier = Modifier.size(10.dp),
+                    )
+                    Spacer(Modifier.width(DSSpacing.xs))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = file.name,
+                            style = DSFont.sidebarItem,
+                            color = DSColor.textSecondary,
+                            maxLines = 1,
+                        )
+                        if (file.specName.isNotEmpty()) {
+                            Text(
+                                text = file.specName,
+                                style = DSFont.sidebarItemSmall,
+                                color = DSColor.textMuted,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Syntax highlighting helpers ───────────────────────────────────────────────
+
+private fun highlightCodeSpeak(content: String): AnnotatedString {
+    val parser = CodeSpeakSyntaxParser()
+    return buildAnnotatedString {
+        append(content)
+        var context = LineContext.INITIAL
+        var offset = 0
+        for (line in content.lines()) {
+            val lineEnd = offset + line.length
+            val (tokens, nextContext) = parser.parseLine(line, offset, lineEnd, context)
+            for (token in tokens) {
+                val style = tokenStyle(token.kind)
+                if (style != null) {
+                    addStyle(style, token.startOffset, token.endOffset.coerceAtMost(length))
+                }
+            }
+            context = nextContext
+            offset = lineEnd + 1 // +1 for newline
+        }
+    }
+}
+
+private fun tokenStyle(kind: SyntaxTokenKind): SpanStyle? = when (kind) {
+    SyntaxTokenKind.HEADING -> SpanStyle(color = DSColor.accentPrimary, fontWeight = FontWeight.Bold)
+    SyntaxTokenKind.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
+    SyntaxTokenKind.ITALIC -> SpanStyle(fontWeight = FontWeight.Light)
+    SyntaxTokenKind.INLINE_CODE -> SpanStyle(color = DSColor.gitModified, fontFamily = FontFamily.Monospace)
+    SyntaxTokenKind.CODE_BLOCK_FENCE -> SpanStyle(color = DSColor.textMuted)
+    SyntaxTokenKind.CODE_BLOCK_BODY -> SpanStyle(color = DSColor.textSecondary)
+    SyntaxTokenKind.COMMENT -> SpanStyle(color = DSColor.textMuted)
+    SyntaxTokenKind.FRONTMATTER_DELIMITER -> SpanStyle(color = DSColor.textMuted)
+    SyntaxTokenKind.FRONTMATTER_KEY -> SpanStyle(color = DSColor.accentPrimary)
+    SyntaxTokenKind.FRONTMATTER_VALUE -> SpanStyle(color = DSColor.gitAdded)
+    SyntaxTokenKind.CS_DIRECTIVE -> SpanStyle(color = DSColor.agentCodeSpeak, fontWeight = FontWeight.Bold)
+    SyntaxTokenKind.CS_FILE_REF -> SpanStyle(color = DSColor.accentSecondary)
+    SyntaxTokenKind.LINK -> SpanStyle(color = DSColor.accentPrimary)
+    SyntaxTokenKind.LINK_URL -> SpanStyle(color = DSColor.accentSecondary)
+    SyntaxTokenKind.BLOCKQUOTE -> SpanStyle(color = DSColor.textSecondary)
+    SyntaxTokenKind.LIST_MARKER -> SpanStyle(color = DSColor.accentPrimary)
+    SyntaxTokenKind.HORIZONTAL_RULE -> SpanStyle(color = DSColor.textMuted)
+    SyntaxTokenKind.PLAIN -> null
+    else -> null
 }
 
 // ── Resize handle ─────────────────────────────────────────────────────────────

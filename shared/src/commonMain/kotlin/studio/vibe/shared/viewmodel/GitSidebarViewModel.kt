@@ -11,6 +11,7 @@ import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
 import studio.vibe.shared.model.GitStatus
+import studio.vibe.shared.service.git.GitURLConverter
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -27,6 +28,13 @@ data class GitSidebarState(
     val generatingAIProjects: Set<Uuid> = emptySet(),
     val committingProjects: Set<Uuid> = emptySet(),
     val checkoutErrorMessage: String? = null,
+    /**
+     * Branch name pending delete confirmation per project.
+     * Non-null means a confirmation dialog should be shown.
+     * Cleared after user confirms or cancels.
+     */
+    val pendingDeleteBranch: Map<Uuid, String> = emptyMap(),
+    val deleteErrorMessage: String? = null,
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -249,6 +257,7 @@ class GitSidebarViewModel(
                 commitPanelErrors = s.commitPanelErrors - projectId,
                 generatingAIProjects = s.generatingAIProjects - projectId,
                 committingProjects = s.committingProjects - projectId,
+                pendingDeleteBranch = s.pendingDeleteBranch - projectId,
             )
         }
     }
@@ -269,12 +278,91 @@ class GitSidebarViewModel(
         _state.update { s -> s.copy(checkoutErrorMessage = null) }
     }
 
+    /**
+     * Checkout an existing local or remote branch.
+     *
+     * This is the primary branch-switch entry point for the Git panel.
+     * On success, git info for the project is refreshed automatically.
+     * Any checkout error is surfaced via [GitSidebarState.checkoutErrorMessage].
+     */
+    fun checkoutBranch(projectId: Uuid, branchName: String, path: FilePath) {
+        checkout(projectId, branchName, path)
+    }
+
+    /**
+     * Request deletion of a local branch — first step of a two-step confirm flow.
+     *
+     * Calling this method sets [GitSidebarState.pendingDeleteBranch] for the project,
+     * which the UI should react to by showing a confirmation dialog.
+     * Call [confirmDeleteBranch] to execute the deletion or [cancelDeleteBranch] to abort.
+     */
+    fun requestDeleteBranch(projectId: Uuid, branchName: String) {
+        _state.update { s ->
+            s.copy(pendingDeleteBranch = s.pendingDeleteBranch + (projectId to branchName))
+        }
+    }
+
+    /**
+     * Cancel a pending branch deletion initiated by [requestDeleteBranch].
+     */
+    fun cancelDeleteBranch(projectId: Uuid) {
+        _state.update { s ->
+            s.copy(
+                pendingDeleteBranch = s.pendingDeleteBranch - projectId,
+                deleteErrorMessage = null,
+            )
+        }
+    }
+
+    /**
+     * Execute the branch deletion that was queued by [requestDeleteBranch].
+     *
+     * Uses safe-delete (`git branch -d`) by default; pass [force] = true to
+     * force-delete an unmerged branch (`git branch -D`).
+     * On success, [GitSidebarState.pendingDeleteBranch] is cleared and git info refreshed.
+     * On failure, [GitSidebarState.deleteErrorMessage] is set with the error detail.
+     */
+    fun confirmDeleteBranch(projectId: Uuid, path: FilePath, force: Boolean = false) {
+        val branchName = _state.value.pendingDeleteBranch[projectId] ?: return
+        scope.launch {
+            runCatching {
+                gitService.deleteBranch(name = branchName, force = force, at = path)
+                _state.update { s ->
+                    s.copy(
+                        pendingDeleteBranch = s.pendingDeleteBranch - projectId,
+                        deleteErrorMessage = null,
+                    )
+                }
+                loadGitInfo(projectId, path)
+            }.onFailure { e ->
+                _state.update { s ->
+                    s.copy(deleteErrorMessage = e.message)
+                }
+            }
+        }
+    }
+
+    fun clearDeleteError() {
+        _state.update { s -> s.copy(deleteErrorMessage = null) }
+    }
+
+    /**
+     * Open the project's git remote URL in the default browser.
+     *
+     * Fetches the raw remote URL from git, converts it to a browser-accessible
+     * HTTPS URL via [GitURLConverter] (handles SSH/SCP/git:// schemes),
+     * then invokes [onOpenURL]. Does nothing if the remote is unavailable or
+     * the URL cannot be converted to a valid HTTPS address.
+     */
     fun openInRemote(projectId: Uuid, path: FilePath) {
         scope.launch {
             runCatching {
-                val url = gitService.remoteURL(name = "origin", at = path)
-                if (url != null) {
-                    onOpenURL?.invoke(url)
+                val rawUrl = gitService.remoteURL(name = "origin", at = path)
+                if (rawUrl != null) {
+                    val browserUrl = GitURLConverter.browserURL(rawUrl)
+                    if (browserUrl != null) {
+                        onOpenURL?.invoke(browserUrl)
+                    }
                 }
             }
         }

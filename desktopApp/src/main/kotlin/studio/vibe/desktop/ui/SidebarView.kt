@@ -70,6 +70,7 @@ import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
 import studio.vibe.shared.model.GitFileStatus
 import studio.vibe.shared.model.Project
+import studio.vibe.shared.model.SpecStatus
 
 private enum class SidebarTab { FILES, GIT, SPECS }
 
@@ -116,7 +117,11 @@ fun SidebarView(
                     activeProjectId = activeProjectId,
                 )
                 SidebarTab.GIT  -> GitBranchSection(container)
-                SidebarTab.SPECS -> SpecsPlaceholder()
+                SidebarTab.SPECS -> SpecsSection(
+                    container = container,
+                    projects = projects,
+                    activeProjectId = activeProjectId,
+                )
             }
         }
     }
@@ -910,23 +915,187 @@ private fun NewBranchRow(onClick: () -> Unit) {
     }
 }
 
-// ── Specs Placeholder ─────────────────────────────────────────────────────────
+// ── Specs Section ─────────────────────────────────────────────────────────────
 
+/**
+ * Sidebar SPECS tab: shows all `.cs.md` files found in the active project's file
+ * tree, flattened (no directory nesting). Each row displays a colored status dot
+ * and the spec name derived from the file name.
+ *
+ * The file tree for the active project must already be loaded by
+ * [MultiProjectFileTree]; we simply collect the filtered nodes here so that
+ * no redundant I/O occurs.
+ */
 @Composable
-private fun SpecsPlaceholder() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.Description,
-                contentDescription = null,
-                tint = DSColor.textMuted,
-                modifier = Modifier.size(24.dp),
+private fun SpecsSection(
+    container: DesktopServiceContainer,
+    projects: List<Project>,
+    activeProjectId: Uuid?,
+) {
+    var fileTrees by remember { mutableStateOf(mapOf<Uuid, List<FileTreeNode>>()) }
+
+    // Load the file tree for the active project if not yet available.
+    val activeProject = projects.find { it.id == activeProjectId }
+    if (activeProject != null && activeProjectId != null && activeProjectId !in fileTrees) {
+        LaunchedEffect(activeProjectId) {
+            val tree = container.fileTreeBuilder.buildTree(
+                root = activeProject.path,
+                maxDepth = 5,
             )
-            Spacer(Modifier.height(DSSpacing.sm))
-            Text("CodeSpeak Specs", style = DSFont.sidebarItem, color = DSColor.textMuted)
+            fileTrees = fileTrees + (activeProjectId to tree)
         }
     }
+
+    // Collect all .cs.md files from the active project tree, depth-first.
+    val specEntries: List<FileEntry> = remember(fileTrees, activeProjectId) {
+        val nodes = activeProjectId?.let { fileTrees[it] } ?: emptyList()
+        collectSpecFiles(nodes)
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // ── Header ────────────────────────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.gitSectionHeaderHeight)
+                .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("SPECS", style = DSFont.sidebarSection, color = DSColor.textSecondary)
+        }
+
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DSColor.borderDefault))
+
+        // ── Content ───────────────────────────────────────────────────────────
+        when {
+            activeProject == null -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "No project selected",
+                        style = DSFont.sidebarItem,
+                        color = DSColor.textMuted,
+                    )
+                }
+            }
+            activeProjectId !in fileTrees -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Loading...", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                }
+            }
+            specEntries.isEmpty() -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.Description,
+                            contentDescription = null,
+                            tint = DSColor.textMuted,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Spacer(Modifier.height(DSSpacing.sm))
+                        Text(
+                            "No specs found",
+                            style = DSFont.sidebarItem,
+                            color = DSColor.textMuted,
+                        )
+                        Spacer(Modifier.height(DSSpacing.xxs))
+                        Text(
+                            "*.cs.md",
+                            style = DSFont.sidebarItemSmall,
+                            color = DSColor.textDisabled,
+                        )
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(
+                        horizontal = DSLayout.sidebarHorizontalPadding,
+                        vertical = DSSpacing.xs,
+                    ),
+                ) {
+                    items(specEntries, key = { it.path.path }) { entry ->
+                        SpecRow(entry = entry)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Recursively collects all [FileEntry] nodes whose name ends in `.cs.md` from
+ * the given tree, returning them in depth-first order with no directory nesting.
+ */
+private fun collectSpecFiles(nodes: List<FileTreeNode>): List<FileEntry> {
+    val result = mutableListOf<FileEntry>()
+    for (node in nodes) {
+        when (node) {
+            is FileTreeNode.File -> {
+                if (node.entry.path.name.endsWith(".cs.md")) {
+                    result.add(node.entry)
+                }
+            }
+            is FileTreeNode.Directory -> {
+                result.addAll(collectSpecFiles(node.entry.children))
+            }
+        }
+    }
+    return result
+}
+
+/**
+ * A single spec-file row: status dot + spec name derived from the file name
+ * by stripping the `.cs.md` suffix.
+ *
+ * [SpecStatus] is always [SpecStatus.UNKNOWN] at this layer — the sidebar only
+ * shows discovered files. Run results are shown in the CodeSpeak mode view.
+ */
+@Composable
+private fun SpecRow(entry: FileEntry) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    // Derive the display name: strip ".cs.md" or ".md" suffix.
+    val specName = entry.path.name
+        .removeSuffix(".md")
+        .removeSuffix(".cs")
+
+    // At the sidebar level we have no run results, so status is always unknown.
+    val status = SpecStatus.UNKNOWN
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.treeRowHeight)
+            .hoverable(interactionSource)
+            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Status indicator dot
+        Box(
+            modifier = Modifier
+                .size(DSLayout.indicatorSize)
+                .clip(RoundedCornerShape(50))
+                .background(specStatusColor(status)),
+        )
+
+        Spacer(Modifier.width(DSSpacing.xs))
+
+        // Spec name
+        Text(
+            text = specName,
+            style = DSFont.sidebarItem,
+            color = DSColor.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** Maps a [SpecStatus] to its display color following the Swift design system. */
+private fun specStatusColor(status: SpecStatus): Color = when (status) {
+    SpecStatus.PASSING -> DSColor.gitAdded
+    SpecStatus.FAILING -> DSColor.gitDeleted
+    SpecStatus.UNKNOWN -> DSColor.indicatorIdle
 }

@@ -1,5 +1,8 @@
 package studio.vibe.desktop.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -22,12 +26,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
-import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSFont
+import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.desktop.ui.theme.LocalDSColors
+import studio.vibe.shared.preferences.AppTheme
 
 /**
  * General / Appearance settings pane.
@@ -35,17 +42,23 @@ import studio.vibe.desktop.ui.theme.DSSpacing
  * Mirrors Swift GeneralSettingsPane.swift.
  * Provides: theme/appearance, terminal font size, confirm-tab-close toggle,
  * and Claude skip-permissions toggle.
+ *
+ * @param onThemeChange Called immediately when the user selects a different
+ *   [AppTheme] so the parent window can recompose with the new palette.
  */
 @Composable
 fun GeneralSettingsPane(
     container: DesktopServiceContainer,
     modifier: Modifier = Modifier,
+    onThemeChange: (AppTheme) -> Unit = {},
 ) {
     val prefs = container.generalPreferences
+    val colors = LocalDSColors.current
 
     var confirmTabClose by remember { mutableStateOf(prefs.confirmTabClose) }
     var skipPermissions by remember { mutableStateOf(prefs.claudeSkipPermissions) }
     var fontSize by remember { mutableStateOf(prefs.terminalFontSize.toFloat()) }
+    var selectedTheme by remember { mutableStateOf(prefs.theme) }
 
     Column(
         modifier = modifier
@@ -54,6 +67,44 @@ fun GeneralSettingsPane(
         verticalArrangement = Arrangement.spacedBy(DSSpacing.xl),
     ) {
         SettingsPaneTitle(title = "General")
+
+        // -- Appearance -------------------------------------------------------
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
+        ) {
+            Text(
+                text = "Appearance",
+                style = DSFont.buttonLabel,
+                color = colors.textSecondary,
+            )
+
+            SettingsCard {
+                Column(modifier = Modifier.padding(DSSpacing.md)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(40.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Theme",
+                            style = DSFont.sidebarItem,
+                            color = colors.textPrimary,
+                            modifier = Modifier.width(170.dp),
+                        )
+
+                        ThemeSegmentedControl(
+                            selected = selectedTheme,
+                            onSelect = { theme ->
+                                selectedTheme = theme
+                                prefs.theme = theme
+                                onThemeChange(theme)
+                            },
+                        )
+                    }
+                }
+            }
+        }
 
         // -- Terminal font size ----------------------------------------------
 
@@ -64,7 +115,7 @@ fun GeneralSettingsPane(
             Text(
                 text = "Terminal",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = colors.textSecondary,
             )
 
             SettingsCard {
@@ -76,13 +127,13 @@ fun GeneralSettingsPane(
                         Text(
                             text = "Font size",
                             style = DSFont.sidebarItem,
-                            color = DSColor.textPrimary,
+                            color = colors.textPrimary,
                             modifier = Modifier.width(170.dp),
                         )
                         Text(
                             text = "${fontSize.toInt()} pt",
                             style = DSFont.bodySmall,
-                            color = DSColor.textSecondary,
+                            color = colors.textSecondary,
                         )
                     }
 
@@ -96,9 +147,9 @@ fun GeneralSettingsPane(
                         steps = 14,
                         modifier = Modifier.fillMaxWidth(),
                         colors = SliderDefaults.colors(
-                            thumbColor = DSColor.accentPrimary,
-                            activeTrackColor = DSColor.accentPrimary,
-                            inactiveTrackColor = DSColor.surfaceOverlay,
+                            thumbColor = colors.accentPrimary,
+                            activeTrackColor = colors.accentPrimary,
+                            inactiveTrackColor = colors.surfaceOverlay,
                         ),
                     )
                 }
@@ -114,7 +165,7 @@ fun GeneralSettingsPane(
             Text(
                 text = "Behaviour",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = colors.textSecondary,
             )
 
             SettingsCard {
@@ -130,14 +181,14 @@ fun GeneralSettingsPane(
                         Text(
                             text = "Confirm tab close",
                             style = DSFont.sidebarItem,
-                            color = DSColor.textPrimary,
+                            color = colors.textPrimary,
                             modifier = Modifier.weight(1f),
                         )
 
                         Text(
                             text = "Ask before closing tabs",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.textMuted,
+                            color = colors.textMuted,
                         )
 
                         Spacer(Modifier.width(DSSpacing.sm))
@@ -149,8 +200,8 @@ fun GeneralSettingsPane(
                                 prefs.confirmTabClose = checked
                             },
                             colors = CheckboxDefaults.colors(
-                                checkedColor = DSColor.accentPrimary,
-                                uncheckedColor = DSColor.textMuted,
+                                checkedColor = colors.accentPrimary,
+                                uncheckedColor = colors.textMuted,
                                 checkmarkColor = Color.White,
                             ),
                         )
@@ -169,14 +220,14 @@ fun GeneralSettingsPane(
                         Text(
                             text = "--dangerously-skip-permissions",
                             style = DSFont.monoPath,
-                            color = DSColor.textPrimary,
+                            color = colors.textPrimary,
                             modifier = Modifier.weight(1f),
                         )
 
                         Text(
                             text = "Claude",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.agentClaude,
+                            color = colors.agentClaude,
                         )
 
                         Spacer(Modifier.width(DSSpacing.sm))
@@ -188,8 +239,8 @@ fun GeneralSettingsPane(
                                 prefs.claudeSkipPermissions = checked
                             },
                             colors = CheckboxDefaults.colors(
-                                checkedColor = DSColor.agentClaude,
-                                uncheckedColor = DSColor.textMuted,
+                                checkedColor = colors.agentClaude,
+                                uncheckedColor = colors.textMuted,
                                 checkmarkColor = Color.White,
                             ),
                         )
@@ -199,5 +250,61 @@ fun GeneralSettingsPane(
         }
 
         Spacer(Modifier.height(DSSpacing.xl))
+    }
+}
+
+// ── ThemeSegmentedControl ─────────────────────────────────────────────────────
+
+/**
+ * A three-segment control for selecting [AppTheme].
+ *
+ * Renders "Light", "Dark", and "System" as pill-shaped button segments.
+ * The active segment is filled with [accentPrimarySubtle]; inactive segments
+ * are transparent with a [borderSubtle] outline.
+ */
+@Composable
+private fun ThemeSegmentedControl(
+    selected: AppTheme,
+    onSelect: (AppTheme) -> Unit,
+) {
+    val colors = LocalDSColors.current
+    val segments = listOf(
+        AppTheme.LIGHT  to "Light",
+        AppTheme.DARK   to "Dark",
+        AppTheme.SYSTEM to "System",
+    )
+    val shape = RoundedCornerShape(DSRadius.sm)
+
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, colors.borderDefault, shape),
+        horizontalArrangement = Arrangement.Start,
+    ) {
+        segments.forEachIndexed { index, (theme, label) ->
+            val isSelected = selected == theme
+            val segmentBg = if (isSelected) colors.accentPrimarySubtle else Color.Transparent
+            val segmentText = if (isSelected) colors.accentPrimary else colors.textSecondary
+
+            // Internal divider between segments (skip before the first)
+            if (index > 0) {
+                Spacer(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(24.dp)
+                        .background(colors.borderDefault),
+                )
+            }
+
+            Text(
+                text = label,
+                style = DSFont.smallButtonLabel,
+                color = segmentText,
+                modifier = Modifier
+                    .background(segmentBg)
+                    .clickable { onSelect(theme) }
+                    .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
+            )
+        }
     }
 }

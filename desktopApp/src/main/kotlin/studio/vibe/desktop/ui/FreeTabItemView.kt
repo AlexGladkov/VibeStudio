@@ -4,6 +4,7 @@ package studio.vibe.desktop.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,8 +23,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -41,7 +46,11 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
@@ -55,11 +64,26 @@ import studio.vibe.desktop.ui.theme.DSSpacing
  * Double-clicking the title enters rename mode; pressing Enter or clicking
  * outside commits the new name. The close button appears on hover or when active.
  *
- * @param title        Current tab title.
- * @param isActive     Whether this tab is the currently selected one.
- * @param onClick      Called when the tab is clicked to select it.
- * @param onClose      Called when the × close button is clicked.
- * @param onRename     Called with the new name after an inline rename.
+ * Additions:
+ * - Drag-to-reorder: drag the tab horizontally. The parent is responsible for
+ *   tracking [dragOffsetX] and calling the [onDrag] / [onDragEnd] callbacks to
+ *   update list order and reset the offset.
+ * - Close confirmation: when [requiresCloseConfirmation] is `true`, tapping × shows
+ *   an [AlertDialog] before invoking [onClose].
+ *
+ * @param title                    Current tab title.
+ * @param isActive                 Whether this tab is the currently selected one.
+ * @param onClick                  Called when the tab is clicked to select it.
+ * @param onClose                  Called when the × close button is confirmed.
+ * @param onRename                 Called with the new name after an inline rename.
+ * @param isDragging               Whether this tab is currently being dragged.
+ * @param dragOffsetX              Current horizontal drag displacement in pixels.
+ * @param requiresCloseConfirmation When `true`, closing this tab shows a dialog.
+ * @param onDragStart              Called when the drag gesture begins.
+ * @param onDrag                   Called with the horizontal drag delta each frame.
+ * @param onDragEnd                Called when the drag gesture ends or is cancelled.
+ * @param onWidthMeasured          Called once with the measured tab width in pixels;
+ *                                  used by the parent to calculate swap thresholds.
  */
 @Composable
 fun FreeTabItemView(
@@ -69,6 +93,13 @@ fun FreeTabItemView(
     onClose: () -> Unit,
     onRename: (String) -> Unit,
     modifier: Modifier = Modifier,
+    isDragging: Boolean = false,
+    dragOffsetX: Float = 0f,
+    requiresCloseConfirmation: Boolean = false,
+    onDragStart: () -> Unit = {},
+    onDrag: (delta: Float) -> Unit = {},
+    onDragEnd: () -> Unit = {},
+    onWidthMeasured: (Float) -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -76,14 +107,32 @@ fun FreeTabItemView(
     var isEditing by remember { mutableStateOf(false) }
     var editText by remember(title) { mutableStateOf(title) }
     val focusRequester = remember { FocusRequester() }
+    var showCloseConfirm by remember { mutableStateOf(false) }
 
     val bgColor = when {
-        isActive  -> DSColor.surfaceTabActive
-        isHovered -> DSColor.surfaceTabHover
-        else      -> DSColor.surfaceTabInactive
+        isDragging -> DSColor.surfaceTabActive
+        isActive   -> DSColor.surfaceTabActive
+        isHovered  -> DSColor.surfaceTabHover
+        else       -> DSColor.surfaceTabInactive
     }
 
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier
+            .offset { IntOffset(dragOffsetX.roundToInt(), 0) }
+            .onGloballyPositioned { coords -> onWidthMeasured(coords.size.width.toFloat()) }
+            .then(if (isDragging) Modifier.shadow(8.dp, RoundedCornerShape(DSRadius.md)) else Modifier)
+            .pointerInput(title) {
+                detectDragGestures(
+                    onDragStart = { onDragStart() },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount.x)
+                    },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() },
+                )
+            },
+    ) {
         Row(
             modifier = Modifier
                 .widthIn(min = DSLayout.tabMinWidth, max = DSLayout.tabMaxWidth)
@@ -141,7 +190,15 @@ fun FreeTabItemView(
             }
 
             if ((isActive || isHovered) && !isEditing) {
-                FreeTabCloseButton(onClick = onClose)
+                FreeTabCloseButton(
+                    onClick = {
+                        if (requiresCloseConfirmation) {
+                            showCloseConfirm = true
+                        } else {
+                            onClose()
+                        }
+                    },
+                )
             }
         }
 
@@ -155,6 +212,32 @@ fun FreeTabItemView(
                     .background(DSColor.accentPrimary),
             )
         }
+    }
+
+    // ── Close confirmation dialog ─────────────────────────────────────────────
+    if (showCloseConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCloseConfirm = false },
+            title = { Text("Close \"$title\"?") },
+            text = {
+                Text("This terminal has unsaved or active content. Are you sure you want to close it?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showCloseConfirm = false
+                        onClose()
+                    },
+                ) {
+                    Text("Close Anyway")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCloseConfirm = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 

@@ -21,7 +21,7 @@ private const val MAX_RECENTS = 10
 @OptIn(ExperimentalUuidApi::class)
 class ProjectStoreImpl(
     private val persistence: PersistenceStore,
-    private val json: Json = Json { prettyPrint = true },
+    private val json: Json = Json { prettyPrint = true; ignoreUnknownKeys = true; isLenient = true },
 ) : ProjectManaging {
 
     private val _projects = MutableStateFlow<List<Project>>(emptyList())
@@ -173,8 +173,10 @@ class ProjectStoreImpl(
             val loaded: List<Project> = json.decodeFromString(text)
             _projects.value = loaded
             rebuildIndex()
-        } catch (_: Exception) {
-            // Corrupted or missing file — start fresh
+        } catch (e: Exception) {
+            // Migration from Swift format may cause parse errors on first load.
+            // Start fresh; the projects.json will be overwritten with Kotlin format on next save.
+            println("ProjectStore: failed to parse projects.json, starting fresh: ${e.message}")
         }
     }
 

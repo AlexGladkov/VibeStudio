@@ -46,12 +46,15 @@ import studio.vibe.desktop.ui.settings.GeneralSettingsPane
 import studio.vibe.desktop.ui.settings.LlmSettingsPane
 import studio.vibe.desktop.ui.settings.RemoteControlSettingsPane
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.SettingsItem
 import studio.vibe.shared.model.SettingsSectionGroup
+import studio.vibe.shared.preferences.AppTheme
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -71,6 +74,7 @@ import studio.vibe.shared.model.SettingsSectionGroup
 fun SettingsView(
     container: DesktopServiceContainer,
     onDismiss: () -> Unit,
+    onThemeChange: (AppTheme) -> Unit = {},
 ) {
     val dialogState = rememberDialogState(size = DpSize(860.dp, 680.dp))
 
@@ -80,7 +84,11 @@ fun SettingsView(
         title = "Settings",
         resizable = false,
     ) {
-        SettingsContent(container = container, onDismiss = onDismiss)
+        SettingsContent(
+            container = container,
+            onDismiss = onDismiss,
+            onThemeChange = onThemeChange,
+        )
     }
 }
 
@@ -90,7 +98,9 @@ fun SettingsView(
 private fun SettingsContent(
     container: DesktopServiceContainer,
     onDismiss: () -> Unit,
+    onThemeChange: (AppTheme) -> Unit,
 ) {
+    val colors = LocalDSColors.current
     // Default selection: first item in GENERAL group
     var selectedItem: SettingsItem by remember {
         mutableStateOf(SettingsSectionGroup.GENERAL.items.first())
@@ -99,8 +109,8 @@ private fun SettingsContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase, RoundedCornerShape(DSRadius.lg))
-            .border(1.dp, DSColor.borderDefault, RoundedCornerShape(DSRadius.lg)),
+            .background(colors.surfaceBase, RoundedCornerShape(DSRadius.lg))
+            .border(1.dp, colors.borderDefault, RoundedCornerShape(DSRadius.lg)),
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // Left sidebar
@@ -114,7 +124,7 @@ private fun SettingsContent(
 
             // 1dp vertical divider
             VerticalDivider(
-                color = DSColor.borderDefault,
+                color = colors.borderDefault,
                 modifier = Modifier.fillMaxHeight(),
                 thickness = 1.dp,
             )
@@ -124,11 +134,12 @@ private fun SettingsContent(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(DSColor.surfaceBase),
+                    .background(colors.surfaceBase),
             ) {
                 SettingsContentPane(
                     item = selectedItem,
                     container = container,
+                    onThemeChange = onThemeChange,
                 )
             }
         }
@@ -143,7 +154,7 @@ private fun SettingsContent(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Close settings",
-                tint = DSColor.textSecondary,
+                tint = colors.textSecondary,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -158,10 +169,11 @@ private fun SettingsSidebar(
     onSelectItem: (SettingsItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = LocalDSColors.current
     Column(
         modifier = modifier
             .background(
-                color = DSColor.surfaceRaised,
+                color = colors.surfaceRaised,
                 shape = RoundedCornerShape(
                     topStart = DSRadius.lg,
                     bottomStart = DSRadius.lg,
@@ -178,7 +190,7 @@ private fun SettingsSidebar(
             Text(
                 text = group.displayName.uppercase(),
                 style = DSFont.sidebarSection,
-                color = DSColor.textMuted,
+                color = colors.textMuted,
                 modifier = Modifier.padding(
                     horizontal = DSSpacing.md,
                     vertical = DSSpacing.xxs,
@@ -207,8 +219,9 @@ private fun SettingsSidebarRow(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val bgColor = if (isSelected) DSColor.accentPrimarySubtle else Color.Transparent
-    val textColor = if (isSelected) DSColor.accentPrimary else DSColor.textSecondary
+    val colors = LocalDSColors.current
+    val bgColor = if (isSelected) colors.accentPrimarySubtle else Color.Transparent
+    val textColor = if (isSelected) colors.accentPrimary else colors.textSecondary
 
     Row(
         modifier = Modifier
@@ -237,6 +250,7 @@ private fun SettingsSidebarRow(
 
 @Composable
 private fun SidebarItemIcon(item: SettingsItem, tint: Color) {
+    val colors = LocalDSColors.current
     when (item) {
         is SettingsItem.Appearance -> {
             Icon(
@@ -260,7 +274,7 @@ private fun SidebarItemIcon(item: SettingsItem, tint: Color) {
                 modifier = Modifier
                     .size(10.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(settingsAgentColor(item.assistant)),
+                    .background(settingsAgentColor(item.assistant, colors)),
             )
         }
     }
@@ -272,9 +286,13 @@ private fun SidebarItemIcon(item: SettingsItem, tint: Color) {
 private fun SettingsContentPane(
     item: SettingsItem,
     container: DesktopServiceContainer,
+    onThemeChange: (AppTheme) -> Unit,
 ) {
     when (item) {
-        is SettingsItem.Appearance -> GeneralSettingsPane(container = container)
+        is SettingsItem.Appearance -> GeneralSettingsPane(
+            container = container,
+            onThemeChange = onThemeChange,
+        )
         is SettingsItem.RemoteControl -> RemoteControlSettingsPane(container = container)
         is SettingsItem.LlmAssistant -> LlmSettingsPane(
             assistant = item.assistant,
@@ -291,11 +309,11 @@ private fun SettingsContentPane(
  * This mirrors the private `agentColor()` function in [ToolbarView] — kept
  * private here to avoid coupling the two files.
  */
-private fun settingsAgentColor(assistant: AIAssistant): Color = when (assistant) {
-    AIAssistant.CLAUDE -> DSColor.agentClaude
-    AIAssistant.OPENCODE -> DSColor.agentOpenCode
-    AIAssistant.CODEX -> DSColor.agentCodex
-    AIAssistant.GEMINI -> DSColor.agentGemini
-    AIAssistant.QWEN_CODE -> DSColor.agentQwen
-    AIAssistant.CODE_SPEAK -> DSColor.agentCodeSpeak
+private fun settingsAgentColor(assistant: AIAssistant, colors: DSColors): Color = when (assistant) {
+    AIAssistant.CLAUDE -> colors.agentClaude
+    AIAssistant.OPENCODE -> colors.agentOpenCode
+    AIAssistant.CODEX -> colors.agentCodex
+    AIAssistant.GEMINI -> colors.agentGemini
+    AIAssistant.QWEN_CODE -> colors.agentQwen
+    AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak
 }

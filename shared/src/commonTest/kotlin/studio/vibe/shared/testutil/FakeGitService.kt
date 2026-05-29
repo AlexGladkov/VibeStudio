@@ -50,6 +50,7 @@ class FakeGitService : GitServicing {
     override suspend fun branches(at: FilePath): List<GitBranch> = emptyList()
     override suspend fun checkout(branch: String, at: FilePath) {}
     override suspend fun createBranch(name: String, from: String?, at: FilePath) {}
+    override suspend fun deleteBranch(name: String, force: Boolean, at: FilePath) {}
     override suspend fun isRepository(at: FilePath): Boolean = true
     override suspend fun repositoryRoot(forPath: FilePath): FilePath = forPath
     override suspend fun initRepository(at: FilePath) {}

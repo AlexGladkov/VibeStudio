@@ -26,17 +26,21 @@ import studio.vibe.shared.model.TerminalSession
 import studio.vibe.shared.model.TerminalSize
 import studio.vibe.shared.platform.JvmBinaryResolver
 import studio.vibe.shared.platform.JvmCredentialStorage
+import studio.vibe.shared.platform.JvmFileSystemWatchingService
 import studio.vibe.shared.platform.JvmPersistenceStore
 import studio.vibe.shared.platform.JvmProcessRunner
 import studio.vibe.shared.platform.JvmSettingsStorage
 import studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl
 import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitCommandExecutor
+import studio.vibe.shared.service.git.GitStatusPollerImpl
 import studio.vibe.shared.preferences.CodeSpeakPreferences
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.shared.preferences.RemoteControlPreferences
 import studio.vibe.shared.service.persistence.ProjectStoreImpl
+import studio.vibe.desktop.remote.RemoteControlServer
 import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.viewmodel.FileTreeViewModel
 import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.shared.viewmodel.ToolbarViewModel
 
@@ -85,8 +89,35 @@ class DesktopServiceContainer {
 
     val fileTreeBuilder: FileTreeBuilder = FileTreeBuilder(persistenceStore)
 
+    val fileSystemWatchingService: JvmFileSystemWatchingService =
+        JvmFileSystemWatchingService(scope = scope)
+
+    val fileTreeViewModel: FileTreeViewModel = FileTreeViewModel(
+        persistenceStore = persistenceStore,
+        fileSystemWatchingService = fileSystemWatchingService,
+        scope = scope,
+    )
+
+    val gitStatusPoller: GitStatusPollerImpl = GitStatusPollerImpl(
+        gitService = gitService,
+        scope = scope,
+    )
+
     /** Real pty4j-backed terminal service.  Replaces [StubTerminalSessionManaging]. */
     val terminalService: DesktopTerminalService = DesktopTerminalService(serviceScope = scope)
+
+    /**
+     * Embedded HTTP/WS server for Remote Control.
+     *
+     * Wired to [remoteControlPreferences] and [terminalService].
+     * Auto-starts when [remoteControlPreferences.remoteControlEnabled] is `true`
+     * at app launch (handled in [Main.kt] / app entry point after container creation).
+     * Call [remoteControlServer.stop] and [remoteControlServer.dispose] in [dispose].
+     */
+    val remoteControlServer: RemoteControlServer = RemoteControlServer(
+        preferences = remoteControlPreferences,
+        terminalService = terminalService,
+    )
 
     // ── ViewModels ────────────────────────────────────────────────────────────
 
@@ -124,6 +155,12 @@ class DesktopServiceContainer {
 
     fun dispose() {
         projectStore.save()
+        gitStatusPoller.stopPolling()
+        fileTreeViewModel.stopWatching()
+        fileSystemWatchingService.unwatchAll()
+        // Stop Remote Control server before terminal service so bridges can detach cleanly.
+        remoteControlServer.stop()
+        remoteControlServer.dispose()
         terminalService.dispose()   // kills all live PTY processes before scope cancel
         scope.cancel()
     }

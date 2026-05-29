@@ -1,4 +1,7 @@
-@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+@file:OptIn(
+    kotlin.uuid.ExperimentalUuidApi::class,
+    androidx.compose.ui.ExperimentalComposeUiApi::class,
+)
 
 package studio.vibe.desktop.ui
 
@@ -29,17 +32,25 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSFont
@@ -128,47 +139,84 @@ private fun DirectoryRow(
 
     val leadingPadding = (depth * DSLayout.treeIndent.value + DSLayout.treeBaseIndent.value).dp
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(DSLayout.treeRowHeight)
-            .hoverable(interactionSource)
-            .clickable { onToggleDir(entry.path.path) }
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
-            .padding(start = leadingPadding, end = DSLayout.sidebarHorizontalPadding),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Chevron — rotates 90° when expanded
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = DSColor.textMuted,
+    var showContextMenu by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
             modifier = Modifier
-                .size(DSFont.iconSM.value.dp)
-                .rotate(chevronRotation),
-        )
+                .fillMaxWidth()
+                .height(DSLayout.treeRowHeight)
+                .hoverable(interactionSource)
+                .clickable { onToggleDir(entry.path.path) }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Press &&
+                                event.button == PointerButton.Secondary
+                            ) {
+                                showContextMenu = true
+                            }
+                        }
+                    }
+                }
+                .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+                .padding(start = leadingPadding, end = DSLayout.sidebarHorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Chevron — rotates 90° when expanded
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = DSColor.textMuted,
+                modifier = Modifier
+                    .size(DSFont.iconSM.value.dp)
+                    .rotate(chevronRotation),
+            )
 
-        Spacer(Modifier.width(DSSpacing.xs))
+            Spacer(Modifier.width(DSSpacing.xs))
 
-        // Folder icon
-        Icon(
-            imageVector = Icons.Default.Folder,
-            contentDescription = null,
-            tint = DSColor.gitModified,
-            modifier = Modifier.size(DSFont.iconLG.value.dp),
-        )
+            // Folder icon
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = null,
+                tint = DSColor.gitModified,
+                modifier = Modifier.size(DSFont.iconLG.value.dp),
+            )
 
-        Spacer(Modifier.width(DSSpacing.xs))
+            Spacer(Modifier.width(DSSpacing.xs))
 
-        // Directory name
-        Text(
-            text = entry.path.name,
-            style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+            // Directory name
+            Text(
+                text = entry.path.name,
+                style = DSFont.sidebarItem,
+                color = DSColor.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+            offset = DpOffset(leadingPadding, 0.dp),
+        ) {
+            DropdownMenuItem(
+                text = { Text("Reveal in Finder") },
+                onClick = {
+                    showContextMenu = false
+                    revealInFinder(entry.path.path)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Copy Path") },
+                onClick = {
+                    showContextMenu = false
+                    copyPathToClipboard(entry.path.path)
+                },
+            )
+        }
     }
 
     // Render children in a nested Column when expanded.
@@ -199,52 +247,89 @@ private fun FileRow(
 
     val leadingPadding = (depth * DSLayout.treeIndent.value + DSLayout.treeBaseIndent.value).dp
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(DSLayout.treeRowHeight)
-            .hoverable(interactionSource)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
-            .padding(start = leadingPadding, end = DSLayout.sidebarHorizontalPadding),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Spacer replaces the chevron to keep text aligned with directory rows
-        Spacer(Modifier.width(DSFont.iconSM.value.dp))
+    var showContextMenu by remember { mutableStateOf(false) }
 
-        Spacer(Modifier.width(DSSpacing.xs))
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.treeRowHeight)
+                .hoverable(interactionSource)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Press &&
+                                event.button == PointerButton.Secondary
+                            ) {
+                                showContextMenu = true
+                            }
+                        }
+                    }
+                }
+                .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+                .padding(start = leadingPadding, end = DSLayout.sidebarHorizontalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Spacer replaces the chevron to keep text aligned with directory rows
+            Spacer(Modifier.width(DSFont.iconSM.value.dp))
 
-        // File icon resolved from extension
-        val extension = entry.path.name.substringAfterLast('.', "")
-        val (fileIcon, iconTint) = fileIconForExtension(extension)
-
-        Icon(
-            imageVector = fileIcon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(DSFont.iconLG.value.dp),
-        )
-
-        Spacer(Modifier.width(DSSpacing.xs))
-
-        // File name
-        Text(
-            text = entry.path.name,
-            style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-
-        // Git status letter — right-aligned, shown only when status is present.
-        // Captured into a local val to allow smart-cast across module boundary.
-        val gitStatus = entry.gitStatus
-        if (gitStatus != null) {
             Spacer(Modifier.width(DSSpacing.xs))
+
+            // File icon resolved from extension
+            val extension = entry.path.name.substringAfterLast('.', "")
+            val (fileIcon, iconTint) = fileIconForExtension(extension)
+
+            Icon(
+                imageVector = fileIcon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(DSFont.iconLG.value.dp),
+            )
+
+            Spacer(Modifier.width(DSSpacing.xs))
+
+            // File name
             Text(
-                text = gitStatus.code,
-                style = DSFont.gitStatus,
-                color = statusColor(gitStatus),
+                text = entry.path.name,
+                style = DSFont.sidebarItem,
+                color = DSColor.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+
+            // Git status letter — right-aligned, shown only when status is present.
+            // Captured into a local val to allow smart-cast across module boundary.
+            val gitStatus = entry.gitStatus
+            if (gitStatus != null) {
+                Spacer(Modifier.width(DSSpacing.xs))
+                Text(
+                    text = gitStatus.code,
+                    style = DSFont.gitStatus,
+                    color = statusColor(gitStatus),
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+            offset = DpOffset(leadingPadding, 0.dp),
+        ) {
+            DropdownMenuItem(
+                text = { Text("Reveal in Finder") },
+                onClick = {
+                    showContextMenu = false
+                    revealInFinder(entry.path.path)
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Copy Path") },
+                onClick = {
+                    showContextMenu = false
+                    copyPathToClipboard(entry.path.path)
+                },
             )
         }
     }
@@ -272,4 +357,28 @@ private fun statusColor(status: GitFileStatus): Color = when (status) {
     GitFileStatus.RENAMED -> DSColor.gitRenamed
     GitFileStatus.COPIED -> DSColor.gitAdded
     GitFileStatus.UNTRACKED -> DSColor.gitUntracked
+}
+
+/**
+ * Opens the parent directory of [path] in macOS Finder with the item pre-selected.
+ *
+ * Uses `open -R <path>` which instructs Finder to reveal and select the target.
+ * The call is fire-and-forget; failures are silently swallowed because this is
+ * a non-critical UX convenience and the process exit code is not observable
+ * from this context.
+ */
+private fun revealInFinder(path: String) {
+    Runtime.getRuntime().exec(arrayOf("open", "-R", path))
+}
+
+/**
+ * Copies [path] as plain text to the system clipboard via AWT.
+ *
+ * [java.awt.datatransfer.StringSelection] implements both [java.awt.datatransfer.Transferable]
+ * and [java.awt.datatransfer.ClipboardOwner], so passing `null` as the owner is safe —
+ * we do not need to react to ownership loss events.
+ */
+private fun copyPathToClipboard(path: String) {
+    val clipboard = java.awt.Toolkit.getDefaultToolkit().systemClipboard
+    clipboard.setContents(java.awt.datatransfer.StringSelection(path), null)
 }

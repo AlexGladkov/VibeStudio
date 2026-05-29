@@ -42,6 +42,18 @@ interface GitBranching {
     suspend fun branches(at: FilePath): List<GitBranch>
     suspend fun checkout(branch: String, at: FilePath)
     suspend fun createBranch(name: String, from: String? = null, at: FilePath)
+
+    /**
+     * Delete a local branch.
+     *
+     * @param name Branch name to delete.
+     * @param force When true, uses `git branch -D` (force-delete even if unmerged).
+     *   When false, uses `git branch -d` (safe-delete — fails if unmerged).
+     * @param at Repository root path.
+     * @throws GitServiceError if the branch does not exist, is currently checked out,
+     *   or (when [force] is false) has unmerged commits.
+     */
+    suspend fun deleteBranch(name: String, force: Boolean = false, at: FilePath)
 }
 
 // Git Repository Inspection
