@@ -5,6 +5,7 @@ package studio.vibe.desktop.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -184,57 +185,82 @@ private fun AgentPickerButton(
             )
         }
 
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            // Available agents
-            available.forEach { assistant ->
-                val status = availabilityMap[assistant]
-                AgentDropdownItem(
-                    assistant = assistant,
-                    status = status,
-                    isSelected = assistant == selectedAssistant,
-                    onClick = {
-                        onSelectAssistant(assistant)
-                        expanded = false
-                    },
-                    onInstall = null,
-                )
-            }
-
-            // Divider only when both groups are non-empty
-            if (available.isNotEmpty() && unavailable.isNotEmpty()) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = DSSpacing.xs),
-                    color = LocalDSColors.current.borderDefault,
-                )
-            }
-
-            // Unavailable agents
-            unavailable.forEach { assistant ->
-                val status = availabilityMap[assistant]
-                val isNotInstalled = status is AgentAvailabilityStatus.NotInstalled || status == null
-                AgentDropdownItem(
-                    assistant = assistant,
-                    status = status,
-                    isSelected = assistant == selectedAssistant,
-                    onClick = {
-                        if (isNotInstalled) {
-                            expanded = false
-                            onInstallAgent(assistant)
-                        } else {
-                            onSelectAssistant(assistant)
-                            expanded = false
+        if (expanded) {
+            // Material3 DropdownMenu was rendering as a 0-sized popup in this
+            // exact layout (same root cause as the + button popover). Use the
+            // lower-level Popup API with an explicit position provider that
+            // anchors below the trigger and clamps to window bounds.
+            val popoverColors = LocalDSColors.current
+            androidx.compose.ui.window.Popup(
+                onDismissRequest = { expanded = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                popupPositionProvider = object : androidx.compose.ui.window.PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: androidx.compose.ui.unit.IntRect,
+                        windowSize: androidx.compose.ui.unit.IntSize,
+                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+                        popupContentSize: androidx.compose.ui.unit.IntSize,
+                    ): IntOffset {
+                        val rawX = anchorBounds.left
+                        val rawY = anchorBounds.bottom + 4
+                        val x = rawX.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
+                        val y = rawY.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0))
+                        return IntOffset(x, y)
+                    }
+                },
+            ) {
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(DSRadius.md),
+                    color = popoverColors.surfaceOverlay,
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, popoverColors.borderDefault),
+                ) {
+                    Column(modifier = Modifier.padding(vertical = DSSpacing.xs)) {
+                        available.forEach { assistant ->
+                            val status = availabilityMap[assistant]
+                            AgentDropdownItem(
+                                assistant = assistant,
+                                status = status,
+                                isSelected = assistant == selectedAssistant,
+                                onClick = {
+                                    onSelectAssistant(assistant)
+                                    expanded = false
+                                },
+                                onInstall = null,
+                            )
                         }
-                    },
-                    onInstall = if (isNotInstalled) {
-                        {
-                            expanded = false
-                            onInstallAgent(assistant)
+                        if (available.isNotEmpty() && unavailable.isNotEmpty()) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = DSSpacing.xs),
+                                color = popoverColors.borderDefault,
+                            )
                         }
-                    } else null,
-                )
+                        unavailable.forEach { assistant ->
+                            val status = availabilityMap[assistant]
+                            val isNotInstalled = status is AgentAvailabilityStatus.NotInstalled || status == null
+                            AgentDropdownItem(
+                                assistant = assistant,
+                                status = status,
+                                isSelected = assistant == selectedAssistant,
+                                onClick = {
+                                    if (isNotInstalled) {
+                                        expanded = false
+                                        onInstallAgent(assistant)
+                                    } else {
+                                        onSelectAssistant(assistant)
+                                        expanded = false
+                                    }
+                                },
+                                onInstall = if (isNotInstalled) {
+                                    {
+                                        expanded = false
+                                        onInstallAgent(assistant)
+                                    }
+                                } else null,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
