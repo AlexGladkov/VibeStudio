@@ -10,7 +10,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -31,11 +34,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -169,6 +176,12 @@ fun TabBarView(
         // AddProjectPopover.swift on macOS). The popover itself contains the
         // "Open Folder…" action plus the list of recently used projects, so
         // we never bypass it.
+        //
+        // Implementation note: Material3 DropdownMenu wraps content in a
+        // Popup whose default size collapses to the natural width of its
+        // children. Using the lower-level Popup API directly here gives us
+        // explicit positioning and a Surface wrapper that guarantees the
+        // popover is visible against the toolbar background.
         Box {
             Box(
                 modifier = Modifier
@@ -185,18 +198,30 @@ fun TabBarView(
                 )
             }
 
-            DropdownMenu(
-                expanded = showAddPopover,
-                onDismissRequest = { showAddPopover = false },
-            ) {
-                AddProjectPopover(
-                    container = container,
-                    onOpenFolder = {
-                        showAddPopover = false
-                        onOpenProject()
-                    },
-                    onDismiss = { showAddPopover = false },
-                )
+            if (showAddPopover) {
+                val popoverColors = LocalDSColors.current
+                Popup(
+                    onDismissRequest = { showAddPopover = false },
+                    properties = PopupProperties(focusable = true),
+                    alignment = Alignment.TopEnd,
+                    offset = IntOffset(0, DSLayout.tabAddButtonSize.value.toInt() + 4),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(DSRadius.md),
+                        color = popoverColors.surfaceOverlay,
+                        shadowElevation = 8.dp,
+                        border = BorderStroke(1.dp, popoverColors.borderDefault),
+                    ) {
+                        AddProjectPopover(
+                            container = container,
+                            onOpenFolder = {
+                                showAddPopover = false
+                                onOpenProject()
+                            },
+                            onDismiss = { showAddPopover = false },
+                        )
+                    }
+                }
             }
         }
 
@@ -408,13 +433,30 @@ private fun CloseButton(onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
+    // The outer tab body installs `detectDragGestures` on its pointerInput
+    // for drag-reorder. A child Box with `.clickable` is technically enough
+    // for Compose to detect a tap, but the close hit-target is small (16dp)
+    // and sits next to a region listening for horizontal drag — Skiko's
+    // hit-testing on tiny clickable areas with no surrounding pointer
+    // scope has been flaky in the past. We therefore explicitly install our
+    // own pointerInput on the button and call `awaitEachGesture` with the
+    // first down event consumed, which guarantees the parent drag detector
+    // never sees this gesture and the click always fires.
     Box(
         modifier = Modifier
             .size(DSLayout.tabCloseSize)
             .clip(RoundedCornerShape(DSRadius.sm))
             .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .hoverable(interactionSource)
-            .clickable(onClick = onClick),
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    down.consume()
+                    val up = waitForUpOrCancellation()
+                    up?.consume()
+                    if (up != null) onClick()
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
