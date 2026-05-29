@@ -155,6 +155,9 @@ public fun CodeSpeakModeView(
 
     // Load specs when the active project changes
     LaunchedEffect(activeProjectId) {
+        // Drop the build panel's per-project state first so its output,
+        // task name, and stats don't carry over to the new tab.
+        buildVm.resetForProject(activeProjectId)
         activeProjectId?.let { modeVm.loadSpecs(it) }
     }
 

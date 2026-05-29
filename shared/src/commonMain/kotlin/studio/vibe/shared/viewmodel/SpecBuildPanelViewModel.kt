@@ -42,6 +42,24 @@ class SpecBuildPanelViewModel(
 
     private var runJob: Job? = null
 
+    // Tracks the project this panel currently belongs to. Switching tabs
+    // must wipe the per-project transient state (output buffer, task name,
+    // commit message, stats) so the panel doesn't leak between projects.
+    private var currentProjectId: Uuid? = null
+
+    /**
+     * Resets all per-project transient state when [projectId] differs from the
+     * previously tracked project. Cancels any in-flight build job too —
+     * letting it keep running against the old project would be misleading.
+     */
+    fun resetForProject(projectId: Uuid?) {
+        if (currentProjectId == projectId) return
+        runJob?.cancel()
+        runJob = null
+        _state.value = SpecBuildPanelState()
+        currentProjectId = projectId
+    }
+
     fun selectCommand(command: CodeSpeakCommand) {
         _state.update { it.copy(selectedCommand = command) }
     }

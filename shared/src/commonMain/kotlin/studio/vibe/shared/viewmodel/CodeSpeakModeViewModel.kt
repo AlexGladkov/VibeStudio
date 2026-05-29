@@ -40,18 +40,37 @@ class CodeSpeakModeViewModel(
 
     private var scanJob: Job? = null
 
+    // Tracks which project's specs are currently displayed. When loadSpecs is
+    // invoked for a different project (tab switch) we must clear the
+    // per-spec state — otherwise `selectedSpec` and `editorContent` from the
+    // previous project leak into the new one and the editor shows stale text.
+    private var loadedProjectId: Uuid? = null
+
     fun loadSpecs(projectId: Uuid) {
         val project = projectManaging.project(projectId) ?: return
+        val projectChanged = loadedProjectId != projectId
         scope.launch {
-            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            if (projectChanged) {
+                // Drop everything that was scoped to the previous project.
+                _state.update {
+                    CodeSpeakModeState(isLoading = true)
+                }
+            } else {
+                _state.update { it.copy(isLoading = true, errorMessage = null) }
+            }
             runCatching {
                 val specs = scanSpecFiles(project.path)
                 _state.update { s ->
-                    val updatedSelectedSpec = s.selectedSpec?.let { sel ->
-                        specs.firstOrNull { it.path.path == sel.path.path } ?: sel
+                    val updatedSelectedSpec = if (projectChanged) {
+                        null
+                    } else {
+                        s.selectedSpec?.let { sel ->
+                            specs.firstOrNull { it.path.path == sel.path.path } ?: sel
+                        }
                     }
                     s.copy(specs = specs, selectedSpec = updatedSelectedSpec, isLoading = false)
                 }
+                loadedProjectId = projectId
             }.onFailure { e ->
                 _state.update { it.copy(isLoading = false, errorMessage = e.message) }
             }
