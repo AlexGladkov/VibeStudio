@@ -9,8 +9,14 @@ plugins {
 dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
-    implementation("org.jetbrains.compose.material3:material3:1.9.0")
-    implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
+    // Material3 + icons resolved through the Compose Multiplatform BOM so the
+    // versions stay aligned with the active compose plugin (currently 1.11.0).
+    // The previous hard-pinned `material3:1.9.0` + `material-icons-extended:1.7.3`
+    // collided with Compose 1.11's ComposeSceneLayer-based Popup runtime and
+    // caused every popup/dropdown rendering bug we hit (anchorBounds=(0,0,0,0),
+    // 0-sized DropdownMenu, Surface stretching to full window width).
+    implementation(compose.material3)
+    implementation(compose.materialIconsExtended)
 
     // Coroutines Swing dispatcher (provides Dispatchers.Main on Desktop JVM)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")

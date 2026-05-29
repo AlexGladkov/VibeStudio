@@ -154,24 +154,10 @@ private fun AgentPickerButton(
         status == null || status is AgentAvailabilityStatus.NotInstalled || status is AgentAvailabilityStatus.Checking
     }
 
-    // Trigger coordinates captured in window space so the Popup can be
-    // positioned directly under the button regardless of where Compose
-    // Desktop's automatic anchor places it.
-    var triggerOffset by remember { mutableStateOf(IntOffset(0, 0)) }
-    var triggerSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize(0, 0)) }
-
     Box {
         // Trigger button
         Row(
             modifier = Modifier
-                .onGloballyPositioned { coords ->
-                    val bounds = coords.boundsInWindow()
-                    triggerOffset = IntOffset(bounds.left.toInt(), bounds.bottom.toInt())
-                    triggerSize = androidx.compose.ui.unit.IntSize(
-                        bounds.width.toInt(),
-                        bounds.height.toInt(),
-                    )
-                }
                 .clip(RoundedCornerShape(DSRadius.md))
                 .background(LocalDSColors.current.toolbarControlBg)
                 .border(1.dp, LocalDSColors.current.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
@@ -201,89 +187,52 @@ private fun AgentPickerButton(
             )
         }
 
-        if (expanded) {
-            // Compose Desktop's Popup, when given a popupPositionProvider, only
-            // receives a useful anchorBounds in some layouts. The agent picker
-            // sits inside a flexible Row at the toolbar's trailing edge and
-            // the provider was being handed `(0,0,0,0)` — the menu rendered in
-            // the top-left corner. Capture the trigger's bounds ourselves via
-            // onGloballyPositioned and feed them to the provider directly.
-            val popoverColors = LocalDSColors.current
-            androidx.compose.ui.window.Popup(
-                onDismissRequest = { expanded = false },
-                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
-                popupPositionProvider = object : androidx.compose.ui.window.PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: androidx.compose.ui.unit.IntRect,
-                        windowSize: androidx.compose.ui.unit.IntSize,
-                        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                        popupContentSize: androidx.compose.ui.unit.IntSize,
-                    ): IntOffset {
-                        val rawX = triggerOffset.x
-                        val rawY = triggerOffset.y + 4
-                        val x = rawX.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
-                        val y = rawY.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0))
-                        return IntOffset(x, y)
-                    }
-                },
-            ) {
-                androidx.compose.material3.Surface(
-                    shape = RoundedCornerShape(DSRadius.md),
-                    color = popoverColors.surfaceOverlay,
-                    shadowElevation = 8.dp,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, popoverColors.borderDefault),
-                    // Without an explicit width constraint the Surface inside a
-                    // Popup defaults to the available native window width and
-                    // the position-provider's `coerceIn` then clamps the X
-                    // back to 0, dropping the popup at the screen's left edge.
-                    modifier = Modifier.width(220.dp),
-                ) {
-                    Column(modifier = Modifier.padding(vertical = DSSpacing.xs)) {
-                        available.forEach { assistant ->
-                            val status = availabilityMap[assistant]
-                            AgentDropdownItem(
-                                assistant = assistant,
-                                status = status,
-                                isSelected = assistant == selectedAssistant,
-                                onClick = {
-                                    onSelectAssistant(assistant)
-                                    expanded = false
-                                },
-                                onInstall = null,
-                            )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            available.forEach { assistant ->
+                val status = availabilityMap[assistant]
+                AgentDropdownItem(
+                    assistant = assistant,
+                    status = status,
+                    isSelected = assistant == selectedAssistant,
+                    onClick = {
+                        onSelectAssistant(assistant)
+                        expanded = false
+                    },
+                    onInstall = null,
+                )
+            }
+            if (available.isNotEmpty() && unavailable.isNotEmpty()) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = DSSpacing.xs),
+                    color = LocalDSColors.current.borderDefault,
+                )
+            }
+            unavailable.forEach { assistant ->
+                val status = availabilityMap[assistant]
+                val isNotInstalled = status is AgentAvailabilityStatus.NotInstalled || status == null
+                AgentDropdownItem(
+                    assistant = assistant,
+                    status = status,
+                    isSelected = assistant == selectedAssistant,
+                    onClick = {
+                        if (isNotInstalled) {
+                            expanded = false
+                            onInstallAgent(assistant)
+                        } else {
+                            onSelectAssistant(assistant)
+                            expanded = false
                         }
-                        if (available.isNotEmpty() && unavailable.isNotEmpty()) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = DSSpacing.xs),
-                                color = popoverColors.borderDefault,
-                            )
+                    },
+                    onInstall = if (isNotInstalled) {
+                        {
+                            expanded = false
+                            onInstallAgent(assistant)
                         }
-                        unavailable.forEach { assistant ->
-                            val status = availabilityMap[assistant]
-                            val isNotInstalled = status is AgentAvailabilityStatus.NotInstalled || status == null
-                            AgentDropdownItem(
-                                assistant = assistant,
-                                status = status,
-                                isSelected = assistant == selectedAssistant,
-                                onClick = {
-                                    if (isNotInstalled) {
-                                        expanded = false
-                                        onInstallAgent(assistant)
-                                    } else {
-                                        onSelectAssistant(assistant)
-                                        expanded = false
-                                    }
-                                },
-                                onInstall = if (isNotInstalled) {
-                                    {
-                                        expanded = false
-                                        onInstallAgent(assistant)
-                                    }
-                                } else null,
-                            )
-                        }
-                    }
-                }
+                    } else null,
+                )
             }
         }
     }

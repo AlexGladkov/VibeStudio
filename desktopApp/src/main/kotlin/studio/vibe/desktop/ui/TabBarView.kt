@@ -172,16 +172,7 @@ fun TabBarView(
         }
 
         // Add / open project button — always visible at the right edge.
-        // Clicking always opens the Recents popover (mirrors
-        // AddProjectPopover.swift on macOS). The popover itself contains the
-        // "Open Folder…" action plus the list of recently used projects, so
-        // we never bypass it.
-        //
-        // Implementation note: Material3 DropdownMenu wraps content in a
-        // Popup whose default size collapses to the natural width of its
-        // children. Using the lower-level Popup API directly here gives us
-        // explicit positioning and a Surface wrapper that guarantees the
-        // popover is visible against the toolbar background.
+        // Clicking opens the Recents popover via Material3 DropdownMenu.
         Box {
             Box(
                 modifier = Modifier
@@ -198,30 +189,18 @@ fun TabBarView(
                 )
             }
 
-            if (showAddPopover) {
-                val popoverColors = LocalDSColors.current
-                Popup(
-                    onDismissRequest = { showAddPopover = false },
-                    properties = PopupProperties(focusable = true),
-                    alignment = Alignment.TopEnd,
-                    offset = IntOffset(0, DSLayout.tabAddButtonSize.value.toInt() + 4),
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(DSRadius.md),
-                        color = popoverColors.surfaceOverlay,
-                        shadowElevation = 8.dp,
-                        border = BorderStroke(1.dp, popoverColors.borderDefault),
-                    ) {
-                        AddProjectPopover(
-                            container = container,
-                            onOpenFolder = {
-                                showAddPopover = false
-                                onOpenProject()
-                            },
-                            onDismiss = { showAddPopover = false },
-                        )
-                    }
-                }
+            DropdownMenu(
+                expanded = showAddPopover,
+                onDismissRequest = { showAddPopover = false },
+            ) {
+                AddProjectPopover(
+                    container = container,
+                    onOpenFolder = {
+                        showAddPopover = false
+                        onOpenProject()
+                    },
+                    onDismiss = { showAddPopover = false },
+                )
             }
         }
 

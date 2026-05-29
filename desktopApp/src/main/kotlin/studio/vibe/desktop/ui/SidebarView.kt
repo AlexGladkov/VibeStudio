@@ -38,9 +38,9 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -189,53 +189,18 @@ private fun IconStrip(
                 )
             }
 
-            if (showAddPopover) {
-                // The + button sits at the very bottom of the sidebar; an
-                // alignment-based Popup would either grow downward off the
-                // window or upward off the top edge. Use an explicit position
-                // provider that places the popover to the right of the button
-                // with its bottom aligned to the button's bottom, then clamps
-                // both axes inside the window so it can never be clipped.
-                Popup(
-                    onDismissRequest = { showAddPopover = false },
-                    properties = PopupProperties(focusable = true),
-                    popupPositionProvider = object : androidx.compose.ui.window.PopupPositionProvider {
-                        override fun calculatePosition(
-                            anchorBounds: androidx.compose.ui.unit.IntRect,
-                            windowSize: androidx.compose.ui.unit.IntSize,
-                            layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-                            popupContentSize: androidx.compose.ui.unit.IntSize,
-                        ): IntOffset {
-                            val rawX = anchorBounds.right + 4
-                            val rawY = anchorBounds.bottom - popupContentSize.height
-                            val x = rawX.coerceIn(
-                                0,
-                                (windowSize.width - popupContentSize.width).coerceAtLeast(0),
-                            )
-                            val y = rawY.coerceIn(
-                                0,
-                                (windowSize.height - popupContentSize.height).coerceAtLeast(0),
-                            )
-                            return IntOffset(x, y)
-                        }
+            DropdownMenu(
+                expanded = showAddPopover,
+                onDismissRequest = { showAddPopover = false },
+            ) {
+                AddProjectPopover(
+                    container = container,
+                    onOpenFolder = {
+                        showAddPopover = false
+                        onAddProject()
                     },
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(DSRadius.md),
-                        color = colors.surfaceOverlay,
-                        shadowElevation = 8.dp,
-                        border = BorderStroke(1.dp, colors.borderDefault),
-                    ) {
-                        AddProjectPopover(
-                            container = container,
-                            onOpenFolder = {
-                                showAddPopover = false
-                                onAddProject()
-                            },
-                            onDismiss = { showAddPopover = false },
-                        )
-                    }
-                }
+                    onDismiss = { showAddPopover = false },
+                )
             }
         }
 
