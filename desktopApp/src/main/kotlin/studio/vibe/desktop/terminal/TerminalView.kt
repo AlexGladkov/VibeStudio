@@ -162,6 +162,18 @@ fun TerminalView(
     var widgetHolder by remember { mutableStateOf<JediTermWidget?>(null) }
     val colors = LocalDSColors.current
 
+    // Persistent cache of JediTermWidget instances keyed by session id. Lets
+    // us re-attach the same widget after a tab switch instead of building a
+    // fresh one (which loses scrollback and forces a blank terminal until the
+    // shell next prints something — the symptom the user reported).
+    //
+    // Keyed by font size + palette as well so a real change (slider move or
+    // theme switch) gets a fresh widget; cosmetic recompositions hit the cache.
+    data class WidgetKey(val sessionId: Uuid, val fontSize: Float, val isDark: Boolean)
+
+    val widgetCache = remember { mutableMapOf<WidgetKey, JediTermWidget>() }
+    val isDark = colors === DSColor.dark
+
     // Key on projectId, targetSessionId, fontSize, and palette so we re-create
     // when the theme changes (otherwise the existing widget keeps its old colors).
     LaunchedEffect(projectId, targetSessionId, terminalFontSize, colors) {
@@ -211,6 +223,14 @@ fun TerminalView(
         }
         holder.session = session
 
+        val cacheKey = WidgetKey(session.id, terminalFontSize, isDark)
+        val cached = widgetCache[cacheKey]
+        if (cached != null) {
+            // Re-attach the same widget — scrollback and PTY reader survive.
+            widgetHolder = cached
+            return@LaunchedEffect
+        }
+
         val ptyProcess = service.ptyProcessForSession(session.id) ?: return@LaunchedEffect
 
         // JediTerm widget must be created on EDT — LaunchedEffect on Desktop dispatches on
@@ -230,22 +250,31 @@ fun TerminalView(
         widget.background = colors.surfaceBase.toAwtColor()
         widget.isOpaque = true
 
+        widgetCache[cacheKey] = widget
         widgetHolder = widget
     }
 
-    // Keys must match LaunchedEffect above so the previous widget is always
-    // disposed before the new one is built. Omitting [colors] would leave the
-    // old PTY widget orphaned across theme switches.
+    // Tab switch (projectId change) MUST NOT kill the PTY or dispose the
+    // widget — the user expects to come back and find their shell + scrollback
+    // intact. We just detach the widget from the current SwingPanel; the
+    // cache above keeps the widget alive, and the next composition will
+    // re-attach it. Final cleanup happens in the unkeyed DisposableEffect
+    // below when the TerminalView itself leaves the composition.
     DisposableEffect(projectId, targetSessionId, terminalFontSize, colors) {
         onDispose {
-            // Only kill the session if *we* created it — don't kill agent sessions owned by toolbar.
-            if (holder.ownsSession) {
-                holder.session?.id?.let { id -> service.killSession(id, force = false) }
-            }
-            widgetHolder?.close()
             widgetHolder = null
-            holder.ownsSession = false
             holder.session = null
+            holder.ownsSession = false
+        }
+    }
+
+    // When TerminalView leaves the composition entirely (no active project, or
+    // the surrounding screen is dismissed) we own the cleanup — close every
+    // cached widget and kill the sessions we created.
+    DisposableEffect(Unit) {
+        onDispose {
+            widgetCache.values.forEach { it.close() }
+            widgetCache.clear()
         }
     }
 
