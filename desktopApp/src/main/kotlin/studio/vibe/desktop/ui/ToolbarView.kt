@@ -5,6 +5,8 @@ package studio.vibe.desktop.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -152,10 +154,24 @@ private fun AgentPickerButton(
         status == null || status is AgentAvailabilityStatus.NotInstalled || status is AgentAvailabilityStatus.Checking
     }
 
+    // Trigger coordinates captured in window space so the Popup can be
+    // positioned directly under the button regardless of where Compose
+    // Desktop's automatic anchor places it.
+    var triggerOffset by remember { mutableStateOf(IntOffset(0, 0)) }
+    var triggerSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize(0, 0)) }
+
     Box {
         // Trigger button
         Row(
             modifier = Modifier
+                .onGloballyPositioned { coords ->
+                    val bounds = coords.boundsInWindow()
+                    triggerOffset = IntOffset(bounds.left.toInt(), bounds.bottom.toInt())
+                    triggerSize = androidx.compose.ui.unit.IntSize(
+                        bounds.width.toInt(),
+                        bounds.height.toInt(),
+                    )
+                }
                 .clip(RoundedCornerShape(DSRadius.md))
                 .background(LocalDSColors.current.toolbarControlBg)
                 .border(1.dp, LocalDSColors.current.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
@@ -186,10 +202,12 @@ private fun AgentPickerButton(
         }
 
         if (expanded) {
-            // Material3 DropdownMenu was rendering as a 0-sized popup in this
-            // exact layout (same root cause as the + button popover). Use the
-            // lower-level Popup API with an explicit position provider that
-            // anchors below the trigger and clamps to window bounds.
+            // Compose Desktop's Popup, when given a popupPositionProvider, only
+            // receives a useful anchorBounds in some layouts. The agent picker
+            // sits inside a flexible Row at the toolbar's trailing edge and
+            // the provider was being handed `(0,0,0,0)` — the menu rendered in
+            // the top-left corner. Capture the trigger's bounds ourselves via
+            // onGloballyPositioned and feed them to the provider directly.
             val popoverColors = LocalDSColors.current
             androidx.compose.ui.window.Popup(
                 onDismissRequest = { expanded = false },
@@ -201,8 +219,8 @@ private fun AgentPickerButton(
                         layoutDirection: androidx.compose.ui.unit.LayoutDirection,
                         popupContentSize: androidx.compose.ui.unit.IntSize,
                     ): IntOffset {
-                        val rawX = anchorBounds.left
-                        val rawY = anchorBounds.bottom + 4
+                        val rawX = triggerOffset.x
+                        val rawY = triggerOffset.y + 4
                         val x = rawX.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
                         val y = rawY.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0))
                         return IntOffset(x, y)
