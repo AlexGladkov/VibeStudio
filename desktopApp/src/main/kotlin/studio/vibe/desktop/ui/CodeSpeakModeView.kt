@@ -83,6 +83,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -169,7 +171,7 @@ public fun CodeSpeakModeView(
     Row(
         modifier = modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase)
+            .background(LocalDSColors.current.surfaceBase)
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.isMetaPressed) {
                     when (event.key) {
@@ -275,7 +277,7 @@ private fun SpecsListColumn(
     var sectionExpanded by remember { mutableStateOf(true) }
     var activeDialog by remember { mutableStateOf<SpecsPanelDialog>(SpecsPanelDialog.None) }
 
-    Column(modifier = modifier.background(DSColor.surfaceRaised)) {
+    Column(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
 
         // Section header row
         SpecsSectionHeader(
@@ -285,7 +287,7 @@ private fun SpecsListColumn(
             onRefresh = onRefresh,
         )
 
-        HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
         // List / loading / empty body
         Box(modifier = Modifier.weight(1f)) {
@@ -297,7 +299,7 @@ private fun SpecsListColumn(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
-                            color = DSColor.accentPrimary,
+                            color = LocalDSColors.current.accentPrimary,
                             strokeWidth = 2.dp,
                         )
                     }
@@ -307,7 +309,7 @@ private fun SpecsListColumn(
                     Text(
                         text = "No specs found",
                         style = DSFont.sidebarItemSmall,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                         modifier = Modifier.padding(
                             start = DSSpacing.md + DSLayout.chevronFrameWidth,
                             top = DSSpacing.xs,
@@ -336,7 +338,7 @@ private fun SpecsListColumn(
         }
 
         // New Spec footer button
-        HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -350,14 +352,14 @@ private fun SpecsListColumn(
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = "New Spec",
-                tint = if (activeProjectId != null) DSColor.textSecondary else DSColor.textDisabled,
+                tint = if (activeProjectId != null) LocalDSColors.current.textSecondary else LocalDSColors.current.textDisabled,
                 modifier = Modifier.size(13.dp),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = "New Spec",
                 style = DSFont.buttonLabel,
-                color = if (activeProjectId != null) DSColor.textSecondary else DSColor.textDisabled,
+                color = if (activeProjectId != null) LocalDSColors.current.textSecondary else LocalDSColors.current.textDisabled,
             )
         }
     }
@@ -418,21 +420,21 @@ private fun SpecsSectionHeader(
                 Icons.Filled.KeyboardArrowRight
             },
             contentDescription = if (isExpanded) "Collapse specs" else "Expand specs",
-            tint = DSColor.textMuted,
+            tint = LocalDSColors.current.textMuted,
             modifier = Modifier.size(DSLayout.chevronFrameWidth),
         )
         Spacer(Modifier.width(DSSpacing.xs))
         Text(
             text = "SPECS",
             style = DSFont.sidebarSection,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
         if (total > 0) {
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = "$passing/$total",
                 style = DSFont.sidebarItemSmall,
-                color = if (allPassing) DSColor.gitAdded else DSColor.gitModified,
+                color = if (allPassing) LocalDSColors.current.gitAdded else LocalDSColors.current.gitModified,
             )
         }
         Spacer(Modifier.weight(1f))
@@ -443,7 +445,7 @@ private fun SpecsSectionHeader(
             Icon(
                 imageVector = Icons.Filled.Refresh,
                 contentDescription = "Refresh specs",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(11.dp),
             )
         }
@@ -457,7 +459,7 @@ private fun SpecRow(
     onClick: () -> Unit,
 ) {
     val bgColor by animateColorAsState(
-        targetValue = if (isSelected) DSColor.accentPrimary.copy(alpha = 0.12f) else Color.Transparent,
+        targetValue = if (isSelected) LocalDSColors.current.accentPrimary.copy(alpha = 0.12f) else Color.Transparent,
         animationSpec = tween(durationMillis = 120),
         label = "specRowBg",
     )
@@ -481,14 +483,14 @@ private fun SpecRow(
         Box(
             modifier = Modifier
                 .size(DSLayout.indicatorSize)
-                .background(color = specStatusColor(spec.status), shape = CircleShape),
+                .background(color = specStatusColor(spec.status, LocalDSColors.current), shape = CircleShape),
         )
         Spacer(Modifier.width(DSSpacing.xs))
 
         Text(
             text = spec.name,
             style = DSFont.sidebarItem,
-            color = if (isSelected) DSColor.textPrimary else DSColor.textSecondary,
+            color = if (isSelected) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
@@ -498,12 +500,12 @@ private fun SpecRow(
             SpecStatus.PASSING -> Text(
                 text = "\u2713",
                 style = DSFont.statusBadge,
-                color = DSColor.gitAdded,
+                color = LocalDSColors.current.gitAdded,
             )
             SpecStatus.FAILING -> Text(
                 text = "\u00D7",
                 style = DSFont.statusBadge,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
             )
             SpecStatus.UNKNOWN -> Unit
         }
@@ -511,10 +513,10 @@ private fun SpecRow(
     }
 }
 
-private fun specStatusColor(status: SpecStatus): Color = when (status) {
-    SpecStatus.PASSING -> DSColor.gitAdded
-    SpecStatus.FAILING -> DSColor.gitDeleted
-    SpecStatus.UNKNOWN -> DSColor.indicatorIdle
+private fun specStatusColor(status: SpecStatus, colors: DSColors): Color = when (status) {
+    SpecStatus.PASSING -> colors.gitAdded
+    SpecStatus.FAILING -> colors.gitDeleted
+    SpecStatus.UNKNOWN -> colors.indicatorIdle
 }
 
 // ── Center column — Editor ────────────────────────────────────────────────────
@@ -527,11 +529,12 @@ private fun EditorColumn(
     onContentChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.background(DSColor.surfaceBase)) {
+    val colors = LocalDSColors.current
+    Column(modifier = modifier.background(colors.surfaceBase)) {
         if (selectedSpec != null) {
             // Breadcrumb — top of center column, left-aligned per CLAUDE.md invariant
             EditorBreadcrumb(spec = selectedSpec, isEditorDirty = isEditorDirty)
-            HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+            HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
             // Editable syntax-highlighted content (monospace scroll view)
             val scrollState = rememberScrollState()
@@ -542,16 +545,16 @@ private fun EditorColumn(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = DSColor.textPrimary,
+                    color = LocalDSColors.current.textPrimary,
                     lineHeight = 18.sp,
                 ),
-                cursorBrush = SolidColor(DSColor.accentPrimary),
+                cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
                     .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
                 visualTransformation = { text ->
-                    val annotated = highlightCodeSpeak(text.text)
+                    val annotated = highlightCodeSpeak(text.text, colors)
                     TransformedText(annotated, OffsetMapping.Identity)
                 },
             )
@@ -576,21 +579,21 @@ private fun EditorBreadcrumb(spec: SpecFile, isEditorDirty: Boolean = false) {
             .height(DSLayout.gitSectionHeaderHeight)
             .padding(horizontal = DSSpacing.md),
     ) {
-        Text(text = "Projects", style = DSFont.sidebarItemSmall, color = DSColor.textMuted)
+        Text(text = "Projects", style = DSFont.sidebarItemSmall, color = LocalDSColors.current.textMuted)
         BreadcrumbSeparator()
         Text(
             text = spec.path.parent.name.ifEmpty { "project" },
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
         )
         BreadcrumbSeparator()
-        Text(text = spec.name, style = DSFont.sidebarItemSmall, color = DSColor.textPrimary)
+        Text(text = spec.name, style = DSFont.sidebarItemSmall, color = LocalDSColors.current.textPrimary)
         if (isEditorDirty) {
             Spacer(Modifier.width(DSSpacing.xs))
             Box(
                 modifier = Modifier
                     .size(6.dp)
-                    .background(DSColor.gitModified, CircleShape),
+                    .background(LocalDSColors.current.gitModified, CircleShape),
             )
         }
     }
@@ -598,7 +601,7 @@ private fun EditorBreadcrumb(spec: SpecFile, isEditorDirty: Boolean = false) {
 
 @Composable
 private fun BreadcrumbSeparator() {
-    Text(text = " \u203A ", style = DSFont.sidebarItemSmall, color = DSColor.textMuted)
+    Text(text = " \u203A ", style = DSFont.sidebarItemSmall, color = LocalDSColors.current.textMuted)
 }
 
 @Composable
@@ -608,14 +611,14 @@ private fun EditorEmptyState() {
             Icon(
                 imageVector = Icons.Filled.TextSnippet,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(32.dp),
             )
             Spacer(Modifier.height(DSSpacing.sm))
             Text(
                 text = "Select a spec to view",
                 style = DSFont.sidebarItem,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
     }
@@ -636,7 +639,7 @@ private fun BuildOutputColumn(
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.background(DSColor.surfaceRaised)) {
+    Column(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
         BuildHeader(
             command = buildState.selectedCommand,
             taskName = buildState.taskName,
@@ -651,7 +654,7 @@ private fun BuildOutputColumn(
             canRun = activeProjectId != null,
         )
 
-        HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
         val outputLines = remember(buildState.output) {
             buildState.output.lines().filter { it.isNotEmpty() }
@@ -664,7 +667,7 @@ private fun BuildOutputColumn(
         }
 
         if (generatedFiles.isNotEmpty()) {
-            HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+            HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
             GeneratedFilesSection(files = generatedFiles)
         }
     }
@@ -697,7 +700,7 @@ private fun BuildHeader(
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(DSColor.agentCodeSpeak, CircleShape),
+                    .background(LocalDSColors.current.agentCodeSpeak, CircleShape),
             )
             Spacer(Modifier.width(DSSpacing.xs))
 
@@ -740,8 +743,8 @@ private fun BuildHeader(
 @Composable
 private fun ExitStatsBadge(stats: SpecStats) {
     val badge = if (stats.allPassing) "PASS" else "FAIL"
-    val badgeColor = if (stats.allPassing) DSColor.gitAdded else DSColor.gitDeleted
-    val badgeBg = if (stats.allPassing) DSColor.diffAddedBg else DSColor.diffDeletedBg
+    val badgeColor = if (stats.allPassing) LocalDSColors.current.gitAdded else LocalDSColors.current.gitDeleted
+    val badgeBg = if (stats.allPassing) LocalDSColors.current.diffAddedBg else LocalDSColors.current.diffDeletedBg
 
     Text(
         text = badge,
@@ -755,7 +758,7 @@ private fun ExitStatsBadge(stats: SpecStats) {
     Text(
         text = "${stats.passing}/${stats.total}",
         style = DSFont.sidebarItemSmall,
-        color = if (stats.allPassing) DSColor.gitAdded else DSColor.gitModified,
+        color = if (stats.allPassing) LocalDSColors.current.gitAdded else LocalDSColors.current.gitModified,
     )
 }
 
@@ -778,13 +781,13 @@ private fun CommandSelectorDropdown(
             Text(
                 text = selected.displayName,
                 style = DSFont.sidebarSection,
-                color = if (isRunning) DSColor.textSecondary else DSColor.textPrimary,
+                color = if (isRunning) LocalDSColors.current.textSecondary else LocalDSColors.current.textPrimary,
             )
             Spacer(Modifier.width(DSSpacing.xxs))
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowDown,
                 contentDescription = "Select command",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(12.dp),
             )
         }
@@ -799,7 +802,7 @@ private fun CommandSelectorDropdown(
                         Text(
                             text = cmd.displayName,
                             style = DSFont.sidebarItem,
-                            color = if (cmd == selected) DSColor.accentPrimary else DSColor.textPrimary,
+                            color = if (cmd == selected) LocalDSColors.current.accentPrimary else LocalDSColors.current.textPrimary,
                         )
                     },
                     onClick = {
@@ -832,9 +835,9 @@ private fun PlayStopButton(
     )
 
     val iconColor = when {
-        isRunning -> DSColor.actionStop.copy(alpha = pulseAlpha)
-        !canRun -> DSColor.textDisabled
-        else -> DSColor.actionRun
+        isRunning -> LocalDSColors.current.actionStop.copy(alpha = pulseAlpha)
+        !canRun -> LocalDSColors.current.textDisabled
+        else -> LocalDSColors.current.actionRun
     }
 
     IconButton(
@@ -874,7 +877,7 @@ private fun CommandInputRow(
         Text(
             text = command.inputLabel,
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
             modifier = Modifier.width(44.dp),
         )
         Spacer(Modifier.width(DSSpacing.xs))
@@ -882,12 +885,12 @@ private fun CommandInputRow(
             value = value,
             onValueChange = { if (!isRunning) onValueChange(it) },
             enabled = !isRunning,
-            textStyle = DSFont.sidebarItem.copy(color = DSColor.textPrimary),
-            cursorBrush = SolidColor(DSColor.accentPrimary),
+            textStyle = DSFont.sidebarItem.copy(color = LocalDSColors.current.textPrimary),
+            cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
             singleLine = true,
             modifier = Modifier
                 .weight(1f)
-                .background(DSColor.surfaceInput, RoundedCornerShape(DSRadius.sm))
+                .background(LocalDSColors.current.surfaceInput, RoundedCornerShape(DSRadius.sm))
                 .padding(horizontal = DSSpacing.xs, vertical = DSSpacing.xxs),
             decorationBox = { innerTextField ->
                 Box {
@@ -895,7 +898,7 @@ private fun CommandInputRow(
                         Text(
                             text = command.inputPlaceholder,
                             style = DSFont.sidebarItem,
-                            color = DSColor.textMuted,
+                            color = LocalDSColors.current.textMuted,
                         )
                     }
                     innerTextField()
@@ -932,7 +935,7 @@ private fun BuildOutputLines(
                     style = TextStyle(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
-                        color = buildLineColor(line),
+                        color = buildLineColor(line, LocalDSColors.current),
                         lineHeight = 16.sp,
                     ),
                     modifier = Modifier
@@ -954,14 +957,14 @@ private fun BuildOutputLines(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(8.dp),
-                        color = DSColor.indicatorRunning,
+                        color = LocalDSColors.current.indicatorRunning,
                         strokeWidth = 1.5.dp,
                     )
                     Spacer(Modifier.width(DSSpacing.xs))
                     Text(
                         text = "running\u2026",
                         style = DSFont.monoSmall,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 }
             }
@@ -970,17 +973,17 @@ private fun BuildOutputLines(
 }
 
 /** Returns the appropriate terminal-line color following Swift source rules. */
-private fun buildLineColor(line: String): Color {
+private fun buildLineColor(line: String, colors: DSColors): Color {
     val lower = line.lowercase()
     return when {
         lower.contains("error") || lower.contains("fail") || line.startsWith("\u26A0") ->
-            DSColor.gitDeleted
+            colors.gitDeleted
         lower.contains("pass") || lower.contains("ok") ||
             line.contains("\u2713") || line.contains("\u2714") ->
-            DSColor.gitAdded
+            colors.gitAdded
         lower.contains("warn") ->
-            DSColor.gitModified
-        else -> DSColor.textSecondary
+            colors.gitModified
+        else -> colors.textSecondary
     }
 }
 
@@ -991,20 +994,20 @@ private fun BuildEmptyState(command: CodeSpeakCommand) {
             Icon(
                 imageVector = Icons.Filled.PlayArrow,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(28.dp),
             )
             Spacer(Modifier.height(DSSpacing.sm))
             Text(
                 text = "Run CodeSpeak to see output",
                 style = DSFont.sidebarItem,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
             Spacer(Modifier.height(DSSpacing.xxs))
             Text(
                 text = "Press \u25B6 to ${command.displayName.lowercase()}",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textDisabled,
+                color = LocalDSColors.current.textDisabled,
             )
         }
     }
@@ -1029,20 +1032,20 @@ private fun GeneratedFilesSection(files: List<GeneratedFile>) {
             Icon(
                 imageVector = if (expanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
                 contentDescription = if (expanded) "Collapse generated files" else "Expand generated files",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(DSLayout.chevronFrameWidth),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = "GENERATED",
                 style = DSFont.sidebarSection,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = "${files.size}",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
 
@@ -1060,7 +1063,7 @@ private fun GeneratedFilesSection(files: List<GeneratedFile>) {
                     Icon(
                         imageVector = Icons.Filled.CheckCircle,
                         contentDescription = null,
-                        tint = DSColor.gitAdded,
+                        tint = LocalDSColors.current.gitAdded,
                         modifier = Modifier.size(10.dp),
                     )
                     Spacer(Modifier.width(DSSpacing.xs))
@@ -1068,14 +1071,14 @@ private fun GeneratedFilesSection(files: List<GeneratedFile>) {
                         Text(
                             text = file.name,
                             style = DSFont.sidebarItem,
-                            color = DSColor.textSecondary,
+                            color = LocalDSColors.current.textSecondary,
                             maxLines = 1,
                         )
                         if (file.specName.isNotEmpty()) {
                             Text(
                                 text = file.specName,
                                 style = DSFont.sidebarItemSmall,
-                                color = DSColor.textMuted,
+                                color = LocalDSColors.current.textMuted,
                                 maxLines = 1,
                             )
                         }
@@ -1088,7 +1091,7 @@ private fun GeneratedFilesSection(files: List<GeneratedFile>) {
 
 // ── Syntax highlighting helpers ───────────────────────────────────────────────
 
-private fun highlightCodeSpeak(content: String): AnnotatedString {
+private fun highlightCodeSpeak(content: String, colors: DSColors): AnnotatedString {
     val parser = CodeSpeakSyntaxParser()
     return buildAnnotatedString {
         append(content)
@@ -1098,7 +1101,7 @@ private fun highlightCodeSpeak(content: String): AnnotatedString {
             val lineEnd = offset + line.length
             val (tokens, nextContext) = parser.parseLine(line, offset, lineEnd, context)
             for (token in tokens) {
-                val style = tokenStyle(token.kind)
+                val style = tokenStyle(token.kind, colors)
                 if (style != null) {
                     addStyle(style, token.startOffset, token.endOffset.coerceAtMost(length))
                 }
@@ -1109,24 +1112,24 @@ private fun highlightCodeSpeak(content: String): AnnotatedString {
     }
 }
 
-private fun tokenStyle(kind: SyntaxTokenKind): SpanStyle? = when (kind) {
-    SyntaxTokenKind.HEADING -> SpanStyle(color = DSColor.accentPrimary, fontWeight = FontWeight.Bold)
+private fun tokenStyle(kind: SyntaxTokenKind, colors: DSColors): SpanStyle? = when (kind) {
+    SyntaxTokenKind.HEADING -> SpanStyle(color = colors.accentPrimary, fontWeight = FontWeight.Bold)
     SyntaxTokenKind.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
     SyntaxTokenKind.ITALIC -> SpanStyle(fontWeight = FontWeight.Light)
-    SyntaxTokenKind.INLINE_CODE -> SpanStyle(color = DSColor.gitModified, fontFamily = FontFamily.Monospace)
-    SyntaxTokenKind.CODE_BLOCK_FENCE -> SpanStyle(color = DSColor.textMuted)
-    SyntaxTokenKind.CODE_BLOCK_BODY -> SpanStyle(color = DSColor.textSecondary)
-    SyntaxTokenKind.COMMENT -> SpanStyle(color = DSColor.textMuted)
-    SyntaxTokenKind.FRONTMATTER_DELIMITER -> SpanStyle(color = DSColor.textMuted)
-    SyntaxTokenKind.FRONTMATTER_KEY -> SpanStyle(color = DSColor.accentPrimary)
-    SyntaxTokenKind.FRONTMATTER_VALUE -> SpanStyle(color = DSColor.gitAdded)
-    SyntaxTokenKind.CS_DIRECTIVE -> SpanStyle(color = DSColor.agentCodeSpeak, fontWeight = FontWeight.Bold)
-    SyntaxTokenKind.CS_FILE_REF -> SpanStyle(color = DSColor.accentSecondary)
-    SyntaxTokenKind.LINK -> SpanStyle(color = DSColor.accentPrimary)
-    SyntaxTokenKind.LINK_URL -> SpanStyle(color = DSColor.accentSecondary)
-    SyntaxTokenKind.BLOCKQUOTE -> SpanStyle(color = DSColor.textSecondary)
-    SyntaxTokenKind.LIST_MARKER -> SpanStyle(color = DSColor.accentPrimary)
-    SyntaxTokenKind.HORIZONTAL_RULE -> SpanStyle(color = DSColor.textMuted)
+    SyntaxTokenKind.INLINE_CODE -> SpanStyle(color = colors.gitModified, fontFamily = FontFamily.Monospace)
+    SyntaxTokenKind.CODE_BLOCK_FENCE -> SpanStyle(color = colors.textMuted)
+    SyntaxTokenKind.CODE_BLOCK_BODY -> SpanStyle(color = colors.textSecondary)
+    SyntaxTokenKind.COMMENT -> SpanStyle(color = colors.textMuted)
+    SyntaxTokenKind.FRONTMATTER_DELIMITER -> SpanStyle(color = colors.textMuted)
+    SyntaxTokenKind.FRONTMATTER_KEY -> SpanStyle(color = colors.accentPrimary)
+    SyntaxTokenKind.FRONTMATTER_VALUE -> SpanStyle(color = colors.gitAdded)
+    SyntaxTokenKind.CS_DIRECTIVE -> SpanStyle(color = colors.agentCodeSpeak, fontWeight = FontWeight.Bold)
+    SyntaxTokenKind.CS_FILE_REF -> SpanStyle(color = colors.accentSecondary)
+    SyntaxTokenKind.LINK -> SpanStyle(color = colors.accentPrimary)
+    SyntaxTokenKind.LINK_URL -> SpanStyle(color = colors.accentSecondary)
+    SyntaxTokenKind.BLOCKQUOTE -> SpanStyle(color = colors.textSecondary)
+    SyntaxTokenKind.LIST_MARKER -> SpanStyle(color = colors.accentPrimary)
+    SyntaxTokenKind.HORIZONTAL_RULE -> SpanStyle(color = colors.textMuted)
     SyntaxTokenKind.PLAIN -> null
     else -> null
 }
@@ -1149,6 +1152,6 @@ private fun CodeSpeakResizeHandle(onDrag: (Float) -> Unit) {
                     onDrag(dragAmount.x)
                 }
             }
-            .background(DSColor.borderDefault),
+            .background(LocalDSColors.current.borderDefault),
     )
 }

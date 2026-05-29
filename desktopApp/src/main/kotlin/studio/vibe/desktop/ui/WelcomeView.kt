@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -67,7 +68,7 @@ fun WelcomeView(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase),
+            .background(LocalDSColors.current.surfaceBase),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -80,7 +81,7 @@ fun WelcomeView(
             Icon(
                 Icons.Default.Terminal,
                 contentDescription = null,
-                tint = DSColor.accentPrimary,
+                tint = LocalDSColors.current.accentPrimary,
                 modifier = Modifier.size(48.dp),
             )
 
@@ -90,7 +91,7 @@ fun WelcomeView(
             Text(
                 text = "VibeStudio",
                 style = DSFont.welcomeTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
 
             Spacer(Modifier.height(DSSpacing.sm))
@@ -99,7 +100,7 @@ fun WelcomeView(
             Text(
                 text = "Open a folder to get started",
                 style = DSFont.sidebarItem,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
                 textAlign = TextAlign.Center,
             )
 
@@ -112,8 +113,8 @@ fun WelcomeView(
                     onClick = onCreateNew,
                     shape = RoundedCornerShape(DSRadius.md),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = DSColor.buttonPrimaryBg,
-                        contentColor = DSColor.buttonPrimaryText,
+                        containerColor = LocalDSColors.current.buttonPrimaryBg,
+                        contentColor = LocalDSColors.current.buttonPrimaryText,
                     ),
                     modifier = Modifier.height(28.dp),
                 ) {
@@ -126,7 +127,7 @@ fun WelcomeView(
                     Text(
                         text = "Create New",
                         style = DSFont.buttonLabel,
-                        color = DSColor.buttonPrimaryText,
+                        color = LocalDSColors.current.buttonPrimaryText,
                     )
                 }
 
@@ -134,10 +135,10 @@ fun WelcomeView(
                 OutlinedButton(
                     onClick = onOpenProject,
                     shape = RoundedCornerShape(DSRadius.md),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DSColor.borderDefault),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, LocalDSColors.current.borderDefault),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = DSColor.surfaceOverlay,
-                        contentColor = DSColor.textPrimary,
+                        containerColor = LocalDSColors.current.surfaceOverlay,
+                        contentColor = LocalDSColors.current.textPrimary,
                     ),
                     modifier = Modifier.height(28.dp),
                 ) {
@@ -150,7 +151,7 @@ fun WelcomeView(
                     Text(
                         text = "Open Folder",
                         style = DSFont.buttonLabel,
-                        color = DSColor.textPrimary,
+                        color = LocalDSColors.current.textPrimary,
                     )
                 }
             }
@@ -162,7 +163,7 @@ fun WelcomeView(
                 Text(
                     text = "RECENT",
                     style = DSFont.sidebarSection,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = DSSpacing.xxs),
@@ -201,7 +202,7 @@ private fun RecentProjectRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(DSRadius.sm))
             .hoverable(interactionSource)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
@@ -209,7 +210,7 @@ private fun RecentProjectRow(
         Icon(
             Icons.Default.Folder,
             contentDescription = null,
-            tint = DSColor.gitModified,
+            tint = LocalDSColors.current.gitModified,
             modifier = Modifier.size(DSFont.iconLG.value.dp),
         )
 
@@ -219,14 +220,14 @@ private fun RecentProjectRow(
             Text(
                 text = project.name,
                 style = DSFont.sidebarItem,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = project.path.path,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

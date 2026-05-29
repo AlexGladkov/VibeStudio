@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -101,7 +102,7 @@ private fun ClaudeEditorContent(onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase)
+            .background(LocalDSColors.current.surfaceBase)
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) {
                     onDismiss()
@@ -116,20 +117,20 @@ private fun ClaudeEditorContent(onDismiss: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DSColor.surfaceRaised)
+                .background(LocalDSColors.current.surfaceRaised)
                 .padding(horizontal = DSSpacing.lg, vertical = DSSpacing.sm),
         ) {
             Text(
                 text = "CLAUDE.md",
                 style = DSFont.settingsTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
             )
             Spacer(Modifier.width(DSSpacing.sm))
             Text(
                 text = displayPath,
                 style = DSFont.monoSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
                 maxLines = 1,
             )
             Spacer(Modifier.weight(1f))
@@ -140,13 +141,13 @@ private fun ClaudeEditorContent(onDismiss: () -> Unit) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = "Закрыть",
-                    tint = DSColor.textMuted,
+                    tint = LocalDSColors.current.textMuted,
                     modifier = Modifier.size(14.dp),
                 )
             }
         }
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         // ── Editor ───────────────────────────────────────────────────────────
         MarkdownEditorView(
@@ -156,26 +157,26 @@ private fun ClaudeEditorContent(onDismiss: () -> Unit) {
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         // ── Bottom bar ───────────────────────────────────────────────────────
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DSColor.surfaceRaised)
+                .background(LocalDSColors.current.surfaceRaised)
                 .padding(horizontal = DSSpacing.lg, vertical = DSSpacing.sm),
         ) {
             when {
                 saveError != null -> Text(
                     text = saveError!!,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.gitDeleted,
+                    color = LocalDSColors.current.gitDeleted,
                 )
                 hasUnsavedChanges -> Text(
                     text = "Есть несохранённые изменения",
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -184,10 +185,10 @@ private fun ClaudeEditorContent(onDismiss: () -> Unit) {
                 enabled = hasUnsavedChanges,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DSColor.accentPrimary,
-                    contentColor = DSColor.buttonPrimaryText,
-                    disabledContainerColor = DSColor.surfaceOverlay,
-                    disabledContentColor = DSColor.textDisabled,
+                    containerColor = LocalDSColors.current.accentPrimary,
+                    contentColor = LocalDSColors.current.buttonPrimaryText,
+                    disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                    disabledContentColor = LocalDSColors.current.textDisabled,
                 ),
             ) {
                 Text("Сохранить", style = DSFont.buttonLabel)

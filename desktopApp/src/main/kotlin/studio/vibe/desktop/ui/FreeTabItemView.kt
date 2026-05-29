@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -110,10 +111,10 @@ fun FreeTabItemView(
     var showCloseConfirm by remember { mutableStateOf(false) }
 
     val bgColor = when {
-        isDragging -> DSColor.surfaceTabActive
-        isActive   -> DSColor.surfaceTabActive
-        isHovered  -> DSColor.surfaceTabHover
-        else       -> DSColor.surfaceTabInactive
+        isDragging -> LocalDSColors.current.surfaceTabActive
+        isActive   -> LocalDSColors.current.surfaceTabActive
+        isHovered  -> LocalDSColors.current.surfaceTabHover
+        else       -> LocalDSColors.current.surfaceTabInactive
     }
 
     Box(
@@ -148,7 +149,7 @@ fun FreeTabItemView(
             Icon(
                 Icons.Default.Terminal,
                 contentDescription = null,
-                tint = if (isActive || isHovered) DSColor.textPrimary else DSColor.textSecondary,
+                tint = if (isActive || isHovered) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
                 modifier = Modifier.size(DSFont.iconMD.value.dp),
             )
 
@@ -158,8 +159,8 @@ fun FreeTabItemView(
                     value = editText,
                     onValueChange = { editText = it },
                     singleLine = true,
-                    textStyle = DSFont.tabTitle.copy(color = DSColor.textPrimary),
-                    cursorBrush = SolidColor(DSColor.accentPrimary),
+                    textStyle = DSFont.tabTitle.copy(color = LocalDSColors.current.textPrimary),
+                    cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(focusRequester)
@@ -183,7 +184,7 @@ fun FreeTabItemView(
                 Text(
                     text = title,
                     style = DSFont.tabTitle,
-                    color = if (isActive || isHovered) DSColor.textPrimary else DSColor.textSecondary,
+                    color = if (isActive || isHovered) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )
@@ -209,7 +210,7 @@ fun FreeTabItemView(
                     .align(Alignment.BottomCenter)
                     .width(DSLayout.tabMinWidth)
                     .height(DSLayout.tabActiveIndicatorHeight)
-                    .background(DSColor.accentPrimary),
+                    .background(LocalDSColors.current.accentPrimary),
             )
         }
     }
@@ -261,7 +262,7 @@ private fun FreeTabCloseButton(onClick: () -> Unit) {
         modifier = Modifier
             .size(DSLayout.tabCloseSize)
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .hoverable(interactionSource)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -269,7 +270,7 @@ private fun FreeTabCloseButton(onClick: () -> Unit) {
         Icon(
             Icons.Default.Close,
             contentDescription = "Close tab",
-            tint = DSColor.textSecondary,
+            tint = LocalDSColors.current.textSecondary,
             modifier = Modifier.size(DSLayout.tabCloseIconSize.value.dp),
         )
     }

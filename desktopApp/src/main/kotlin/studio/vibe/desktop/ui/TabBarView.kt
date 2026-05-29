@@ -55,6 +55,7 @@ import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -95,7 +96,7 @@ fun TabBarView(
     Row(
         modifier = Modifier
             .height(DSLayout.tabBarHeight)
-            .background(DSColor.surfaceTabBar),
+            .background(LocalDSColors.current.surfaceTabBar),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Scrollable tab strip
@@ -172,7 +173,7 @@ fun TabBarView(
             Icon(
                 Icons.Default.Add,
                 contentDescription = "New project",
-                tint = DSColor.textSecondary,
+                tint = LocalDSColors.current.textSecondary,
                 modifier = Modifier.size(DSFont.tabTitle.fontSize.value.dp),
             )
         }
@@ -205,10 +206,10 @@ private fun TabItem(
     var showCloseConfirm by remember { mutableStateOf(false) }
 
     val bgColor = when {
-        isDragging -> DSColor.surfaceTabActive
-        isActive   -> DSColor.surfaceTabActive
-        isHovered  -> DSColor.surfaceTabHover
-        else       -> DSColor.surfaceTabInactive
+        isDragging -> LocalDSColors.current.surfaceTabActive
+        isActive   -> LocalDSColors.current.surfaceTabActive
+        isHovered  -> LocalDSColors.current.surfaceTabHover
+        else       -> LocalDSColors.current.surfaceTabInactive
     }
 
     // Drop-zone highlight: the slot currently hovered by a foreign dragged tab
@@ -243,7 +244,7 @@ private fun TabItem(
                 .height(DSLayout.tabHeight)
                 .clip(RoundedCornerShape(topStart = DSRadius.md, topEnd = DSRadius.md))
                 .background(
-                    if (dropHighlight) DSColor.surfaceTabHover.copy(alpha = 0.6f)
+                    if (dropHighlight) LocalDSColors.current.surfaceTabHover.copy(alpha = 0.6f)
                     else bgColor
                 )
                 .hoverable(interactionSource)
@@ -260,7 +261,7 @@ private fun TabItem(
             Text(
                 text = name,
                 style = DSFont.tabTitle,
-                color = if (isActive || isHovered) DSColor.textPrimary else DSColor.textSecondary,
+                color = if (isActive || isHovered) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -290,7 +291,7 @@ private fun TabItem(
                     .align(Alignment.BottomCenter)
                     .width(DSLayout.tabMinWidth)
                     .height(DSLayout.tabActiveIndicatorHeight)
-                    .background(DSColor.accentPrimary),
+                    .background(LocalDSColors.current.accentPrimary),
             )
         }
     }
@@ -337,19 +338,19 @@ private fun ActivityDot(state: TabActivityState) {
 
     when (state) {
         TabActivityState.IDLE, TabActivityState.HIDDEN -> {
-            dotColor = DSColor.indicatorIdle
+            dotColor = LocalDSColors.current.indicatorIdle
             shouldPulse = false
         }
         TabActivityState.RUNNING -> {
-            dotColor = DSColor.indicatorRunning
+            dotColor = LocalDSColors.current.indicatorRunning
             shouldPulse = true
         }
         TabActivityState.WAITING_FOR_INPUT -> {
-            dotColor = DSColor.indicatorWaiting
+            dotColor = LocalDSColors.current.indicatorWaiting
             shouldPulse = false
         }
         TabActivityState.ERROR -> {
-            dotColor = DSColor.indicatorError
+            dotColor = LocalDSColors.current.indicatorError
             shouldPulse = false
         }
     }
@@ -389,7 +390,7 @@ private fun CloseButton(onClick: () -> Unit) {
         modifier = Modifier
             .size(DSLayout.tabCloseSize)
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .hoverable(interactionSource)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -397,7 +398,7 @@ private fun CloseButton(onClick: () -> Unit) {
         Icon(
             Icons.Default.Close,
             contentDescription = "Close tab",
-            tint = DSColor.textSecondary,
+            tint = LocalDSColors.current.textSecondary,
             modifier = Modifier.size(DSLayout.tabCloseIconSize.value.dp),
         )
     }

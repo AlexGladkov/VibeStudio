@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -54,7 +55,7 @@ fun SettingsSectionHeader(
         Text(
             text = title,
             style = DSFont.buttonLabel,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
 
         Spacer(Modifier.weight(1f))
@@ -67,7 +68,7 @@ fun SettingsSectionHeader(
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Add $title",
-                    tint = DSColor.textSecondary,
+                    tint = LocalDSColors.current.textSecondary,
                     modifier = Modifier.size(14.dp),
                 )
             }
@@ -107,7 +108,7 @@ fun SettingsItemRow(
             Text(
                 text = name,
                 style = DSFont.buttonLabel,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
             )
 
@@ -115,7 +116,7 @@ fun SettingsItemRow(
                 Text(
                     text = subtitle,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                     maxLines = 1,
                 )
             }
@@ -130,7 +131,7 @@ fun SettingsItemRow(
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Edit $name",
-                    tint = DSColor.textSecondary,
+                    tint = LocalDSColors.current.textSecondary,
                     modifier = Modifier.size(14.dp),
                 )
             }
@@ -144,7 +145,7 @@ fun SettingsItemRow(
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Delete $name",
-                    tint = DSColor.gitDeleted,
+                    tint = LocalDSColors.current.gitDeleted,
                     modifier = Modifier.size(14.dp),
                 )
             }
@@ -168,8 +169,8 @@ fun SettingsCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(DSRadius.md))
-            .background(DSColor.surfaceOverlay)
-            .border(1.dp, DSColor.borderSubtle, RoundedCornerShape(DSRadius.md)),
+            .background(LocalDSColors.current.surfaceOverlay)
+            .border(1.dp, LocalDSColors.current.borderSubtle, RoundedCornerShape(DSRadius.md)),
     ) {
         content()
     }
@@ -186,7 +187,7 @@ fun SettingsEmptyState(text: String) {
         Text(
             text = text,
             style = DSFont.bodySmall,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
             modifier = Modifier.padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
         )
     }
@@ -200,7 +201,7 @@ fun SettingsEmptyState(text: String) {
 @Composable
 fun SettingsListDivider() {
     HorizontalDivider(
-        color = DSColor.borderSubtle,
+        color = LocalDSColors.current.borderSubtle,
         thickness = 1.dp,
         modifier = Modifier.padding(horizontal = DSSpacing.md),
     )
@@ -233,12 +234,12 @@ fun SettingsToggleRow(
             Text(
                 text = title,
                 style = DSFont.buttonLabel,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
             Text(
                 text = description,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
         }
 
@@ -249,9 +250,9 @@ fun SettingsToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = DSColor.accentPrimary,
-                uncheckedThumbColor = DSColor.textMuted,
-                uncheckedTrackColor = DSColor.surfaceOverlay,
+                checkedTrackColor = LocalDSColors.current.accentPrimary,
+                uncheckedThumbColor = LocalDSColors.current.textMuted,
+                uncheckedTrackColor = LocalDSColors.current.surfaceOverlay,
             ),
         )
     }
@@ -280,7 +281,7 @@ fun SettingsLabelRow(
         Text(
             text = label,
             style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             modifier = Modifier.width(170.dp),
         )
         trailing()
@@ -301,7 +302,7 @@ fun SettingsMonoBlock(
         Text(
             text = text,
             style = DSFont.monoPath,
-            color = DSColor.accentPrimary,
+            color = LocalDSColors.current.accentPrimary,
             modifier = Modifier.padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
         )
     }
@@ -317,8 +318,8 @@ fun SettingsPaneTitle(title: String) {
     Text(
         text = title,
         style = DSFont.settingsTitle,
-        color = DSColor.textPrimary,
+        color = LocalDSColors.current.textPrimary,
     )
     Spacer(Modifier.height(DSSpacing.xs))
-    HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+    HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 }

@@ -40,6 +40,7 @@ import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -118,7 +119,7 @@ private fun ProjectSettingsContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .padding(DSSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.lg),
     ) {
@@ -127,17 +128,17 @@ private fun ProjectSettingsContent(
             Text(
                 text = "Project Settings",
                 style = DSFont.settingsTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
             Text(
                 text = projectName,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
             Text(
                 text = projectPath,
                 style = DSFont.monoSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
 
@@ -145,7 +146,7 @@ private fun ProjectSettingsContent(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderDefault),
+                .background(LocalDSColors.current.borderDefault),
         )
 
         // Production URL field
@@ -153,7 +154,7 @@ private fun ProjectSettingsContent(
             Text(
                 text = "Production URL",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             OutlinedTextField(
                 value = productionURL,
@@ -162,21 +163,21 @@ private fun ProjectSettingsContent(
                     Text(
                         "https://example.com",
                         style = DSFont.commitInput,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 },
-                textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                textStyle = DSFont.commitInput.copy(color = LocalDSColors.current.textPrimary),
                 singleLine = true,
                 isError = errorMessage != null,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = DSColor.borderFocus,
-                    unfocusedBorderColor = DSColor.borderDefault,
-                    errorBorderColor = DSColor.gitDeleted,
-                    cursorColor = DSColor.accentPrimary,
-                    focusedContainerColor = DSColor.surfaceInput,
-                    unfocusedContainerColor = DSColor.surfaceInput,
-                    errorContainerColor = DSColor.surfaceInput,
+                    focusedBorderColor = LocalDSColors.current.borderFocus,
+                    unfocusedBorderColor = LocalDSColors.current.borderDefault,
+                    errorBorderColor = LocalDSColors.current.gitDeleted,
+                    cursorColor = LocalDSColors.current.accentPrimary,
+                    focusedContainerColor = LocalDSColors.current.surfaceInput,
+                    unfocusedContainerColor = LocalDSColors.current.surfaceInput,
+                    errorContainerColor = LocalDSColors.current.surfaceInput,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -190,13 +191,13 @@ private fun ProjectSettingsContent(
             Text(
                 text = "Used for the \"Open in Browser\" toolbar action",
                 style = DSFont.monoSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
             if (errorMessage != null) {
                 Text(
                     text = errorMessage,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.gitDeleted,
+                    color = LocalDSColors.current.gitDeleted,
                 )
             }
         }
@@ -212,7 +213,7 @@ private fun ProjectSettingsContent(
             OutlinedButton(
                 onClick = onCancel,
                 shape = RoundedCornerShape(DSRadius.md),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = DSColor.textSecondary),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = LocalDSColors.current.textSecondary),
             ) {
                 Text("Cancel", style = DSFont.buttonLabel)
             }
@@ -221,10 +222,10 @@ private fun ProjectSettingsContent(
                 onClick = onSave,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DSColor.buttonPrimaryBg,
-                    contentColor = DSColor.buttonPrimaryText,
-                    disabledContainerColor = DSColor.surfaceOverlay,
-                    disabledContentColor = DSColor.textDisabled,
+                    containerColor = LocalDSColors.current.buttonPrimaryBg,
+                    contentColor = LocalDSColors.current.buttonPrimaryText,
+                    disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                    disabledContentColor = LocalDSColors.current.textDisabled,
                 ),
                 modifier = Modifier.width(80.dp),
             ) {

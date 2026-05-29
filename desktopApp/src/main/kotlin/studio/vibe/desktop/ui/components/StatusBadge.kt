@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.desktop.ui.theme.LocalDSColors
 
 /**
  * Compact status badge — small pill with colored text and translucent background.
@@ -18,9 +19,9 @@ import studio.vibe.desktop.ui.theme.DSSpacing
  *
  * Usage:
  * ```kotlin
- * StatusBadge("STAGED", color = DSColor.accentPrimary)
- * StatusBadge("PASS",   color = DSColor.gitAdded)
- * StatusBadge("FAIL",   color = DSColor.gitDeleted)
+ * StatusBadge("STAGED", color = LocalDSColors.current.accentPrimary)
+ * StatusBadge("PASS",   color = LocalDSColors.current.gitAdded)
+ * StatusBadge("FAIL",   color = LocalDSColors.current.gitDeleted)
  * ```
  */
 @Composable

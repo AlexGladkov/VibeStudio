@@ -47,6 +47,7 @@ import androidx.compose.ui.window.rememberDialogState
 import kotlinx.coroutines.launch
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -153,7 +154,7 @@ private fun SpecWizardContent(
 
     Column(
         modifier = Modifier
-            .background(DSColor.surfaceBase)
+            .background(LocalDSColors.current.surfaceBase)
             .padding(0.dp),
     ) {
         // ── Header ──────────────────────────────────────────────────────────
@@ -167,14 +168,14 @@ private fun SpecWizardContent(
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = null,
-                tint = DSColor.agentCodeSpeak,
+                tint = LocalDSColors.current.agentCodeSpeak,
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.width(DSSpacing.sm))
             Text(
                 text = "New Spec",
                 style = DSFont.settingsTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
         }
 
@@ -183,7 +184,7 @@ private fun SpecWizardContent(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderDefault),
+                .background(LocalDSColors.current.borderDefault),
         )
 
         // ── Body ────────────────────────────────────────────────────────────
@@ -196,7 +197,7 @@ private fun SpecWizardContent(
             Text(
                 text = "File name",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             OutlinedTextField(
                 value = specName,
@@ -205,21 +206,21 @@ private fun SpecWizardContent(
                     Text(
                         "e.g. user-auth",
                         style = DSFont.commitInput,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 },
-                textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                textStyle = DSFont.commitInput.copy(color = LocalDSColors.current.textPrimary),
                 singleLine = true,
                 isError = errorMessage != null,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = DSColor.borderFocus,
-                    unfocusedBorderColor = DSColor.borderDefault,
-                    errorBorderColor = DSColor.gitDeleted,
-                    cursorColor = DSColor.accentPrimary,
-                    focusedContainerColor = DSColor.surfaceInput,
-                    unfocusedContainerColor = DSColor.surfaceInput,
-                    errorContainerColor = DSColor.surfaceInput,
+                    focusedBorderColor = LocalDSColors.current.borderFocus,
+                    unfocusedBorderColor = LocalDSColors.current.borderDefault,
+                    errorBorderColor = LocalDSColors.current.gitDeleted,
+                    cursorColor = LocalDSColors.current.accentPrimary,
+                    focusedContainerColor = LocalDSColors.current.surfaceInput,
+                    unfocusedContainerColor = LocalDSColors.current.surfaceInput,
+                    errorContainerColor = LocalDSColors.current.surfaceInput,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -238,7 +239,7 @@ private fun SpecWizardContent(
                 Text(
                     text = "spec/$sanitized.cs.md",
                     style = DSFont.monoSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                 )
             }
 
@@ -246,7 +247,7 @@ private fun SpecWizardContent(
                 Text(
                     text = errorMessage!!,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.gitDeleted,
+                    color = LocalDSColors.current.gitDeleted,
                 )
             }
         }
@@ -258,7 +259,7 @@ private fun SpecWizardContent(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderDefault),
+                .background(LocalDSColors.current.borderDefault),
         )
 
         // ── Footer ──────────────────────────────────────────────────────────
@@ -273,7 +274,7 @@ private fun SpecWizardContent(
                 onClick = onCancel,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = DSColor.textSecondary,
+                    contentColor = LocalDSColors.current.textSecondary,
                 ),
             ) {
                 Text("Cancel", style = DSFont.buttonLabel)
@@ -283,17 +284,17 @@ private fun SpecWizardContent(
                 enabled = canCreate,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DSColor.agentCodeSpeak,
-                    contentColor = DSColor.buttonPrimaryText,
-                    disabledContainerColor = DSColor.surfaceOverlay,
-                    disabledContentColor = DSColor.textDisabled,
+                    containerColor = LocalDSColors.current.agentCodeSpeak,
+                    contentColor = LocalDSColors.current.buttonPrimaryText,
+                    disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                    disabledContentColor = LocalDSColors.current.textDisabled,
                 ),
                 modifier = Modifier.width(90.dp),
             ) {
                 if (isSaving) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = DSColor.buttonPrimaryText,
+                        color = LocalDSColors.current.buttonPrimaryText,
                         strokeWidth = 2.dp,
                     )
                 } else {

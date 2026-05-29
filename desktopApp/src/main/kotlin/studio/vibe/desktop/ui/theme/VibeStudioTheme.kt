@@ -264,66 +264,6 @@ public object DSColor {
         dropTargetBg         = Color(0x1A4A9EFF),
     )
 
-    // ── Backward-compat flat properties (member properties delegating to dark) ─
-    // Allow existing call sites `DSColor.textPrimary` to compile without change.
-    // In Composables, prefer LocalDSColors.current.
-
-    val surfaceBase: Color get() = dark.surfaceBase
-    val surfaceRaised: Color get() = dark.surfaceRaised
-    val surfaceOverlay: Color get() = dark.surfaceOverlay
-    val surfaceTabBar: Color get() = dark.surfaceTabBar
-    val surfaceTabActive: Color get() = dark.surfaceTabActive
-    val surfaceTabInactive: Color get() = dark.surfaceTabInactive
-    val surfaceTabHover: Color get() = dark.surfaceTabHover
-    val surfaceInput: Color get() = dark.surfaceInput
-    val surfaceSelection: Color get() = dark.surfaceSelection
-    val surfaceToolbar: Color get() = dark.surfaceToolbar
-    val textPrimary: Color get() = dark.textPrimary
-    val textSecondary: Color get() = dark.textSecondary
-    val textMuted: Color get() = dark.textMuted
-    val textInverse: Color get() = dark.textInverse
-    val textDisabled: Color get() = dark.textDisabled
-    val textGhost: Color get() = dark.textGhost
-    val borderDefault: Color get() = dark.borderDefault
-    val borderSubtle: Color get() = dark.borderSubtle
-    val borderFocus: Color get() = dark.borderFocus
-    val accentPrimary: Color get() = dark.accentPrimary
-    val accentPrimaryHover: Color get() = dark.accentPrimaryHover
-    val accentSecondary: Color get() = dark.accentSecondary
-    val accentPrimarySubtle: Color get() = dark.accentPrimarySubtle
-    val gitModified: Color get() = dark.gitModified
-    val gitAdded: Color get() = dark.gitAdded
-    val gitDeleted: Color get() = dark.gitDeleted
-    val gitUntracked: Color get() = dark.gitUntracked
-    val gitConflicted: Color get() = dark.gitConflicted
-    val gitRenamed: Color get() = dark.gitRenamed
-    val diffAddedBg: Color get() = dark.diffAddedBg
-    val diffDeletedBg: Color get() = dark.diffDeletedBg
-    val diffGutter: Color get() = dark.diffGutter
-    val indicatorIdle: Color get() = dark.indicatorIdle
-    val indicatorRunning: Color get() = dark.indicatorRunning
-    val indicatorWaiting: Color get() = dark.indicatorWaiting
-    val indicatorError: Color get() = dark.indicatorError
-    val buttonPrimaryBg: Color get() = dark.buttonPrimaryBg
-    val buttonPrimaryText: Color get() = dark.buttonPrimaryText
-    val buttonPrimaryHoverBg: Color get() = dark.buttonPrimaryHoverBg
-    val buttonSecondaryBg: Color get() = dark.buttonSecondaryBg
-    val buttonSecondaryText: Color get() = dark.buttonSecondaryText
-    val buttonSecondaryHoverBg: Color get() = dark.buttonSecondaryHoverBg
-    val buttonDangerBg: Color get() = dark.buttonDangerBg
-    val buttonDangerText: Color get() = dark.buttonDangerText
-    val toolbarControlBg: Color get() = dark.toolbarControlBg
-    val toolbarControlBorder: Color get() = dark.toolbarControlBorder
-    val actionStop: Color get() = dark.actionStop
-    val actionRun: Color get() = dark.actionRun
-    val agentClaude: Color get() = dark.agentClaude
-    val agentOpenCode: Color get() = dark.agentOpenCode
-    val agentCodex: Color get() = dark.agentCodex
-    val agentGemini: Color get() = dark.agentGemini
-    val agentQwen: Color get() = dark.agentQwen
-    val agentCodeSpeak: Color get() = dark.agentCodeSpeak
-    val hoverOverlay: Color get() = dark.hoverOverlay
-    val dropTargetBg: Color get() = dark.dropTargetBg
 }
 
 // ── CompositionLocal ──────────────────────────────────────────────────────────

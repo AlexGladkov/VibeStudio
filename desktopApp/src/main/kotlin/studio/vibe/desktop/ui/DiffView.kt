@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 
@@ -58,7 +59,7 @@ fun DiffView(
     val rows = remember(diffText) { parseDiff(diffText) }
     val listState = rememberLazyListState()
 
-    Box(modifier = modifier.background(DSColor.surfaceBase)) {
+    Box(modifier = modifier.background(LocalDSColors.current.surfaceBase)) {
         if (rows.isEmpty()) {
             EmptyDiffPlaceholder()
         } else {
@@ -97,14 +98,14 @@ private fun HunkHeaderRow(text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(DIFF_LINE_HEIGHT)
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .padding(horizontal = DSSpacing.sm),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(
             text = text,
             style = DSFont.monoSmall,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -127,7 +128,7 @@ private fun ContentRow(left: SplitDiffCell?, right: SplitDiffCell?) {
             Modifier
                 .width(GUTTER_DIVIDER_WIDTH)
                 .fillMaxHeight()
-                .background(DSColor.diffGutter.copy(alpha = 0.25f)),
+                .background(LocalDSColors.current.diffGutter.copy(alpha = 0.25f)),
         )
         SideCell(
             cell = right,
@@ -139,11 +140,11 @@ private fun ContentRow(left: SplitDiffCell?, right: SplitDiffCell?) {
 @Composable
 private fun SideCell(cell: SplitDiffCell?, modifier: Modifier = Modifier) {
     val bgColor = when (cell?.type) {
-        DiffCellType.ADDITION -> DSColor.diffAddedBg
-        DiffCellType.DELETION -> DSColor.diffDeletedBg
+        DiffCellType.ADDITION -> LocalDSColors.current.diffAddedBg
+        DiffCellType.DELETION -> LocalDSColors.current.diffDeletedBg
         DiffCellType.CONTEXT, null -> Color.Transparent
     }
-    val emptyBg = if (cell == null) DSColor.diffGutter.copy(alpha = 0.06f) else Color.Transparent
+    val emptyBg = if (cell == null) LocalDSColors.current.diffGutter.copy(alpha = 0.06f) else Color.Transparent
 
     Row(
         modifier = modifier
@@ -155,7 +156,7 @@ private fun SideCell(cell: SplitDiffCell?, modifier: Modifier = Modifier) {
         Text(
             text = cell?.lineNumber?.toString() ?: "",
             style = DSFont.monoSmall.copy(fontSize = 11.sp),
-            color = DSColor.diffGutter,
+            color = LocalDSColors.current.diffGutter,
             modifier = Modifier
                 .width(LINE_NUMBER_WIDTH)
                 .padding(end = DSSpacing.xxs),
@@ -169,9 +170,9 @@ private fun SideCell(cell: SplitDiffCell?, modifier: Modifier = Modifier) {
             DiffCellType.CONTEXT, null -> " "
         }
         val prefixColor = when (cell?.type) {
-            DiffCellType.ADDITION -> DSColor.gitAdded
-            DiffCellType.DELETION -> DSColor.gitDeleted
-            DiffCellType.CONTEXT, null -> DSColor.textMuted
+            DiffCellType.ADDITION -> LocalDSColors.current.gitAdded
+            DiffCellType.DELETION -> LocalDSColors.current.gitDeleted
+            DiffCellType.CONTEXT, null -> LocalDSColors.current.textMuted
         }
         Text(
             text = prefixText,
@@ -183,9 +184,9 @@ private fun SideCell(cell: SplitDiffCell?, modifier: Modifier = Modifier) {
 
         // Line content
         val contentColor = when (cell?.type) {
-            DiffCellType.ADDITION -> DSColor.gitAdded
-            DiffCellType.DELETION -> DSColor.gitDeleted
-            DiffCellType.CONTEXT -> DSColor.textSecondary
+            DiffCellType.ADDITION -> LocalDSColors.current.gitAdded
+            DiffCellType.DELETION -> LocalDSColors.current.gitDeleted
+            DiffCellType.CONTEXT -> LocalDSColors.current.textSecondary
             null -> Color.Transparent
         }
         Text(
@@ -207,7 +208,7 @@ private fun EmptyDiffPlaceholder() {
         Text(
             text = "No changes",
             style = DSFont.sidebarItem,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
         )
     }
 }

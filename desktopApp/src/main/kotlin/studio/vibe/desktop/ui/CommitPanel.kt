@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -89,14 +90,14 @@ fun CommitPanel(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderSubtle),
+                .background(LocalDSColors.current.borderSubtle),
         )
 
         // Input container: summary + description in a single rounded box
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DSColor.surfaceInput, RoundedCornerShape(DSRadius.md))
+                .background(LocalDSColors.current.surfaceInput, RoundedCornerShape(DSRadius.md))
                 .then(
                     Modifier.run {
                         // Stroke via outline drawn on top
@@ -120,23 +121,23 @@ fun CommitPanel(
                         Text(
                             "Commit summary",
                             style = DSFont.commitInput,
-                            color = DSColor.textMuted,
+                            color = LocalDSColors.current.textMuted,
                         )
                     },
-                    textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                    textStyle = DSFont.commitInput.copy(color = LocalDSColors.current.textPrimary),
                     maxLines = 3,
                     minLines = 1,
                     enabled = !isCommitting,
                     shape = RoundedCornerShape(DSRadius.sm),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = DSColor.borderFocus,
-                        unfocusedBorderColor = DSColor.borderDefault,
-                        cursorColor = DSColor.accentPrimary,
-                        focusedContainerColor = DSColor.surfaceInput,
-                        unfocusedContainerColor = DSColor.surfaceInput,
-                        disabledContainerColor = DSColor.surfaceInput,
-                        disabledBorderColor = DSColor.borderDefault,
-                        disabledTextColor = DSColor.textDisabled,
+                        focusedBorderColor = LocalDSColors.current.borderFocus,
+                        unfocusedBorderColor = LocalDSColors.current.borderDefault,
+                        cursorColor = LocalDSColors.current.accentPrimary,
+                        focusedContainerColor = LocalDSColors.current.surfaceInput,
+                        unfocusedContainerColor = LocalDSColors.current.surfaceInput,
+                        disabledContainerColor = LocalDSColors.current.surfaceInput,
+                        disabledBorderColor = LocalDSColors.current.borderDefault,
+                        disabledTextColor = LocalDSColors.current.textDisabled,
                     ),
                     modifier = Modifier
                         .weight(1f)
@@ -158,14 +159,14 @@ fun CommitPanel(
                     if (isGenerating) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = DSColor.accentPrimary,
+                            color = LocalDSColors.current.accentPrimary,
                             strokeWidth = 2.dp,
                         )
                     } else {
                         Icon(
                             Icons.Default.AutoAwesome,
                             contentDescription = "Generate commit message with AI",
-                            tint = if (!isCommitting) DSColor.accentPrimary else DSColor.textMuted,
+                            tint = if (!isCommitting) LocalDSColors.current.accentPrimary else LocalDSColors.current.textMuted,
                             modifier = Modifier.size(DSFont.iconBase.value.dp),
                         )
                     }
@@ -177,7 +178,7 @@ fun CommitPanel(
                 Text(
                     text = "$charCount/$COMMIT_SUMMARY_LIMIT",
                     style = DSFont.sidebarItemSmall,
-                    color = if (isOverLimit) DSColor.gitDeleted else DSColor.textMuted,
+                    color = if (isOverLimit) LocalDSColors.current.gitDeleted else LocalDSColors.current.textMuted,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(end = DSSpacing.xl, bottom = DSSpacing.xxs),
@@ -190,7 +191,7 @@ fun CommitPanel(
                 Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(DSColor.borderSubtle),
+                    .background(LocalDSColors.current.borderSubtle),
             )
 
             // Description field
@@ -203,23 +204,23 @@ fun CommitPanel(
                     Text(
                         "Description (optional)",
                         style = DSFont.sidebarItemSmall,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 },
-                textStyle = DSFont.sidebarItemSmall.copy(color = DSColor.textSecondary),
+                textStyle = DSFont.sidebarItemSmall.copy(color = LocalDSColors.current.textSecondary),
                 maxLines = 5,
                 minLines = 1,
                 enabled = !isCommitting,
                 shape = RoundedCornerShape(DSRadius.sm),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = DSColor.borderFocus,
-                    unfocusedBorderColor = DSColor.borderDefault,
-                    cursorColor = DSColor.accentPrimary,
-                    focusedContainerColor = DSColor.surfaceInput,
-                    unfocusedContainerColor = DSColor.surfaceInput,
-                    disabledContainerColor = DSColor.surfaceInput,
-                    disabledBorderColor = DSColor.borderDefault,
-                    disabledTextColor = DSColor.textDisabled,
+                    focusedBorderColor = LocalDSColors.current.borderFocus,
+                    unfocusedBorderColor = LocalDSColors.current.borderDefault,
+                    cursorColor = LocalDSColors.current.accentPrimary,
+                    focusedContainerColor = LocalDSColors.current.surfaceInput,
+                    unfocusedContainerColor = LocalDSColors.current.surfaceInput,
+                    disabledContainerColor = LocalDSColors.current.surfaceInput,
+                    disabledBorderColor = LocalDSColors.current.borderDefault,
+                    disabledTextColor = LocalDSColors.current.textDisabled,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -236,7 +237,7 @@ fun CommitPanel(
             Text(
                 text = commitError,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -249,10 +250,10 @@ fun CommitPanel(
             enabled = canCommit,
             shape = RoundedCornerShape(DSRadius.md),
             colors = ButtonDefaults.buttonColors(
-                containerColor = DSColor.buttonPrimaryBg,
-                contentColor = DSColor.buttonPrimaryText,
-                disabledContainerColor = DSColor.surfaceOverlay,
-                disabledContentColor = DSColor.textDisabled,
+                containerColor = LocalDSColors.current.buttonPrimaryBg,
+                contentColor = LocalDSColors.current.buttonPrimaryText,
+                disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                disabledContentColor = LocalDSColors.current.textDisabled,
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -265,7 +266,7 @@ fun CommitPanel(
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = DSColor.buttonPrimaryText,
+                        color = LocalDSColors.current.buttonPrimaryText,
                         strokeWidth = 2.dp,
                     )
                     Text("Committing...", style = DSFont.buttonLabel)

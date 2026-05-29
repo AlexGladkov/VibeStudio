@@ -20,68 +20,68 @@ class ThemeTokensTest {
 
     @Test
     fun dsColor_surfaceBase_isNonTransparent() {
-        assertTrue(DSColor.surfaceBase.alpha > 0f, "surfaceBase must be non-transparent")
+        assertTrue(DSColor.dark.surfaceBase.alpha > 0f, "surfaceBase must be non-transparent")
     }
 
     @Test
     fun dsColor_surfaceRaised_isNonTransparent() {
-        assertTrue(DSColor.surfaceRaised.alpha > 0f)
+        assertTrue(DSColor.dark.surfaceRaised.alpha > 0f)
     }
 
     @Test
     fun dsColor_textPrimary_isNonTransparent() {
-        assertTrue(DSColor.textPrimary.alpha > 0f)
+        assertTrue(DSColor.dark.textPrimary.alpha > 0f)
     }
 
     @Test
     fun dsColor_accentPrimary_isNonTransparent() {
-        assertTrue(DSColor.accentPrimary.alpha > 0f)
+        assertTrue(DSColor.dark.accentPrimary.alpha > 0f)
     }
 
     @Test
     fun dsColor_gitModified_isNonTransparent() {
-        assertTrue(DSColor.gitModified.alpha > 0f)
+        assertTrue(DSColor.dark.gitModified.alpha > 0f)
     }
 
     @Test
     fun dsColor_gitAdded_isNonTransparent() {
-        assertTrue(DSColor.gitAdded.alpha > 0f)
+        assertTrue(DSColor.dark.gitAdded.alpha > 0f)
     }
 
     @Test
     fun dsColor_gitDeleted_isNonTransparent() {
-        assertTrue(DSColor.gitDeleted.alpha > 0f)
+        assertTrue(DSColor.dark.gitDeleted.alpha > 0f)
     }
 
     @Test
     fun dsColor_indicatorRunning_isNonTransparent() {
-        assertTrue(DSColor.indicatorRunning.alpha > 0f)
+        assertTrue(DSColor.dark.indicatorRunning.alpha > 0f)
     }
 
     @Test
     fun dsColor_buttonPrimaryBg_isNonTransparent() {
-        assertTrue(DSColor.buttonPrimaryBg.alpha > 0f)
+        assertTrue(DSColor.dark.buttonPrimaryBg.alpha > 0f)
     }
 
     @Test
     fun dsColor_actionRun_isNonTransparent() {
-        assertTrue(DSColor.actionRun.alpha > 0f)
+        assertTrue(DSColor.dark.actionRun.alpha > 0f)
     }
 
     @Test
     fun dsColor_actionStop_isNonTransparent() {
-        assertTrue(DSColor.actionStop.alpha > 0f)
+        assertTrue(DSColor.dark.actionStop.alpha > 0f)
     }
 
     // Overlay tokens intentionally have partial alpha — but alpha must still be > 0.
     @Test
     fun dsColor_hoverOverlay_hasNonZeroAlpha() {
-        assertTrue(DSColor.hoverOverlay.alpha > 0f, "hoverOverlay must have non-zero alpha")
+        assertTrue(DSColor.dark.hoverOverlay.alpha > 0f, "hoverOverlay must have non-zero alpha")
     }
 
     @Test
     fun dsColor_dropTargetBg_hasNonZeroAlpha() {
-        assertTrue(DSColor.dropTargetBg.alpha > 0f, "dropTargetBg must have non-zero alpha")
+        assertTrue(DSColor.dark.dropTargetBg.alpha > 0f, "dropTargetBg must have non-zero alpha")
     }
 
     // ── DSFont ────────────────────────────────────────────────────────────────

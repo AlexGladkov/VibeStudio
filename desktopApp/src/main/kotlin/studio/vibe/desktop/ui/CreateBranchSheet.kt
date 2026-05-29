@@ -45,6 +45,7 @@ import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -140,7 +141,7 @@ private fun CreateBranchContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .padding(DSSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.lg),
     ) {
@@ -149,7 +150,7 @@ private fun CreateBranchContent(
             Text(
                 text = "New Branch",
                 style = DSFont.settingsTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
             if (fromBranch != null) {
                 Row(
@@ -159,18 +160,18 @@ private fun CreateBranchContent(
                     Text(
                         text = "from",
                         style = DSFont.sidebarItemSmall,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                     Icon(
                         Icons.AutoMirrored.Filled.CallSplit,
                         contentDescription = null,
-                        tint = DSColor.accentPrimary,
+                        tint = LocalDSColors.current.accentPrimary,
                         modifier = Modifier.size(DSFont.iconBase.value.dp),
                     )
                     Text(
                         text = fromBranch,
                         style = DSFont.sidebarItemSmall,
-                        color = DSColor.accentPrimary,
+                        color = LocalDSColors.current.accentPrimary,
                     )
                 }
             }
@@ -181,7 +182,7 @@ private fun CreateBranchContent(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderDefault),
+                .background(LocalDSColors.current.borderDefault),
         )
 
         // Branch name input
@@ -189,7 +190,7 @@ private fun CreateBranchContent(
             Text(
                 text = "Branch name",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             OutlinedTextField(
                 value = branchName,
@@ -198,21 +199,21 @@ private fun CreateBranchContent(
                     Text(
                         "feature/my-feature",
                         style = DSFont.commitInput,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 },
-                textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                textStyle = DSFont.commitInput.copy(color = LocalDSColors.current.textPrimary),
                 singleLine = true,
                 isError = errorMessage != null,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = DSColor.borderFocus,
-                    unfocusedBorderColor = DSColor.borderDefault,
-                    errorBorderColor = DSColor.gitDeleted,
-                    cursorColor = DSColor.accentPrimary,
-                    focusedContainerColor = DSColor.surfaceInput,
-                    unfocusedContainerColor = DSColor.surfaceInput,
-                    errorContainerColor = DSColor.surfaceInput,
+                    focusedBorderColor = LocalDSColors.current.borderFocus,
+                    unfocusedBorderColor = LocalDSColors.current.borderDefault,
+                    errorBorderColor = LocalDSColors.current.gitDeleted,
+                    cursorColor = LocalDSColors.current.accentPrimary,
+                    focusedContainerColor = LocalDSColors.current.surfaceInput,
+                    unfocusedContainerColor = LocalDSColors.current.surfaceInput,
+                    errorContainerColor = LocalDSColors.current.surfaceInput,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -231,7 +232,7 @@ private fun CreateBranchContent(
                 Text(
                     text = errorMessage,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.gitDeleted,
+                    color = LocalDSColors.current.gitDeleted,
                 )
             }
         }
@@ -248,7 +249,7 @@ private fun CreateBranchContent(
                 onClick = onCancel,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = DSColor.textSecondary,
+                    contentColor = LocalDSColors.current.textSecondary,
                 ),
             ) {
                 Text("Cancel", style = DSFont.buttonLabel)
@@ -259,17 +260,17 @@ private fun CreateBranchContent(
                 enabled = canCreate,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DSColor.buttonPrimaryBg,
-                    contentColor = DSColor.buttonPrimaryText,
-                    disabledContainerColor = DSColor.surfaceOverlay,
-                    disabledContentColor = DSColor.textDisabled,
+                    containerColor = LocalDSColors.current.buttonPrimaryBg,
+                    contentColor = LocalDSColors.current.buttonPrimaryText,
+                    disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                    disabledContentColor = LocalDSColors.current.textDisabled,
                 ),
                 modifier = Modifier.width(100.dp),
             ) {
                 if (isCreating) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = DSColor.buttonPrimaryText,
+                        color = LocalDSColors.current.buttonPrimaryText,
                         strokeWidth = 2.dp,
                     )
                 } else {

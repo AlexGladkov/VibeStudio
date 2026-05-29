@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.AIAssistant
@@ -53,7 +54,7 @@ fun GeminiSettingsPane(
                 Text(
                     text = "Config",
                     style = DSFont.buttonLabel,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                 )
 
                 SettingsCard {
@@ -66,20 +67,20 @@ fun GeminiSettingsPane(
                         Text(
                             text = settingsPath.replace(homeDir, "~"),
                             style = DSFont.monoPath,
-                            color = if (configExists) DSColor.textPrimary else DSColor.textMuted,
+                            color = if (configExists) LocalDSColors.current.textPrimary else LocalDSColors.current.textMuted,
                             maxLines = 1,
                         )
                         if (!configExists) {
                             Text(
                                 text = "not found — run `gemini` to auto-create on first launch",
                                 style = DSFont.sidebarItemSmall,
-                                color = DSColor.textMuted,
+                                color = LocalDSColors.current.textMuted,
                             )
                         } else {
                             Text(
                                 text = "Available keys: theme, sandbox, checkpointing, preferredEditor, contextWindowCompression, telemetry, mcpServers, extensions",
                                 style = DSFont.sidebarItemSmall,
-                                color = DSColor.textMuted,
+                                color = LocalDSColors.current.textMuted,
                             )
                         }
                     }

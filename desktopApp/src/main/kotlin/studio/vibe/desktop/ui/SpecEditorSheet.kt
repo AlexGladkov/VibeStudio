@@ -48,6 +48,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -130,7 +131,7 @@ private fun SpecEditorContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase),
+            .background(LocalDSColors.current.surfaceBase),
     ) {
         // ── Header ─────────────────────────────────────────────────────────
         SpecEditorHeader(
@@ -138,7 +139,7 @@ private fun SpecEditorContent(
             isDirty = isDirty,
             onCancel = onCancel,
         )
-        HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
         // ── Split panes ────────────────────────────────────────────────────
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -147,10 +148,10 @@ private fun SpecEditorContent(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(DSColor.surfaceBase),
+                    .background(LocalDSColors.current.surfaceBase),
             ) {
                 SpecPaneLabel("EDIT")
-                HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+                HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
                 SpecCodeEditor(
                     content = content,
                     onContentChange = onContentChange,
@@ -163,7 +164,7 @@ private fun SpecEditorContent(
                 modifier = Modifier
                     .width(1.dp)
                     .fillMaxHeight()
-                    .background(DSColor.borderSubtle),
+                    .background(LocalDSColors.current.borderSubtle),
             )
 
             // Right — plain-text preview pane
@@ -171,10 +172,10 @@ private fun SpecEditorContent(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .background(DSColor.surfaceRaised),
+                    .background(LocalDSColors.current.surfaceRaised),
             ) {
                 SpecPaneLabel("PREVIEW")
-                HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+                HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
                 SpecPreview(
                     content = content,
                     modifier = Modifier.fillMaxSize(),
@@ -182,14 +183,14 @@ private fun SpecEditorContent(
             }
         }
 
-        HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
         // ── Error message ──────────────────────────────────────────────────
         if (errorMessage != null) {
             Text(
                 text = errorMessage,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = DSSpacing.lg, vertical = DSSpacing.xs),
@@ -222,21 +223,21 @@ private fun SpecEditorHeader(
         Icon(
             imageVector = Icons.Filled.TextSnippet,
             contentDescription = null,
-            tint = DSColor.agentCodeSpeak,
+            tint = LocalDSColors.current.agentCodeSpeak,
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(DSSpacing.sm))
         Text(
             text = specName,
             style = DSFont.sidebarSection,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
         )
         if (isDirty) {
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = "\u2022",
                 style = DSFont.sidebarItem,
-                color = DSColor.gitModified,
+                color = LocalDSColors.current.gitModified,
             )
         }
         Spacer(Modifier.weight(1f))
@@ -247,7 +248,7 @@ private fun SpecEditorHeader(
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "Close",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(13.dp),
             )
         }
@@ -259,10 +260,10 @@ private fun SpecPaneLabel(label: String) {
     Text(
         text = label,
         style = DSFont.sidebarSection,
-        color = DSColor.textMuted,
+        color = LocalDSColors.current.textMuted,
         modifier = Modifier
             .fillMaxWidth()
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
     )
 }
@@ -284,7 +285,7 @@ private fun SpecCodeEditor(
             modifier = Modifier
                 .width(40.dp)
                 .fillMaxHeight()
-                .background(DSColor.surfaceOverlay)
+                .background(LocalDSColors.current.surfaceOverlay)
                 .verticalScroll(scrollState)
                 .padding(top = DSSpacing.md, bottom = DSSpacing.md),
         ) {
@@ -295,7 +296,7 @@ private fun SpecCodeEditor(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Normal,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                         lineHeight = 18.sp,
                     ),
                     modifier = Modifier
@@ -310,7 +311,7 @@ private fun SpecCodeEditor(
             modifier = Modifier
                 .width(1.dp)
                 .fillMaxHeight()
-                .background(DSColor.borderSubtle),
+                .background(LocalDSColors.current.borderSubtle),
         )
 
         BasicTextField(
@@ -320,10 +321,10 @@ private fun SpecCodeEditor(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Normal,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 lineHeight = 18.sp,
             ),
-            cursorBrush = SolidColor(DSColor.accentPrimary),
+            cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -346,7 +347,7 @@ private fun SpecPreview(
         Text(
             text = content.ifEmpty { "Start typing to preview\u2026" },
             style = DSFont.sidebarItem,
-            color = if (content.isEmpty()) DSColor.textMuted else DSColor.textPrimary,
+            color = if (content.isEmpty()) LocalDSColors.current.textMuted else LocalDSColors.current.textPrimary,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -370,7 +371,7 @@ private fun SpecEditorFooter(
             onClick = onCancel,
             shape = RoundedCornerShape(DSRadius.md),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = DSColor.textSecondary,
+                contentColor = LocalDSColors.current.textSecondary,
             ),
         ) {
             Text("Cancel", style = DSFont.buttonLabel)
@@ -381,17 +382,17 @@ private fun SpecEditorFooter(
             enabled = isDirty && !isSaving,
             shape = RoundedCornerShape(DSRadius.md),
             colors = ButtonDefaults.buttonColors(
-                containerColor = DSColor.agentCodeSpeak,
-                contentColor = DSColor.buttonPrimaryText,
-                disabledContainerColor = DSColor.surfaceOverlay,
-                disabledContentColor = DSColor.textDisabled,
+                containerColor = LocalDSColors.current.agentCodeSpeak,
+                contentColor = LocalDSColors.current.buttonPrimaryText,
+                disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                disabledContentColor = LocalDSColors.current.textDisabled,
             ),
             modifier = Modifier.width(80.dp),
         ) {
             if (isSaving) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(14.dp),
-                    color = DSColor.buttonPrimaryText,
+                    color = LocalDSColors.current.buttonPrimaryText,
                     strokeWidth = 2.dp,
                 )
             } else {

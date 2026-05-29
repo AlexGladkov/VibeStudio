@@ -40,6 +40,8 @@ import androidx.compose.ui.window.rememberDialogState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -88,12 +90,12 @@ private fun InstallAgentSheetContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DSColor.surfaceOverlay),
+            .background(LocalDSColors.current.surfaceOverlay),
     ) {
         // Header
         InstallSheetHeader(assistant = assistant)
 
-        HorizontalDivider(color = DSColor.borderDefault)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault)
 
         // Scrollable step list
         Column(
@@ -105,7 +107,7 @@ private fun InstallAgentSheetContent(
             InstallSteps(assistant = assistant)
         }
 
-        HorizontalDivider(color = DSColor.borderDefault)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault)
 
         // Footer
         InstallSheetFooter(onDismiss = onDismiss)
@@ -127,20 +129,20 @@ private fun InstallSheetHeader(assistant: AIAssistant) {
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(DSRadius.md))
-                .background(agentColor(assistant)),
+                .background(agentColor(assistant, LocalDSColors.current)),
         )
         Spacer(Modifier.width(DSSpacing.md))
         Column {
             Text(
                 text = "Install ${assistant.displayName}",
                 style = DSFont.gitBranch,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
             Spacer(Modifier.height(DSSpacing.xxs))
             Text(
                 text = assistant.shortDescription,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
     }
@@ -198,7 +200,7 @@ private fun StepWithCommand(
         Text(
             text = description,
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
         Spacer(Modifier.height(DSSpacing.sm))
         CommandBlock(command = command)
@@ -217,14 +219,14 @@ private fun SetupStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(DSRadius.sm))
-                .background(DSColor.surfaceBase)
-                .border(1.dp, DSColor.borderDefault, RoundedCornerShape(DSRadius.sm))
+                .background(LocalDSColors.current.surfaceBase)
+                .border(1.dp, LocalDSColors.current.borderDefault, RoundedCornerShape(DSRadius.sm))
                 .padding(DSSpacing.sm),
         ) {
             Text(
                 text = instructions,
                 style = DSFont.monoPath,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
         }
     }
@@ -238,7 +240,7 @@ private fun StepHeader(number: Int, title: String) {
             modifier = Modifier
                 .size(DSLayout.toolbarButtonHeight)
                 .clip(CircleShape)
-                .background(DSColor.accentPrimary),
+                .background(LocalDSColors.current.accentPrimary),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -251,7 +253,7 @@ private fun StepHeader(number: Int, title: String) {
         Text(
             text = title,
             style = DSFont.gitBranch,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
         )
     }
 }
@@ -265,15 +267,15 @@ private fun CommandBlock(command: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(DSColor.surfaceBase)
-            .border(1.dp, DSColor.borderDefault, RoundedCornerShape(DSRadius.sm))
+            .background(LocalDSColors.current.surfaceBase)
+            .border(1.dp, LocalDSColors.current.borderDefault, RoundedCornerShape(DSRadius.sm))
             .padding(DSSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = command,
             style = DSFont.monoPath,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             modifier = Modifier.weight(1f),
             maxLines = 2,
         )
@@ -284,8 +286,8 @@ private fun CommandBlock(command: String) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(DSRadius.sm))
-                .background(DSColor.surfaceRaised)
-                .border(1.dp, DSColor.borderDefault, RoundedCornerShape(DSRadius.sm))
+                .background(LocalDSColors.current.surfaceRaised)
+                .border(1.dp, LocalDSColors.current.borderDefault, RoundedCornerShape(DSRadius.sm))
                 .clickable {
                     copyToClipboard(command)
                     copied = true
@@ -300,14 +302,14 @@ private fun CommandBlock(command: String) {
             Icon(
                 imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                 contentDescription = if (copied) "Copied" else "Copy",
-                tint = if (copied) DSColor.actionRun else DSColor.textSecondary,
+                tint = if (copied) LocalDSColors.current.actionRun else LocalDSColors.current.textSecondary,
                 modifier = Modifier.size(DSFont.iconMD.value.dp),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = if (copied) "Copied!" else "Copy",
                 style = DSFont.sidebarItemSmall,
-                color = if (copied) DSColor.actionRun else DSColor.textSecondary,
+                color = if (copied) LocalDSColors.current.actionRun else LocalDSColors.current.textSecondary,
             )
         }
     }
@@ -326,7 +328,7 @@ private fun InstallSheetFooter(onDismiss: () -> Unit) {
         Text(
             text = "Restart VibeStudio after installation",
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
             modifier = Modifier.weight(1f),
         )
 
@@ -336,7 +338,7 @@ private fun InstallSheetFooter(onDismiss: () -> Unit) {
                 .width(72.dp)
                 .height(DSLayout.gitButtonHeight)
                 .clip(RoundedCornerShape(DSRadius.md))
-                .background(DSColor.buttonPrimaryBg)
+                .background(LocalDSColors.current.buttonPrimaryBg)
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) {

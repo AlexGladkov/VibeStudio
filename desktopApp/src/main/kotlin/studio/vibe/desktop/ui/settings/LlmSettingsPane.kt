@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.AIAssistant
@@ -64,7 +65,7 @@ fun LlmBasicPane(
         Text(
             text = assistant.shortDescription,
             style = DSFont.bodyMedium,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
 
         // Extra content (per-agent specific sections)
@@ -94,13 +95,13 @@ private fun LlmApiKeySection(assistant: AIAssistant, envVar: String) {
         Text(
             text = "API key configuration",
             style = DSFont.buttonLabel,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
 
         Text(
             text = "Configure via environment variable:",
             style = DSFont.bodySmall,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
 
         SettingsMonoBlock(text = "export $envVar=your-key-here")
@@ -109,7 +110,7 @@ private fun LlmApiKeySection(assistant: AIAssistant, envVar: String) {
             Text(
                 text = instructions,
                 style = DSFont.bodySmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
     }
@@ -124,7 +125,7 @@ private fun LlmNoKeySection(assistant: AIAssistant) {
         Text(
             text = "Authentication",
             style = DSFont.buttonLabel,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
 
         SettingsCard {
@@ -132,7 +133,7 @@ private fun LlmNoKeySection(assistant: AIAssistant) {
                 text = assistant.setupInstructions
                     ?: "No API key required — uses environment-based authentication.",
                 style = DSFont.bodySmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
                 modifier = Modifier.padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
             )
         }
@@ -148,14 +149,14 @@ private fun LlmInstallSection(assistant: AIAssistant) {
         Text(
             text = "Installation",
             style = DSFont.buttonLabel,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
 
         assistant.prerequisite?.let { prereq ->
             Text(
                 text = "Requires: $prereq",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
 

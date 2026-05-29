@@ -38,6 +38,8 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -163,26 +165,26 @@ internal fun FileDiffSheetContent(
         isLoading = false
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(DSColor.surfaceBase)) {
+    Column(modifier = Modifier.fillMaxSize().background(LocalDSColors.current.surfaceBase)) {
         DiffSheetHeader(
             file = file,
             staged = staged,
             onDismiss = onDismiss,
         )
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         sizeWarning?.let { warning ->
             Text(
                 text = warning,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.indicatorWaiting,
+                color = LocalDSColors.current.indicatorWaiting,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(DSColor.surfaceOverlay)
+                    .background(LocalDSColors.current.surfaceOverlay)
                     .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xxs),
             )
-            HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+            HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
         }
 
         when {
@@ -209,14 +211,14 @@ private fun DiffSheetHeader(
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)
-            .background(DSColor.surfaceRaised)
+            .background(LocalDSColors.current.surfaceRaised)
             .padding(horizontal = DSSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DSSpacing.sm),
     ) {
         // Status letter badge
         val statusLetter = statusLetterFor(file.status)
-        val statusColor = statusColorFor(file.status)
+        val statusColor = statusColorFor(file.status, LocalDSColors.current)
         Text(
             text = statusLetter,
             style = DSFont.gitStatus,
@@ -229,7 +231,7 @@ private fun DiffSheetHeader(
         Text(
             text = fileName,
             style = DSFont.gitBranch,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             maxLines = 1,
         )
 
@@ -239,7 +241,7 @@ private fun DiffSheetHeader(
             Text(
                 text = dir,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -253,10 +255,10 @@ private fun DiffSheetHeader(
             Text(
                 text = "staged",
                 style = DSFont.statusBadge,
-                color = DSColor.gitAdded,
+                color = LocalDSColors.current.gitAdded,
                 modifier = Modifier
                     .background(
-                        color = DSColor.gitAdded.copy(alpha = 0.12f),
+                        color = LocalDSColors.current.gitAdded.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(DSRadius.sm),
                     )
                     .padding(horizontal = DSSpacing.xs, vertical = 2.dp),
@@ -271,7 +273,7 @@ private fun DiffSheetHeader(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Close diff",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -284,7 +286,7 @@ private fun DiffSheetHeader(
 private fun LoadingState() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
-            color = DSColor.accentPrimary,
+            color = LocalDSColors.current.accentPrimary,
             modifier = Modifier.size(24.dp),
             strokeWidth = 2.dp,
         )
@@ -297,7 +299,7 @@ private fun ErrorState(message: String) {
         Text(
             text = message,
             style = DSFont.sidebarItem,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
         )
     }
 }
@@ -313,11 +315,11 @@ internal fun statusLetterFor(status: GitFileStatus): String = when (status) {
     GitFileStatus.UNTRACKED -> "?"
 }
 
-internal fun statusColorFor(status: GitFileStatus): Color = when (status) {
-    GitFileStatus.MODIFIED -> DSColor.gitModified
-    GitFileStatus.ADDED -> DSColor.gitAdded
-    GitFileStatus.DELETED -> DSColor.gitDeleted
-    GitFileStatus.RENAMED -> DSColor.gitRenamed
-    GitFileStatus.COPIED -> DSColor.gitAdded
-    GitFileStatus.UNTRACKED -> DSColor.gitUntracked
+internal fun statusColorFor(status: GitFileStatus, colors: DSColors): Color = when (status) {
+    GitFileStatus.MODIFIED -> colors.gitModified
+    GitFileStatus.ADDED -> colors.gitAdded
+    GitFileStatus.DELETED -> colors.gitDeleted
+    GitFileStatus.RENAMED -> colors.gitRenamed
+    GitFileStatus.COPIED -> colors.gitAdded
+    GitFileStatus.UNTRACKED -> colors.gitUntracked
 }

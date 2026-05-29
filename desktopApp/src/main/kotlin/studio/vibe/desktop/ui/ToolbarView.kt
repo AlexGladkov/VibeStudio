@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -69,7 +71,7 @@ fun ToolbarView(
         modifier = Modifier
             .fillMaxWidth()
             .height(DSLayout.toolbarHeight)
-            .background(DSColor.surfaceToolbar)
+            .background(LocalDSColors.current.surfaceToolbar)
             .padding(horizontal = DSSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -112,7 +114,7 @@ fun ToolbarView(
             Text(
                 text = msg,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
             )
         }
     }
@@ -154,8 +156,8 @@ private fun AgentPickerButton(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(DSRadius.md))
-                .background(DSColor.toolbarControlBg)
-                .border(1.dp, DSColor.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
+                .background(LocalDSColors.current.toolbarControlBg)
+                .border(1.dp, LocalDSColors.current.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
                 .clickable(enabled = !isRunning) { expanded = true }
                 .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
@@ -165,19 +167,19 @@ private fun AgentPickerButton(
                 Modifier
                     .size(DSFont.iconLG.value.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(agentColor(selectedAssistant)),
+                    .background(agentColor(selectedAssistant, LocalDSColors.current)),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = selectedAssistant.displayName,
                 style = DSFont.tabTitle,
-                color = if (isRunning) DSColor.textMuted else DSColor.textPrimary,
+                color = if (isRunning) LocalDSColors.current.textMuted else LocalDSColors.current.textPrimary,
             )
             Spacer(Modifier.width(DSSpacing.xxs))
             Icon(
                 Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
-                tint = if (isRunning) DSColor.textMuted else DSColor.textSecondary,
+                tint = if (isRunning) LocalDSColors.current.textMuted else LocalDSColors.current.textSecondary,
                 modifier = Modifier.size(DSFont.iconSM.value.dp),
             )
         }
@@ -205,7 +207,7 @@ private fun AgentPickerButton(
             if (available.isNotEmpty() && unavailable.isNotEmpty()) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = DSSpacing.xs),
-                    color = DSColor.borderDefault,
+                    color = LocalDSColors.current.borderDefault,
                 )
             }
 
@@ -253,10 +255,10 @@ private fun AgentDropdownItem(
         assistant.apiKeyEnvironmentVariable != null
 
     val dotColor: Color = when {
-        isChecking -> DSColor.indicatorWaiting
-        isNotInstalled -> DSColor.textMuted
-        hasApiKeyWarning -> DSColor.indicatorWaiting
-        else -> DSColor.indicatorRunning
+        isChecking -> LocalDSColors.current.indicatorWaiting
+        isNotInstalled -> LocalDSColors.current.textMuted
+        hasApiKeyWarning -> LocalDSColors.current.indicatorWaiting
+        else -> LocalDSColors.current.indicatorRunning
     }
 
     DropdownMenuItem(
@@ -278,13 +280,13 @@ private fun AgentDropdownItem(
                             Modifier
                                 .size(12.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(agentColor(assistant)),
+                                .background(agentColor(assistant, LocalDSColors.current)),
                         )
                         Spacer(Modifier.width(DSSpacing.xs))
                         Text(
                             text = assistant.displayName,
                             style = DSFont.sidebarItem,
-                            color = if (isNotInstalled) DSColor.textSecondary else DSColor.textPrimary,
+                            color = if (isNotInstalled) LocalDSColors.current.textSecondary else LocalDSColors.current.textPrimary,
                         )
                     }
 
@@ -293,12 +295,12 @@ private fun AgentDropdownItem(
                         isNotInstalled -> Text(
                             text = "Click to install",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.accentPrimary,
+                            color = LocalDSColors.current.accentPrimary,
                         )
                         hasApiKeyWarning -> Text(
                             text = "API key not set",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.indicatorWaiting,
+                            color = LocalDSColors.current.indicatorWaiting,
                         )
                     }
                 }
@@ -310,12 +312,12 @@ private fun AgentDropdownItem(
                     isSelected && !isNotInstalled -> Text(
                         text = "✓",
                         style = DSFont.smallButtonLabel,
-                        color = DSColor.accentPrimary,
+                        color = LocalDSColors.current.accentPrimary,
                     )
                     isNotInstalled -> Icon(
                         imageVector = Icons.Default.KeyboardArrowDown, // placeholder — no download icon in M3 default set
                         contentDescription = "Not installed",
-                        tint = DSColor.accentPrimary,
+                        tint = LocalDSColors.current.accentPrimary,
                         modifier = Modifier.size(DSFont.iconMD.value.dp),
                     )
                 }
@@ -343,14 +345,14 @@ private fun PlayStopButton(
             Icon(
                 Icons.Default.Stop,
                 contentDescription = "Stop agent",
-                tint = DSColor.actionStop,
+                tint = LocalDSColors.current.actionStop,
                 modifier = Modifier.size(13.dp),
             )
         } else {
             Icon(
                 Icons.Default.PlayArrow,
                 contentDescription = "Launch agent",
-                tint = DSColor.actionRun,
+                tint = LocalDSColors.current.actionRun,
                 modifier = Modifier.size(13.dp),
             )
         }
@@ -361,7 +363,7 @@ private fun PlayStopButton(
 
 /**
  * Toggle button that switches the app between Regular and CodeSpeak modes.
- * Active state: [DSColor.accentPrimary] background pill.
+ * Active state: [LocalDSColors.current.accentPrimary] background pill.
  */
 @Composable
 private fun CodeSpeakToggleButton(
@@ -372,10 +374,10 @@ private fun CodeSpeakToggleButton(
         modifier = Modifier
             .height(DSLayout.toolbarButtonHeight)
             .clip(RoundedCornerShape(DSRadius.md))
-            .background(if (isActive) DSColor.accentPrimary.copy(alpha = 0.18f) else Color.Transparent)
+            .background(if (isActive) LocalDSColors.current.accentPrimary.copy(alpha = 0.18f) else Color.Transparent)
             .border(
                 width = 1.dp,
-                color = if (isActive) DSColor.accentPrimary.copy(alpha = 0.5f) else Color.Transparent,
+                color = if (isActive) LocalDSColors.current.accentPrimary.copy(alpha = 0.5f) else Color.Transparent,
                 shape = RoundedCornerShape(DSRadius.md),
             )
             .clickable(onClick = onClick)
@@ -385,7 +387,7 @@ private fun CodeSpeakToggleButton(
         Icon(
             Icons.Default.Code,
             contentDescription = if (isActive) "Exit CodeSpeak mode" else "Enter CodeSpeak mode",
-            tint = if (isActive) DSColor.accentPrimary else DSColor.textSecondary,
+            tint = if (isActive) LocalDSColors.current.accentPrimary else LocalDSColors.current.textSecondary,
             modifier = Modifier.size(DSFont.iconBase.value.dp),
         )
     }
@@ -404,7 +406,7 @@ private fun SettingsButton(onClick: () -> Unit) {
         Icon(
             Icons.Default.Settings,
             contentDescription = "Settings",
-            tint = DSColor.textSecondary,
+            tint = LocalDSColors.current.textSecondary,
             modifier = Modifier.size(DSFont.iconBase.value.dp),
         )
     }
@@ -412,11 +414,11 @@ private fun SettingsButton(onClick: () -> Unit) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-internal fun agentColor(assistant: AIAssistant): Color = when (assistant) {
-    AIAssistant.CLAUDE -> DSColor.agentClaude
-    AIAssistant.OPENCODE -> DSColor.agentOpenCode
-    AIAssistant.CODEX -> DSColor.agentCodex
-    AIAssistant.GEMINI -> DSColor.agentGemini
-    AIAssistant.QWEN_CODE -> DSColor.agentQwen
-    AIAssistant.CODE_SPEAK -> DSColor.agentCodeSpeak
+internal fun agentColor(assistant: AIAssistant, colors: DSColors): Color = when (assistant) {
+    AIAssistant.CLAUDE -> colors.agentClaude
+    AIAssistant.OPENCODE -> colors.agentOpenCode
+    AIAssistant.CODEX -> colors.agentCodex
+    AIAssistant.GEMINI -> colors.agentGemini
+    AIAssistant.QWEN_CODE -> colors.agentQwen
+    AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak
 }

@@ -37,6 +37,7 @@ import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -123,7 +124,7 @@ private fun GitRemoteSetupContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .padding(DSSpacing.lg),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.lg),
     ) {
@@ -132,12 +133,12 @@ private fun GitRemoteSetupContent(
             Text(
                 text = "Remote Repository",
                 style = DSFont.settingsTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
             Text(
                 text = projectName,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
 
@@ -145,7 +146,7 @@ private fun GitRemoteSetupContent(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderDefault),
+                .background(LocalDSColors.current.borderDefault),
         )
 
         // Remote name field
@@ -153,15 +154,15 @@ private fun GitRemoteSetupContent(
             Text(
                 text = "Remote name",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             OutlinedTextField(
                 value = remoteName,
                 onValueChange = onRemoteNameChange,
                 placeholder = {
-                    Text("origin", style = DSFont.commitInput, color = DSColor.textMuted)
+                    Text("origin", style = DSFont.commitInput, color = LocalDSColors.current.textMuted)
                 },
-                textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                textStyle = DSFont.commitInput.copy(color = LocalDSColors.current.textPrimary),
                 singleLine = true,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = styledTextFieldColors(),
@@ -174,7 +175,7 @@ private fun GitRemoteSetupContent(
             Text(
                 text = "Repository URL",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             OutlinedTextField(
                 value = remoteURL,
@@ -183,10 +184,10 @@ private fun GitRemoteSetupContent(
                     Text(
                         "https://github.com/user/repo.git",
                         style = DSFont.commitInput,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 },
-                textStyle = DSFont.commitInput.copy(color = DSColor.textPrimary),
+                textStyle = DSFont.commitInput.copy(color = LocalDSColors.current.textPrimary),
                 singleLine = true,
                 isError = errorMessage != null,
                 shape = RoundedCornerShape(DSRadius.md),
@@ -202,7 +203,7 @@ private fun GitRemoteSetupContent(
             Text(
                 text = errorMessage,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
             )
         }
 
@@ -217,7 +218,7 @@ private fun GitRemoteSetupContent(
             OutlinedButton(
                 onClick = onCancel,
                 shape = RoundedCornerShape(DSRadius.md),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = DSColor.textSecondary),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = LocalDSColors.current.textSecondary),
             ) {
                 Text("Cancel", style = DSFont.buttonLabel)
             }
@@ -227,17 +228,17 @@ private fun GitRemoteSetupContent(
                 enabled = canSave,
                 shape = RoundedCornerShape(DSRadius.md),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DSColor.buttonPrimaryBg,
-                    contentColor = DSColor.buttonPrimaryText,
-                    disabledContainerColor = DSColor.surfaceOverlay,
-                    disabledContentColor = DSColor.textDisabled,
+                    containerColor = LocalDSColors.current.buttonPrimaryBg,
+                    contentColor = LocalDSColors.current.buttonPrimaryText,
+                    disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                    disabledContentColor = LocalDSColors.current.textDisabled,
                 ),
                 modifier = Modifier.width(110.dp),
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(14.dp),
-                        color = DSColor.buttonPrimaryText,
+                        color = LocalDSColors.current.buttonPrimaryText,
                         strokeWidth = 2.dp,
                     )
                 } else {
@@ -252,11 +253,11 @@ private fun GitRemoteSetupContent(
 
 @Composable
 private fun styledTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = DSColor.borderFocus,
-    unfocusedBorderColor = DSColor.borderDefault,
-    errorBorderColor = DSColor.gitDeleted,
-    cursorColor = DSColor.accentPrimary,
-    focusedContainerColor = DSColor.surfaceInput,
-    unfocusedContainerColor = DSColor.surfaceInput,
-    errorContainerColor = DSColor.surfaceInput,
+    focusedBorderColor = LocalDSColors.current.borderFocus,
+    unfocusedBorderColor = LocalDSColors.current.borderDefault,
+    errorBorderColor = LocalDSColors.current.gitDeleted,
+    cursorColor = LocalDSColors.current.accentPrimary,
+    focusedContainerColor = LocalDSColors.current.surfaceInput,
+    unfocusedContainerColor = LocalDSColors.current.surfaceInput,
+    errorContainerColor = LocalDSColors.current.surfaceInput,
 )

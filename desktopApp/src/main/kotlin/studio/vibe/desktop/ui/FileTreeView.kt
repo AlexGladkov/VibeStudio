@@ -53,6 +53,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -160,7 +162,7 @@ private fun DirectoryRow(
                         }
                     }
                 }
-                .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+                .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
                 .padding(start = leadingPadding, end = DSLayout.sidebarHorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -168,7 +170,7 @@ private fun DirectoryRow(
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier
                     .size(DSFont.iconSM.value.dp)
                     .rotate(chevronRotation),
@@ -180,7 +182,7 @@ private fun DirectoryRow(
             Icon(
                 imageVector = Icons.Default.Folder,
                 contentDescription = null,
-                tint = DSColor.gitModified,
+                tint = LocalDSColors.current.gitModified,
                 modifier = Modifier.size(DSFont.iconLG.value.dp),
             )
 
@@ -190,7 +192,7 @@ private fun DirectoryRow(
             Text(
                 text = entry.path.name,
                 style = DSFont.sidebarItem,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -267,7 +269,7 @@ private fun FileRow(
                         }
                     }
                 }
-                .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+                .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
                 .padding(start = leadingPadding, end = DSLayout.sidebarHorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -278,7 +280,7 @@ private fun FileRow(
 
             // File icon resolved from extension
             val extension = entry.path.name.substringAfterLast('.', "")
-            val (fileIcon, iconTint) = fileIconForExtension(extension)
+            val (fileIcon, iconTint) = fileIconForExtension(extension, LocalDSColors.current)
 
             Icon(
                 imageVector = fileIcon,
@@ -293,7 +295,7 @@ private fun FileRow(
             Text(
                 text = entry.path.name,
                 style = DSFont.sidebarItem,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -307,7 +309,7 @@ private fun FileRow(
                 Text(
                     text = gitStatus.code,
                     style = DSFont.gitStatus,
-                    color = statusColor(gitStatus),
+                    color = statusColor(gitStatus, LocalDSColors.current),
                 )
             }
         }
@@ -338,25 +340,25 @@ private fun FileRow(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Maps a file extension to an icon/tint pair following the design spec. */
-private fun fileIconForExtension(extension: String): Pair<ImageVector, Color> = when (extension.lowercase()) {
-    "kt", "kts" -> Icons.Default.Code to DSColor.accentPrimary
+private fun fileIconForExtension(extension: String, colors: DSColors): Pair<ImageVector, Color> = when (extension.lowercase()) {
+    "kt", "kts" -> Icons.Default.Code to colors.accentPrimary
     "swift" -> Icons.Default.Code to Color(0xFFF05138)
-    "json", "yaml", "yml", "toml" -> Icons.Default.Settings to DSColor.textSecondary
-    "md", "txt" -> Icons.Default.Description to DSColor.textSecondary
-    "xml", "html" -> Icons.Default.Code to DSColor.gitModified
-    "gradle" -> Icons.Default.Build to DSColor.textSecondary
-    "png", "jpg", "jpeg", "svg" -> Icons.Default.Image to DSColor.textSecondary
-    else -> Icons.AutoMirrored.Filled.InsertDriveFile to DSColor.textSecondary
+    "json", "yaml", "yml", "toml" -> Icons.Default.Settings to colors.textSecondary
+    "md", "txt" -> Icons.Default.Description to colors.textSecondary
+    "xml", "html" -> Icons.Default.Code to colors.gitModified
+    "gradle" -> Icons.Default.Build to colors.textSecondary
+    "png", "jpg", "jpeg", "svg" -> Icons.Default.Image to colors.textSecondary
+    else -> Icons.AutoMirrored.Filled.InsertDriveFile to colors.textSecondary
 }
 
 /** Returns the color associated with a [GitFileStatus] value. */
-private fun statusColor(status: GitFileStatus): Color = when (status) {
-    GitFileStatus.MODIFIED -> DSColor.gitModified
-    GitFileStatus.ADDED -> DSColor.gitAdded
-    GitFileStatus.DELETED -> DSColor.gitDeleted
-    GitFileStatus.RENAMED -> DSColor.gitRenamed
-    GitFileStatus.COPIED -> DSColor.gitAdded
-    GitFileStatus.UNTRACKED -> DSColor.gitUntracked
+private fun statusColor(status: GitFileStatus, colors: DSColors): Color = when (status) {
+    GitFileStatus.MODIFIED -> colors.gitModified
+    GitFileStatus.ADDED -> colors.gitAdded
+    GitFileStatus.DELETED -> colors.gitDeleted
+    GitFileStatus.RENAMED -> colors.gitRenamed
+    GitFileStatus.COPIED -> colors.gitAdded
+    GitFileStatus.UNTRACKED -> colors.gitUntracked
 }
 
 /**

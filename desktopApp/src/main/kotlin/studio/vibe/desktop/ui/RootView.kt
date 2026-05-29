@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSLayout
 import java.awt.Cursor
 
@@ -176,6 +177,6 @@ private fun ResizeHandle(
                     onDrag(dragAmount.x)
                 }
             }
-            .background(DSColor.borderDefault),
+            .background(LocalDSColors.current.borderDefault),
     )
 }

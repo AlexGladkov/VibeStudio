@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -133,7 +134,7 @@ private fun SkillViewerContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase)
+            .background(LocalDSColors.current.surfaceBase)
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.Escape && event.type == KeyEventType.KeyDown) {
                     onDismiss()
@@ -148,13 +149,13 @@ private fun SkillViewerContent(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DSColor.surfaceRaised)
+                .background(LocalDSColors.current.surfaceRaised)
                 .padding(horizontal = DSSpacing.lg, vertical = DSSpacing.sm),
         ) {
             Text(
                 text = displayName,
                 style = DSFont.settingsTitle,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
             )
             if (!skill.isWritable) {
@@ -162,14 +163,14 @@ private fun SkillViewerContent(
                 Icon(
                     imageVector = Icons.Filled.Lock,
                     contentDescription = null,
-                    tint = DSColor.textMuted,
+                    tint = LocalDSColors.current.textMuted,
                     modifier = Modifier.size(12.dp),
                 )
                 Spacer(Modifier.width(DSSpacing.xs))
                 Text(
                     text = "Только чтение",
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -180,13 +181,13 @@ private fun SkillViewerContent(
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = "Закрыть",
-                    tint = DSColor.textMuted,
+                    tint = LocalDSColors.current.textMuted,
                     modifier = Modifier.size(14.dp),
                 )
             }
         }
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         // ── Editor ───────────────────────────────────────────────────────────
         MarkdownEditorView(
@@ -196,31 +197,31 @@ private fun SkillViewerContent(
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         // ── Bottom bar ───────────────────────────────────────────────────────
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DSColor.surfaceRaised)
+                .background(LocalDSColors.current.surfaceRaised)
                 .padding(horizontal = DSSpacing.lg, vertical = DSSpacing.sm),
         ) {
             when {
                 !skill.isWritable -> Text(
                     text = "Скилл установлен через Homebrew, файл только для чтения",
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                 )
                 saveError != null -> Text(
                     text = saveError!!,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.gitDeleted,
+                    color = LocalDSColors.current.gitDeleted,
                 )
                 hasUnsavedChanges -> Text(
                     text = "Есть несохранённые изменения",
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -230,10 +231,10 @@ private fun SkillViewerContent(
                     enabled = hasUnsavedChanges,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(DSRadius.md),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = DSColor.accentPrimary,
-                        contentColor = DSColor.buttonPrimaryText,
-                        disabledContainerColor = DSColor.surfaceOverlay,
-                        disabledContentColor = DSColor.textDisabled,
+                        containerColor = LocalDSColors.current.accentPrimary,
+                        contentColor = LocalDSColors.current.buttonPrimaryText,
+                        disabledContainerColor = LocalDSColors.current.surfaceOverlay,
+                        disabledContentColor = LocalDSColors.current.textDisabled,
                     ),
                 ) {
                     Text("Сохранить", style = DSFont.buttonLabel)

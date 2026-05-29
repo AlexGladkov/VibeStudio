@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.model.AIAssistant
 
 /**
@@ -36,7 +38,7 @@ fun AIAssistantIcon(
     size: Dp = 16.dp,
     modifier: Modifier = Modifier,
 ) {
-    val (bgColor, label) = assistantStyle(assistant)
+    val (bgColor, label) = assistantStyle(assistant, LocalDSColors.current)
     val fontSize = (size.value * 0.5f).sp
 
     Box(
@@ -58,11 +60,11 @@ fun AIAssistantIcon(
     }
 }
 
-private fun assistantStyle(assistant: AIAssistant): Pair<Color, String> = when (assistant) {
-    AIAssistant.CLAUDE     -> DSColor.agentClaude     to "C"
-    AIAssistant.OPENCODE   -> DSColor.agentOpenCode   to "O"
-    AIAssistant.CODEX      -> DSColor.agentCodex      to "X"
-    AIAssistant.GEMINI     -> DSColor.agentGemini     to "G"
-    AIAssistant.QWEN_CODE  -> DSColor.agentQwen       to "Q"
-    AIAssistant.CODE_SPEAK -> DSColor.agentCodeSpeak  to "S"
+private fun assistantStyle(assistant: AIAssistant, colors: DSColors): Pair<Color, String> = when (assistant) {
+    AIAssistant.CLAUDE     -> colors.agentClaude     to "C"
+    AIAssistant.OPENCODE   -> colors.agentOpenCode   to "O"
+    AIAssistant.CODEX      -> colors.agentCodex      to "X"
+    AIAssistant.GEMINI     -> colors.agentGemini     to "G"
+    AIAssistant.QWEN_CODE  -> colors.agentQwen       to "Q"
+    AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak  to "S"
 }

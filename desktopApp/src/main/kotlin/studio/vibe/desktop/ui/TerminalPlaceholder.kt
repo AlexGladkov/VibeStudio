@@ -13,13 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 
 @Composable
 fun TerminalPlaceholder(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.background(DSColor.surfaceBase),
+        modifier = modifier.background(LocalDSColors.current.surfaceBase),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -27,19 +28,19 @@ fun TerminalPlaceholder(modifier: Modifier = Modifier) {
                 text = "\$ _",
                 fontFamily = FontFamily.Monospace,
                 fontSize = 24.sp,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
             Spacer(Modifier.height(DSSpacing.md))
             Text(
                 text = "Terminal area",
                 style = DSFont.sidebarItem,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             Spacer(Modifier.height(DSSpacing.xs))
             Text(
                 text = "pty4j integration pending",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
                 modifier = Modifier.padding(horizontal = DSSpacing.lg),
             )
         }

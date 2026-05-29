@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -98,7 +100,7 @@ fun SidebarView(
     val activeProjectId by container.projectStore.activeProjectId.collectAsState()
     var activeTab by remember { mutableStateOf(SidebarTab.FILES) }
 
-    Row(modifier = modifier.background(DSColor.surfaceRaised)) {
+    Row(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
         IconStrip(
             activeTab = activeTab,
             onTabSelected = { activeTab = it },
@@ -106,7 +108,7 @@ fun SidebarView(
         )
 
         Box(
-            Modifier.width(1.dp).fillMaxHeight().background(DSColor.borderDefault),
+            Modifier.width(1.dp).fillMaxHeight().background(LocalDSColors.current.borderDefault),
         )
 
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -171,7 +173,7 @@ private fun IconStrip(
             Icon(
                 Icons.Default.Add,
                 contentDescription = "Add project",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(DSFont.iconLG.value.dp),
             )
         }
@@ -191,14 +193,14 @@ private fun IconStripButton(
         modifier = Modifier
             .size(DSLayout.iconStripButtonSize)
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(if (isActive) DSColor.surfaceOverlay else Color.Transparent)
+            .background(if (isActive) LocalDSColors.current.surfaceOverlay else Color.Transparent)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (isActive) DSColor.accentPrimary else DSColor.textMuted,
+            tint = if (isActive) LocalDSColors.current.accentPrimary else LocalDSColors.current.textMuted,
             modifier = Modifier.size(DSFont.iconLG.value.dp),
         )
     }
@@ -360,7 +362,7 @@ private fun ProjectHeaderRow(
             .height(DSLayout.treeRowHeight)
             .hoverable(interactionSource)
             .clickable(onClick = onClick)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .padding(horizontal = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -373,7 +375,7 @@ private fun ProjectHeaderRow(
             Icon(
                 Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(9.dp).rotate(chevronRotation),
             )
         }
@@ -381,7 +383,7 @@ private fun ProjectHeaderRow(
         Icon(
             Icons.Default.Folder,
             contentDescription = null,
-            tint = if (isActive) DSColor.accentPrimary else DSColor.gitModified,
+            tint = if (isActive) LocalDSColors.current.accentPrimary else LocalDSColors.current.gitModified,
             modifier = Modifier.size(DSFont.iconLG.value.dp),
         )
 
@@ -390,7 +392,7 @@ private fun ProjectHeaderRow(
         Text(
             text = project.name,
             style = DSFont.sidebarItem,
-            color = if (isActive) DSColor.textPrimary else DSColor.textSecondary,
+            color = if (isActive) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
             fontWeight = if (isActive) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -420,7 +422,7 @@ private fun DirectoryRow(
             .height(DSLayout.treeRowHeight)
             .hoverable(interactionSource)
             .clickable(onClick = onToggle)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .padding(start = (depth * 16 + 4).dp, end = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -431,7 +433,7 @@ private fun DirectoryRow(
             Icon(
                 Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(9.dp).rotate(chevronRotation),
             )
         }
@@ -439,7 +441,7 @@ private fun DirectoryRow(
         Icon(
             Icons.Default.Folder,
             contentDescription = null,
-            tint = DSColor.textSecondary,
+            tint = LocalDSColors.current.textSecondary,
             modifier = Modifier.size(DSFont.iconLG.value.dp),
         )
 
@@ -448,7 +450,7 @@ private fun DirectoryRow(
         Text(
             text = entry.path.name,
             style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -470,13 +472,13 @@ private fun FileRow(
             .fillMaxWidth()
             .height(DSLayout.treeRowHeight)
             .hoverable(interactionSource)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .padding(start = (depth * 16 + 4).dp, end = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.width(DSLayout.chevronFrameWidth))
 
-        val (icon, iconColor) = fileIconAndColor(ext)
+        val (icon, iconColor) = fileIconAndColor(ext, LocalDSColors.current)
         Icon(
             icon,
             contentDescription = null,
@@ -489,7 +491,7 @@ private fun FileRow(
         Text(
             text = entry.path.name,
             style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -500,32 +502,32 @@ private fun FileRow(
             Text(
                 text = status.code,
                 style = DSFont.gitStatus,
-                color = gitStatusColor(status),
+                color = gitStatusColor(status, LocalDSColors.current),
                 modifier = Modifier.width(DSLayout.statusLetterWidth),
             )
         }
     }
 }
 
-private fun fileIconAndColor(ext: String): Pair<ImageVector, Color> = when (ext) {
-    "kt", "kts"                             -> Icons.Default.Code to DSColor.accentPrimary
+private fun fileIconAndColor(ext: String, colors: DSColors): Pair<ImageVector, Color> = when (ext) {
+    "kt", "kts"                             -> Icons.Default.Code to colors.accentPrimary
     "swift"                                 -> Icons.Default.Code to Color(0xFFF05138)
     "java"                                  -> Icons.Default.Code to Color(0xFFB07219)
-    "json", "yaml", "yml", "toml"           -> Icons.Default.Settings to DSColor.textSecondary
-    "md", "txt", "rst"                      -> Icons.Default.Description to DSColor.textSecondary
-    "xml", "html", "css"                    -> Icons.Default.Code to DSColor.gitModified
-    "gradle"                                -> Icons.Default.Settings to DSColor.textSecondary
-    "png", "jpg", "jpeg", "svg", "gif", "webp" -> Icons.Default.Image to DSColor.textSecondary
-    else -> Icons.AutoMirrored.Filled.InsertDriveFile to DSColor.textSecondary
+    "json", "yaml", "yml", "toml"           -> Icons.Default.Settings to colors.textSecondary
+    "md", "txt", "rst"                      -> Icons.Default.Description to colors.textSecondary
+    "xml", "html", "css"                    -> Icons.Default.Code to colors.gitModified
+    "gradle"                                -> Icons.Default.Settings to colors.textSecondary
+    "png", "jpg", "jpeg", "svg", "gif", "webp" -> Icons.Default.Image to colors.textSecondary
+    else -> Icons.AutoMirrored.Filled.InsertDriveFile to colors.textSecondary
 }
 
-private fun gitStatusColor(status: GitFileStatus): Color = when (status) {
-    GitFileStatus.MODIFIED  -> DSColor.gitModified
-    GitFileStatus.ADDED     -> DSColor.gitAdded
-    GitFileStatus.DELETED   -> DSColor.gitDeleted
-    GitFileStatus.RENAMED   -> DSColor.gitRenamed
-    GitFileStatus.COPIED    -> DSColor.gitAdded
-    GitFileStatus.UNTRACKED -> DSColor.gitUntracked
+private fun gitStatusColor(status: GitFileStatus, colors: DSColors): Color = when (status) {
+    GitFileStatus.MODIFIED  -> colors.gitModified
+    GitFileStatus.ADDED     -> colors.gitAdded
+    GitFileStatus.DELETED   -> colors.gitDeleted
+    GitFileStatus.RENAMED   -> colors.gitRenamed
+    GitFileStatus.COPIED    -> colors.gitAdded
+    GitFileStatus.UNTRACKED -> colors.gitUntracked
 }
 
 // ── Git Branch Section ────────────────────────────────────────────────────────
@@ -561,10 +563,10 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                 .padding(horizontal = DSLayout.sidebarHorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("GIT", style = DSFont.sidebarSection, color = DSColor.textSecondary)
+            Text("GIT", style = DSFont.sidebarSection, color = LocalDSColors.current.textSecondary)
         }
 
-        Box(Modifier.fillMaxWidth().height(1.dp).background(DSColor.borderDefault))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(LocalDSColors.current.borderDefault))
 
         when {
             isNonGit -> {
@@ -572,13 +574,13 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                     Text(
                         "Not a git repository",
                         style = DSFont.sidebarItem,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 }
             }
             branches.isEmpty() && gitStatus == null -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Loading...", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                    Text("Loading...", style = DSFont.sidebarItem, color = LocalDSColors.current.textMuted)
                 }
             }
             else -> {
@@ -686,7 +688,7 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                                 Text(
                                     "unavailable",
                                     style = DSFont.sidebarItemSmall,
-                                    color = DSColor.textMuted,
+                                    color = LocalDSColors.current.textMuted,
                                 )
                             }
                         }
@@ -774,8 +776,8 @@ private fun BranchRow(
                 .hoverable(interactionSource)
                 .background(
                     when {
-                        branch.isCurrent -> DSColor.surfaceOverlay.copy(alpha = 0.5f)
-                        isHovered        -> DSColor.surfaceOverlay
+                        branch.isCurrent -> LocalDSColors.current.surfaceOverlay.copy(alpha = 0.5f)
+                        isHovered        -> LocalDSColors.current.surfaceOverlay
                         else             -> Color.Transparent
                     },
                 )
@@ -795,7 +797,7 @@ private fun BranchRow(
                     .size(6.dp)
                     .clip(RoundedCornerShape(50))
                     .background(
-                        if (branch.isCurrent) DSColor.accentPrimary else Color.Transparent,
+                        if (branch.isCurrent) LocalDSColors.current.accentPrimary else Color.Transparent,
                     ),
             )
 
@@ -804,7 +806,7 @@ private fun BranchRow(
             Text(
                 text = branch.name,
                 style = DSFont.sidebarItem,
-                color = if (branch.isCurrent) DSColor.textPrimary else DSColor.textSecondary,
+                color = if (branch.isCurrent) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
                 fontWeight = if (branch.isCurrent) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -830,14 +832,14 @@ private fun AheadBehindBadge(aheadCount: Int, behindCount: Int) {
             Text(
                 text = "\u2191$aheadCount",
                 style = DSFont.gitAheadBehind,
-                color = DSColor.gitAdded,
+                color = LocalDSColors.current.gitAdded,
             )
         }
         if (behindCount > 0) {
             Text(
                 text = "\u2193$behindCount",
                 style = DSFont.gitAheadBehind,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
             )
         }
     }
@@ -852,9 +854,9 @@ private fun RemoteSectionSeparator() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DSSpacing.xs),
     ) {
-        Box(Modifier.weight(1f).height(1.dp).background(DSColor.borderSubtle))
-        Text("origin", style = DSFont.sidebarItemSmall, color = DSColor.textMuted)
-        Box(Modifier.weight(1f).height(1.dp).background(DSColor.borderSubtle))
+        Box(Modifier.weight(1f).height(1.dp).background(LocalDSColors.current.borderSubtle))
+        Text("origin", style = DSFont.sidebarItemSmall, color = LocalDSColors.current.textMuted)
+        Box(Modifier.weight(1f).height(1.dp).background(LocalDSColors.current.borderSubtle))
     }
 }
 
@@ -874,14 +876,14 @@ private fun RemoteBranchRow(branch: GitBranch) {
         Text(
             text = displayName,
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
 
         Spacer(Modifier.width(DSSpacing.xs))
-        Text("remote", style = DSFont.badgeSmall, color = DSColor.textMuted)
+        Text("remote", style = DSFont.badgeSmall, color = LocalDSColors.current.textMuted)
     }
 }
 
@@ -896,21 +898,21 @@ private fun NewBranchRow(onClick: () -> Unit) {
             .height(DSLayout.gitFileRowHeight)
             .hoverable(interactionSource)
             .clickable(onClick = onClick)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .padding(horizontal = DSLayout.sidebarHorizontalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             Icons.Default.Add,
             contentDescription = null,
-            tint = DSColor.accentPrimary,
+            tint = LocalDSColors.current.accentPrimary,
             modifier = Modifier.size(DSFont.iconBase.value.dp),
         )
         Spacer(Modifier.width(DSSpacing.xs))
         Text(
             "New branch",
             style = DSFont.sidebarItemSmall,
-            color = DSColor.accentPrimary,
+            color = LocalDSColors.current.accentPrimary,
         )
     }
 }
@@ -961,10 +963,10 @@ private fun SpecsSection(
                 .padding(horizontal = DSLayout.sidebarHorizontalPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("SPECS", style = DSFont.sidebarSection, color = DSColor.textSecondary)
+            Text("SPECS", style = DSFont.sidebarSection, color = LocalDSColors.current.textSecondary)
         }
 
-        Box(Modifier.fillMaxWidth().height(1.dp).background(DSColor.borderDefault))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(LocalDSColors.current.borderDefault))
 
         // ── Content ───────────────────────────────────────────────────────────
         when {
@@ -973,13 +975,13 @@ private fun SpecsSection(
                     Text(
                         "No project selected",
                         style = DSFont.sidebarItem,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 }
             }
             activeProjectId !in fileTrees -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Loading...", style = DSFont.sidebarItem, color = DSColor.textMuted)
+                    Text("Loading...", style = DSFont.sidebarItem, color = LocalDSColors.current.textMuted)
                 }
             }
             specEntries.isEmpty() -> {
@@ -988,20 +990,20 @@ private fun SpecsSection(
                         Icon(
                             Icons.Default.Description,
                             contentDescription = null,
-                            tint = DSColor.textMuted,
+                            tint = LocalDSColors.current.textMuted,
                             modifier = Modifier.size(24.dp),
                         )
                         Spacer(Modifier.height(DSSpacing.sm))
                         Text(
                             "No specs found",
                             style = DSFont.sidebarItem,
-                            color = DSColor.textMuted,
+                            color = LocalDSColors.current.textMuted,
                         )
                         Spacer(Modifier.height(DSSpacing.xxs))
                         Text(
                             "*.cs.md",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.textDisabled,
+                            color = LocalDSColors.current.textDisabled,
                         )
                     }
                 }
@@ -1068,7 +1070,7 @@ private fun SpecRow(entry: FileEntry) {
             .fillMaxWidth()
             .height(DSLayout.treeRowHeight)
             .hoverable(interactionSource)
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent),
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Status indicator dot
@@ -1076,7 +1078,7 @@ private fun SpecRow(entry: FileEntry) {
             modifier = Modifier
                 .size(DSLayout.indicatorSize)
                 .clip(RoundedCornerShape(50))
-                .background(specStatusColor(status)),
+                .background(specStatusColor(status, LocalDSColors.current)),
         )
 
         Spacer(Modifier.width(DSSpacing.xs))
@@ -1085,7 +1087,7 @@ private fun SpecRow(entry: FileEntry) {
         Text(
             text = specName,
             style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -1094,8 +1096,8 @@ private fun SpecRow(entry: FileEntry) {
 }
 
 /** Maps a [SpecStatus] to its display color following the Swift design system. */
-private fun specStatusColor(status: SpecStatus): Color = when (status) {
-    SpecStatus.PASSING -> DSColor.gitAdded
-    SpecStatus.FAILING -> DSColor.gitDeleted
-    SpecStatus.UNKNOWN -> DSColor.indicatorIdle
+private fun specStatusColor(status: SpecStatus, colors: DSColors): Color = when (status) {
+    SpecStatus.PASSING -> colors.gitAdded
+    SpecStatus.FAILING -> colors.gitDeleted
+    SpecStatus.UNKNOWN -> colors.indicatorIdle
 }

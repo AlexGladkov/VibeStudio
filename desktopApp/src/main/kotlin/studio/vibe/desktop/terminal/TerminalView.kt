@@ -20,6 +20,8 @@ import com.jediterm.terminal.emulator.ColorPaletteImpl
 import com.jediterm.terminal.ui.JediTermWidget
 import com.jediterm.terminal.ui.settings.DefaultSettingsProvider
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.model.TerminalSize
 import java.awt.Font
 import java.nio.charset.Charset
@@ -37,19 +39,20 @@ private fun androidx.compose.ui.graphics.Color.toAwtColor(): java.awt.Color =
 // ── JediTerm settings provider ──────────────────────────────────────────────
 
 private class VibeTerminalSettingsProvider(
+    private val colors: DSColors,
     private val fontSize: Float = 13f,
 ) : DefaultSettingsProvider() {
 
     override fun getDefaultBackground(): TerminalColor =
-        TerminalColor(DSColor.surfaceBase.toJColor())
+        TerminalColor(colors.surfaceBase.toJColor())
 
     override fun getDefaultForeground(): TerminalColor =
-        TerminalColor(DSColor.textPrimary.toJColor())
+        TerminalColor(colors.textPrimary.toJColor())
 
     override fun getSelectionColor(): TextStyle =
         TextStyle(
-            TerminalColor(DSColor.textPrimary.toJColor()),
-            TerminalColor(DSColor.surfaceSelection.toJColor()),
+            TerminalColor(colors.textPrimary.toJColor()),
+            TerminalColor(colors.surfaceSelection.toJColor()),
         )
 
     override fun getTerminalColorPalette() = ColorPaletteImpl.XTERM_PALETTE
@@ -143,9 +146,11 @@ fun TerminalView(
     }
     val holder = remember { SessionHolder() }
     var widgetHolder by remember { mutableStateOf<JediTermWidget?>(null) }
+    val colors = LocalDSColors.current
 
-    // Key on projectId, targetSessionId, and fontSize so we re-create when any changes.
-    LaunchedEffect(projectId, targetSessionId, terminalFontSize) {
+    // Key on projectId, targetSessionId, fontSize, and palette so we re-create
+    // when the theme changes (otherwise the existing widget keeps its old colors).
+    LaunchedEffect(projectId, targetSessionId, terminalFontSize, colors) {
         // 1. Resolve session: target → existing for project → create new
         var session = if (targetSessionId != null) {
             // Agent session created externally — we do NOT own it.
@@ -182,7 +187,7 @@ fun TerminalView(
 
         // JediTerm widget must be created on EDT — LaunchedEffect on Desktop dispatches on
         // Dispatchers.Main which *is* the Swing EDT (via kotlinx-coroutines-swing).
-        val settings = VibeTerminalSettingsProvider(fontSize = terminalFontSize)
+        val settings = VibeTerminalSettingsProvider(colors = colors, fontSize = terminalFontSize)
         val widget = JediTermWidget(settings)
 
         val connector = Pty4JConnector(
@@ -194,7 +199,7 @@ fun TerminalView(
         widget.createTerminalSession(connector)
         widget.start()
 
-        widget.background = DSColor.surfaceBase.toAwtColor()
+        widget.background = colors.surfaceBase.toAwtColor()
         widget.isOpaque = true
 
         widgetHolder = widget
@@ -219,7 +224,7 @@ fun TerminalView(
             modifier = modifier,
             factory = {
                 JPanel(java.awt.BorderLayout()).apply {
-                    background = DSColor.surfaceBase.toAwtColor()
+                    background = colors.surfaceBase.toAwtColor()
                     add(widget, java.awt.BorderLayout.CENTER)
                 }
             },

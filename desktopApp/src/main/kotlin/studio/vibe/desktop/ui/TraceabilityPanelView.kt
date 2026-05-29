@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -87,7 +88,7 @@ public fun TraceabilityPanelView(
 
     Column(
         modifier = modifier
-            .background(DSColor.surfaceRaised),
+            .background(LocalDSColors.current.surfaceRaised),
     ) {
         // ── Header ─────────────────────────────────────────────────────────
         TraceabilityHeader(
@@ -95,7 +96,7 @@ public fun TraceabilityPanelView(
             onRefresh = { activeProject?.let { vm.refresh(it.path) } },
             onClose = onClose,
         )
-        HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
         // ── Body ───────────────────────────────────────────────────────────
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -108,11 +109,11 @@ public fun TraceabilityPanelView(
 
         // ── Error banner ───────────────────────────────────────────────────
         if (state.errorMessage != null) {
-            HorizontalDivider(color = DSColor.borderSubtle, thickness = 1.dp)
+            HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
             Text(
                 text = state.errorMessage!!,
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
@@ -139,14 +140,14 @@ private fun TraceabilityHeader(
         Icon(
             imageVector = Icons.Filled.Link,
             contentDescription = null,
-            tint = DSColor.agentCodeSpeak,
+            tint = LocalDSColors.current.agentCodeSpeak,
             modifier = Modifier.size(13.dp),
         )
         Spacer(Modifier.width(DSSpacing.xs))
         Text(
             text = "Traceability",
             style = DSFont.sidebarSection,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
         )
         Spacer(Modifier.weight(1f))
         IconButton(
@@ -157,7 +158,7 @@ private fun TraceabilityHeader(
             Icon(
                 imageVector = Icons.Filled.Refresh,
                 contentDescription = "Refresh traceability map",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(11.dp),
             )
         }
@@ -168,7 +169,7 @@ private fun TraceabilityHeader(
             Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "Close traceability panel",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(11.dp),
             )
         }
@@ -203,7 +204,7 @@ private fun TraceabilitySectionHeader(title: String) {
     Text(
         text = title,
         style = DSFont.sidebarSection,
-        color = DSColor.textMuted,
+        color = LocalDSColors.current.textMuted,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = DSSpacing.xs, vertical = DSSpacing.xs)
@@ -218,7 +219,7 @@ private fun TraceabilityEntryCard(entry: TraceabilityEntry) {
             .fillMaxWidth()
             .padding(bottom = DSSpacing.xs)
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(DSColor.surfaceOverlay.copy(alpha = 0.4f)),
+            .background(LocalDSColors.current.surfaceOverlay.copy(alpha = 0.4f)),
     ) {
         // Spec name row
         Row(
@@ -231,14 +232,14 @@ private fun TraceabilityEntryCard(entry: TraceabilityEntry) {
             Icon(
                 imageVector = Icons.Filled.TextSnippet,
                 contentDescription = null,
-                tint = DSColor.agentCodeSpeak,
+                tint = LocalDSColors.current.agentCodeSpeak,
                 modifier = Modifier.size(12.dp),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
                 text = entry.specName,
                 style = DSFont.sidebarItem,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -255,13 +256,13 @@ private fun TraceabilityEntryCard(entry: TraceabilityEntry) {
                 Text(
                     text = "\u2192",
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textMuted,
+                    color = LocalDSColors.current.textMuted,
                     modifier = Modifier.width(DSLayout.statusLetterWidth),
                 )
                 Text(
                     text = filePath.name,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -283,7 +284,7 @@ private fun TraceabilityLoadingState() {
     ) {
         CircularProgressIndicator(
             modifier = Modifier.size(18.dp),
-            color = DSColor.accentPrimary,
+            color = LocalDSColors.current.accentPrimary,
             strokeWidth = 2.dp,
         )
     }
@@ -301,20 +302,20 @@ private fun TraceabilityEmptyState() {
             Icon(
                 imageVector = Icons.Filled.Link,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(28.dp),
             )
             Spacer(Modifier.height(DSSpacing.sm))
             Text(
                 text = "No traceability links",
                 style = DSFont.sidebarItem,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
             Spacer(Modifier.height(DSSpacing.xxs))
             Text(
                 text = "Add @file: markers to specs",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textDisabled,
+                color = LocalDSColors.current.textDisabled,
             )
         }
     }

@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 import java.io.File
@@ -85,7 +86,7 @@ fun ClaudeSettingsPane(
             Text(
                 text = "Launch",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
 
             SettingsCard {
@@ -99,12 +100,12 @@ fun ClaudeSettingsPane(
                         Text(
                             text = "--dangerously-skip-permissions",
                             style = DSFont.monoPath,
-                            color = DSColor.textPrimary,
+                            color = LocalDSColors.current.textPrimary,
                         )
                         Text(
                             text = "Launch Claude without tool-use confirmation prompts",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.textMuted,
+                            color = LocalDSColors.current.textMuted,
                         )
                     }
 
@@ -117,8 +118,8 @@ fun ClaudeSettingsPane(
                             prefs.claudeSkipPermissions = checked
                         },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = DSColor.agentClaude,
-                            uncheckedColor = DSColor.textMuted,
+                            checkedColor = LocalDSColors.current.agentClaude,
+                            uncheckedColor = LocalDSColors.current.textMuted,
                             checkmarkColor = Color.White,
                         ),
                     )
@@ -135,7 +136,7 @@ fun ClaudeSettingsPane(
             Text(
                 text = "Global config",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
 
             SettingsCard {
@@ -148,7 +149,7 @@ fun ClaudeSettingsPane(
                     Text(
                         text = claudeConfigPath.replace(System.getProperty("user.home") ?: "", "~"),
                         style = DSFont.monoPath,
-                        color = if (File(claudeConfigPath).exists()) DSColor.textPrimary else DSColor.textMuted,
+                        color = if (File(claudeConfigPath).exists()) LocalDSColors.current.textPrimary else LocalDSColors.current.textMuted,
                         maxLines = 1,
                     )
 
@@ -156,7 +157,7 @@ fun ClaudeSettingsPane(
                         Text(
                             text = "Open via: Finder → Go → Go to Folder → ~/.claude/",
                             style = DSFont.sidebarItemSmall,
-                            color = DSColor.textMuted,
+                            color = LocalDSColors.current.textMuted,
                         )
                     }
                 }
@@ -200,14 +201,14 @@ fun ClaudeSettingsPane(
             Text(
                 text = "Authentication",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
 
             SettingsCard {
                 Text(
                     text = "After installation, run `claude login` to authenticate with your Anthropic account.",
                     style = DSFont.bodySmall,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                     modifier = Modifier.padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
                 )
             }
@@ -222,7 +223,7 @@ fun ClaudeSettingsPane(
             Text(
                 text = "Installation",
                 style = DSFont.buttonLabel,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
 
             SettingsMonoBlock(
@@ -232,7 +233,7 @@ fun ClaudeSettingsPane(
             Text(
                 text = "Requires: Node.js 18+",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
 

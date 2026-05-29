@@ -91,7 +91,7 @@ class FileDiffSheetTest {
     @Test
     fun statusColorFor_allStatuses_returnsNonNullColor() {
         GitFileStatus.entries.forEach { status ->
-            val color = statusColorFor(status)
+            val color = statusColorFor(status, studio.vibe.desktop.ui.theme.DSColor.dark)
             // Color is a value class — just verify it does not throw and returns something
             assert(color != null) { "Expected non-null color for $status" }
         }

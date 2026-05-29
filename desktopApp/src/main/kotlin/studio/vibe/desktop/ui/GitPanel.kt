@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -79,7 +81,7 @@ fun GitPanel(
     var diffSheetFile by remember { mutableStateOf<GitFile?>(null) }
     var diffSheetStaged by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.background(DSColor.surfaceRaised)) {
+    Column(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
         // Header: "CHANGES" + count badge
         Row(
             modifier = Modifier
@@ -92,19 +94,19 @@ fun GitPanel(
             Text(
                 text = "CHANGES",
                 style = DSFont.sidebarSection,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
             if (totalCount > 0) {
                 Box(
                     modifier = Modifier
-                        .background(DSColor.accentPrimary, RoundedCornerShape(50))
+                        .background(LocalDSColors.current.accentPrimary, RoundedCornerShape(50))
                         .padding(horizontal = DSSpacing.xs, vertical = 1.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = totalCount.toString(),
                         style = DSFont.badgeSmall,
-                        color = DSColor.textInverse,
+                        color = LocalDSColors.current.textInverse,
                     )
                 }
             }
@@ -115,7 +117,7 @@ fun GitPanel(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(DSColor.borderDefault),
+                .background(LocalDSColors.current.borderDefault),
         )
 
         if (totalCount == 0) {
@@ -128,14 +130,14 @@ fun GitPanel(
                     Icon(
                         Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = DSColor.textMuted,
+                        tint = LocalDSColors.current.textMuted,
                         modifier = Modifier.size(24.dp),
                     )
                     Spacer(Modifier.height(DSSpacing.sm))
                     Text(
                         text = "Working tree clean",
                         style = DSFont.sidebarItem,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                     )
                 }
             }
@@ -145,7 +147,7 @@ fun GitPanel(
                 // Staged files
                 if (stagedFiles.isNotEmpty()) {
                     item(key = "header-staged") {
-                        SectionHeader("STAGED", stagedFiles.size, DSColor.gitAdded)
+                        SectionHeader("STAGED", stagedFiles.size, LocalDSColors.current.gitAdded)
                     }
                     items(stagedFiles, key = { "s-${it.path}" }) { file ->
                         GitFileRow(
@@ -181,7 +183,7 @@ fun GitPanel(
                 // Unstaged files
                 if (unstagedFiles.isNotEmpty()) {
                     item(key = "header-unstaged") {
-                        SectionHeader("MODIFIED", unstagedFiles.size, DSColor.gitModified)
+                        SectionHeader("MODIFIED", unstagedFiles.size, LocalDSColors.current.gitModified)
                     }
                     items(unstagedFiles, key = { "u-${it.path}" }) { file ->
                         GitFileRow(
@@ -214,7 +216,7 @@ fun GitPanel(
                 // Untracked files
                 if (untrackedFiles.isNotEmpty()) {
                     item(key = "header-untracked") {
-                        SectionHeader("UNTRACKED", untrackedFiles.size, DSColor.gitUntracked)
+                        SectionHeader("UNTRACKED", untrackedFiles.size, LocalDSColors.current.gitUntracked)
                     }
                     items(untrackedFiles, key = { "t-${it.path}" }) { file ->
                         GitFileRow(
@@ -283,7 +285,7 @@ private fun SectionHeader(label: String, count: Int, accentColor: Color) {
         Text(
             text = label,
             style = DSFont.sidebarSection,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
         Spacer(Modifier.width(DSSpacing.xs))
         Text(
@@ -317,7 +319,7 @@ private fun GitFileRow(
                 .fillMaxWidth()
                 .height(DSLayout.changesFileRowHeight)
                 .hoverable(interactionSource)
-                .background(if (isHovered) DSColor.surfaceOverlay else Color.Transparent)
+                .background(if (isHovered) LocalDSColors.current.surfaceOverlay else Color.Transparent)
                 .pointerInput(file.path) {
                     detectTapGestures(
                         onDoubleTap = { onOpenDiff() },
@@ -330,7 +332,7 @@ private fun GitFileRow(
             Text(
                 text = file.path.substringAfterLast('/'),
                 style = DSFont.sidebarItem,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -342,7 +344,7 @@ private fun GitFileRow(
             Text(
                 text = statusLetterFor(file.status),
                 style = DSFont.gitStatus,
-                color = statusColorFor(file.status),
+                color = statusColorFor(file.status, LocalDSColors.current),
                 modifier = Modifier.width(DSLayout.statusLetterWidth),
             )
         }

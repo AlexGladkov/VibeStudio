@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSSpacing
 
 /**
@@ -37,7 +38,7 @@ public fun MarkdownEditorView(
         fontFamily = FontFamily.Monospace,
         fontSize = 12.sp,
         fontWeight = FontWeight.Normal,
-        color = if (isEditable) DSColor.textPrimary else DSColor.textSecondary,
+        color = if (isEditable) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
         lineHeight = 18.sp,
     )
 
@@ -46,10 +47,10 @@ public fun MarkdownEditorView(
         onValueChange = if (isEditable) onTextChange else { _ -> },
         readOnly = !isEditable,
         textStyle = editorStyle,
-        cursorBrush = SolidColor(if (isEditable) DSColor.accentPrimary else DSColor.textMuted),
+        cursorBrush = SolidColor(if (isEditable) LocalDSColors.current.accentPrimary else LocalDSColors.current.textMuted),
         modifier = modifier
             .fillMaxSize()
-            .background(DSColor.surfaceBase)
+            .background(LocalDSColors.current.surfaceBase)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = DSSpacing.md, vertical = DSSpacing.md),
     )

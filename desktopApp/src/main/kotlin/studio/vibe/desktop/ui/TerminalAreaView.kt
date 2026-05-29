@@ -39,6 +39,7 @@ import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
@@ -66,7 +67,7 @@ fun TerminalAreaView(
     val activeProjectId by container.projectStore.activeProjectId.collectAsState()
     val projects by container.projectStore.projects.collectAsState()
 
-    Column(modifier = modifier.background(DSColor.surfaceBase)) {
+    Column(modifier = modifier.background(LocalDSColors.current.surfaceBase)) {
         if (activeProjectId != null) {
             val project = projects.find { it.id == activeProjectId }
             val shellName = shellDisplayName(project?.shellPath)
@@ -89,7 +90,7 @@ fun TerminalAreaView(
                 Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(DSColor.borderDefault),
+                    .background(LocalDSColors.current.borderDefault),
             )
 
             TerminalView(
@@ -123,14 +124,14 @@ private fun TerminalTitleBar(
         Icon(
             Icons.Default.Terminal,
             contentDescription = null,
-            tint = DSColor.textMuted,
+            tint = LocalDSColors.current.textMuted,
             modifier = Modifier.size(DSFont.iconBase.value.dp),
         )
 
         Text(
             text = sessionLabel,
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
             modifier = Modifier.weight(1f),
         )
 
@@ -139,7 +140,7 @@ private fun TerminalTitleBar(
                 Icon(
                     Icons.Default.Clear,
                     contentDescription = "Clear terminal",
-                    tint = DSColor.textMuted,
+                    tint = LocalDSColors.current.textMuted,
                     modifier = Modifier.size(DSFont.iconBase.value.dp),
                 )
             },
@@ -160,7 +161,7 @@ private fun TitleBarIconButton(
         modifier = Modifier
             .size(20.dp)
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(if (isHovered) DSColor.hoverOverlay else Color.Transparent)
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
             .hoverable(interactionSource)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

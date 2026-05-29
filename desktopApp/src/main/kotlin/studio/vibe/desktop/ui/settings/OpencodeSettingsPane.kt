@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.AIAssistant
@@ -63,14 +64,14 @@ fun OpencodeSettingsPane(
                 Text(
                     text = "Config directory",
                     style = DSFont.buttonLabel,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                 )
 
                 SettingsCard {
                     Text(
                         text = configDirPath.replace(homeDir, "~"),
                         style = DSFont.monoPath,
-                        color = if (File(configDirPath).exists()) DSColor.textPrimary else DSColor.textMuted,
+                        color = if (File(configDirPath).exists()) LocalDSColors.current.textPrimary else LocalDSColors.current.textMuted,
                         maxLines = 1,
                         modifier = Modifier.padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
                     )
@@ -114,14 +115,14 @@ fun OpencodeSettingsPane(
                 Text(
                     text = "Authentication",
                     style = DSFont.buttonLabel,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                 )
 
                 SettingsCard {
                     Text(
                         text = "Providers and API keys are managed via CLI: opencode providers",
                         style = DSFont.bodySmall,
-                        color = DSColor.textSecondary,
+                        color = LocalDSColors.current.textSecondary,
                         modifier = Modifier.padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
                     )
                 }

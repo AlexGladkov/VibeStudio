@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -124,7 +125,7 @@ fun CodeSpeakSettingsPane(
                         ok = hasAPIKey,
                         okText = "Authenticated",
                         failText = "Not authenticated — run codespeak login",
-                        failColor = DSColor.gitModified,
+                        failColor = LocalDSColors.current.gitModified,
                     )
                 }
             }
@@ -242,7 +243,7 @@ fun CodeSpeakSettingsPane(
                 Text(
                     text = "Authenticate via `codespeak login` (OAuth) or set ANTHROPIC_API_KEY in Settings → Claude.",
                     style = DSFont.buttonLabel,
-                    color = DSColor.textSecondary,
+                    color = LocalDSColors.current.textSecondary,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
@@ -265,7 +266,7 @@ fun CodeSpeakSettingsPane(
                             "2. uv tool install codespeak-cli\n" +
                             "3. codespeak init  (in your project)",
                         style = DSFont.monoSmall,
-                        color = DSColor.textPrimary,
+                        color = LocalDSColors.current.textPrimary,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
@@ -285,7 +286,7 @@ private fun StatusRow(
     ok: Boolean,
     okText: String,
     failText: String,
-    failColor: Color = DSColor.gitDeleted,
+    failColor: Color = LocalDSColors.current.gitDeleted,
 ) {
     Row(
         modifier = Modifier
@@ -297,7 +298,7 @@ private fun StatusRow(
             modifier = Modifier
                 .size(8.dp)
                 .background(
-                    color = if (ok) DSColor.indicatorRunning else failColor,
+                    color = if (ok) LocalDSColors.current.indicatorRunning else failColor,
                     shape = CircleShape,
                 ),
         )
@@ -305,7 +306,7 @@ private fun StatusRow(
         Text(
             text = if (ok) okText else failText,
             style = DSFont.buttonLabel,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
         )
     }
 }
@@ -329,12 +330,12 @@ private fun DefaultCommandRow(
             Text(
                 text = "Default command",
                 style = DSFont.buttonLabel,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
             Text(
                 text = "Command executed by the run button",
                 style = DSFont.sidebarItemSmall,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
             )
         }
 
@@ -352,10 +353,10 @@ private fun DefaultCommandRow(
                 modifier = Modifier
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                     .width(100.dp),
-                textStyle = DSFont.bodySmall.copy(color = DSColor.textPrimary),
+                textStyle = DSFont.bodySmall.copy(color = LocalDSColors.current.textPrimary),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = DSColor.surfaceOverlay,
-                    unfocusedContainerColor = DSColor.surfaceOverlay,
+                    focusedContainerColor = LocalDSColors.current.surfaceOverlay,
+                    unfocusedContainerColor = LocalDSColors.current.surfaceOverlay,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                 ),
@@ -371,7 +372,7 @@ private fun DefaultCommandRow(
                             Text(
                                 text = cmd.displayName,
                                 style = DSFont.bodySmall,
-                                color = DSColor.textPrimary,
+                                color = LocalDSColors.current.textPrimary,
                             )
                         },
                         onClick = {

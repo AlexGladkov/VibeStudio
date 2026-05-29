@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -83,14 +84,14 @@ public fun AddProjectPopover(
     Column(
         modifier = Modifier
             .widthIn(min = 280.dp, max = 360.dp)
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
     ) {
         if (recentProjects.isEmpty()) {
             // ── Empty state ───────────────────────────────────────────────
             PopoverEmptyState()
             HorizontalDivider(
-                color = DSColor.borderSubtle,
+                color = LocalDSColors.current.borderSubtle,
                 thickness = 1.dp,
                 modifier = Modifier.padding(vertical = DSSpacing.xs),
             )
@@ -99,7 +100,7 @@ public fun AddProjectPopover(
             Text(
                 text = "RECENT",
                 style = DSFont.sidebarSection,
-                color = DSColor.textSecondary,
+                color = LocalDSColors.current.textSecondary,
                 modifier = Modifier.padding(bottom = DSSpacing.xs),
             )
             recentProjects.forEach { project ->
@@ -115,13 +116,13 @@ public fun AddProjectPopover(
                 Text(
                     text = state.errorMessage!!,
                     style = DSFont.sidebarItemSmall,
-                    color = DSColor.gitDeleted,
+                    color = LocalDSColors.current.gitDeleted,
                     maxLines = 2,
                     modifier = Modifier.padding(top = DSSpacing.xs),
                 )
             }
             HorizontalDivider(
-                color = DSColor.borderSubtle,
+                color = LocalDSColors.current.borderSubtle,
                 thickness = 1.dp,
                 modifier = Modifier.padding(vertical = DSSpacing.xs),
             )
@@ -162,18 +163,18 @@ private fun PopoverEmptyState() {
         Icon(
             imageVector = Icons.Filled.Folder,
             contentDescription = null,
-            tint = DSColor.textMuted,
+            tint = LocalDSColors.current.textMuted,
             modifier = Modifier.size(28.dp),
         )
         Text(
             text = "No recent projects",
             style = DSFont.sidebarItem,
-            color = DSColor.textSecondary,
+            color = LocalDSColors.current.textSecondary,
         )
         Text(
             text = "Open a folder or create a new project",
             style = DSFont.sidebarItemSmall,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
         )
     }
 }
@@ -196,7 +197,7 @@ private fun RecentRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(if (isHovered) DSColor.hoverOverlay else DSColor.surfaceOverlay.copy(alpha = 0f))
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else LocalDSColors.current.surfaceOverlay.copy(alpha = 0f))
             .hoverable(interactionSource)
             .clickable(onClick = onTap)
             .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xs),
@@ -207,7 +208,7 @@ private fun RecentRow(
             Icon(
                 imageVector = Icons.Filled.Folder,
                 contentDescription = null,
-                tint = DSColor.gitModified,
+                tint = LocalDSColors.current.gitModified,
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.width(DSSpacing.sm))
@@ -215,7 +216,7 @@ private fun RecentRow(
                 Text(
                     text = project.name,
                     style = DSFont.sidebarItem,
-                    color = DSColor.textPrimary,
+                    color = LocalDSColors.current.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -223,7 +224,7 @@ private fun RecentRow(
                     Text(
                         text = project.path.path.replace(System.getProperty("user.home") ?: "", "~"),
                         style = DSFont.sidebarItemSmall,
-                        color = DSColor.textMuted,
+                        color = LocalDSColors.current.textMuted,
                         maxLines = 1,
                         overflow = TextOverflow.MiddleEllipsis,
                         modifier = Modifier.weight(1f),
@@ -232,7 +233,7 @@ private fun RecentRow(
                     Text(
                         text = formatRelativeDate(project.lastOpened),
                         style = DSFont.sidebarItemSmall,
-                        color = DSColor.textSecondary,
+                        color = LocalDSColors.current.textSecondary,
                         maxLines = 1,
                     )
                 }
@@ -259,7 +260,7 @@ private fun ActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(DSRadius.sm))
-            .background(if (isHovered) DSColor.hoverOverlay else DSColor.surfaceOverlay.copy(alpha = 0f))
+            .background(if (isHovered) LocalDSColors.current.hoverOverlay else LocalDSColors.current.surfaceOverlay.copy(alpha = 0f))
             .hoverable(interactionSource)
             .clickable(onClick = action)
             .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
@@ -270,14 +271,14 @@ private fun ActionRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = DSColor.textPrimary,
+                tint = LocalDSColors.current.textPrimary,
                 modifier = Modifier.size(14.dp),
             )
             Spacer(Modifier.width(DSSpacing.sm))
             Text(
                 text = title,
                 style = DSFont.sidebarItem,
-                color = DSColor.textPrimary,
+                color = LocalDSColors.current.textPrimary,
             )
         }
     }

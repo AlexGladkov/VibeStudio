@@ -66,6 +66,8 @@ import androidx.compose.ui.window.rememberDialogState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.ui.theme.DSColor
+import studio.vibe.desktop.ui.theme.DSColors
+import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.constants.FileViewerConstants
@@ -193,7 +195,7 @@ internal fun FileViewerSheetContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DSColor.surfaceOverlay)
+            .background(LocalDSColors.current.surfaceOverlay)
             .onKeyEvent { event ->
                 if (event.key == Key.Escape) {
                     onDismiss()
@@ -213,7 +215,7 @@ internal fun FileViewerSheetContent(
             onDismiss = onDismiss,
         )
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             columns.forEachIndexed { index, entry ->
@@ -222,7 +224,7 @@ internal fun FileViewerSheetContent(
                         modifier = Modifier
                             .width(1.dp)
                             .fillMaxHeight()
-                            .background(DSColor.borderDefault),
+                            .background(LocalDSColors.current.borderDefault),
                     )
                 }
                 FileColumnView(
@@ -250,7 +252,7 @@ private fun FileViewerToolbar(
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)
-            .background(DSColor.surfaceRaised)
+            .background(LocalDSColors.current.surfaceRaised)
             .padding(horizontal = DSSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DSSpacing.sm),
@@ -258,7 +260,7 @@ private fun FileViewerToolbar(
         Text(
             text = if (fileCount == 1) "1 file" else "$fileCount files",
             style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             maxLines = 1,
         )
 
@@ -275,7 +277,7 @@ private fun FileViewerToolbar(
             Icon(
                 imageVector = Icons.Default.ContentCopy,
                 contentDescription = "Copy all content to clipboard",
-                tint = DSColor.textSecondary,
+                tint = LocalDSColors.current.textSecondary,
                 modifier = Modifier.size(DSFont.iconLG.value.dp),
             )
         }
@@ -287,7 +289,7 @@ private fun FileViewerToolbar(
             Icon(
                 imageVector = Icons.Default.Close,
                 contentDescription = "Close",
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(DSFont.iconLG.value.dp),
             )
         }
@@ -306,13 +308,13 @@ private fun AddFileButton(onClick: () -> Unit) {
         Icon(
             imageVector = Icons.Default.Add,
             contentDescription = null,
-            tint = DSColor.accentPrimary,
+            tint = LocalDSColors.current.accentPrimary,
             modifier = Modifier.size(DSFont.iconMD.value.dp),
         )
         Text(
             text = "Add File",
             style = DSFont.buttonLabel,
-            color = DSColor.accentPrimary,
+            color = LocalDSColors.current.accentPrimary,
         )
     }
 }
@@ -334,7 +336,7 @@ private fun FileColumnView(
             onClose = onClose,
         )
 
-        HorizontalDivider(color = DSColor.borderDefault, thickness = 1.dp)
+        HorizontalDivider(color = LocalDSColors.current.borderDefault, thickness = 1.dp)
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (val state = entry.contentState) {
@@ -362,13 +364,13 @@ private fun FileColumnView(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxWidth()
-                                    .background(DSColor.surfaceBase),
+                                    .background(LocalDSColors.current.surfaceBase),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
                                     text = "File too large to preview (${formatBytes(state.totalBytes)})",
                                     style = DSFont.sidebarItem,
-                                    color = DSColor.textMuted,
+                                    color = LocalDSColors.current.textMuted,
                                 )
                             }
                         }
@@ -390,13 +392,13 @@ private fun FileColumnHeader(
     canClose: Boolean,
     onClose: () -> Unit,
 ) {
-    val (icon, iconColor) = fileIconAndColor(extension)
+    val (icon, iconColor) = fileIconAndColor(extension, LocalDSColors.current)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(36.dp)
-            .background(DSColor.surfaceRaised)
+            .background(LocalDSColors.current.surfaceRaised)
             .padding(horizontal = DSSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DSSpacing.sm),
@@ -411,7 +413,7 @@ private fun FileColumnHeader(
         Text(
             text = fileName,
             style = DSFont.sidebarItem,
-            color = DSColor.textPrimary,
+            color = LocalDSColors.current.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -425,7 +427,7 @@ private fun FileColumnHeader(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close column",
-                    tint = DSColor.textMuted,
+                    tint = LocalDSColors.current.textMuted,
                     modifier = Modifier.size(DSFont.iconMD.value.dp),
                 )
             }
@@ -455,7 +457,7 @@ internal fun CodeContentView(
     val listState = rememberLazyListState()
     val horizontalScroll = rememberScrollState()
 
-    Box(modifier = modifier.background(DSColor.surfaceBase)) {
+    Box(modifier = modifier.background(LocalDSColors.current.surfaceBase)) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -467,7 +469,7 @@ internal fun CodeContentView(
                 modifier = Modifier
                     .width(GUTTER_WIDTH)
                     .fillMaxHeight()
-                    .background(DSColor.surfaceRaised),
+                    .background(LocalDSColors.current.surfaceRaised),
                 userScrollEnabled = false,
             ) {
                 itemsIndexed(lines, key = { index, _ -> "gutter-$index" }) { index, _ ->
@@ -481,7 +483,7 @@ internal fun CodeContentView(
                         Text(
                             text = "${index + 1}",
                             style = DSFont.monoSmall,
-                            color = DSColor.textMuted,
+                            color = LocalDSColors.current.textMuted,
                             maxLines = 1,
                         )
                     }
@@ -493,7 +495,7 @@ internal fun CodeContentView(
                 modifier = Modifier
                     .width(1.dp)
                     .fillMaxHeight()
-                    .background(DSColor.borderSubtle),
+                    .background(LocalDSColors.current.borderSubtle),
             )
 
             // Code lines — selectable, single-pass monospace rendering
@@ -510,7 +512,7 @@ internal fun CodeContentView(
                                 fontSize = 13.sp,
                                 fontFamily = FontFamily.Monospace,
                             ),
-                            color = DSColor.textPrimary,
+                            color = LocalDSColors.current.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Clip,
                             modifier = Modifier
@@ -538,11 +540,11 @@ internal fun CodeContentView(
 @Composable
 private fun ColumnLoadingState() {
     Box(
-        modifier = Modifier.fillMaxSize().background(DSColor.surfaceBase),
+        modifier = Modifier.fillMaxSize().background(LocalDSColors.current.surfaceBase),
         contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(
-            color = DSColor.accentPrimary,
+            color = LocalDSColors.current.accentPrimary,
             modifier = Modifier.size(24.dp),
             strokeWidth = 2.dp,
         )
@@ -552,13 +554,13 @@ private fun ColumnLoadingState() {
 @Composable
 private fun ColumnEmptyState() {
     Box(
-        modifier = Modifier.fillMaxSize().background(DSColor.surfaceBase),
+        modifier = Modifier.fillMaxSize().background(LocalDSColors.current.surfaceBase),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "Empty file",
             style = DSFont.sidebarItem,
-            color = DSColor.textMuted,
+            color = LocalDSColors.current.textMuted,
         )
     }
 }
@@ -566,7 +568,7 @@ private fun ColumnEmptyState() {
 @Composable
 private fun ColumnBinaryState() {
     Box(
-        modifier = Modifier.fillMaxSize().background(DSColor.surfaceBase),
+        modifier = Modifier.fillMaxSize().background(LocalDSColors.current.surfaceBase),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -576,13 +578,13 @@ private fun ColumnBinaryState() {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
                 contentDescription = null,
-                tint = DSColor.textMuted,
+                tint = LocalDSColors.current.textMuted,
                 modifier = Modifier.size(32.dp),
             )
             Text(
                 text = "Binary file — preview not available",
                 style = DSFont.sidebarItem,
-                color = DSColor.textMuted,
+                color = LocalDSColors.current.textMuted,
             )
         }
     }
@@ -591,7 +593,7 @@ private fun ColumnBinaryState() {
 @Composable
 private fun ColumnErrorState(message: String) {
     Box(
-        modifier = Modifier.fillMaxSize().background(DSColor.surfaceBase),
+        modifier = Modifier.fillMaxSize().background(LocalDSColors.current.surfaceBase),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -601,13 +603,13 @@ private fun ColumnErrorState(message: String) {
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
-                tint = DSColor.gitDeleted,
+                tint = LocalDSColors.current.gitDeleted,
                 modifier = Modifier.size(32.dp),
             )
             Text(
                 text = message,
                 style = DSFont.sidebarItem,
-                color = DSColor.gitDeleted,
+                color = LocalDSColors.current.gitDeleted,
             )
         }
     }
@@ -618,7 +620,7 @@ private fun SizeWarningBanner(totalBytes: Long) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DSColor.gitModified.copy(alpha = 0.10f))
+            .background(LocalDSColors.current.gitModified.copy(alpha = 0.10f))
             .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DSSpacing.xs),
@@ -626,13 +628,13 @@ private fun SizeWarningBanner(totalBytes: Long) {
         Icon(
             imageVector = Icons.Default.Warning,
             contentDescription = null,
-            tint = DSColor.gitModified,
+            tint = LocalDSColors.current.gitModified,
             modifier = Modifier.size(DSFont.iconBase.value.dp),
         )
         Text(
             text = "File truncated (${formatBytes(totalBytes)}) — showing first ${MAX_FILE_BYTES / 1024} KB",
             style = DSFont.sidebarItemSmall,
-            color = DSColor.gitModified,
+            color = LocalDSColors.current.gitModified,
         )
     }
 }
@@ -734,8 +736,8 @@ private fun buildWindowTitle(filePaths: List<String>): String {
  * language entries (JS/TS, Python, Rust, Go, C/C++, Ruby) that are relevant in
  * a full-file preview context.
  */
-private fun fileIconAndColor(ext: String): Pair<ImageVector, Color> = when (ext) {
-    "kt", "kts"                                -> Icons.Default.Code to DSColor.accentPrimary
+private fun fileIconAndColor(ext: String, colors: DSColors): Pair<ImageVector, Color> = when (ext) {
+    "kt", "kts"                                -> Icons.Default.Code to colors.accentPrimary
     "swift"                                    -> Icons.Default.Code to Color(0xFFF05138)
     "java"                                     -> Icons.Default.Code to Color(0xFFB07219)
     "js", "ts", "tsx", "jsx", "mjs", "cjs"     -> Icons.Default.Code to Color(0xFFF7DF1E)
@@ -744,11 +746,11 @@ private fun fileIconAndColor(ext: String): Pair<ImageVector, Color> = when (ext)
     "go"                                       -> Icons.Default.Code to Color(0xFF00ADD8)
     "c", "cpp", "cc", "h", "hpp", "hxx"        -> Icons.Default.Code to Color(0xFF555555)
     "rb"                                       -> Icons.Default.Code to Color(0xFF701516)
-    "json", "yaml", "yml", "toml"              -> Icons.Default.Settings to DSColor.textSecondary
-    "md", "txt", "rst", "adoc"                 -> Icons.Default.Description to DSColor.textSecondary
-    "xml", "html", "htm", "css", "scss", "less" -> Icons.Default.Code to DSColor.gitModified
-    "gradle", "gradle.kts"                     -> Icons.Default.Settings to DSColor.textSecondary
-    "sh", "bash", "zsh", "fish"                -> Icons.Default.Code to DSColor.textSecondary
-    "png", "jpg", "jpeg", "svg", "gif", "webp" -> Icons.Default.Image to DSColor.textSecondary
-    else -> Icons.AutoMirrored.Filled.InsertDriveFile to DSColor.textSecondary
+    "json", "yaml", "yml", "toml"              -> Icons.Default.Settings to colors.textSecondary
+    "md", "txt", "rst", "adoc"                 -> Icons.Default.Description to colors.textSecondary
+    "xml", "html", "htm", "css", "scss", "less" -> Icons.Default.Code to colors.gitModified
+    "gradle", "gradle.kts"                     -> Icons.Default.Settings to colors.textSecondary
+    "sh", "bash", "zsh", "fish"                -> Icons.Default.Code to colors.textSecondary
+    "png", "jpg", "jpeg", "svg", "gif", "webp" -> Icons.Default.Image to colors.textSecondary
+    else -> Icons.AutoMirrored.Filled.InsertDriveFile to colors.textSecondary
 }
