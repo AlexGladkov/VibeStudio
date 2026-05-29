@@ -165,22 +165,16 @@ fun TabBarView(
         }
 
         // Add / open project button — always visible at the right edge.
-        // When at least one project is already open, clicking the button shows
-        // the Recents popover (mirrors AddProjectPopover.swift on macOS). When
-        // no projects are open yet, fall through directly to the folder
-        // picker since the Welcome screen already handles discovery.
+        // Clicking always opens the Recents popover (mirrors
+        // AddProjectPopover.swift on macOS). The popover itself contains the
+        // "Open Folder…" action plus the list of recently used projects, so
+        // we never bypass it.
         Box {
             Box(
                 modifier = Modifier
                     .size(DSLayout.tabAddButtonSize)
                     .clip(RoundedCornerShape(DSRadius.md))
-                    .clickable {
-                        if (projects.isEmpty()) {
-                            onOpenProject()
-                        } else {
-                            showAddPopover = true
-                        }
-                    },
+                    .clickable { showAddPopover = true },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
