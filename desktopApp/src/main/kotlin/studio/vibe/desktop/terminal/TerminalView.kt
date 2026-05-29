@@ -151,24 +151,34 @@ fun TerminalView(
     // Key on projectId, targetSessionId, fontSize, and palette so we re-create
     // when the theme changes (otherwise the existing widget keeps its old colors).
     LaunchedEffect(projectId, targetSessionId, terminalFontSize, colors) {
-        // 1. Resolve session: target → existing for project → create new
-        var session = if (targetSessionId != null) {
-            // Agent session created externally — we do NOT own it.
-            holder.ownsSession = false
-            service.session(targetSessionId)
-        } else {
-            service.sessions(projectId).lastOrNull()
-        }
+        // A session is "live" only when its PTY process is still tracked.
+        // Stale entries (PTY exited or session removed) must be skipped or the
+        // widget never gets created and the terminal appears blank.
+        fun isLive(s: studio.vibe.shared.model.TerminalSession?): Boolean =
+            s != null && service.ptyProcessForSession(s.id) != null
 
-        // Fallback: if targetSessionId was given but session is gone (agent exited),
-        // try most recent project session before creating a new one.
-        if (session == null && targetSessionId != null) {
-            holder.ownsSession = false
-            session = service.sessions(projectId).lastOrNull()
+        // 1. Resolve session: target → most recent live project session → create new
+        var session: studio.vibe.shared.model.TerminalSession? = null
+
+        if (targetSessionId != null) {
+            val target = service.session(targetSessionId)
+            if (isLive(target)) {
+                holder.ownsSession = false
+                session = target
+            }
         }
 
         if (session == null) {
-            // No existing session — create a new one; we own its lifecycle.
+            // Walk recent-first; pick the first session whose PTY is still alive.
+            val live = service.sessions(projectId).reversed().firstOrNull { isLive(it) }
+            if (live != null) {
+                holder.ownsSession = false
+                session = live
+            }
+        }
+
+        if (session == null) {
+            // No live existing session — create a new one; we own its lifecycle.
             holder.ownsSession = true
             session = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 service.createSession(
@@ -205,7 +215,10 @@ fun TerminalView(
         widgetHolder = widget
     }
 
-    DisposableEffect(projectId, targetSessionId, terminalFontSize) {
+    // Keys must match LaunchedEffect above so the previous widget is always
+    // disposed before the new one is built. Omitting [colors] would leave the
+    // old PTY widget orphaned across theme switches.
+    DisposableEffect(projectId, targetSessionId, terminalFontSize, colors) {
         onDispose {
             // Only kill the session if *we* created it — don't kill agent sessions owned by toolbar.
             if (holder.ownsSession) {
