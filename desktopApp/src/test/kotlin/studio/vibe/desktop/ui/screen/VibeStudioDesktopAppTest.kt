@@ -200,44 +200,8 @@ class VibeStudioDesktopAppTest {
         composeTestRule.onNodeWithText("SPECS").assertDoesNotExist()
     }
 
-    // ── CodeSpeak toggle button ───────────────────────────────────────────────
-
-    @Ignore("LocalInteropContainer not provided in headless test host — active project + isCodeSpeakMode=false triggers SwingPanel via RootView")
-    @Test
-    fun app_codeSpeakToggleShowsEnterState_whenModeInactive() {
-        val tempDir = Files.createTempDirectory("vs-app-cstoggle").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
-        container.projectStore.setActiveProjectId(project.id)
-
-        composeTestRule.setContent {
-            VibeStudioTheme {
-                VibeStudioDesktopApp(
-                    container = container,
-                    isCodeSpeakMode = false,
-                )
-            }
-        }
-
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithContentDescription("Enter CodeSpeak mode").assertExists()
-    }
-
-    @Test
-    fun app_codeSpeakToggleShowsExitState_whenModeActive() {
-        val tempDir = Files.createTempDirectory("vs-app-csactive").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
-        container.projectStore.setActiveProjectId(project.id)
-
-        composeTestRule.setContent {
-            VibeStudioTheme {
-                VibeStudioDesktopApp(
-                    container = container,
-                    isCodeSpeakMode = true,
-                )
-            }
-        }
-
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithContentDescription("Exit CodeSpeak mode").assertExists()
-    }
+    // ── CodeSpeak toggle removed from toolbar ────────────────────────────────
+    // Tests for the on-toolbar CodeSpeak toggle were dropped together with the
+    // button — the macOS Swift toolbar doesn't expose it either, and the mode
+    // is still reachable via ⌘⇧C / View menu.
 }

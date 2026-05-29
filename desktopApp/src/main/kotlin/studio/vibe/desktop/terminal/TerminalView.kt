@@ -268,12 +268,19 @@ fun TerminalView(
         }
     }
 
-    // When TerminalView leaves the composition entirely (no active project, or
-    // the surrounding screen is dismissed) we own the cleanup — close every
-    // cached widget and kill the sessions we created.
+    // When TerminalView leaves the composition entirely (no active project,
+    // toggling CodeSpeak mode, etc.) we own the cleanup — close every cached
+    // widget AND detach it from any AWT parent first. JediTermWidget.close()
+    // alone tears down its internal state but does not unparent the JComponent,
+    // so without the explicit removal the old widget continues to paint on top
+    // of whatever surface is mounted next (the symptom the user reported after
+    // entering and exiting CodeSpeak mode — ghost terminal stripes).
     DisposableEffect(Unit) {
         onDispose {
-            widgetCache.values.forEach { it.close() }
+            widgetCache.values.forEach { widget ->
+                widget.parent?.remove(widget)
+                widget.close()
+            }
             widgetCache.clear()
         }
     }

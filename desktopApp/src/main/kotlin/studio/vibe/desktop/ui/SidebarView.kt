@@ -4,6 +4,7 @@ package studio.vibe.desktop.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.background
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +54,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,6 +107,7 @@ fun SidebarView(
 
     Row(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
         IconStrip(
+            container = container,
             activeTab = activeTab,
             onTabSelected = { activeTab = it },
             onAddProject = onOpenProject,
@@ -133,10 +139,14 @@ fun SidebarView(
 
 @Composable
 private fun IconStrip(
+    container: DesktopServiceContainer,
     activeTab: SidebarTab,
     onTabSelected: (SidebarTab) -> Unit,
     onAddProject: () -> Unit,
 ) {
+    var showAddPopover by remember { mutableStateOf(false) }
+    val colors = LocalDSColors.current
+
     Column(
         modifier = Modifier
             .width(DSLayout.iconStripWidth)
@@ -166,16 +176,43 @@ private fun IconStrip(
 
         Spacer(Modifier.weight(1f))
 
-        IconButton(
-            onClick = onAddProject,
-            modifier = Modifier.size(DSLayout.iconStripButtonSize),
-        ) {
-            Icon(
-                Icons.Default.Add,
-                contentDescription = "Add project",
-                tint = LocalDSColors.current.textMuted,
-                modifier = Modifier.size(DSFont.iconLG.value.dp),
-            )
+        Box {
+            IconButton(
+                onClick = { showAddPopover = true },
+                modifier = Modifier.size(DSLayout.iconStripButtonSize),
+            ) {
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "Add project",
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(DSFont.iconLG.value.dp),
+                )
+            }
+
+            if (showAddPopover) {
+                Popup(
+                    onDismissRequest = { showAddPopover = false },
+                    properties = PopupProperties(focusable = true),
+                    alignment = Alignment.BottomStart,
+                    offset = IntOffset(DSLayout.iconStripWidth.value.toInt(), 0),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(DSRadius.md),
+                        color = colors.surfaceOverlay,
+                        shadowElevation = 8.dp,
+                        border = BorderStroke(1.dp, colors.borderDefault),
+                    ) {
+                        AddProjectPopover(
+                            container = container,
+                            onOpenFolder = {
+                                showAddPopover = false
+                                onAddProject()
+                            },
+                            onDismiss = { showAddPopover = false },
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.height(DSSpacing.sm))

@@ -4,6 +4,7 @@ package studio.vibe.desktop.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -97,15 +99,13 @@ fun ToolbarView(
 
         Spacer(Modifier.width(DSSpacing.sm))
 
-        // CodeSpeak mode toggle
-        CodeSpeakToggleButton(
-            isActive = isCodeSpeakMode,
-            onClick = onToggleCodeSpeakMode,
-        )
-
-        Spacer(Modifier.width(DSSpacing.sm))
+        // Remote control status badge — shown only when the server is running.
+        RemoteControlBadge(container = container)
 
         // Settings gear
+        // CodeSpeak mode toggle intentionally not rendered here — the macOS
+        // Swift toolbar does not expose it either; the mode is reachable via
+        // ⌘⇧C and the View menu instead.
         SettingsButton(onClick = onOpenSettings)
 
         // Inline error message (trailing)
@@ -410,6 +410,122 @@ private fun SettingsButton(onClick: () -> Unit) {
             modifier = Modifier.size(DSFont.iconBase.value.dp),
         )
     }
+}
+
+// ── Remote Control Badge ──────────────────────────────────────────────────────
+
+/**
+ * Compact remote-control status surface for the toolbar.
+ *
+ * Visible only while [studio.vibe.desktop.remote.RemoteControlServer.isRunning]
+ * emits `true`. Shows a Wi-Fi icon decorated with a small device-count badge
+ * (when at least one mobile client is paired) and opens a popover with the
+ * current PIN, the LAN URL, the optional ngrok URL, and a Copy action — a
+ * functional subset of the macOS Swift toolbar's QR popover. Generating the
+ * QR image itself requires a Compose-Desktop friendly QR library; for now
+ * the user can copy the URL and scan via any QR generator if needed.
+ */
+@Composable
+private fun RemoteControlBadge(container: DesktopServiceContainer) {
+    val server = container.remoteControlServer
+    val isRunning by server.isRunning.collectAsState()
+    if (!isRunning) return
+
+    val devices by server.authService.connectedDevices.collectAsState()
+    var showPopover by remember { mutableStateOf(false) }
+    val colors = LocalDSColors.current
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(DSRadius.md))
+                .background(colors.toolbarControlBg)
+                .border(1.dp, colors.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
+                .clickable { showPopover = true }
+                .padding(horizontal = DSSpacing.xs, vertical = DSSpacing.xxs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = androidx.compose.material.icons.Icons.Default.Wifi,
+                contentDescription = "Remote control",
+                tint = colors.gitAdded,
+                modifier = Modifier.size(DSFont.iconLG.value.dp),
+            )
+            if (devices.isNotEmpty()) {
+                Spacer(Modifier.width(DSSpacing.xxs))
+                Text(
+                    text = devices.size.toString(),
+                    style = DSFont.statusBadge,
+                    color = colors.textPrimary,
+                )
+            }
+        }
+
+        if (showPopover) {
+            val lanIP = java.net.InetAddress.getLocalHost().hostAddress
+            val pin = server.currentPin
+            val ngrok = server.ngrokTunnelURL
+            val lanUrl = "http://$lanIP:${server.port + 1}/?pin=$pin"
+            val primaryUrl = ngrok?.let { "$it/?pin=$pin" } ?: lanUrl
+
+            androidx.compose.ui.window.Popup(
+                onDismissRequest = { showPopover = false },
+                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
+                alignment = Alignment.TopEnd,
+                offset = androidx.compose.ui.unit.IntOffset(0, DSLayout.toolbarHeight.value.toInt() + 4),
+            ) {
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(DSRadius.md),
+                    color = colors.surfaceOverlay,
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderDefault),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .width(320.dp)
+                            .padding(DSSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
+                    ) {
+                        Text(text = "Remote Control", style = DSFont.gitBranch, color = colors.textPrimary)
+                        Text(text = "PIN: $pin", style = DSFont.monoPath, color = colors.textSecondary)
+                        Text(text = primaryUrl, style = DSFont.monoSmall, color = colors.accentPrimary, maxLines = 2)
+                        if (devices.isEmpty()) {
+                            Text(
+                                text = "No devices connected",
+                                style = DSFont.sidebarItemSmall,
+                                color = colors.textMuted,
+                            )
+                        } else {
+                            Text(
+                                text = "${devices.size} device${if (devices.size == 1) "" else "s"} connected",
+                                style = DSFont.sidebarItemSmall,
+                                color = colors.gitAdded,
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(DSRadius.sm))
+                                .background(colors.buttonPrimaryBg)
+                                .clickable {
+                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(primaryUrl))
+                                }
+                                .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                text = "Copy URL",
+                                style = DSFont.smallButtonLabel,
+                                color = colors.buttonPrimaryText,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.width(DSSpacing.sm))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -113,7 +113,9 @@ class ToolbarViewTest {
     }
 
     @Test
-    fun toolbarView_codeSpeakToggleShowsEnterState_whenModeInactive() {
+    fun toolbarView_doesNotRenderCodeSpeakToggle() {
+        // The CodeSpeak mode toggle was removed from the toolbar to match the
+        // macOS Swift behaviour (mode is reachable via ⌘⇧C / View menu).
         composeTestRule.setContent {
             VibeStudioTheme {
                 ToolbarView(
@@ -127,24 +129,7 @@ class ToolbarViewTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithContentDescription("Enter CodeSpeak mode").assertExists()
-    }
-
-    @Test
-    fun toolbarView_codeSpeakToggleShowsExitState_whenModeActive() {
-        composeTestRule.setContent {
-            VibeStudioTheme {
-                ToolbarView(
-                    container = container,
-                    isCodeSpeakMode = true,
-                    onOpenSettings = {},
-                    onToggleCodeSpeakMode = {},
-                    onInstallAgent = {},
-                )
-            }
-        }
-
-        composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithContentDescription("Exit CodeSpeak mode").assertExists()
+        composeTestRule.onNodeWithContentDescription("Enter CodeSpeak mode").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("Exit CodeSpeak mode").assertDoesNotExist()
     }
 }
