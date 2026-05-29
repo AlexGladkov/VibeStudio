@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.terminal.LocalTerminalRenderer
 import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -94,9 +95,10 @@ fun TerminalAreaView(
             )
 
             val terminalFontSize by container.generalPreferences.terminalFontSizeFlow.collectAsState()
-            TerminalView(
+            LocalTerminalRenderer.current.Render(
                 service = container.terminalService,
                 projectId = activeProjectId!!,
+                targetSessionId = null,
                 terminalFontSize = terminalFontSize.toFloat(),
                 workingDirectory = project?.path?.path,
                 modifier = Modifier.weight(1f),

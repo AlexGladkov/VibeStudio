@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.terminal.LocalTerminalRenderer
 import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -121,12 +122,14 @@ fun RootView(
                 onOpenProject = onOpenProject,
             )
 
-            // Terminal area — real pty4j + JediTerm
+            // Terminal area — delegates to the active TerminalRenderer so
+            // headless integration tests can swap the SwingPanel-based
+            // implementation for a Compose-only stub.
             if (activeProject != null) {
                 val project = projects.find { it.id == activeProject }
                 val toolbarState by container.toolbarViewModel.state.collectAsState()
                 val terminalFontSize by container.generalPreferences.terminalFontSizeFlow.collectAsState()
-                TerminalView(
+                LocalTerminalRenderer.current.Render(
                     service = container.terminalService,
                     projectId = activeProject!!,
                     targetSessionId = toolbarState.activeAgentSessionId,

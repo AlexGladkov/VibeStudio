@@ -2,13 +2,15 @@
 
 package studio.vibe.desktop.integration
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
+import studio.vibe.desktop.terminal.LocalTerminalRenderer
+import studio.vibe.desktop.testutil.StubTerminalRenderer
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.ui.RootView
@@ -98,21 +100,22 @@ class StateFlowWiringTest {
 
     // ── RootView reacts to projectStore.activeProjectId ───────────────────────
 
-    @Ignore("LocalInteropContainer not provided in headless test host — setActiveProjectId triggers SwingPanel in RootView")
     @Test
     fun rootView_switchesToTerminal_whenActiveProjectSet() {
         val tempDir = Files.createTempDirectory("vs-flow-root").toFile().also { it.deleteOnExit() }
         val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
 
         composeTestRule.setContent {
-            VibeStudioTheme {
-                RootView(
-                    container = container,
-                    onOpenProject = {},
-                    showGitPanel = false,
-                    showSidebar = true,
-                    onToggleGitPanel = {},
-                )
+            CompositionLocalProvider(LocalTerminalRenderer provides StubTerminalRenderer) {
+                VibeStudioTheme {
+                    RootView(
+                        container = container,
+                        onOpenProject = {},
+                        showGitPanel = false,
+                        showSidebar = true,
+                        onToggleGitPanel = {},
+                    )
+                }
             }
         }
 
@@ -129,7 +132,6 @@ class StateFlowWiringTest {
         composeTestRule.onNodeWithText("Terminal area").assertDoesNotExist()
     }
 
-    @Ignore("LocalInteropContainer not provided in headless test host — initial render with active project triggers SwingPanel in RootView")
     @Test
     fun rootView_switchesBackToPlaceholder_whenActiveProjectCleared() {
         val tempDir = Files.createTempDirectory("vs-flow-rootclear").toFile().also { it.deleteOnExit() }
@@ -137,14 +139,16 @@ class StateFlowWiringTest {
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
-            VibeStudioTheme {
-                RootView(
-                    container = container,
-                    onOpenProject = {},
-                    showGitPanel = false,
-                    showSidebar = true,
-                    onToggleGitPanel = {},
-                )
+            CompositionLocalProvider(LocalTerminalRenderer provides StubTerminalRenderer) {
+                VibeStudioTheme {
+                    RootView(
+                        container = container,
+                        onOpenProject = {},
+                        showGitPanel = false,
+                        showSidebar = true,
+                        onToggleGitPanel = {},
+                    )
+                }
             }
         }
 
@@ -159,14 +163,15 @@ class StateFlowWiringTest {
 
     // ── VibeStudioDesktopApp — full lifecycle ──────────────────────────────────
 
-    @Ignore("LocalInteropContainer not provided in headless test host — setActiveProjectId mid-render triggers SwingPanel in RootView")
     @Test
     fun app_switchesFromWelcomeToMain_whenProjectAddedAndActivated() {
         val tempDir = Files.createTempDirectory("vs-flow-appadd").toFile().also { it.deleteOnExit() }
 
         composeTestRule.setContent {
-            VibeStudioTheme {
-                VibeStudioDesktopApp(container = container)
+            CompositionLocalProvider(LocalTerminalRenderer provides StubTerminalRenderer) {
+                VibeStudioTheme {
+                    VibeStudioDesktopApp(container = container)
+                }
             }
         }
 
@@ -180,7 +185,6 @@ class StateFlowWiringTest {
         composeTestRule.onNodeWithText("Open a folder to get started").assertDoesNotExist()
     }
 
-    @Ignore("LocalInteropContainer not provided in headless test host — initial render with active project triggers SwingPanel in RootView")
     @Test
     fun app_switchesBackToWelcome_whenAllProjectsRemoved() {
         val tempDir = Files.createTempDirectory("vs-flow-apprem").toFile().also { it.deleteOnExit() }
@@ -188,8 +192,10 @@ class StateFlowWiringTest {
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
-            VibeStudioTheme {
-                VibeStudioDesktopApp(container = container)
+            CompositionLocalProvider(LocalTerminalRenderer provides StubTerminalRenderer) {
+                VibeStudioTheme {
+                    VibeStudioDesktopApp(container = container)
+                }
             }
         }
 
