@@ -18,7 +18,7 @@ import OSLog
 /// 3. **Subsequent text frames:** Parse JSON, dispatch to bridge (input/resize/ping/detach).
 /// 4. **Binary frames:** Not expected from clients -- ignored.
 /// 5. **Close frame:** Clean up bridge, unregister from server.
-/// 6. **Heartbeat:** If no message for 60s, close with code 4004.
+/// 6. **Heartbeat:** If no message for 60s, close with `WSCloseCode.heartbeatTimeout`.
 ///
 /// **Security:**
 /// Token is sent as the first WS message (not in URL query params) to prevent
@@ -287,7 +287,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                 authInProgress = true
                 handleAuthMessage(jsonData: jsonData, channel: channel)
             } else {
-                sendErrorAndClose(code: 4000, reason: "Authentication required", channel: channel)
+                sendErrorAndClose(code: WSCloseCode.authRequired, reason: "Authentication required", channel: channel)
             }
             return
         }
@@ -357,12 +357,12 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         }
 
         guard let authMsg = try? decoder.decode(AuthEnvelope.self, from: jsonData) else {
-            sendErrorAndClose(code: 4000, reason: "Invalid auth message format", channel: channel)
+            sendErrorAndClose(code: WSCloseCode.authRequired, reason: "Invalid auth message format", channel: channel)
             return
         }
 
         guard let authSvc = authService else {
-            sendErrorAndClose(code: 4000, reason: "Auth service unavailable", channel: channel)
+            sendErrorAndClose(code: WSCloseCode.authRequired, reason: "Auth service unavailable", channel: channel)
             return
         }
 
@@ -390,7 +390,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                     // Reset authInProgress on the event loop thread so the flag stays
                     // consistent with the thread that originally set it.
                     self.authInProgress = false
-                    self.sendErrorAndClose(code: 4000, reason: "Authentication failed", channel: channel)
+                    self.sendErrorAndClose(code: WSCloseCode.authRequired, reason: "Authentication failed", channel: channel)
                 }
             }
         }
@@ -425,7 +425,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             try? await Task.sleep(for: .seconds(10))
             guard !Task.isCancelled, let self, !self.isAuthenticated else { return }
             Logger.remoteControl.warning("RemoteWebSocketHandler: auth timeout, closing unauthenticated connection")
-            self.sendErrorAndClose(code: 4000, reason: "Auth timeout", channel: channel)
+            self.sendErrorAndClose(code: WSCloseCode.authRequired, reason: "Auth timeout", channel: channel)
         }
     }
 
@@ -471,7 +471,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             guard !Task.isCancelled else { return }
             Logger.remoteControl.info("RemoteWebSocketHandler: heartbeat timeout, closing connection")
             var buffer = channel.allocator.buffer(capacity: 2 + "Heartbeat timeout".utf8.count)
-            buffer.writeInteger(UInt16(4004))
+            buffer.writeInteger(WSCloseCode.heartbeatTimeout)
             buffer.writeString("Heartbeat timeout")
             let closeFrame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
             channel.writeAndFlush(NIOAny(closeFrame)).whenComplete { _ in

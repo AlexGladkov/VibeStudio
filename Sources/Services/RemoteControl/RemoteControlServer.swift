@@ -76,6 +76,10 @@ final class RemoteControlServer {
     private(set) var preferences: RemoteControlPreferences
     private(set) var terminalService: TerminalService
     private(set) var projectManager: any ProjectManaging
+    /// General app preferences forwarded to every ``HTTPRequestRouter`` instance.
+    /// Required so the routers can resolve `claudeSkipPermissions` via the
+    /// canonical source rather than poking `UserDefaults.standard` directly (M13).
+    private(set) var generalPreferences: GeneralPreferences
     private let bonjour: BonjourAdvertiser
     private let ngrok: NgrokTunnelService
 
@@ -138,11 +142,13 @@ final class RemoteControlServer {
     init(
         authService: RemoteAuthService,
         preferences: RemoteControlPreferences,
+        generalPreferences: GeneralPreferences,
         terminalService: TerminalService,
         projectManager: any ProjectManaging
     ) {
         self.authService = authService
         self.preferences = preferences
+        self.generalPreferences = generalPreferences
         self.terminalService = terminalService
         self.projectManager = projectManager
         self.bonjour = BonjourAdvertiser()
@@ -162,6 +168,7 @@ final class RemoteControlServer {
         self.init(
             authService: RemoteAuthService(),
             preferences: prefs,
+            generalPreferences: general,
             terminalService: terminal,
             projectManager: PreviewProjectManagerStub()
         )
@@ -197,6 +204,7 @@ final class RemoteControlServer {
         let termSvc = self.terminalService
         let projMgr = self.projectManager
         let prefs = self.preferences
+        let generalPrefs = self.generalPreferences
         let idleTimeout = self.preferences.idleTimeoutMinutes
 
         isTransitioning = true
@@ -246,6 +254,7 @@ final class RemoteControlServer {
                         terminalService: termSvc,
                         projectManager: projMgr,
                         preferences: prefs,
+                        generalPreferences: generalPrefs,
                         idleTimeoutMinutes: idleTimeout,
                         serverRef: weakSelf,
                         staticFileCache: staticFileCache,
@@ -310,8 +319,12 @@ final class RemoteControlServer {
                     }
 
                     if server.preferences.ngrokEnabled && !server.preferences.ngrokAuthtoken.isEmpty {
+                        // SECURITY (H1): tunnel the plain-HTTP loopback listener
+                        // (`bindPort + 1`) so the ngrok agent → upstream leg does
+                        // not need to disable TLS verification. The plain-HTTP
+                        // port is `127.0.0.1`-only — never reachable from the LAN.
                         server.ngrok.start(
-                            httpPort: bindPort,
+                            httpPort: bindPort + 1,
                             authtoken: server.preferences.ngrokAuthtoken
                         )
                     }
@@ -426,7 +439,13 @@ final class RemoteControlServer {
     /// Start the ngrok tunnel (called from settings toggle while server is running).
     func startNgrok() {
         guard isRunning else { return }
-        ngrok.start(httpPort: preferences.remoteControlPort, authtoken: preferences.ngrokAuthtoken)
+        // SECURITY (H1): tunnel `port + 1` (plain-HTTP loopback) instead of the
+        // self-signed HTTPS port so the ngrok agent does not need
+        // `--verify-upstream-tls=false`. Loopback port is `127.0.0.1` only.
+        ngrok.start(
+            httpPort: preferences.remoteControlPort + 1,
+            authtoken: preferences.ngrokAuthtoken
+        )
     }
 
     /// Stop the ngrok tunnel.

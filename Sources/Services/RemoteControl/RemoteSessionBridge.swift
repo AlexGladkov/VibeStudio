@@ -285,7 +285,7 @@ final class RemoteSessionBridge {
             Logger.remoteControl.info(
                 "RemoteSessionBridge: idle timeout device=\(self.deviceId) session=\(self.sessionId)"
             )
-            self.closeWithCode(4004, reason: "Idle timeout")
+            self.closeWithCode(WSCloseCode.heartbeatTimeout, reason: "Idle timeout")
         }
     }
 

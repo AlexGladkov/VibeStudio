@@ -94,6 +94,20 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Shell command to start this assistant, with optional Claude flag for
+    /// `--dangerously-skip-permissions`. Centralises the flag injection so all
+    /// callers (Remote Control router, local launch paths) agree on the
+    /// produced command string. M13.
+    ///
+    /// - Parameter skipPermissions: when `true` and `self == .claude`, appends
+    ///   `--dangerously-skip-permissions`. Ignored for non-Claude agents.
+    func launchCommand(skipPermissions: Bool) -> String {
+        if self == .claude && skipPermissions {
+            return "claude --dangerously-skip-permissions\n"
+        }
+        return launchCommand
+    }
+
     /// How to gracefully terminate this agent.
     var exitSequence: AgentExitSequence {
         switch self {

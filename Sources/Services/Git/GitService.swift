@@ -30,10 +30,9 @@ final class GitService: GitServicing, @unchecked Sendable {
     private static let validBranchPattern = /^[a-zA-Z0-9\/_\-\.@]+$/
 
     /// Shared date formatter for parsing ISO 8601 commit dates.
-    private static let commitDateFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        return formatter
-    }()
+    /// L15: the previous closure form was equivalent to a direct `static let`
+    /// initialiser — simplified to remove the no-op configuration block.
+    private static let commitDateFormatter = ISO8601DateFormatter()
 
     // MARK: - Git Binary
 

@@ -281,7 +281,16 @@ final class TerminalService: TerminalSessionManaging {
 
     func resize(session sessionId: UUID, to size: TerminalSize) {
         guard let view = store.view(for: sessionId) else { return }
-        let fd = view.process.childfd
+        // CRASH FIX (H14): `view.process` is an implicitly unwrapped optional
+        // on `LocalProcessTerminalView`. If the PTY failed to spawn (binary
+        // missing, permission denied) `process` is `nil` and accessing
+        // `process.childfd` traps. `sendSignal(to:signal:)` already guards
+        // this — mirror the same pattern here.
+        guard let process = view.process else {
+            Logger.terminal.warning("resize: process is nil for session \(sessionId)")
+            return
+        }
+        let fd = process.childfd
         guard fd >= 0 else { return }
         var ws = winsize(
             ws_row: UInt16(clamping: size.rows),

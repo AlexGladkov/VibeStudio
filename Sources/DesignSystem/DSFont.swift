@@ -10,6 +10,16 @@ import AppKit
 /// UI text uses SF Pro (system font). Terminal uses JetBrains Mono
 /// with SF Mono as fallback. Git status literals use SF Mono.
 enum DSFont {
+    // MARK: Font Availability Probes
+
+    /// L14: cached existence checks for optional system fonts. Probing
+    /// `NSFont(name:size:)` is not free — it consults the font cache and may
+    /// fault dylibs on first access. Performing the probe once per process
+    /// (at static-init time) and reusing the boolean keeps subsequent token
+    /// lookups allocation-free.
+    private static let hasSFMono: Bool = NSFont(name: "SF Mono", size: 11) != nil
+    private static let hasJetBrainsMono: Bool = NSFont(name: "JetBrains Mono", size: 11) != nil
+
     /// Project name on tab: 12pt Medium.
     static let tabTitle = Font.system(size: 12, weight: .medium)
     /// Branch name on tab: 10pt Regular.
@@ -22,7 +32,7 @@ enum DSFont {
     static let sidebarItemSmall = Font.system(size: 11)
     /// Git status letter (M/A/D/?): SF Mono 11pt Medium.
     static let gitStatus: Font = {
-        if let _ = NSFont(name: "SF Mono", size: 11) {
+        if hasSFMono {
             return Font.custom("SF Mono", size: 11).weight(.medium)
         }
         return Font.system(size: 11, weight: .medium, design: .monospaced)
@@ -45,10 +55,10 @@ enum DSFont {
     /// - Parameter size: Font size in points (default 13, range 9-24).
     /// - Returns: Appropriate monospaced font.
     static func terminal(size: CGFloat = 13) -> Font {
-        if let _ = NSFont(name: "JetBrains Mono", size: size) {
+        if hasJetBrainsMono {
             return Font.custom("JetBrains Mono", size: size)
         }
-        if let _ = NSFont(name: "SF Mono", size: size) {
+        if hasSFMono {
             return Font.custom("SF Mono", size: size)
         }
         return Font.custom("Menlo", size: size)

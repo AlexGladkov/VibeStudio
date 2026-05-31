@@ -39,6 +39,13 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     /// Preferences -- same pattern.
     private let preferences: RemoteControlPreferences
 
+    /// General app preferences (Claude permission flag, etc.) -- same pattern.
+    /// M13: injected so the router reads `claudeSkipPermissions` from the
+    /// single source of truth instead of poking `UserDefaults.standard`
+    /// directly, which would silently diverge from `GeneralPreferences` and
+    /// also bypass `@Observable` notifications.
+    private let generalPreferences: GeneralPreferences
+
     /// Cached idle timeout (captured at init on MainActor) for use in
     /// nonisolated NIO handler context (WebSocket upgrade).
     private let cachedIdleTimeoutMinutes: Int
@@ -73,7 +80,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         return _wsDebugLog
     }
     static func wsLog(_ msg: String) {
-        let ts = ISO8601DateFormatter().string(from: Date())
+        let ts = HTTPRequestRouter.isoFormatter.string(from: Date())
         wsLogLock.lock()
         _wsDebugLog.append("[\(ts)] \(msg)")
         if _wsDebugLog.count > 100 { _wsDebugLog.removeFirst() }
@@ -103,6 +110,13 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
     private let decoder = JSONDecoder()
 
+    /// Shared ISO-8601 date formatter.
+    ///
+    /// L11: `ISO8601DateFormatter` is expensive to construct (parses locale,
+    /// calendar identifiers). Reusing a single instance avoids allocating one
+    /// per request. The class is documented thread-safe by Apple.
+    private static let isoFormatter = ISO8601DateFormatter()
+
     // MARK: - Init
 
     init(
@@ -110,6 +124,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         terminalService: TerminalService,
         projectManager: any ProjectManaging,
         preferences: RemoteControlPreferences,
+        generalPreferences: GeneralPreferences,
         idleTimeoutMinutes: Int,
         serverRef: RemoteControlServer?,
         staticFileCache: [String: (Data, String)] = [:],
@@ -119,6 +134,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         self.terminalService = terminalService
         self.projectManager = projectManager
         self.preferences = preferences
+        self.generalPreferences = generalPreferences
         self.cachedIdleTimeoutMinutes = idleTimeoutMinutes
         self.serverRef = serverRef
         self.staticFileCache = staticFileCache
@@ -327,7 +343,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         // Handled here (not via NIO's HTTPServerUpgradeHandler) because that handler
         // is one-shot and removes itself after the first non-upgrade request, breaking
         // HTTP/1.1 keep-alive connections where the WS upgrade comes after page load.
-        // Browser WebSocket API doesn't support custom headers, so the token is in query params.
+        // Token is NOT in URL (would leak to logs/history). Auth occurs on first
+        // WebSocket text frame: {"type":"auth","token":...}.
         if method == .GET && path.hasPrefix("/api/v1/terminal/") &&
            head.headers["Upgrade"].first?.caseInsensitiveCompare("websocket") == .orderedSame {
             handleWebSocketUpgrade(head: head, path: path, channel: channel)
@@ -336,7 +353,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
         // All other /api/ endpoints require authentication.
         if path.hasPrefix("/api/") {
-            let clientIP = extractClientIP(from: head)
+            let clientIP = currentClientIP
             guard let token = extractBearerToken(from: head) else {
                 sendErrorJSON(
                     status: .unauthorized,
@@ -360,7 +377,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 let result = authSvc.validateToken(token, clientIP: clientIP)
                 switch result {
                 case .failure(let error):
-                    let (status, code, message) = self.authErrorResponse(error)
+                    let (status, code, message, retryAfter) = self.authErrorResponse(error)
                     let respData = try? enc.encode(
                         ErrorResponse(error: ErrorDetail(code: code, message: message))
                     )
@@ -368,7 +385,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                         self?.sendRawJSON(
                             status: status,
                             data: respData ?? Data(),
-                            channel: channel
+                            channel: channel,
+                            retryAfterSeconds: retryAfter
                         )
                     }
 
@@ -425,7 +443,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             let resp = AuthValidateResponse(
                 valid: true,
                 deviceId: device.id.uuidString,
-                expiresAt: device.connectedAt.addingTimeInterval(4 * 60 * 60)
+                expiresAt: device.connectedAt.addingTimeInterval(RemoteAuthService.tokenTTL)
             )
             sendEncodable(resp, channel: channel, encoder: encoder)
             return
@@ -589,29 +607,14 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - Endpoint Handlers
 
     private func handleHealth(channel: Channel) {
-        // Enrich the health response with runtime diagnostics so monitoring
-        // tools and the client UI can display uptime, capacity, and version
-        // without needing an authenticated /api/v1/status call.
-        let authSvc = authService
-        let serverRefCopy = serverRef
-        let enc = encoder
-        Task { @MainActor in
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-            let uptimeSeconds = serverRefCopy?.uptimeSeconds ?? 0
-            let connectedDevices = authSvc.connectedDevices.count
-            let resp = HealthResponse(
-                status: "healthy",
-                version: version,
-                uptimeSeconds: uptimeSeconds,
-                connectedDevices: connectedDevices,
-                maxDevices: RemoteAuthService.maxDevices,
-                tls: "self-signed"
-            )
-            guard let data = try? enc.encode(resp) else { return }
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
+        // SECURITY (M1): `/api/v1/health` is unauthenticated and reachable
+        // through the ngrok tunnel, so the response must not leak runtime
+        // diagnostics that aid fingerprinting (version, uptime, connected
+        // device count, TLS mode). Only emit the minimum status payload that
+        // monitoring tools need. Authenticated callers can still query
+        // `/api/v1/status` for the full diagnostics surface.
+        let json = #"{"status":"healthy"}"#
+        sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
     }
 
     private func handleAuthToken(head: HTTPRequestHead, body: ByteBuffer?, channel: Channel) {
@@ -627,7 +630,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
-        let clientIP = extractClientIP(from: head)
+        let clientIP = currentClientIP
         let userAgent = head.headers["User-Agent"].first ?? ""
         let authSvc = authService
         let enc = encoder
@@ -646,11 +649,14 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             switch result {
             case .success(let tokenResponse):
                 #if DEBUG
-                NSLog("[RC-AUTH] issued token=\(String(tokenResponse.token.prefix(8)))...")
+                // SECURITY (I1): never log token material. Even the first 8 hex
+                // chars of a 32-byte token reduce its effective entropy when
+                // logs are exposed (oslog snapshots, Console.app captures).
+                NSLog("[RC-AUTH] auth success ip=\(clientIP)")
                 #endif
                 let resp = AuthTokenResponseDTO(
                     token: tokenResponse.token,
-                    expiresAt: Date().addingTimeInterval(4 * 60 * 60),
+                    expiresAt: Date().addingTimeInterval(RemoteAuthService.tokenTTL),
                     deviceId: tokenResponse.device.id.uuidString
                 )
                 if let data = try? enc.encode(resp) {
@@ -660,11 +666,16 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 }
 
             case .failure(let error):
-                let (status, code, message) = self.authErrorResponse(error)
+                let (status, code, message, retryAfter) = self.authErrorResponse(error)
                 let resp = ErrorResponse(error: ErrorDetail(code: code, message: message))
                 if let data = try? enc.encode(resp) {
                     channel.eventLoop.execute { [weak self] in
-                        self?.sendRawJSON(status: status, data: data, channel: channel)
+                        self?.sendRawJSON(
+                            status: status,
+                            data: data,
+                            channel: channel,
+                            retryAfterSeconds: retryAfter
+                        )
                     }
                 }
             }
@@ -866,7 +877,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         channel: Channel,
         encoder: JSONEncoder
     ) {
-        let isoFormatter = ISO8601DateFormatter()
+        let isoFormatter = HTTPRequestRouter.isoFormatter
         let recentResponses = projectManager.recentProjects.map { project in
             // SECURITY: Expose only the last path component (directory name), not
             // the full filesystem path, to prevent information leakage to remote clients.
@@ -928,8 +939,15 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             let resp = OpenProjectResponse(ok: true, projectId: project.id.uuidString)
             sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
         } catch {
+            // SECURITY (H2): do NOT echo `error.localizedDescription` to the
+            // client — POSIX errors expose the full filesystem path including
+            // the local user's home directory name. Log the detailed reason
+            // server-side; return a fixed, non-revealing message to the caller.
+            Logger.remoteControl.warning(
+                "handleOpenProject: addProject failed for path: \(error.localizedDescription, privacy: .private)"
+            )
             let resp = ErrorResponse(
-                error: ErrorDetail(code: "OPEN_FAILED", message: error.localizedDescription)
+                error: ErrorDetail(code: "OPEN_FAILED", message: "Failed to open project.")
             )
             sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
         }
@@ -978,11 +996,14 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
-        // Build launch command, appending --dangerously-skip-permissions for Claude when enabled.
-        var command = agent.launchCommand
-        if agent == .claude && UserDefaults.standard.bool(forKey: "vs_claude_skip_permissions") {
-            command = "claude --dangerously-skip-permissions\n"
-        }
+        // M13: Build launch command via the centralised
+        // `AIAssistant.launchCommand(skipPermissions:)` helper. The
+        // skip-permissions flag is sourced from `GeneralPreferences` — the
+        // single source of truth — instead of a duplicated UserDefaults read
+        // that would silently drift if the preference key ever changed.
+        let command = agent.launchCommand(
+            skipPermissions: generalPreferences.claudeSkipPermissions
+        )
         terminalService.sendInput(command, to: shellSession.id)
 
         let resp = AssistantStartResponse(
@@ -1250,12 +1271,30 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
     }
 
-    private func sendRawJSON(status: HTTPResponseStatus, data: Data, channel: Channel) {
+    /// Send a JSON HTTP response.
+    ///
+    /// - Parameters:
+    ///   - status: HTTP response status.
+    ///   - data: Pre-encoded JSON body.
+    ///   - channel: Target NIO channel.
+    ///   - retryAfterSeconds: When non-nil, emits the `Retry-After` HTTP header
+    ///     (RFC 7231 §7.1.3). Required for well-formed 429/503 responses so
+    ///     clients honour back-off without parsing the application payload.
+    private func sendRawJSON(
+        status: HTTPResponseStatus,
+        data: Data,
+        channel: Channel,
+        retryAfterSeconds: Int? = nil
+    ) {
         var headers = HTTPHeaders()
         headers.add(name: "Content-Type", value: "application/json; charset=utf-8")
         headers.add(name: "Content-Length", value: "\(data.count)")
         headers.add(name: "API-Version", value: "1.0.0")
         headers.add(name: "Cache-Control", value: "no-store")
+        if let retryAfterSeconds, retryAfterSeconds > 0 {
+            // RFC 7231 §7.1.3 — delta-seconds form.
+            headers.add(name: "Retry-After", value: "\(retryAfterSeconds)")
+        }
         addSecurityHeaders(to: &headers, isHTML: false)
         if let origin = corsOrigin {
             headers.add(name: "Access-Control-Allow-Origin", value: origin)
@@ -1426,12 +1465,16 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         return String(auth.dropFirst(7))
     }
 
-    private func extractClientIP(from head: HTTPRequestHead) -> String {
-        // Return the real TCP-level address captured at connection time.
-        // X-Forwarded-For is intentionally ignored -- it is trivially spoofable
-        // and must never be trusted for rate limiting or token binding.
-        remoteAddress
-    }
+    /// Real TCP-level client IP captured in `channelActive`.
+    ///
+    /// M11: previously exposed as `extractClientIP(from head:)` taking a
+    /// `HTTPRequestHead` that the implementation ignored. Renamed to a
+    /// computed property to communicate the actual behaviour and prevent
+    /// confused callers from believing the header is consulted.
+    ///
+    /// X-Forwarded-For is intentionally NOT consulted — it is trivially
+    /// spoofable and must never be trusted for rate limiting or token binding.
+    private var currentClientIP: String { remoteAddress }
 
     private func extractUUID(from path: String, pattern: String) -> UUID? {
         guard path.hasPrefix(pattern) else { return nil }
@@ -1473,25 +1516,41 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
     }
 
-    private func authErrorResponse(_ error: AuthError) -> (HTTPResponseStatus, String, String) {
+    /// Map an ``AuthError`` to (HTTP status, error code, human message,
+    /// optional Retry-After seconds).
+    ///
+    /// SECURITY (L16): when the status is 429 (Too Many Requests), callers
+    /// must emit a `Retry-After` HTTP header in addition to the JSON body so
+    /// well-behaved HTTP clients (and crawlers) honour the back-off without
+    /// having to parse the application-layer payload.
+    private func authErrorResponse(_ error: AuthError) -> (HTTPResponseStatus, String, String, Int?) {
         switch error {
         case .invalidPin:
-            return (.unauthorized, "AUTH_PIN_INVALID", "Incorrect PIN.")
+            return (.unauthorized, "AUTH_PIN_INVALID", "Incorrect PIN.", nil)
         case .rateLimited(retryAfterSeconds: let seconds):
-            return (.tooManyRequests, "AUTH_LOCKOUT", "Too many failed attempts. Try again in \(seconds) seconds.")
+            return (.tooManyRequests, "AUTH_LOCKOUT",
+                    "Too many failed attempts. Try again in \(seconds) seconds.",
+                    seconds)
         case .globalLockout:
-            return (.tooManyRequests, "AUTH_LOCKOUT", "Server is locked due to excessive failed attempts.")
+            return (.tooManyRequests, "AUTH_LOCKOUT",
+                    "Server is locked due to excessive failed attempts.",
+                    // Global lockout has no automatic recovery — the operator
+                    // must manually reset. Suggest a long retry window so
+                    // honest clients don't hammer the endpoint.
+                    Int(RemoteAuthService.rateLimitWindowSecondsPublic))
         case .invalidToken:
-            return (.unauthorized, "AUTH_TOKEN_INVALID", "Invalid or expired token.")
+            return (.unauthorized, "AUTH_TOKEN_INVALID", "Invalid or expired token.", nil)
         case .tokenExpired:
-            return (.unauthorized, "AUTH_TOKEN_EXPIRED", "Token has expired. Please re-authenticate.")
+            return (.unauthorized, "AUTH_TOKEN_EXPIRED", "Token has expired. Please re-authenticate.", nil)
         case .ipMismatch:
-            return (.forbidden, "AUTH_IP_MISMATCH", "Token was issued to a different IP address.")
+            return (.forbidden, "AUTH_IP_MISMATCH", "Token was issued to a different IP address.", nil)
         case .maxDevicesReached:
             // 503 Service Unavailable: the server is at capacity, not that the
             // client is forbidden. This lets the client distinguish "try later"
             // (503) from "you are not allowed" (403).
-            return (.serviceUnavailable, "MAX_DEVICES_REACHED", "Maximum number of connected devices reached. Try again later.")
+            return (.serviceUnavailable, "MAX_DEVICES_REACHED",
+                    "Maximum number of connected devices reached. Try again later.",
+                    nil)
         }
     }
 }

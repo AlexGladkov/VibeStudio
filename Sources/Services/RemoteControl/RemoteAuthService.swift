@@ -65,6 +65,20 @@ final class RemoteAuthService {
     /// the single source of truth rather than duplicating the magic number.
     static let maxDevices = 3
 
+    /// Token validity duration, exposed for HTTP layer use (`expiresAt` claim,
+    /// `Retry-After` hints). Mirrors ``Constants/tokenTTL``.
+    ///
+    /// `nonisolated` because the constant is also read from NIO event-loop
+    /// threads (router responses) and must not require a MainActor hop.
+    nonisolated static let tokenTTL: TimeInterval = 4 * 60 * 60
+
+    /// Public mirror of ``Constants/rateLimitWindowSeconds`` so the HTTP layer
+    /// can emit reasonable `Retry-After` hints without duplicating the literal.
+    ///
+    /// `nonisolated` for the same reason as ``tokenTTL`` — consumed from NIO
+    /// handler threads.
+    nonisolated static let rateLimitWindowSecondsPublic: TimeInterval = 5 * 60
+
     // MARK: - Private Constants
 
     private enum Constants {
@@ -125,15 +139,30 @@ final class RemoteAuthService {
     /// Called at init, after a successful authentication, and after a rate-limit
     /// lockout event.
     func regeneratePin() {
+        // SECURITY (M2): use rejection sampling to obtain an unbiased 6-digit
+        // PIN. UInt32.max + 1 (== 2^32) does not divide cleanly by 1_000_000,
+        // so a plain `raw % 1_000_000` favours the low 296-PIN range with a
+        // ~0.023% bias. We reject samples in the tail that would skew the
+        // distribution and resample until the value falls within the
+        // uniformly representable range.
+        //
+        // Largest multiple of 1_000_000 strictly ≤ UInt32.max:
+        //   floor(2^32 / 1_000_000) * 1_000_000 == 4_294_000_000.
+        // Sampling `raw` from [0, 4_294_000_000) then taking `raw % 1_000_000`
+        // yields a uniform distribution across [0, 1_000_000).
+        let acceptanceCeiling: UInt32 = 4_294_000_000
         var bytes = [UInt8](repeating: 0, count: Constants.pinByteCount)
-        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        guard status == errSecSuccess else {
-            // SecRandomCopyBytes failing indicates a catastrophic system error.
-            // Refusing to generate a weak PIN -- crash is safer than silent downgrade.
-            fatalError("SecRandomCopyBytes failed with status \(status) -- cannot generate secure PIN")
-        }
-        // Convert 4 random bytes to a UInt32, then mod 1_000_000 for 6 digits.
-        let raw = bytes.withUnsafeBytes { $0.load(as: UInt32.self) }
+        var raw: UInt32 = 0
+        repeat {
+            let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+            guard status == errSecSuccess else {
+                // SecRandomCopyBytes failing indicates a catastrophic system error.
+                // Refusing to generate a weak PIN -- crash is safer than silent downgrade.
+                fatalError("SecRandomCopyBytes failed with status \(status) -- cannot generate secure PIN")
+            }
+            raw = bytes.withUnsafeBytes { $0.load(as: UInt32.self) }
+        } while raw >= acceptanceCeiling
+
         let pin = raw % 1_000_000
         currentPin = String(format: "%06d", pin)
         Logger.remoteControl.info("PIN regenerated")

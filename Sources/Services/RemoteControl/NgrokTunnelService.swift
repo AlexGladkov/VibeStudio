@@ -58,12 +58,25 @@ final class NgrokTunnelService {
     /// ensures other apps' tunnels are never disrupted.
     private static let pidFileURL = URL(fileURLWithPath: "/tmp/vibestudio-ngrok.pid")
 
+    /// ngrok's local introspection API endpoint.
+    ///
+    /// L13: cached as a `static let` so the force-unwrapped URL literal is only
+    /// constructed once per process, not on every poll attempt.
+    /// The URL string is hard-coded and known-valid; force-unwrap is safe.
+    // swiftlint:disable:next force_unwrapping
+    private static let ngrokAPIURL = URL(string: "http://localhost:4040/api/tunnels")!
+
     // MARK: - Start
 
     /// Start the ngrok tunnel for the given HTTP port.
     ///
     /// - Parameters:
-    ///   - httpPort: The local HTTP port to tunnel (e.g. 7843).
+    ///   - httpPort: The local plain-HTTP port to tunnel (loopback only,
+    ///     bound by ``RemoteControlServer`` to `127.0.0.1`). We deliberately
+    ///     tunnel the plain-HTTP loopback listener (rather than the self-signed
+    ///     HTTPS listener) so the ngrok agent → upstream leg of the connection
+    ///     does not need to ignore certificate verification. The plain-HTTP
+    ///     port is never reachable from the LAN — see ``RemoteControlServer``.
     ///   - authtoken: ngrok authtoken (required since v3). Empty = use system config.
     func start(httpPort: Int, authtoken: String = "") {
         guard !isRunning else { return }
@@ -155,7 +168,14 @@ final class NgrokTunnelService {
     private func launchNgrok(path: String, httpPort: Int, env: [String: String]) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: path)
-        proc.arguments = ["http", "https://localhost:\(httpPort)", "--verify-upstream-tls=false"]
+        // SECURITY (H1): tunnel the loopback plain-HTTP listener instead of the
+        // self-signed HTTPS listener. Using `http://localhost:<port>` here
+        // removes the need for `--verify-upstream-tls=false`, which previously
+        // silently disabled TLS chain verification on the agent → upstream leg.
+        // The plain-HTTP port is bound to `127.0.0.1` only by
+        // ``RemoteControlServer`` (see start() in that file), so it remains
+        // unreachable from the LAN — only the local ngrok agent talks to it.
+        proc.arguments = ["http", "http://localhost:\(httpPort)"]
         proc.environment = env
 
         // Capture stderr for error diagnostics.
@@ -237,7 +257,7 @@ final class NgrokTunnelService {
     private func startPollingForURL() {
         pollTask = Task { @MainActor [weak self] in
             let maxAttempts = 15
-            let url = URL(string: "http://localhost:4040/api/tunnels")!
+            let url = Self.ngrokAPIURL
 
             for attempt in 1...maxAttempts {
                 guard !Task.isCancelled, let self, self.isRunning else { return }

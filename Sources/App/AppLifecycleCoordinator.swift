@@ -109,9 +109,16 @@ final class AppLifecycleCoordinator {
         // BLOCKS on the kernel-level TCC check while the main run loop stays live
         // to present the consent dialog.
         await Task.detached(priority: .userInitiated) {
+            // M4: avoid `.first!` — non-standard FileManager configurations
+            // (e.g. sysadmin-disabled domains) crash on force-unwrap. Fall
+            // back to `~/Documents` derived from `NSHomeDirectory()` which is
+            // always defined for the current process.
             let documentsURL = FileManager.default.urls(
                 for: .documentDirectory, in: .userDomainMask
-            ).first!
+            ).first ?? URL(
+                fileURLWithPath: NSHomeDirectory(),
+                isDirectory: true
+            ).appendingPathComponent("Documents")
             _ = try? FileManager.default.contentsOfDirectory(
                 at: documentsURL, includingPropertiesForKeys: nil
             )

@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var remoteControlServer = RemoteControlServer(
         authService: remoteAuthService,
         preferences: remoteControlPreferences,
+        generalPreferences: generalPreferences,
         terminalService: terminalService,
         projectManager: projectStore
     )

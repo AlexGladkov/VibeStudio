@@ -29,6 +29,10 @@ import SwiftASN1
 enum CertificateError: LocalizedError {
     case invalidValidity
     case encodingFailed(String)
+    /// The Application Support directory cannot be located on this system.
+    /// Replaces the previous `preconditionFailure` (M14) so the calling layer
+    /// can surface the failure to the user instead of crashing the process.
+    case storageUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +40,8 @@ enum CertificateError: LocalizedError {
             return "Failed to compute certificate validity period"
         case .encodingFailed(let component):
             return "Failed to encode \(component) to UTF-8"
+        case .storageUnavailable:
+            return "Application Support directory is unavailable; cannot persist TLS certificate"
         }
     }
 }
@@ -49,15 +55,19 @@ struct TLSCertificateManager {
     private static let validityDays = 365
 
     /// Storage directory for TLS certificate and private key.
-    private static let storageDir: URL = {
+    ///
+    /// Resolved lazily on each call rather than as a `static let` so that a
+    /// missing Application Support directory throws ``CertificateError/storageUnavailable``
+    /// instead of crashing the process via `preconditionFailure` (M14).
+    private static func storageDir() throws -> URL {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first else {
-            preconditionFailure("Application Support directory not found — sandbox misconfigured")
+            throw CertificateError.storageUnavailable
         }
         return appSupport.appendingPathComponent("VibeStudio/remote-tls", isDirectory: true)
-    }()
+    }
 
     // MARK: - Public API
 
@@ -90,7 +100,8 @@ struct TLSCertificateManager {
     /// Returns the hex-encoded fingerprint string (e.g. `"AB:CD:EF:..."`)
     /// or `nil` if no certificate exists.
     static func certificateFingerprint() -> String? {
-        let certPath = storageDir.appendingPathComponent(certFilename)
+        guard let dir = try? storageDir() else { return nil }
+        let certPath = dir.appendingPathComponent(certFilename)
         guard let certData = try? Data(contentsOf: certPath),
               let pem = String(data: certData, encoding: .utf8),
               let pemDoc = try? PEMDocument(pemString: pem) else { return nil }
@@ -157,14 +168,15 @@ struct TLSCertificateManager {
         key: P256.Signing.PrivateKey
     ) throws -> (certPath: URL, keyPath: URL) {
         let fm = FileManager.default
+        let dir = try storageDir()
 
         // Create storage directory if needed.
-        if !fm.fileExists(atPath: storageDir.path) {
-            try fm.createDirectory(at: storageDir, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: dir.path) {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }
 
-        let certPath = storageDir.appendingPathComponent(certFilename)
-        let keyPath = storageDir.appendingPathComponent(keyFilename)
+        let certPath = dir.appendingPathComponent(certFilename)
+        let keyPath = dir.appendingPathComponent(keyFilename)
 
         // Serialize certificate to PEM.
         var certSerializer = DER.Serializer()
@@ -197,8 +209,9 @@ struct TLSCertificateManager {
     /// Returns `nil` if either file is missing.
     private static func loadFromDisk() throws -> (certPath: URL, keyPath: URL)? {
         let fm = FileManager.default
-        let certPath = storageDir.appendingPathComponent(certFilename)
-        let keyPath = storageDir.appendingPathComponent(keyFilename)
+        let dir = try storageDir()
+        let certPath = dir.appendingPathComponent(certFilename)
+        let keyPath = dir.appendingPathComponent(keyFilename)
 
         guard fm.fileExists(atPath: certPath.path),
               fm.fileExists(atPath: keyPath.path) else {
