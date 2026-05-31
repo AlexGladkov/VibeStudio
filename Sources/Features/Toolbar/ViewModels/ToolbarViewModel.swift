@@ -90,22 +90,16 @@ final class ToolbarViewModel {
             guard let self else { return }
             var knownIds = Set(self.projectManager.projects.map(\.id))
 
-            while !Task.isCancelled {
-                let holder = ContinuationHolder()
-                await withTaskCancellationHandler {
-                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                        holder.set(c)
-                        withObservationTracking {
-                            _ = self.projectManager.projects
-                        } onChange: {
-                            holder.resume()
-                        }
-                    }
-                } onCancel: {
-                    holder.resume()
-                }
+            // `projectManager` is an `any ProjectManaging` existential so we
+            // use the closure-based `AsyncObservation.stream` overload. The
+            // closure touches `projects` inside `withObservationTracking`
+            // so the tracker re-arms whenever the list mutates.
+            let stream = AsyncObservation.stream(emitInitial: false) { [weak self] () -> Set<UUID>? in
+                guard let self else { return nil }
+                return Set(self.projectManager.projects.map(\.id))
+            }
+            for await currentIds in stream {
                 guard !Task.isCancelled else { return }
-                let currentIds = Set(self.projectManager.projects.map(\.id))
                 for removed in knownIds.subtracting(currentIds) {
                     self.cleanupProject(removed)
                 }

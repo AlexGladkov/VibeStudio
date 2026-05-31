@@ -119,8 +119,8 @@ struct SidebarView: View {
     // Context menu: project pending removal confirmation
     @State private var projectToRemove: Project?
 
-    // Git ViewModel -- lazily initialized with environment services
-    @State private var gitVM: GitSidebarViewModel?
+    // Git ViewModel -- lazily initialised with environment services
+    @State private var gitVMBox = LazyStateObject<GitSidebarViewModel>()
 
     /// Projects that are NOT CodeSpeak projects — shown in the regular sidebar.
     private var regularProjects: [Project] {
@@ -129,12 +129,13 @@ struct SidebarView: View {
 
     /// Resolve or create the git view model, ensuring environment services are injected.
     private var vm: GitSidebarViewModel {
-        if let existing = gitVM { return existing }
-        let created = GitSidebarViewModel(gitService: gitService, aiCommitService: aiCommitService)
-        // Deferred assignment: Task { @MainActor } schedules the state mutation
-        // after the current body evaluation cycle, satisfying SwiftUI's invariant.
-        Task { @MainActor in gitVM = created }
-        return created
+        gitVMBox.resolve {
+            GitSidebarViewModel(
+                gitService: gitService,
+                aiCommitService: aiCommitService,
+                projectManager: projectManager
+            )
+        }
     }
 
     var body: some View {
@@ -150,23 +151,13 @@ struct SidebarView: View {
         .overlay(alignment: .trailing) {
             VerticalDivider()
         }
-        .onAppear {
-            if gitVM == nil {
-                gitVM = GitSidebarViewModel(gitService: gitService, aiCommitService: aiCommitService)
-            }
-        }
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
-                do {
-                    let project = try projectManager.addProject(at: url)
-                    projectManager.activeProjectId = project.id
-                } catch {
-                    Logger.ui.error("Failed to add project: \(error.localizedDescription, privacy: .public)")
-                }
+                vm.addProject(at: url)
             }
         }
         .sheet(item: $projectForSettings) { project in
@@ -226,9 +217,7 @@ struct SidebarView: View {
             }
             Button("Remove", role: .destructive) {
                 if let project = projectToRemove {
-                    let id = project.id
-                    try? projectManager.removeProject(id)
-                    vm.cleanupProject(id)
+                    vm.removeProject(project.id)
                     projectToRemove = nil
                 }
             }
@@ -364,14 +353,12 @@ struct SidebarView: View {
                     } else {
                         expandedProjects.insert(project.id)
                     }
-                    projectManager.activeProjectId = project.id
+                    vm.setActiveProject(id: project.id)
                 },
                 onSettings: { projectForSettings = project },
                 gearTrailingPadding: DSSpacing.xs,
                 gearLeadingPadding: 0,
-                onRevealInFinder: {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.path.path)
-                },
+                onRevealInFinder: { vm.revealInFinder(project: project) },
                 onOpenInBrowser: { Task { await vm.openInRemote(project: project) } },
                 onRemove: { projectToRemove = project },
                 trailing: { EmptyView() }
@@ -424,7 +411,7 @@ struct SidebarView: View {
                             projectToRemove: $projectToRemove,
                             projectForCreateBranch: $projectForCreateBranch,
                             branchCreationContext: $branchCreationContext,
-                            onSetActiveProject: { projectManager.activeProjectId = $0 }
+                            onSetActiveProject: { vm.setActiveProject(id: $0) }
                         )
                     }
                 }

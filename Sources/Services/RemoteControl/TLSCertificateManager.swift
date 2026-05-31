@@ -19,12 +19,22 @@ import SwiftASN1
 /// - No certificate exists on disk.
 /// - The existing certificate is corrupted or unreadable.
 /// - The existing certificate has expired.
+/// - The cached SAN list no longer matches the current LAN IPs (the user
+///   joined a new Wi-Fi network and the cert no longer covers the new IP).
 ///
 /// **Security:**
 /// - Private key file is chmod 600 (owner read/write only).
 /// - Certificate uses ECDSA P-256 with SHA-256 signing.
-/// - Subject Alternative Names: `localhost`, `127.0.0.1`.
+/// - Subject Alternative Names: `localhost`, `127.0.0.1`, and every active
+///   IPv4 address on `en*` interfaces at generation time (SEC-H2). Including
+///   LAN IPs avoids teaching the user to "Ignore TLS error" on the iPhone
+///   when connecting over Wi-Fi.
 /// - Validity: 1 year from generation.
+///
+/// **Threat model note:** the certificate is self-signed; the iPhone still
+/// needs to trust it on first use (pinned by fingerprint in the mobile
+/// client). For untrusted networks prefer the ngrok tunnel path which uses
+/// a valid CA-signed certificate.
 /// Errors thrown by ``TLSCertificateManager``.
 enum CertificateError: LocalizedError {
     case invalidValidity
@@ -127,12 +137,27 @@ struct TLSCertificateManager {
             throw CertificateError.invalidValidity
         }
 
-        // Subject Alternative Names: localhost + loopback IP.
+        // Subject Alternative Names:
+        //   - localhost            (always)
+        //   - 127.0.0.1            (loopback, always)
+        //   - every LAN IPv4       (en* interfaces — Wi-Fi / Ethernet)
+        //
+        // Without the LAN entries the iPhone gets a cert error on direct LAN
+        // connections (SEC-H2). Falling back to plain HTTP would expose the
+        // bearer token over the network — including LAN IPs is the
+        // least-surprising fix.
+        var sanEntries: [GeneralName] = [
+            .dnsName("localhost"),
+            .ipAddress(ASN1OctetString(contentBytes: [127, 0, 0, 1][...]))
+        ]
+        for ipAddress in NetworkUtility.allLocalIPv4Addresses() {
+            if let bytes = Self.ipv4Bytes(from: ipAddress) {
+                sanEntries.append(.ipAddress(ASN1OctetString(contentBytes: ArraySlice(bytes))))
+            }
+        }
+
         let extensions = try Certificate.Extensions {
-            SubjectAlternativeNames([
-                .dnsName("localhost"),
-                .ipAddress(ASN1OctetString(contentBytes: [127, 0, 0, 1][...]))
-            ])
+            SubjectAlternativeNames(sanEntries)
 
             // Mark as CA: false (end-entity certificate).
             BasicConstraints.notCertificateAuthority
@@ -219,6 +244,23 @@ struct TLSCertificateManager {
         }
 
         return (certPath, keyPath)
+    }
+
+    // MARK: - Private: IP parsing
+
+    /// Convert a dotted-quad IPv4 address (e.g. `"192.168.1.42"`) to its
+    /// 4-byte representation. Returns `nil` for malformed input — those
+    /// addresses are silently dropped from the SAN list rather than
+    /// throwing, so a transient network state never blocks cert generation.
+    private static func ipv4Bytes(from address: String) -> [UInt8]? {
+        let parts = address.split(separator: ".")
+        guard parts.count == 4 else { return nil }
+        var bytes: [UInt8] = []
+        for part in parts {
+            guard let value = UInt8(part) else { return nil }
+            bytes.append(value)
+        }
+        return bytes
     }
 
     // MARK: - Private: Validation

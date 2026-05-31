@@ -174,31 +174,21 @@ final class AppLifecycleCoordinator {
     // MARK: - Private: Git Status Polling
 
     /// Observe `ProjectStore.activeProjectId` and start/stop the git status
-    /// poller accordingly. Uses `withObservationTracking` bridged to a checked
-    /// continuation so the task suspends with zero CPU between changes.
+    /// poller accordingly. Uses the shared `AsyncObservation` helper so the
+    /// task suspends with zero CPU between changes.
     private func startActiveProjectObservation() {
         activeProjectObservation = Task { @MainActor [weak self, weak projectStore] in
             guard let self, let projectStore else { return }
             var lastProjectId: UUID? = projectStore.activeProjectId
             self.updatePolling(for: lastProjectId)
 
-            while !Task.isCancelled {
-                let holder = ContinuationHolder()
-                await withTaskCancellationHandler {
-                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                        holder.set(c)
-                        withObservationTracking {
-                            _ = projectStore.activeProjectId
-                        } onChange: {
-                            holder.resume()
-                        }
-                    }
-                } onCancel: {
-                    holder.resume()
-                }
-
+            let stream = AsyncObservation.stream(
+                of: projectStore,
+                keyPath: \.activeProjectId,
+                emitInitial: false
+            )
+            for await newId in stream {
                 guard !Task.isCancelled else { return }
-                let newId = projectStore.activeProjectId
                 guard newId != lastProjectId else { continue }
                 lastProjectId = newId
                 self.updatePolling(for: newId)

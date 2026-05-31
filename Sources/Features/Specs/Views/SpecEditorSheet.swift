@@ -17,13 +17,10 @@ struct SpecEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syntaxParserRegistry) private var syntaxParserRegistry
 
-    @State private var vm: SpecEditorViewModel?
+    @State private var vmBox = LazyStateObject<SpecEditorViewModel>()
 
     private var viewModel: SpecEditorViewModel {
-        if let existing = vm { return existing }
-        let created = SpecEditorViewModel(specFile: specFile)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { SpecEditorViewModel(specFile: specFile) }
     }
 
     var body: some View {
@@ -130,8 +127,5 @@ struct SpecEditorSheet: View {
             minHeight: DSLayout.sheetLargeMinHeight,
             idealHeight: DSLayout.sheetLargeHeight
         )
-        .onAppear {
-            if vm == nil { vm = SpecEditorViewModel(specFile: specFile) }
-        }
     }
 }

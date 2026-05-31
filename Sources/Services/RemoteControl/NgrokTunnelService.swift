@@ -54,9 +54,32 @@ final class NgrokTunnelService {
 
     /// File used to track the PID of our ngrok subprocess across app launches.
     ///
-    /// Writing only *our* PID — not a system-wide kill of every ngrok process —
-    /// ensures other apps' tunnels are never disrupted.
-    private static let pidFileURL = URL(fileURLWithPath: "/tmp/vibestudio-ngrok.pid")
+    /// SEC-H3: stored under the user's Application Support directory rather
+    /// than `/tmp`. `/tmp` is world-writable, which exposes the PID file to a
+    /// TOCTOU / symlink attack — a local attacker could swap the file
+    /// contents between read and `kill(2)`, redirecting our SIGTERM at an
+    /// unrelated process. Application Support is per-user (mode `0700` by
+    /// default for user-created subdirectories), eliminating that vector.
+    ///
+    /// Resolved lazily so a missing Application Support directory falls back
+    /// to a `nil` URL (the kill / write code already tolerates that — `try?`
+    /// on every I/O call).
+    private nonisolated static func pidFileURL() -> URL? {
+        guard let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            return nil
+        }
+        let dir = appSupport.appendingPathComponent("VibeStudio", isDirectory: true)
+        // Ensure the directory exists. `withIntermediateDirectories: true`
+        // makes this idempotent and creates a `0700` directory on the first
+        // call (FileManager honours the umask for non-existing parents).
+        try? FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true
+        )
+        return dir.appendingPathComponent("ngrok.pid")
+    }
 
     /// ngrok's local introspection API endpoint.
     ///
@@ -345,19 +368,27 @@ final class NgrokTunnelService {
 
     // MARK: - Private: PID File Management
 
-    /// Write the PID of the ngrok subprocess we own to a well-known temp file.
+    /// Write the PID of the ngrok subprocess we own to the Application
+    /// Support PID file.
     ///
     /// The file is read on the next `start()` to kill only *our* previous
     /// process, leaving any unrelated ngrok instances untouched.
     private static func writePIDFile(pid: Int32) {
+        guard let url = pidFileURL() else {
+            Logger.remoteControl.warning(
+                "NgrokTunnelService: cannot resolve Application Support — skipping PID file write"
+            )
+            return
+        }
         let content = "\(pid)\n"
-        try? content.write(to: pidFileURL, atomically: true, encoding: .utf8)
+        try? content.write(to: url, atomically: true, encoding: .utf8)
         Logger.remoteControl.debug("NgrokTunnelService: wrote PID file pid=\(pid)")
     }
 
     /// Delete the PID file, called from `stop()` after the process is gone.
     private nonisolated static func removePIDFile() {
-        try? FileManager.default.removeItem(at: pidFileURL)
+        guard let url = pidFileURL() else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     /// Read the PID file and send SIGTERM to that specific process if it exists.
@@ -368,7 +399,8 @@ final class NgrokTunnelService {
     /// executor, so blocking is acceptable and keeps the cleanup synchronous
     /// before we release the lock.
     private nonisolated static func killPreviousOwnedNgrokProcess() {
-        guard let content = try? String(contentsOf: pidFileURL, encoding: .utf8),
+        guard let url = pidFileURL(),
+              let content = try? String(contentsOf: url, encoding: .utf8),
               let pid = Int32(content.trimmingCharacters(in: .whitespacesAndNewlines)),
               pid > 1 else {
             return

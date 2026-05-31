@@ -73,46 +73,30 @@ final class TerminalService: TerminalSessionManaging {
         _ = activityTracker
 
         // Observe theme changes via @Observable directly -- no NotificationCenter.
-        themeObservationTask = Task { @MainActor [weak self, weak themeService] in
-            guard let themeService else { return }
-            while !Task.isCancelled {
-                let holder = ContinuationHolder()
-                await withTaskCancellationHandler {
-                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                        holder.set(c)
-                        withObservationTracking {
-                            _ = themeService.selectedAppearance
-                        } onChange: {
-                            holder.resume()
-                        }
-                    }
-                } onCancel: {
-                    holder.resume()
-                }
+        // `AsyncObservation.stream` bridges `withObservationTracking` to an
+        // AsyncSequence, eliminating ~20 lines of boilerplate per observer.
+        themeObservationTask = Task { @MainActor [weak self] in
+            let stream = AsyncObservation.stream(
+                of: themeService,
+                keyPath: \.selectedAppearance,
+                emitInitial: false
+            )
+            for await appearance in stream {
                 guard !Task.isCancelled else { return }
-                self?.refreshTerminalColors(for: themeService.selectedAppearance)
+                self?.refreshTerminalColors(for: appearance)
             }
         }
 
-        // Observe font size changes via @Observable -- same ContinuationHolder pattern.
-        fontObservationTask = Task { @MainActor [weak self, weak generalPreferences] in
-            guard let generalPreferences else { return }
-            while !Task.isCancelled {
-                let holder = ContinuationHolder()
-                await withTaskCancellationHandler {
-                    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-                        holder.set(c)
-                        withObservationTracking {
-                            _ = generalPreferences.terminalFontSize
-                        } onChange: {
-                            holder.resume()
-                        }
-                    }
-                } onCancel: {
-                    holder.resume()
-                }
+        // Observe font size changes via the same helper.
+        fontObservationTask = Task { @MainActor [weak self] in
+            let stream = AsyncObservation.stream(
+                of: generalPreferences,
+                keyPath: \.terminalFontSize,
+                emitInitial: false
+            )
+            for await size in stream {
                 guard !Task.isCancelled else { return }
-                self?.refreshTerminalFont(size: generalPreferences.terminalFontSize)
+                self?.refreshTerminalFont(size: size)
             }
         }
     }

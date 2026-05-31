@@ -22,6 +22,8 @@ final class GitSidebarViewModel {
 
     private let gitService: any GitServicing
     private let aiCommitService: any AICommitServicing
+    private let projectManager: any ProjectManaging
+    private let revealInFinderUseCase: RevealInFinderUseCase
 
     // MARK: - Git Multi-Project State
 
@@ -72,9 +74,62 @@ final class GitSidebarViewModel {
 
     // MARK: - Init
 
-    init(gitService: any GitServicing, aiCommitService: any AICommitServicing) {
+    init(
+        gitService: any GitServicing,
+        aiCommitService: any AICommitServicing,
+        projectManager: any ProjectManaging,
+        revealInFinder: RevealInFinderUseCase? = nil
+    ) {
         self.gitService = gitService
         self.aiCommitService = aiCommitService
+        self.projectManager = projectManager
+        // `RevealInFinderUseCase()` is `@MainActor`-isolated, so it cannot
+        // appear as a default value (callers may be nonisolated). The whole
+        // VM is `@MainActor` though, so constructing it inside the init body
+        // is safe.
+        self.revealInFinderUseCase = revealInFinder ?? RevealInFinderUseCase()
+    }
+
+    // MARK: - Project Mutations
+    //
+    // SidebarView used to call `projectManager.addProject` / `removeProject`
+    // and `NSWorkspace.shared.selectFile` directly from the view body. Wrapping
+    // those calls here keeps the view MVVM-pure: it dispatches intents, the VM
+    // owns the side effects and per-project cleanup.
+
+    /// Add a project from a folder URL and make it active. Errors are logged;
+    /// the caller does not need to propagate them.
+    @discardableResult
+    func addProject(at url: URL) -> Project? {
+        do {
+            let project = try projectManager.addProject(at: url)
+            projectManager.activeProjectId = project.id
+            return project
+        } catch {
+            Logger.ui.error("GitSidebarVM: addProject failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// Remove a project from the list and clear all cached state for it.
+    /// Files on disk are not affected.
+    func removeProject(_ id: UUID) {
+        do {
+            try projectManager.removeProject(id)
+            cleanupProject(id)
+        } catch {
+            Logger.ui.error("GitSidebarVM: removeProject failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Set the active project. Pass `nil` to deactivate (return to welcome).
+    func setActiveProject(id: UUID?) {
+        projectManager.activeProjectId = id
+    }
+
+    /// Reveal a project folder in Finder via the injected use case.
+    func revealInFinder(project: Project) {
+        revealInFinderUseCase.execute(project.path)
     }
 
     // MARK: - Cleanup

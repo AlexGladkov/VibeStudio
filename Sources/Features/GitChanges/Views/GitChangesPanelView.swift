@@ -17,17 +17,16 @@ struct GitChangesPanelView: View {
     @Environment(\.gitService) private var gitService
     @Environment(\.projectManager) private var projectManager
 
-    @State private var vm: GitChangesPanelViewModel?
+    @State private var vmBox = LazyStateObject<GitChangesPanelViewModel>()
     @State private var hoveredFile: String?
 
     private var viewModel: GitChangesPanelViewModel {
-        if let existing = vm { return existing }
-        let created = GitChangesPanelViewModel(
-            gitService: gitService,
-            projectManager: projectManager
-        )
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve {
+            GitChangesPanelViewModel(
+                gitService: gitService,
+                projectManager: projectManager
+            )
+        }
     }
 
     var body: some View {
@@ -58,14 +57,6 @@ struct GitChangesPanelView: View {
             maxWidth: DSLayout.changesPanelMaxWidth
         )
         .background(DSColor.surfaceRaised)
-        .onAppear {
-            if vm == nil {
-                vm = GitChangesPanelViewModel(
-                    gitService: gitService,
-                    projectManager: projectManager
-                )
-            }
-        }
         .task(id: status) {
             await viewModel.loadStats()
         }

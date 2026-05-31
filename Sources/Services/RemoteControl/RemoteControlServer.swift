@@ -1,5 +1,8 @@
 // MARK: - RemoteControlServer
 // Main @Observable facade for the embedded HTTP/WebSocket server.
+// After Wave-4 (ARCH-H7) lifecycle stays here; static-file cache,
+// bridge registry and Ngrok host ref live in their own files.
+//
 // macOS 14+, Swift 5.10
 
 import Foundation
@@ -17,17 +20,11 @@ import UserNotifications
 
 /// Embedded HTTPS + WebSocket server for remote terminal control.
 ///
-/// This is the top-level facade observed by SwiftUI (toolbar badge, settings pane).
-/// It owns the SwiftNIO `EventLoopGroup`, manages the TLS bootstrap, and tracks
-/// connected devices via ``RemoteAuthService``.
-///
 /// **Threading model:**
 /// - All public API is `@MainActor` (SwiftUI-safe).
 /// - NIO runs on its own `MultiThreadedEventLoopGroup` threads.
 /// - `start()` / `stop()` use `Task.detached` for NIO bootstrap, then
 ///   hop back to MainActor for state updates.
-/// - `Channel` references are `nonisolated(unsafe)` because `Channel` is
-///   `Sendable` but not annotated as `@MainActor`.
 @Observable
 @MainActor
 final class RemoteControlServer {
@@ -38,16 +35,14 @@ final class RemoteControlServer {
     private(set) var isRunning: Bool = false
 
     /// Guards against overlapping start/stop transitions.
-    ///
-    /// Set to `true` before any async lifecycle task is dispatched and
-    /// cleared (on MainActor) once the transition completes or fails.
-    /// This prevents a second `start()` from racing against an in-flight
-    /// `stop()` shutdown and vice-versa, which would otherwise cause a
-    /// double-bind on the same port.
     private var isTransitioning: Bool = false
 
     /// Number of devices with active WebSocket connections.
-    private(set) var connectedDeviceCount: Int = 0
+    ///
+    /// ARCH-M9: computed from ``activeBridges`` so the value cannot diverge
+    /// from the real bridge count. SwiftUI re-renders trigger via
+    /// `@Observable` tracking on `activeBridges`.
+    var connectedDeviceCount: Int { activeBridges.count }
 
     /// The current 6-digit PIN for device authentication.
     var currentPin: String { authService.currentPin }
@@ -77,19 +72,31 @@ final class RemoteControlServer {
     private(set) var terminalService: TerminalService
     private(set) var projectManager: any ProjectManaging
     /// General app preferences forwarded to every ``HTTPRequestRouter`` instance.
-    /// Required so the routers can resolve `claudeSkipPermissions` via the
-    /// canonical source rather than poking `UserDefaults.standard` directly (M13).
     private(set) var generalPreferences: GeneralPreferences
     private let bonjour: BonjourAdvertiser
     private let ngrok: NgrokTunnelService
 
+    // MARK: - Components (ARCH-H7)
+
+    /// Bridge registry — owns `activeBridges`, register/unregister/broadcast.
+    private let bridgeRegistry: RemoteBridgeRegistry
+
+    /// Pre-loaded static file cache + baseURL captured on MainActor.
+    /// Created on `start()` so unit tests / previews never pay the cost.
+    private var staticCache: RemoteStaticFileCache = .empty
+
+    /// Bundle metadata snapshot (app version) captured on MainActor.
+    private let metadata: RemoteServerMetadata
+
+    /// Pass-through accessor used by the HTTP router for BOLA enforcement
+    /// and session listings. Reads observable state via `bridgeRegistry`.
+    var activeBridges: [UUID: RemoteSessionBridge] {
+        bridgeRegistry.activeBridges
+    }
+
     // MARK: - NIO State
 
-    /// All NIO state is only ever mutated on the MainActor:
-    /// - Written in `start()` via `await MainActor.run { ... }`
-    /// - Written in `stop()` which is itself `@MainActor`
-    /// - Read in `stop()` before handing off to `Task.detached`
-    /// No cross-thread mutation occurs, so `nonisolated(unsafe)` is not needed.
+    /// All NIO state mutated only on MainActor.
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
 
     /// The bound server channel (HTTPS).
@@ -99,29 +106,18 @@ final class RemoteControlServer {
     /// self-signed cert issues with WebSocket.
     private var httpChannel: Channel?
 
-    // MARK: - Active Bridges
-
-    /// Active session bridges keyed by device ID.
-    private(set) var activeBridges: [UUID: RemoteSessionBridge] = [:]
-
     // MARK: - Server Metadata
 
     /// Timestamp when the server was started (for uptime calculation).
     private var startedAt: Date?
 
     /// Observation task for session changes broadcast.
-    /// Assigned/cancelled on MainActor; `nonisolated(unsafe)` only to allow
-    /// `.cancel()` from `deinit` (Task.cancel is thread-safe).
     nonisolated(unsafe) private var sessionObservationTask: Task<Void, Never>?
 
     /// Observation task that keeps `ngrokHostRef` in sync with the tunnel URL.
-    /// Assigned/cancelled on MainActor; same `nonisolated(unsafe)` rationale.
     nonisolated(unsafe) private var ngrokHostObservationTask: Task<Void, Never>?
 
     /// Shared ngrok host reference passed to all HTTPRequestRouter instances.
-    /// Updated on MainActor when the ngrok tunnel URL is resolved; read on
-    /// NIO event loop threads inside the router (safe because NgrokHostRef
-    /// is a class with its own internal lock).
     private let ngrokHostRef = NgrokHostRef()
 
     /// Uptime in seconds since server start.
@@ -132,13 +128,6 @@ final class RemoteControlServer {
 
     // MARK: - Init
 
-    /// Create a new Remote Control server.
-    ///
-    /// - Parameters:
-    ///   - authService: PIN/token authentication service.
-    ///   - preferences: User preferences for port, binding, timeouts.
-    ///   - terminalService: Terminal PTY service for I/O relay.
-    ///   - projectManager: Project list for the REST API.
     init(
         authService: RemoteAuthService,
         preferences: RemoteControlPreferences,
@@ -153,13 +142,11 @@ final class RemoteControlServer {
         self.projectManager = projectManager
         self.bonjour = BonjourAdvertiser()
         self.ngrok = NgrokTunnelService()
+        self.bridgeRegistry = RemoteBridgeRegistry(terminalService: terminalService)
+        self.metadata = RemoteServerMetadata.current()
     }
 
     /// Convenience init for previews and SwiftUI environment key defaults.
-    ///
-    /// Creates a server with fresh default services that are never started.
-    /// The `terminalService` and `projectManager` are stubs -- this server
-    /// instance is only used for preview layout, never for networking.
     convenience init() {
         let prefs = RemoteControlPreferences()
         let theme = ThemeService()
@@ -175,10 +162,6 @@ final class RemoteControlServer {
     }
 
     deinit {
-        // Task.cancel() is safe to call from any context — Task<Void, Never>
-        // is Sendable and cancellation is atomic. The `nonisolated(unsafe)`
-        // annotation is intentional: these properties are only *assigned* on
-        // the MainActor; here we only call `.cancel()` which is thread-safe.
         sessionObservationTask?.cancel()
         ngrokHostObservationTask?.cancel()
     }
@@ -186,10 +169,6 @@ final class RemoteControlServer {
     // MARK: - Server Lifecycle
 
     /// Start the HTTPS/WSS server.
-    ///
-    /// Creates a 2-thread `MultiThreadedEventLoopGroup`, configures TLS with
-    /// a self-signed certificate from ``TLSCertificateManager``, and binds
-    /// to the configured port.
     func start() {
         guard !isRunning, !isTransitioning else {
             Logger.remoteControl.warning("RemoteControlServer.start() called while already running or transitioning")
@@ -210,20 +189,20 @@ final class RemoteControlServer {
         isTransitioning = true
         weak var weakSelf = self
 
-        // Pre-load all static files from the bundle on MainActor (safe to access
-        // Bundle on main thread) before entering the detached Task. This avoids
-        // disk I/O on NIO event loop threads for every HTTP request.
-        let staticFileCache = Self.loadStaticFileCache()
+        // ARCH-H8: pre-load static files + baseURL on MainActor so NIO
+        // threads never call Bundle.main themselves.
+        let staticCache = RemoteStaticFileCache.load()
+        self.staticCache = staticCache
 
-        // Capture the shared ngrok host reference so all routers can read it.
+        // Capture immutable metadata + ngrok host ref for the routers.
         let ngrokRef = ngrokHostRef
+        let appMetadata = metadata
 
         Task.detached {
             do {
                 // Ensure TLS certificate exists.
                 let (certPath, keyPath) = try TLSCertificateManager.ensureCertificate()
 
-                // Configure NIO SSL.
                 let certChain = try NIOSSLCertificate.fromPEMFile(certPath.path)
                 let privateKey = try NIOSSLPrivateKey(file: keyPath.path, format: .pem)
                 var tlsConfig = TLSConfiguration.makeServerConfiguration(
@@ -237,13 +216,7 @@ final class RemoteControlServer {
                 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 
                 // Shared child channel initializer: HTTP pipeline + router.
-                // WebSocket upgrade is handled manually inside HTTPRequestRouter
-                // (NIO's HTTPServerUpgradeHandler is one-shot and breaks on keep-alive).
                 let configureChildChannel: @Sendable (Channel) -> EventLoopFuture<Void> = { channel in
-                    // Manual HTTP pipeline setup with named handlers so that
-                    // installWebSocketPipeline can remove them by name reliably.
-                    // (configureHTTPServerPipeline uses unnamed handlers that
-                    // pipeline.handler(type:) sometimes fails to find.)
                     let encoder = HTTPResponseEncoder()
                     let decoder = ByteToMessageHandler(
                         HTTPRequestDecoder(leftOverBytesStrategy: .forwardBytes)
@@ -257,8 +230,9 @@ final class RemoteControlServer {
                         generalPreferences: generalPrefs,
                         idleTimeoutMinutes: idleTimeout,
                         serverRef: weakSelf,
-                        staticFileCache: staticFileCache,
-                        ngrokHostRef: ngrokRef
+                        staticCache: staticCache,
+                        ngrokHostRef: ngrokRef,
+                        metadata: appMetadata
                     )
                     return channel.pipeline.addHandler(encoder, name: "http_encoder").flatMap {
                         channel.pipeline.addHandler(decoder, name: "http_decoder")
@@ -272,8 +246,7 @@ final class RemoteControlServer {
                 let bootstrap = ServerBootstrap(group: group)
                     .serverChannelOption(ChannelOptions.backlog, value: 16)
                     .serverChannelOption(
-                        ChannelOptions.socketOption(.so_reuseaddr),
-                        value: 1
+                        ChannelOptions.socketOption(.so_reuseaddr), value: 1
                     )
                     .childChannelInitializer { channel in
                         let sslHandler = NIOSSLServerHandler(context: sslContext)
@@ -288,13 +261,11 @@ final class RemoteControlServer {
                 let httpBootstrap = ServerBootstrap(group: group)
                     .serverChannelOption(ChannelOptions.backlog, value: 16)
                     .serverChannelOption(
-                        ChannelOptions.socketOption(.so_reuseaddr),
-                        value: 1
+                        ChannelOptions.socketOption(.so_reuseaddr), value: 1
                     )
                     .childChannelInitializer(configureChildChannel)
 
-                // SECURITY: Plain HTTP always bound to loopback only, regardless of
-                // bindHost setting. This prevents cleartext credentials on the LAN.
+                // SECURITY: plain HTTP always bound to loopback only.
                 let httpCh = try? await httpBootstrap.bind(host: "127.0.0.1", port: bindPort + 1).get()
 
                 await MainActor.run {
@@ -310,19 +281,18 @@ final class RemoteControlServer {
                     server.authService.onSecurityLockout = { [weak server] in
                         server?.handleSecurityLockout()
                     }
-                    server.authService.onDevicesChanged = { [weak server] count in
-                        server?.connectedDeviceCount = count
-                    }
+                    // ARCH-M9: `connectedDeviceCount` is now computed from
+                    // `activeBridges` — no longer set from
+                    // `RemoteAuthService.onDevicesChanged`. We still observe
+                    // device-list changes via the @Observable model, which
+                    // updates the views directly.
 
                     if server.preferences.bonjourEnabled && !server.preferences.bindToLocalhost {
                         server.bonjour.publish(port: bindPort)
                     }
 
                     if server.preferences.ngrokEnabled && !server.preferences.ngrokAuthtoken.isEmpty {
-                        // SECURITY (H1): tunnel the plain-HTTP loopback listener
-                        // (`bindPort + 1`) so the ngrok agent → upstream leg does
-                        // not need to disable TLS verification. The plain-HTTP
-                        // port is `127.0.0.1`-only — never reachable from the LAN.
+                        // SECURITY (H1): tunnel the plain-HTTP loopback listener.
                         server.ngrok.start(
                             httpPort: bindPort + 1,
                             authtoken: server.preferences.ngrokAuthtoken
@@ -345,9 +315,6 @@ final class RemoteControlServer {
     }
 
     /// Gracefully stop the server and disconnect all devices (fire-and-forget).
-    ///
-    /// Dispatches NIO shutdown to a detached task and returns immediately.
-    /// Use ``stopAsync()`` when you need to await full shutdown (e.g. on app quit).
     func stop() {
         guard isRunning, !isTransitioning else { return }
 
@@ -365,11 +332,6 @@ final class RemoteControlServer {
     }
 
     /// Gracefully stop the server and await full NIO shutdown.
-    ///
-    /// Use this in ``AppLifecycleCoordinator`` on app termination so that NIO
-    /// event loop threads are fully joined before the process exits. Returning
-    /// early from `applicationShouldTerminate` with pending async NIO teardown
-    /// can leave threads dangling and cause crashes on exit.
     func stopAsync() async {
         guard isRunning, !isTransitioning else { return }
 
@@ -381,17 +343,10 @@ final class RemoteControlServer {
         isTransitioning = false
     }
 
-    /// Shared synchronous portion of stop: detaches bridges, resets observable
-    /// state, and returns the NIO handles for async shutdown.
-    /// Must be called on MainActor.
     @discardableResult
     private func beginStopCleanup() -> (Channel?, Channel?, MultiThreadedEventLoopGroup?) {
-        // Detach all bridges.
-        for (_, bridge) in activeBridges {
-            bridge.detach()
-        }
-        activeBridges.removeAll()
-        connectedDeviceCount = 0
+        // ARCH-H7: bridge teardown delegated to the registry.
+        bridgeRegistry.detachAll()
 
         bonjour.unpublish()
         ngrok.stop()
@@ -417,7 +372,6 @@ final class RemoteControlServer {
     }
 
     /// Await closure of NIO channels and event loop group shutdown.
-    /// `nonisolated` so it can be called from both `stop()` Task.detached and `stopAsync()`.
     private static func shutdownNIO(
         channel: Channel?,
         httpChannel: Channel?,
@@ -439,9 +393,7 @@ final class RemoteControlServer {
     /// Start the ngrok tunnel (called from settings toggle while server is running).
     func startNgrok() {
         guard isRunning else { return }
-        // SECURITY (H1): tunnel `port + 1` (plain-HTTP loopback) instead of the
-        // self-signed HTTPS port so the ngrok agent does not need
-        // `--verify-upstream-tls=false`. Loopback port is `127.0.0.1` only.
+        // SECURITY (H1): tunnel `port + 1` (plain-HTTP loopback).
         ngrok.start(
             httpPort: preferences.remoteControlPort + 1,
             authtoken: preferences.ngrokAuthtoken
@@ -486,87 +438,35 @@ final class RemoteControlServer {
     // MARK: - Device Management
 
     /// Disconnect a specific remote device.
-    ///
-    /// - Parameter deviceId: The device to disconnect.
     func disconnect(_ deviceId: UUID) {
-        if let bridge = activeBridges[deviceId] {
-            bridge.detach()
-            activeBridges.removeValue(forKey: deviceId)
-        }
+        bridgeRegistry.removeBridge(forDevice: deviceId)
         authService.revokeDevice(deviceId)
-        connectedDeviceCount = activeBridges.count
         RemoteAuditLog.deviceDisconnect(deviceId: deviceId, reason: "kicked_by_host")
     }
 
-    // MARK: - Bridge Registration
+    // MARK: - Bridge Registration (delegates to RemoteBridgeRegistry)
 
     /// Register a new session bridge (called from NIO handlers via MainActor hop).
-    ///
-    /// Installs `onLinesChanged` callback on the terminal view so that
-    /// terminal output is relayed to the WebSocket client.
     func registerBridge(_ bridge: RemoteSessionBridge) {
-        activeBridges[bridge.deviceId] = bridge
-        connectedDeviceCount = activeBridges.count
-
-        // Connect raw PTY output → bridge.
-        // Uses onRawData to relay unprocessed ANSI bytes (not parsed lines)
-        // so the remote xterm.js can render colors, cursor movements, etc.
-        if let view = terminalService.terminalView(for: bridge.sessionId) {
-            view.onRawData = { [weak bridge] (_, slice) in
-                guard let bridge else { return }
-                // Explicit MainActor dispatch — dataReceived fires on PTY read thread,
-                // but handleRawData is @MainActor.
-                Task { @MainActor in
-                    bridge.handleRawData(slice)
-                }
-            }
-            #if DEBUG
-            NSLog("[RC-BRIDGE] onRawData installed for session=\(bridge.sessionId) view=\(ObjectIdentifier(view))")
-            #endif
-        } else {
-            Logger.remoteControl.warning(
-                "registerBridge: no terminal view for session=\(bridge.sessionId)"
-            )
-        }
-
-        Logger.remoteControl.info(
-            "Bridge registered: device=\(bridge.deviceId) session=\(bridge.sessionId)"
-        )
+        bridgeRegistry.registerBridge(bridge)
     }
 
     /// Unregister a session bridge (called on WebSocket close).
     func unregisterBridge(_ bridge: RemoteSessionBridge) {
-        bridge.detach()
-
-        // Disconnect terminal output callback.
-        if let view = terminalService.terminalView(for: bridge.sessionId) {
-            view.onRawData = nil
-        }
-
-        activeBridges.removeValue(forKey: bridge.deviceId)
-        connectedDeviceCount = activeBridges.count
-        Logger.remoteControl.info(
-            "Bridge unregistered: device=\(bridge.deviceId) session=\(bridge.sessionId)"
-        )
+        bridgeRegistry.unregisterBridge(bridge)
     }
 
     // MARK: - Broadcast
 
     /// Broadcast a JSON text message to all active bridges.
     func broadcastTextMessage(_ json: String) {
-        for (_, bridge) in activeBridges {
-            bridge.sendTextMessage(json)
-        }
+        bridgeRegistry.broadcastTextMessage(json)
     }
 
     // MARK: - Private: Ngrok Host Observation
 
     /// Observe `NgrokTunnelService.tunnelURL` and push the resolved host into
     /// `ngrokHostRef` so all active ``HTTPRequestRouter`` instances receive it.
-    ///
-    /// This replaces the broad `*.ngrok-free.app` wildcard in `allowedOrigin`
-    /// with an exact host match for the current tunnel, eliminating the attack
-    /// surface of any other ngrok-free.app subdomain being accepted as a CORS origin.
     private func startNgrokHostObservation() {
         ngrokHostObservationTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -603,69 +503,6 @@ final class RemoteControlServer {
         }
     }
 
-    // MARK: - Private: Static File Cache
-
-    /// Pre-load all files from the `RemoteControlWeb` bundle directory into memory.
-    ///
-    /// Called once on `start()` (on MainActor, before the detached NIO bootstrap task)
-    /// so that static file serving never blocks NIO event loop threads on disk I/O.
-    ///
-    /// Returns a dictionary keyed by relative path (e.g. `"index.html"`,
-    /// `"vendor/xterm.js"`) mapping to `(data, contentType)`.
-    private static func loadStaticFileCache() -> [String: (Data, String)] {
-        guard let baseURL = Bundle.main.url(forResource: "RemoteControlWeb", withExtension: nil) else {
-            Logger.remoteControl.warning("RemoteControlServer: RemoteControlWeb bundle not found — static files will be served from disk")
-            return [:]
-        }
-
-        var cache: [String: (Data, String)] = [:]
-        let fm = FileManager.default
-        guard let enumerator = fm.enumerator(
-            at: baseURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return cache
-        }
-
-        for case let fileURL as URL in enumerator {
-            guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else {
-                continue
-            }
-            // Compute the relative path inside the bundle directory.
-            let fullPath = fileURL.standardized.path
-            let basePath = baseURL.standardized.path
-            guard fullPath.hasPrefix(basePath) else { continue }
-            var relativePath = String(fullPath.dropFirst(basePath.count))
-            if relativePath.hasPrefix("/") { relativePath = String(relativePath.dropFirst()) }
-
-            guard let data = try? Data(contentsOf: fileURL) else { continue }
-            let ext = (relativePath as NSString).pathExtension
-            let contentType = mimeTypeStatic(for: ext)
-            cache[relativePath] = (data, contentType)
-        }
-
-        Logger.remoteControl.info(
-            "RemoteControlServer: pre-loaded \(cache.count) static files from RemoteControlWeb bundle"
-        )
-        return cache
-    }
-
-    private static func mimeTypeStatic(for ext: String) -> String {
-        switch ext.lowercased() {
-        case "js": return "application/javascript"
-        case "css": return "text/css"
-        case "html": return "text/html"
-        case "json": return "application/json"
-        case "png": return "image/png"
-        case "svg": return "image/svg+xml"
-        case "ico": return "image/x-icon"
-        case "woff2": return "font/woff2"
-        case "woff": return "font/woff"
-        default: return "application/octet-stream"
-        }
-    }
-
     // MARK: - Private: Session Observation
 
     /// Observe `TerminalService.sessionsByProject` and broadcast
@@ -690,7 +527,7 @@ final class RemoteControlServer {
                 }
                 guard !Task.isCancelled else { return }
 
-                // Sessions changed -- broadcast to all bridges.
+                // Sessions changed — broadcast to all bridges.
                 let encoder = JSONEncoder()
                 for (projectId, sessions) in terminalService.sessionsByProject {
                     let sessionResponses = sessions.map { session in
@@ -722,34 +559,6 @@ final class RemoteControlServer {
     }
 }
 
-// MARK: - NgrokHostRef
-
-/// Thread-safe container for the current ngrok tunnel host.
-///
-/// Updated on MainActor when the ngrok URL is resolved; read on NIO event loop
-/// threads inside ``HTTPRequestRouter.allowedOrigin(from:)``.
-///
-/// Uses `NSLock` rather than an actor to avoid async overhead in the hot-path
-/// CORS check (one read per HTTP request).
-final class NgrokHostRef: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _host: String?
-
-    /// The current ngrok hostname (e.g. `"xxxx.ngrok-free.app"`), or `nil`
-    /// when no tunnel is active.
-    var host: String? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _host
-    }
-
-    func set(_ newHost: String?) {
-        lock.lock()
-        _host = newHost
-        lock.unlock()
-    }
-}
-
 // MARK: - TerminalSessionState + Remote API
 
 extension TerminalSessionState {
@@ -766,8 +575,6 @@ extension TerminalSessionState {
 // MARK: - Preview Stub
 
 /// Minimal `ProjectManaging` stub for the preview/default convenience init.
-/// Not `@Observable` -- only used to satisfy the protocol requirement in
-/// SwiftUI environment key defaults where the server is never started.
 @Observable
 @MainActor
 private final class PreviewProjectManagerStub: ProjectManaging {

@@ -26,14 +26,11 @@ struct SpecsPanelView: View {
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.navigationCoordinator) private var navigationCoordinator
 
-    @State private var vm: SpecsViewModel?
+    @State private var vmBox = LazyStateObject<SpecsViewModel>()
     @State private var activeSheet: SpecsSheet?
 
     private var viewModel: SpecsViewModel {
-        if let existing = vm { return existing }
-        let created = SpecsViewModel()
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { SpecsViewModel() }
     }
 
     private var activeProject: Project? {
@@ -69,11 +66,10 @@ struct SpecsPanelView: View {
             }
         }
         .onAppear {
-            if vm == nil {
-                vm = SpecsViewModel()
-                if let project = activeProject {
-                    Task { await viewModel.loadSpecs(at: project.path) }
-                }
+            if let project = activeProject, vmBox.value == nil {
+                // First creation kicks off initial load. Subsequent appears reuse
+                // the cached VM so its state survives sidebar section toggles.
+                Task { await viewModel.loadSpecs(at: project.path) }
             }
         }
         .sheet(item: $activeSheet) { sheet in
