@@ -34,8 +34,10 @@ struct CodeSpeakEditorView: NSViewRepresentable {
         // ── 2. Text container ──────────────────────────────────────────────
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.containerSize = NSSize(
+            // swiftlint:disable colon
             width:  CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
+            // swiftlint:enable colon
         )
 
         // ── 3. Appearance ──────────────────────────────────────────────────
@@ -51,8 +53,10 @@ struct CodeSpeakEditorView: NSViewRepresentable {
         textView.font      = baseFont
         textView.textColor = baseColor
         textView.typingAttributes = [
+            // swiftlint:disable colon
             .font:            baseFont,
             .foregroundColor: baseColor
+            // swiftlint:enable colon
         ]
         textView.textContainerInset      = DSLayout.editorContentInset
         textView.drawsBackground         = true
@@ -62,8 +66,10 @@ struct CodeSpeakEditorView: NSViewRepresentable {
         textView.autoresizingMask        = [.width]
         textView.minSize = NSSize(width: 0, height: 0)
         textView.maxSize = NSSize(
+            // swiftlint:disable colon
             width:  CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
+            // swiftlint:enable colon
         )
         textView.delegate = context.coordinator
 
@@ -79,10 +85,17 @@ struct CodeSpeakEditorView: NSViewRepresentable {
         context.coordinator.parser = parserRegistry.parser(for: fileExtension)
 
         // Defer text load until after SwiftUI sets the scroll view frame.
+        // ARCH-M5: replaced `DispatchQueue.main.async` with a structured
+        // Task that yields once and bails out when the scroll view is no
+        // longer attached to a window (the user dismissed the sheet before
+        // the deferred work ran).
         let initialText = text
         let coordinator = context.coordinator
-        DispatchQueue.main.async {
-            guard let tv = scrollView.documentView as? NSTextView,
+        Task { @MainActor [weak scrollView] in
+            await Task.yield()
+            guard let scrollView,
+                  scrollView.window != nil,
+                  let tv = scrollView.documentView as? NSTextView,
                   !initialText.isEmpty else { return }
             // Pin text view width to clip view bounds width.
             let cv = scrollView.contentView

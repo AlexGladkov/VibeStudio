@@ -15,16 +15,16 @@ import SwiftUI
 final class AppReadyState {
     /// Whether the app has finished initial setup and is ready to display content.
     var isReady: Bool = false
-    
+
     /// Whether TCC (Transparency, Consent, and Control) permissions have been granted
     /// for required system access (terminal input, file access, etc.).
     var tccGranted: Bool = false
-    
+
     /// Mark the app as ready.
     func markReady() {
         isReady = true
     }
-    
+
     /// Mark TCC permissions as granted.
     func markTCCGranted() {
         tccGranted = true

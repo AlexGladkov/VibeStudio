@@ -129,9 +129,11 @@ struct TerminalAppearanceManager {
         nsColors.map { nsColor -> SwiftTerm.Color in
             let c = nsColor.usingColorSpace(.sRGB) ?? nsColor
             return SwiftTerm.Color(
+                // swiftlint:disable colon
                 red:   UInt16(c.redComponent   * 65535),
                 green: UInt16(c.greenComponent * 65535),
                 blue:  UInt16(c.blueComponent  * 65535)
+                // swiftlint:enable colon
             )
         }
     }

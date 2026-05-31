@@ -12,7 +12,7 @@ struct InstallAgentSheet: View {
     let assistant: AIAssistant
 
     @Environment(\.dismiss) private var dismiss
-    @State private var copiedCommand: String? = nil
+    @State private var copiedCommand: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -145,7 +145,9 @@ struct InstallAgentSheet: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(command, forType: .string)
                 copiedCommand = command
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                // ARCH-L2: clipboard confirmation TTL lives in DSLayout.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(DSLayout.clipboardConfirmationMS))
                     if copiedCommand == command { copiedCommand = nil }
                 }
             } label: {

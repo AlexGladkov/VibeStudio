@@ -55,7 +55,7 @@ struct TerminalHostView: NSViewRepresentable {
                 terminalView.bottomAnchor.constraint(
                     equalTo: container.bottomAnchor,
                     constant: -DSLayout.terminalPadding.bottom
-                ),
+                )
             ])
 
             // Request focus.
@@ -70,7 +70,7 @@ struct TerminalHostView: NSViewRepresentable {
             container.addSubview(label)
             NSLayoutConstraint.activate([
                 label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-                label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+                label.centerYAnchor.constraint(equalTo: container.centerYAnchor)
             ])
         }
 

@@ -350,4 +350,15 @@ enum DSLayout {
     static let sheetSmallMinWidth: CGFloat = sheetSmallWidth - 20
     /// Small sheet min height = sheetSmallHeight - 40 (used in create-branch sheet).
     static let sheetSmallMinHeight: CGFloat = sheetSmallHeight - 40
+
+    // MARK: Animation durations (ARCH-L2)
+
+    /// Delay (ms) before showing a follow-up popover/sheet after dismissing
+    /// the previous one. Gives macOS time to retract the existing popover
+    /// before opening the next; otherwise the new sheet may be cancelled.
+    static let popoverDismissAnimationMS: Int = 100
+
+    /// Duration (ms) a "Copied!" toast remains visible after a clipboard
+    /// copy action.
+    static let clipboardConfirmationMS: Int = 1_500
 }

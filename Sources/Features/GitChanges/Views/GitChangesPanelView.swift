@@ -152,9 +152,11 @@ struct GitChangesPanelView: View {
 
     /// Flat ordered list: staged first, then unstaged, then untracked.
     private func flatEntries(status: GitStatus) -> [ChangesFileEntry] {
+        // swiftlint:disable opening_brace
         status.stagedFiles.map   { ChangesFileEntry(id: "\($0.path)-s", file: $0, staged: true)  } +
         status.unstagedFiles.map { ChangesFileEntry(id: "\($0.path)-u", file: $0, staged: false) } +
         status.untrackedFiles.map { ChangesFileEntry(id: "\($0.path)-t", file: $0, staged: false) }
+        // swiftlint:enable opening_brace
     }
 
     // MARK: - File Row

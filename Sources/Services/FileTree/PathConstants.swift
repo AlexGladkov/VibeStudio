@@ -28,7 +28,7 @@ enum PathConstants {
         "DerivedData",
         "node_modules",
         "Pods",
-        "target",
+        "target"
     ]
 
     /// Absolute paths that must never be opened as a project root
@@ -47,7 +47,7 @@ enum PathConstants {
         "/dev",
         "/tmp",
         "/private",
-        "/var",
+        "/var"
     ]
 
     /// `~/Library/Application Support/VibeStudio` directory URL.

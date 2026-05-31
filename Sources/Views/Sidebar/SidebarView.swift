@@ -8,7 +8,6 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-
 // MARK: - BranchCreationContext
 
 /// Payload for "Create branch here" context menu — identifies the source branch.
@@ -254,13 +253,17 @@ struct SidebarView: View {
                 AddProjectPopover(
                     onOpenFolder: {
                         showAddProjectPopover = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        // ARCH-L2: delay constant lives in DSLayout so we
+                        // don't sprinkle 0.1s magic numbers across views.
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(DSLayout.popoverDismissAnimationMS))
                             showFileImporter = true
                         }
                     },
                     onCreateNew: {
                         showAddProjectPopover = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(DSLayout.popoverDismissAnimationMS))
                             showCreateNewSheet = true
                         }
                     }
@@ -428,7 +431,6 @@ struct SidebarView: View {
             await vm.refreshAllGitInfo(projects: regularProjects)
         }
     }
-
 
     // MARK: - No Project View
 

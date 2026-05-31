@@ -124,4 +124,3 @@ struct SettingsView: View {
         .background(DSColor.surfaceDefault)
     }
 }
-

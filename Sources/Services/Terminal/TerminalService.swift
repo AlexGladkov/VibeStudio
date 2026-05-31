@@ -39,9 +39,10 @@ final class TerminalService: TerminalSessionManaging {
 
     private let store = TerminalSessionStore()
     private let appearance = TerminalAppearanceManager()
-    @ObservationIgnored private lazy var activityTracker = TerminalActivityTracker { [weak self] projectId, state in
-        self?.projectActivityStates[projectId] = state
-    }
+    /// ARCH-L3: initialised in `init` instead of `lazy var + _ = activityTracker`
+    /// kludge. Required by `installCallbacks(...)` before any session exists,
+    /// so eager init is correct.
+    @ObservationIgnored private let activityTracker: TerminalActivityTracker
 
     // MARK: - Private State
 
@@ -69,8 +70,15 @@ final class TerminalService: TerminalSessionManaging {
         sessionEvents = stream
         eventContinuation = continuation
 
-        // Force lazy var initialization so the activity tracker is ready.
-        _ = activityTracker
+        // ARCH-L3: initialise activityTracker eagerly. We can't capture
+        // `self` directly in the init param closure (use-before-init), so
+        // we set a no-op callback first, then rewire it once `self` is
+        // available.
+        let tracker = TerminalActivityTracker(stateChanged: { _, _ in })
+        self.activityTracker = tracker
+        tracker.stateChanged = { [weak self] projectId, state in
+            self?.projectActivityStates[projectId] = state
+        }
 
         // Observe theme changes via @Observable directly -- no NotificationCenter.
         // `AsyncObservation.stream` bridges `withObservationTracking` to an
@@ -264,25 +272,20 @@ final class TerminalService: TerminalSessionManaging {
     }
 
     func resize(session sessionId: UUID, to size: TerminalSize) {
-        guard let view = store.view(for: sessionId) else { return }
-        // CRASH FIX (H14): `view.process` is an implicitly unwrapped optional
-        // on `LocalProcessTerminalView`. If the PTY failed to spawn (binary
-        // missing, permission denied) `process` is `nil` and accessing
-        // `process.childfd` traps. `sendSignal(to:signal:)` already guards
-        // this — mirror the same pattern here.
-        guard let process = view.process else {
-            Logger.terminal.warning("resize: process is nil for session \(sessionId)")
-            return
+        // ARCH-M8: PTY access funneled through `withProcess` — same guard
+        // as `sendInput` / `sendSignal` to avoid the implicit-unwrap crash
+        // documented in the helper.
+        withProcess(sessionId, label: "resize") { process in
+            let fd = process.childfd
+            guard fd >= 0 else { return }
+            var ws = winsize(
+                ws_row: UInt16(clamping: size.rows),
+                ws_col: UInt16(clamping: size.columns),
+                ws_xpixel: 0,
+                ws_ypixel: 0
+            )
+            _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &ws)
         }
-        let fd = process.childfd
-        guard fd >= 0 else { return }
-        var ws = winsize(
-            ws_row: UInt16(clamping: size.rows),
-            ws_col: UInt16(clamping: size.columns),
-            ws_xpixel: 0,
-            ws_ypixel: 0
-        )
-        _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &ws)
     }
 
     func killSession(_ sessionId: UUID, force: Bool) {
@@ -390,17 +393,15 @@ final class TerminalService: TerminalSessionManaging {
     // MARK: - TerminalSessionManaging: Input
 
     func sendInput(_ text: String, to sessionId: UUID) {
-        guard let view = store.view(for: sessionId) else {
-            Logger.terminal.warning("sendInput: view not found for session \(sessionId)")
-            return
+        withProcess(sessionId, label: "sendInput") { process in
+            #if DEBUG
+            // ARCH-M1: hot-path debug — keystroke-level. Keep only in
+            // Debug builds to avoid leaking input timing in Console.app.
+            Logger.terminal.debug("sendInput: running=\(process.running)")
+            #endif
+            let bytes = [UInt8](text.utf8)
+            process.send(data: bytes[...])
         }
-        guard let process = view.process else {
-            Logger.terminal.warning("sendInput: process is nil for session \(sessionId)")
-            return
-        }
-        Logger.terminal.debug("sendInput: running=\(process.running)")
-        let bytes = [UInt8](text.utf8)
-        process.send(data: bytes[...])
     }
 
     // MARK: - TerminalSessionManaging: Activity
@@ -457,6 +458,34 @@ final class TerminalService: TerminalSessionManaging {
         if pid > 0 {
             kill(pid, sig)
         }
+    }
+
+    /// Look up the live PTY view for `sessionId` and invoke `perform` with
+    /// its `LocalProcess` reference.
+    ///
+    /// ARCH-M8: replaces the previous copy-pasted guard pattern
+    /// (`store.view` → `view.process` → log warning) in `sendInput` /
+    /// `resize` / signal helpers. Returns silently when the view has been
+    /// removed or its PTY failed to spawn.
+    ///
+    /// - Parameters:
+    ///   - sessionId: Target session.
+    ///   - label: Short description used in the warning log line.
+    ///   - perform: Closure invoked with the live `LocalProcess`.
+    private func withProcess(
+        _ sessionId: UUID,
+        label: String,
+        perform: (LocalProcess) -> Void
+    ) {
+        guard let view = store.view(for: sessionId) else {
+            Logger.terminal.warning("\(label, privacy: .public): view not found for session \(sessionId)")
+            return
+        }
+        guard let process = view.process else {
+            Logger.terminal.warning("\(label, privacy: .public): process is nil for session \(sessionId)")
+            return
+        }
+        perform(process)
     }
 
     /// Remove a session from internal tracking.

@@ -27,6 +27,6 @@ enum SecurityConstants {
         "\(NSHomeDirectory())/.npm-global/bin",
         "\(NSHomeDirectory())/.cargo/bin",
         "\(NSHomeDirectory())/.opencode/bin",
-        "/usr/bin",
+        "/usr/bin"
     ]
 }

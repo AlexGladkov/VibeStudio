@@ -22,6 +22,7 @@ struct OpenCodeLogoView: View {
             let gap = size * 0.09  // gap from center to tip
 
             // Left chevron  <
+            // swiftlint:disable colon comma
             var left = Path()
             left.move(to:    CGPoint(x: cx - gap,     y: cy))
             left.addLine(to: CGPoint(x: cx - gap - w, y: cy - h))
@@ -38,6 +39,7 @@ struct OpenCodeLogoView: View {
             let style = StrokeStyle(lineWidth: size * 0.16, lineCap: .round, lineJoin: .round)
             context.stroke(left,  with: .color(DSColor.agentOpenCode), style: style)
             context.stroke(right, with: .color(DSColor.agentOpenCode), style: style)
+            // swiftlint:enable colon comma
         }
         .frame(width: size, height: size)
     }

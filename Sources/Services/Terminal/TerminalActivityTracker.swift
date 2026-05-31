@@ -39,8 +39,13 @@ final class TerminalActivityTracker {
     /// Per-project timers: fire after silence to transition `running` -> `waitingForInput`.
     private var idleTimers: [UUID: Task<Void, Never>] = [:]
 
-    /// Callback to propagate activity state changes to TerminalService.
-    private let stateChanged: StateChanged
+    /// Callback to propagate activity state changes to `TerminalService`.
+    ///
+    /// `var` (not `let`) so that the owning service can rewire the
+    /// callback after the tracker has been initialised — required by the
+    /// eager-init pattern that replaces the previous `lazy var` with a
+    /// `self`-capturing initialiser (ARCH-L3).
+    var stateChanged: StateChanged
 
     // MARK: - Precompiled Regex
 

@@ -31,18 +31,18 @@ struct SettingsItemRow: View {
     let name: String
 
     /// Optional secondary line shown below the name in muted style.
-    var subtitle: String? = nil
+    var subtitle: String?
 
     /// Whether the trash (delete) button is shown. Defaults to `true`.
     var showDelete: Bool = true
 
     /// Action invoked when the pencil (edit) button is tapped.
     /// When `nil` the edit button is hidden.
-    var onEdit: (() -> Void)? = nil
+    var onEdit: (() -> Void)?
 
     /// Action invoked when the trash (delete) button is tapped.
     /// Hidden when `nil` or when `showDelete` is `false`.
-    var onDelete: (() -> Void)? = nil
+    var onDelete: (() -> Void)?
 
     // MARK: - Body
 

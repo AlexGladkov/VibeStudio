@@ -314,10 +314,21 @@ struct RemoteAPIHandlers {
             return
         }
 
-        let pathURL = URL(fileURLWithPath: request.path).standardizedFileURL
+        // SEC-M3: resolve any symlink component before the home-directory
+        // check. `standardizedFileURL` only normalises `.` / `..` and case;
+        // it leaves symlinks intact, so a path like `~/link_to_etc`
+        // (link target `/etc`) would otherwise pass the prefix check yet
+        // resolve to a directory outside the user's home. We compare
+        // realpath-resolved paths on both sides.
+        let pathURL = URL(fileURLWithPath: request.path)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
 
         // SECURITY: reject paths outside the user's home directory.
-        let homePath = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        let homePath = FileManager.default.homeDirectoryForCurrentUser
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
         guard pathURL.path.hasPrefix(homePath) else {
             let resp = ErrorResponse(
                 error: ErrorDetail(

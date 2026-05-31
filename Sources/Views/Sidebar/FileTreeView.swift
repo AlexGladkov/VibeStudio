@@ -20,7 +20,7 @@ struct FileTreeView: View {
     /// Useful when embedding the tree inside a multi-project sidebar.
     var showSectionHeader: Bool = true
 
-    var onFileDoubleTapped: ((FileEntry) -> Void)? = nil
+    var onFileDoubleTapped: ((FileEntry) -> Void)?
 
     @Environment(\.fileSystemWatcher) private var fileSystemWatcher
 
@@ -96,7 +96,7 @@ private struct FileTreeNodeView: View {
     let depth: Int
     let projectPath: URL
     @Binding var expandedDirs: Set<String>
-    var onFileDoubleTapped: ((FileEntry) -> Void)? = nil
+    var onFileDoubleTapped: ((FileEntry) -> Void)?
 
     var body: some View {
         switch node {
@@ -127,7 +127,7 @@ private struct DirectoryRowView: View {
     let depth: Int
     let projectPath: URL
     @Binding var expandedDirs: Set<String>
-    var onFileDoubleTapped: ((FileEntry) -> Void)? = nil
+    var onFileDoubleTapped: ((FileEntry) -> Void)?
 
     private var isExpanded: Bool {
         expandedDirs.contains(entry.path.path)
@@ -206,7 +206,7 @@ private struct FileRowView: View {
     let entry: FileEntry
     let depth: Int
     let projectPath: URL
-    var onDoubleTap: ((FileEntry) -> Void)? = nil
+    var onDoubleTap: ((FileEntry) -> Void)?
 
     var body: some View {
         HStack(spacing: DSSpacing.xs) {

@@ -342,7 +342,7 @@ final class NgrokTunnelService {
             "HOME", "USER", "LOGNAME",
             "LANG", "LC_ALL", "LC_CTYPE",
             "TERM", "PATH", "TMPDIR",
-            "NGROK_AUTHTOKEN",
+            "NGROK_AUTHTOKEN"
         ]
 
         let processEnv = ProcessInfo.processInfo.environment

@@ -22,7 +22,7 @@ enum AgentEnvironmentBuilder {
         "PATH", "SSH_AUTH_SOCK",
         "SHELL", "TMPDIR",
         "XDG_CONFIG_HOME", "XDG_DATA_HOME",
-        "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY", "ANTHROPIC_API_KEY"
     ]
 
     /// Build an environment array (`["KEY=VALUE", ...]`) for the given agent.

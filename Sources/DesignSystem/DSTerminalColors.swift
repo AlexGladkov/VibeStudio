@@ -39,7 +39,7 @@ enum DSTerminalColors {
         NSColor(hex: "#79C0FF"),  // Bright Blue
         NSColor(hex: "#D2A8FF"),  // Bright Magenta
         NSColor(hex: "#56D4DD"),  // Bright Cyan
-        NSColor(hex: "#FFFFFF"),  // Bright White
+        NSColor(hex: "#FFFFFF")  // Bright White
     ]
 
     // MARK: - Light Palette
@@ -63,7 +63,7 @@ enum DSTerminalColors {
         NSColor(hex: "#1E90FF"),  // Bright Blue
         NSColor(hex: "#AF52DE"),  // Bright Magenta
         NSColor(hex: "#5AC8FA"),  // Bright Cyan
-        NSColor(hex: "#000000"),  // Bright White
+        NSColor(hex: "#000000")  // Bright White
     ]
 
     /// ANSI palette appropriate for the current effective appearance.

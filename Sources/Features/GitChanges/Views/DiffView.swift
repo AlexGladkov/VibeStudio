@@ -150,8 +150,10 @@ struct DiffView: View {
                 case .context:
                     let line = lines[i]
                     rows.append(SplitRow(id: nextId, kind: .content(
+                        // swiftlint:disable colon
                         left:  SplitDiffCell(lineNumber: line.oldLineNumber, content: line.content, type: .context),
                         right: SplitDiffCell(lineNumber: line.newLineNumber, content: line.content, type: .context)
+                        // swiftlint:enable colon
                     )))
                     nextId += 1
                     i += 1
@@ -174,8 +176,10 @@ struct DiffView: View {
                         let del = j < deletions.count ? deletions[j] : nil
                         let add = j < additions.count ? additions[j] : nil
                         rows.append(SplitRow(id: nextId, kind: .content(
+                            // swiftlint:disable colon
                             left:  del.map { SplitDiffCell(lineNumber: $0.oldLineNumber, content: $0.content, type: .deletion) },
                             right: add.map { SplitDiffCell(lineNumber: $0.newLineNumber, content: $0.content, type: .addition) }
+                            // swiftlint:enable colon
                         )))
                         nextId += 1
                     }
@@ -184,8 +188,10 @@ struct DiffView: View {
                     // Standalone addition (not immediately preceded by a deletion block).
                     let line = lines[i]
                     rows.append(SplitRow(id: nextId, kind: .content(
+                        // swiftlint:disable colon
                         left:  nil,
                         right: SplitDiffCell(lineNumber: line.newLineNumber, content: line.content, type: .addition)
+                        // swiftlint:enable colon
                     )))
                     nextId += 1
                     i += 1

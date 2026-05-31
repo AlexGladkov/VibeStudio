@@ -63,12 +63,18 @@ struct HTTPResponseWriter: Sendable {
         // strip TLS on subsequent visits.
         headers.add(name: "Strict-Transport-Security", value: "max-age=31536000")
         if isHTML {
+            // SEC-M2: connect-src tightened from `wss: ws:` (any host) to
+            // `'self'` only. Browsers treat `connect-src 'self'` as matching
+            // the same scheme+host+port as the document for WebSocket
+            // upgrades too, so the web UI can still open WS/WSS to the
+            // server that served the page while an XSS payload can no
+            // longer exfiltrate over a WebSocket to an attacker host.
             headers.add(
                 name: "Content-Security-Policy",
                 value: "default-src 'self'; " +
                        "script-src 'self'; " +
                        "style-src 'self' 'unsafe-inline'; " +
-                       "connect-src 'self' wss: ws:"
+                       "connect-src 'self'"
             )
         } else {
             headers.add(name: "Content-Security-Policy", value: "default-src 'none'")

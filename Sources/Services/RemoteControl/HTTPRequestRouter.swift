@@ -87,6 +87,23 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     private var requestHead: HTTPRequestHead?
     private var requestBody: ByteBuffer?
 
+    // MARK: - Developer-build detection (SEC-M1)
+
+    #if DEBUG
+    /// `true` only when this binary was loaded from a developer build
+    /// directory (Xcode `DerivedData`, an `xcodebuild` build folder, or a
+    /// `.build` SwiftPM tree). For a packaged TestFlight / Ad-Hoc / Release
+    /// build the bundle lives in `/Applications/...`, `~/Applications/...`
+    /// or a sandbox container and the check evaluates to `false`. The
+    /// result is cached at first access because the bundle path is fixed
+    /// for the lifetime of the process.
+    private static let isDeveloperBuild: Bool = {
+        let bundlePath = Bundle.main.bundlePath
+        let markers = ["/DerivedData/", "/.build/", "/Build/Products/", "/build/derivedData/"]
+        return markers.contains { bundlePath.contains($0) }
+    }()
+    #endif
+
     // MARK: - DEBUG-only WS upgrade log
     #if DEBUG
     private static let wsLogLock = NSLock()
@@ -317,8 +334,13 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
 
         #if DEBUG
-        // Debug endpoints gated behind VS_DEBUG_API=1.
-        let debugAPIEnabled = ProcessInfo.processInfo.environment["VS_DEBUG_API"] != nil
+        // Debug endpoints exposed ONLY when the binary was loaded from a
+        // developer build directory. SEC-M1: the previous gate relied on
+        // `VS_DEBUG_API=1` which could be flipped through an Xcode scheme
+        // and accidentally shipped via TestFlight / Ad-Hoc. By keying off
+        // the bundle path we ensure that even a Debug build distributed as
+        // an .app cannot expose `/debug/pin` to the network.
+        let debugAPIEnabled = HTTPRequestRouter.isDeveloperBuild
 
         if method == .GET && path == "/api/v1/debug/pin" {
             guard debugAPIEnabled else {
@@ -660,15 +682,5 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return origin
         }
         return nil
-    }
-}
-
-// MARK: - Result + isSuccess
-
-extension Result {
-    /// Convenience to check if the result is a success case.
-    var isSuccess: Bool {
-        if case .success = self { return true }
-        return false
     }
 }

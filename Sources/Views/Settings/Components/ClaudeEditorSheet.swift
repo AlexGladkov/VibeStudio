@@ -113,4 +113,3 @@ struct ClaudeEditorSheet: View {
         }
     }
 }
-

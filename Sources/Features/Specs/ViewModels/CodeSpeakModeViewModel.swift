@@ -18,10 +18,10 @@ final class CodeSpeakModeViewModel {
     // MARK: - State
 
     /// Currently selected spec file for editing.
-    var selectedSpec: SpecFile? = nil
+    var selectedSpec: SpecFile?
 
     /// Currently selected generated file (read-only viewer).
-    var selectedGenerated: GeneratedFile? = nil
+    var selectedGenerated: GeneratedFile?
 
     /// Raw markdown content of the selected spec (bound to the editor).
     var editorContent: String = ""
@@ -77,10 +77,10 @@ final class CodeSpeakModeViewModel {
     /// Directories and file names to skip when scanning for generated files.
     private static let skipDirectories: Set<String> = [
         "spec", ".git", "node_modules", ".build", ".swiftpm",
-        "__pycache__", ".venv", "venv", "vendor", "dist", "build",
+        "__pycache__", ".venv", "venv", "vendor", "dist", "build"
     ]
     private static let skipFilenames: Set<String> = [
-        "codespeak.json",
+        "codespeak.json"
     ]
 
     /// Scans the project root (one level deep) for files that contain a
@@ -148,5 +148,51 @@ final class CodeSpeakModeViewModel {
         } catch {
             Logger.services.error("CodeSpeakModeViewModel: failed to save spec: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    // MARK: - Build Coordination (ARCH-M3)
+
+    /// Reset editor state when the active project changes. Called from the
+    /// view's `.onChange(of: projectManager.activeProjectId)` handler so the
+    /// previous spec's content doesn't leak into the new project's editor.
+    func resetForProjectSwitch() {
+        selectedSpec = nil
+        selectedGenerated = nil
+        editorContent = ""
+        isEditorDirty = false
+    }
+
+    /// Reload spec and generated-file trees for `projectPath`. Called after
+    /// a project switch.
+    func reload(projectPath: URL) async {
+        await specsVM.loadSpecs(at: projectPath)
+        await scanGenerated(at: projectPath)
+    }
+
+    /// Mirror the toolbar-owned `CodeSpeakRunBarState` command/parameters
+    /// into ``buildVM`` and execute the build for the supplied project /
+    /// spec.
+    ///
+    /// Centralises the "play button pressed" coordination that previously
+    /// lived in the view's `.onChange(of: codeSpeakBuildRequested)` block.
+    ///
+    /// - Parameters:
+    ///   - projectPath: Active project root.
+    ///   - specURL: URL of the currently selected spec (passed through to
+    ///     enable spec-aware commands).
+    ///   - runBar: Snapshot of the toolbar run-bar state at the moment the
+    ///     run was triggered.
+    func runBuild(at projectPath: URL, specURL: URL?, runBar: CodeSpeakRunBarState) async {
+        buildVM.selectedCommand = runBar.command
+        buildVM.taskName = runBar.taskName
+        buildVM.changeMessage = runBar.changeMessage
+        await buildVM.run(at: projectPath, specPath: specURL)
+    }
+
+    /// Run the default `build` command — used by the auto-build-on-save
+    /// hook and by `task(id:)` "build on project open".
+    func runDefaultBuild(at projectPath: URL, specURL: URL? = nil) async {
+        buildVM.selectedCommand = .build
+        await buildVM.run(at: projectPath, specPath: specURL)
     }
 }

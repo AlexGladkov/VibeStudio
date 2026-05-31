@@ -18,10 +18,10 @@ struct LineContext: Sendable, Equatable {
     var inCodeBlock: Bool = false
 
     /// The fence string that opened the current code block (e.g. "```" or "~~~").
-    var codeBlockFence: String? = nil
+    var codeBlockFence: String?
 
     /// The language hint after the opening fence (e.g. "swift", "kotlin").
-    var codeBlockLanguage: String? = nil
+    var codeBlockLanguage: String?
 
     /// Fresh context for the first line of a document.
     static let initial = LineContext()

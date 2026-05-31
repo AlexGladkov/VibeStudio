@@ -200,4 +200,3 @@ struct AgentEditorSheet: View {
             .filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "-" || $0 == "_" }
     }
 }
-

@@ -29,7 +29,7 @@ struct SettingsSectionHeader: View {
     var showAddButton: Bool = false
 
     /// Action invoked when the add button is tapped. Required when `showAddButton` is `true`.
-    var onAdd: (() -> Void)? = nil
+    var onAdd: (() -> Void)?
 
     // MARK: - Body
 

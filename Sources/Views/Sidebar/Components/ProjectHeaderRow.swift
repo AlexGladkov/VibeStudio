@@ -26,7 +26,7 @@ struct ProjectHeaderRow<Trailing: View>: View {
     let remoteURL: String?
     let onTap: () -> Void
     /// Optional settings/gear button action — when non-nil renders gear next to row.
-    var onSettings: (() -> Void)? = nil
+    var onSettings: (() -> Void)?
     /// Horizontal padding for the trailing gear button (Files uses `xs` after,
     /// Git uses `xs` before — passed by caller via the matching modifier).
     var gearTrailingPadding: CGFloat = DSSpacing.xs

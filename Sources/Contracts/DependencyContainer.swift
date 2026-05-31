@@ -377,7 +377,7 @@ extension View {
 @MainActor
 private final class PreviewProjectManager: ProjectManaging {
     var projects: [Project] = []
-    var activeProjectId: UUID? = nil
+    var activeProjectId: UUID?
     var recentHistory: [Project] = []
     var recentProjects: [Project] = []
     func addProject(at path: URL) throws -> Project {
@@ -499,7 +499,7 @@ private final class PreviewAICommitService: AICommitServicing {
 private final class PreviewGitStatusPoller: GitStatusPolling {
     var status: GitStatus = .empty
     var isPolling: Bool = false
-    var lastError: Error? = nil
+    var lastError: Error?
     func startPolling(for repository: URL, isActive: Bool) {}
     func stopPolling() {}
     func refreshNow() {}
@@ -521,4 +521,3 @@ private final class PreviewAgentAvailability: AgentAvailabilityChecking {
     }
     func canLaunch(_ agent: AIAssistant) -> Bool { false }
 }
-

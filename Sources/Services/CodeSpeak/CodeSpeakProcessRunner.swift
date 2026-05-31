@@ -97,7 +97,7 @@ actor CodeSpeakProcessRunner {
                     "TERM", "COLORTERM",
                     "PATH", "SSH_AUTH_SOCK",
                     "SHELL", "TMPDIR",
-                    "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+                    "XDG_CONFIG_HOME", "XDG_DATA_HOME"
                 ]
                 let parentEnv = ProcessInfo.processInfo.environment
                 var processEnv: [String: String] = [:]

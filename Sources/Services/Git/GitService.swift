@@ -26,7 +26,22 @@ final class GitService: GitServicing, @unchecked Sendable {
     /// Extended timeout for network operations like push/pull (seconds).
     private let networkTimeout: TimeInterval = 120
 
-    /// Regex for valid git branch names (prevents injection via crafted names).
+    /// Regex matching the subset of branch name characters we accept.
+    ///
+    /// **Scope (ARCH-L4): ASCII-only by design.** A branch name containing
+    /// unicode (e.g. Cyrillic or emoji) will be rejected even though `git
+    /// check-ref-format --branch <name>` would consider it valid. The
+    /// trade-off favours injection-safety — every accepted character is
+    /// safe to splice into a shell-free `Process.arguments` array without
+    /// further escaping. If/when wider unicode is needed, the right
+    /// migration is to call `git check-ref-format --branch <name>` via a
+    /// strictly argument-array subprocess (no shell) and treat exit-code 0
+    /// as the allow-list.
+    ///
+    /// Disallowed characters of note: `;`, `&`, `|`, ` `, `~`, `^`, `:`,
+    /// `\`, `*`, `?`, `[`, the leading dash form `-...` (covered by the
+    /// explicit prefix check in ``validateBranchName(_:)``), and any
+    /// non-ASCII codepoint.
     private static let validBranchPattern = /^[a-zA-Z0-9\/_\-\.@]+$/
 
     /// Shared date formatter for parsing ISO 8601 commit dates.
@@ -554,6 +569,11 @@ final class GitService: GitServicing, @unchecked Sendable {
     // MARK: - Internal: Parsing (visible to tests)
 
     /// Parse `git status --porcelain=v1 --branch` output.
+    ///
+    /// Dispatches each line either to ``parseBranchLine(_:)`` (the leading
+    /// `## main...origin/main [ahead 2, behind 1]` line) or to
+    /// ``parseFileLine(_:into:into:into:)``. ARCH-M4: each helper stays
+    /// under 30 LOC.
     func parseStatus(_ output: String) -> GitStatus {
         var branch = ""
         var staged: [GitFile] = []
@@ -564,58 +584,14 @@ final class GitService: GitServicing, @unchecked Sendable {
 
         for line in output.components(separatedBy: .newlines) where !line.isEmpty {
             if line.hasPrefix("##") {
-                // Branch line: ## main...origin/main [ahead 2, behind 1]
-                let branchInfo = String(line.dropFirst(3))
-                if let dotRange = branchInfo.range(of: "...") {
-                    branch = String(branchInfo[branchInfo.startIndex..<dotRange.lowerBound])
-                } else if let spaceRange = branchInfo.range(of: " ") {
-                    branch = String(branchInfo[branchInfo.startIndex..<spaceRange.lowerBound])
-                } else {
-                    branch = branchInfo
-                }
-
-                // Parse ahead/behind from branch line.
-                if let aheadMatch = branchInfo.range(of: #"ahead (\d+)"#, options: .regularExpression) {
-                    let numStr = branchInfo[aheadMatch]
-                        .components(separatedBy: " ").last ?? "0"
-                    ahead = Int(numStr) ?? 0
-                }
-                if let behindMatch = branchInfo.range(of: #"behind (\d+)"#, options: .regularExpression) {
-                    let numStr = branchInfo[behindMatch]
-                        .components(separatedBy: " ").last ?? "0"
-                    behind = Int(numStr) ?? 0
-                }
+                let parsed = parseBranchLine(line)
+                branch = parsed.branch
+                ahead = parsed.ahead
+                behind = parsed.behind
                 continue
             }
 
-            guard line.count >= 4 else { continue }
-
-            let index = line.index(line.startIndex, offsetBy: 0)
-            let worktree = line.index(line.startIndex, offsetBy: 1)
-            let pathStart = line.index(line.startIndex, offsetBy: 3)
-            let indexChar = line[index]
-            let worktreeChar = line[worktree]
-            let filePath = String(line[pathStart...])
-
-            // Untracked files.
-            if indexChar == "?" {
-                untracked.append(GitFile(path: filePath, status: .untracked))
-                continue
-            }
-
-            // Staged changes (index column).
-            if indexChar != " " && indexChar != "?" {
-                if let status = parseFileStatus(indexChar) {
-                    staged.append(GitFile(path: filePath, status: status))
-                }
-            }
-
-            // Unstaged changes (worktree column).
-            if worktreeChar != " " && worktreeChar != "?" {
-                if let status = parseFileStatus(worktreeChar) {
-                    unstaged.append(GitFile(path: filePath, status: status))
-                }
-            }
+            parseFileLine(line, staged: &staged, unstaged: &unstaged, untracked: &untracked)
         }
 
         return GitStatus(
@@ -626,6 +602,64 @@ final class GitService: GitServicing, @unchecked Sendable {
             unstagedFiles: unstaged,
             untrackedFiles: untracked
         )
+    }
+
+    /// Parse the `## <branch>[...upstream] [ahead N, behind M]` header line.
+    ///
+    /// - Parameter line: The full header line including the leading `##`.
+    /// - Returns: The local branch name plus the ahead / behind counters
+    ///   (zero when absent).
+    func parseBranchLine(_ line: String) -> (branch: String, ahead: Int, behind: Int) {
+        let info = String(line.dropFirst(3))
+        let branch: String
+        if let dotRange = info.range(of: "...") {
+            branch = String(info[info.startIndex..<dotRange.lowerBound])
+        } else if let spaceRange = info.range(of: " ") {
+            branch = String(info[info.startIndex..<spaceRange.lowerBound])
+        } else {
+            branch = info
+        }
+
+        let ahead = parseTrailingNumber(in: info, after: #"ahead (\d+)"#)
+        let behind = parseTrailingNumber(in: info, after: #"behind (\d+)"#)
+        return (branch, ahead, behind)
+    }
+
+    /// Helper: extract the final whitespace-separated integer from the
+    /// regex match (or `0` when no match is found).
+    private func parseTrailingNumber(in haystack: String, after pattern: String) -> Int {
+        guard let match = haystack.range(of: pattern, options: .regularExpression) else { return 0 }
+        let numStr = haystack[match].components(separatedBy: " ").last ?? "0"
+        return Int(numStr) ?? 0
+    }
+
+    /// Parse a single porcelain status line (non-header) and append the
+    /// resulting `GitFile` to the relevant bucket.
+    func parseFileLine(
+        _ line: String,
+        staged: inout [GitFile],
+        unstaged: inout [GitFile],
+        untracked: inout [GitFile]
+    ) {
+        guard line.count >= 4 else { return }
+
+        let indexChar = line[line.startIndex]
+        let worktreeChar = line[line.index(after: line.startIndex)]
+        let filePath = String(line[line.index(line.startIndex, offsetBy: 3)...])
+
+        if indexChar == "?" {
+            untracked.append(GitFile(path: filePath, status: .untracked))
+            return
+        }
+
+        // Staged changes (index column).
+        if indexChar != " ", let status = parseFileStatus(indexChar) {
+            staged.append(GitFile(path: filePath, status: status))
+        }
+        // Unstaged changes (worktree column).
+        if worktreeChar != " ", worktreeChar != "?", let status = parseFileStatus(worktreeChar) {
+            unstaged.append(GitFile(path: filePath, status: status))
+        }
     }
 
     /// Map a single porcelain status character to ``GitFileStatus``.
@@ -711,17 +745,24 @@ final class GitService: GitServicing, @unchecked Sendable {
     /// Prevents command injection via crafted branch names like
     /// `--upload-pack=evil` or `; rm -rf /`.
     ///
+    /// ARCH-L4: the explicit `contains(":")` / `contains("..")` /
+    /// `contains(" ")` / `contains("~")` / `contains("^")` /
+    /// `contains("\\")` checks that used to live here are removed —
+    /// ``validBranchPattern`` already rejects every one of those bytes
+    /// (the character class only permits `[a-zA-Z0-9 / _ - . @]`). We
+    /// keep:
+    ///   * `isEmpty` — pattern matches one-or-more
+    ///   * `hasPrefix("-")` — argv leading dash is interpreted as a flag
+    ///     even when the bytes are otherwise safe
+    ///   * `contains("..")` — `..` is two safe chars but the *sequence*
+    ///     creates a parent-dir traversal in ref names.
+    ///
     /// - Parameter name: Branch or remote name to validate.
     /// - Throws: ``GitServiceError.commandFailed`` if the name is invalid.
     func validateBranchName(_ name: String) throws {
         guard !name.isEmpty,
               !name.hasPrefix("-"),
               !name.contains(".."),
-              !name.contains(" "),
-              !name.contains("~"),
-              !name.contains("^"),
-              !name.contains(":"),
-              !name.contains("\\"),
               name.wholeMatch(of: Self.validBranchPattern) != nil else {
             throw GitServiceError.commandFailed(
                 command: "validate",

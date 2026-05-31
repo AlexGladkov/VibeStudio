@@ -164,9 +164,9 @@ struct CreateNewProjectSheet: View {
     @Environment(\.projectManager) private var projectManager
 
     @State private var projectName: String = ""
-    @State private var parentFolder: URL? = nil
+    @State private var parentFolder: URL?
     @State private var showFolderPicker = false
-    @State private var errorMessage: String? = nil
+    @State private var errorMessage: String?
 
     private var trimmedName: String { projectName.trimmingCharacters(in: .whitespaces) }
     private var canCreate: Bool { !trimmedName.isEmpty && parentFolder != nil }
@@ -271,4 +271,3 @@ struct CreateNewProjectSheet: View {
         }
     }
 }
-

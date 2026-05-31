@@ -7,7 +7,7 @@ import SwiftUI
 struct CreateBranchSheet: View {
 
     let project: Project
-    var fromBranch: String? = nil
+    var fromBranch: String?
     var onCreated: (() -> Void)?
 
     @Environment(\.gitService) private var gitService
