@@ -83,7 +83,7 @@ struct GitProjectSectionView: View {
                 } else {
                     // Loading
                     HStack {
-                        ProgressView().scaleEffect(0.6) // 0.6 = visual fit for sidebar row
+                        ProgressView().scaleEffect(DSLayout.progressScaleSmall)
                         Text("Loading...")
                             .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)

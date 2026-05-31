@@ -293,6 +293,27 @@ enum DSColor {
     /// Drop target highlight background.
     /// Use instead of `accentPrimary.opacity(0.08)`.
     static let dropTargetBg = adaptiveColor(dark: "#4A9EFF14", light: "#0066FF14")
+
+    // MARK: Subtle Variants
+
+    /// Selected-row background tint of `accentPrimary` (~12% opacity).
+    /// Use instead of `accentPrimary.opacity(0.12)`.
+    static let accentPrimarySelected = adaptiveColor(dark: "#4A9EFF1F", light: "#0066FF1F")
+    /// Muted badge background (`textMuted` ~12% opacity).
+    /// Use instead of `textMuted.opacity(0.12)`.
+    static let mutedBadgeBg = adaptiveColor(dark: "#55565C1F", light: "#AEAEB21F")
+    /// Subtle surface tint (`surfaceOverlay` ~40% opacity).
+    /// Use instead of `surfaceOverlay.opacity(0.4)`.
+    static let surfaceSubtle = adaptiveColor(dark: "#2A2B2F66", light: "#EBEBED66")
+    /// Subtle `gitAdded` background (~10% opacity).
+    /// Use instead of `gitAdded.opacity(0.1)`.
+    static let gitAddedSubtle = adaptiveColor(dark: "#3FB9501A", light: "#28843B1A")
+    /// Subtle `gitModified` background (~10% opacity).
+    /// Use instead of `gitModified.opacity(0.1)`.
+    static let gitModifiedSubtle = adaptiveColor(dark: "#E2B93D1A", light: "#B594001A")
+    /// Subtle CodeSpeak agent tint (~8% opacity).
+    /// Use instead of `agentCodeSpeak.opacity(0.08)`.
+    static let agentCodeSpeakSubtle = adaptiveColor(dark: "#E85D2914", light: "#E85D2914")
 }
 
 // MARK: - NSColor Surface Tokens

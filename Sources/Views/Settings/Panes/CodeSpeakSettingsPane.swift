@@ -162,7 +162,7 @@ struct CodeSpeakSettingsPane: View {
                 }
             }
             .pickerStyle(.menu)
-            .frame(width: 90)
+            .frame(width: DSLayout.compactPickerWidth)
             .labelsHidden()
         }
         .padding(.horizontal, DSSpacing.md)

@@ -183,7 +183,7 @@ struct SpecBuildPanelView: View {
                             ForEach(Array(model.outputLines.enumerated()), id: \.offset) { idx, line in
                                 Text(line)
                                     .font(DSFont.terminal(size: 11))
-                                    .foregroundStyle(lineColor(for: line))
+                                    .foregroundStyle(DSColor.buildOutputColor(for: line.buildLineKind))
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, DSSpacing.md)
@@ -221,19 +221,4 @@ struct SpecBuildPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Line Coloring
-
-    private func lineColor(for line: String) -> Color {
-        let lower = line.lowercased()
-        if lower.contains("error") || lower.contains("fail") || line.hasPrefix("⚠") {
-            return DSColor.gitDeleted
-        }
-        if lower.contains("pass") || lower.contains("✓") || lower.contains("✔") {
-            return DSColor.gitAdded
-        }
-        if lower.contains("warn") {
-            return DSColor.gitModified
-        }
-        return DSColor.textPrimary
-    }
 }

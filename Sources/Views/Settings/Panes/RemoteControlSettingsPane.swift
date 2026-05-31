@@ -64,7 +64,7 @@ struct RemoteControlSettingsPane: View {
                     }
                 ), format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 80)
+                .frame(width: DSLayout.portInputWidth)
                 .disabled(!remotePreferences.remoteControlEnabled)
 
                 Text("(1024-65535)")
@@ -251,7 +251,7 @@ struct RemoteControlSettingsPane: View {
                     .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
 
                 Text(remoteServer.currentPin)
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .font(DSFont.pinDisplay)
                     .textSelection(.enabled)
 
                 Button("Обновить") {
@@ -294,7 +294,7 @@ struct RemoteControlSettingsPane: View {
 
                 Circle()
                     .fill(remoteServer.isRunning ? DSColor.gitAdded : DSColor.actionStop)
-                    .frame(width: 8, height: 8)
+                    .frame(width: DSLayout.statusDotSize, height: DSLayout.statusDotSize)
 
                 Text(remoteServer.isRunning ? "Активен (порт \(remoteServer.port))" : "Остановлен")
                     .font(DSFont.sidebarItem)

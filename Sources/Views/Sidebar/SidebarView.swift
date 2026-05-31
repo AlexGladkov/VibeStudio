@@ -18,100 +18,12 @@ struct BranchCreationContext: Identifiable {
     let fromBranch: String
 }
 
-// MARK: - ProjectFileHeaderView
+// MARK: - ProjectGitHeaderView (compatibility wrapper)
 
-/// Header row for a project in the Files section.
-/// Extracted as a standalone View so `.contextMenu` gets proper SwiftUI identity.
-private struct ProjectFileHeaderView: View {
-    let project: Project
-    let isActive: Bool
-    let isExpanded: Bool
-    let isCodeSpeakProject: Bool
-    let remoteURL: String?
-    let onTap: () -> Void
-    let onSettings: () -> Void
-    let onRevealInFinder: () -> Void
-    let onOpenInBrowser: () -> Void
-    let onRemove: () -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Button {
-                onTap()
-            } label: {
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "chevron.right")
-                        .font(DSFont.iconSM)
-                        .foregroundStyle(DSColor.textMuted)
-                        .rotationEffect(isExpanded ? .degrees(90) : .zero)
-                        .animation(.easeOut(duration: 0.15), value: isExpanded)
-
-                    Image(systemName: isCodeSpeakProject ? "doc.text.magnifyingglass" : "folder.fill")
-                        .font(DSFont.sidebarItem)
-                        .foregroundStyle(
-                            isCodeSpeakProject
-                                ? DSColor.agentCodeSpeak
-                                : (isActive ? DSColor.accentPrimary : DSColor.gitModified)
-                        )
-
-                    Text(project.name)
-                        .font(DSFont.sidebarItem)
-                        .foregroundStyle(isActive ? DSColor.textPrimary : DSColor.textSecondary)
-                        .fontWeight(isActive ? .medium : .regular)
-                        .lineLimit(1)
-
-                    Spacer()
-                }
-                .padding(.vertical, DSSpacing.xs)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                onSettings()
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(DSFont.iconBase)
-                    .foregroundStyle(DSColor.textMuted)
-                    .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, DSSpacing.xs)
-            .help("Project settings")
-        }
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button {
-                onRevealInFinder()
-            } label: {
-                Label("Reveal in Finder", systemImage: "folder")
-            }
-
-            if remoteURL != nil {
-                Button {
-                    onOpenInBrowser()
-                } label: {
-                    Label("Open in GitHub/GitLab", systemImage: "safari")
-                }
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                onRemove()
-            } label: {
-                Label("Remove from VibeStudio", systemImage: "xmark.circle")
-            }
-        }
-        .sidebarHover()
-    }
-}
-
-// MARK: - ProjectGitHeaderView
-
-/// Header row for a project in the Git section.
-/// Extracted as a standalone View so `.contextMenu` gets proper SwiftUI identity.
+/// Backwards-compatibility wrapper around the unified ``ProjectHeaderRow``.
+///
+/// `GitProjectSectionView` still calls this name. The implementation
+/// delegates to the shared component.
 struct ProjectGitHeaderView: View {
     let project: Project
     let isActive: Bool
@@ -127,98 +39,50 @@ struct ProjectGitHeaderView: View {
     let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button {
-                onTap()
-            } label: {
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "chevron.right")
-                        .font(DSFont.iconSM)
+        ProjectHeaderRow(
+            project: project,
+            isActive: isActive,
+            isExpanded: isExpanded,
+            icon: ProjectHeaderIcon(
+                systemName: "arrow.triangle.branch",
+                color: isActive ? DSColor.accentPrimary : DSColor.textSecondary,
+                font: DSFont.iconBase
+            ),
+            remoteURL: remoteURL,
+            onTap: onTap,
+            onSettings: onSettings,
+            gearTrailingPadding: 0,
+            gearLeadingPadding: DSSpacing.xs,
+            onRevealInFinder: onRevealInFinder,
+            onOpenInBrowser: onOpenInBrowser,
+            onRemove: onRemove
+        ) {
+            if let b = branch, !b.isEmpty {
+                HStack(spacing: DSSpacing.xxs) {
+                    Text(b)
+                        .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textMuted)
-                        .rotationEffect(isExpanded ? .degrees(90) : .zero)
-                        .animation(.easeOut(duration: 0.15), value: isExpanded)
-
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(DSFont.iconBase)
-                        .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.textSecondary)
-
-                    Text(project.name)
-                        .font(DSFont.sidebarItem)
-                        .foregroundStyle(isActive ? DSColor.textPrimary : DSColor.textSecondary)
-                        .fontWeight(isActive ? .medium : .regular)
                         .lineLimit(1)
-                        .truncationMode(.tail)
+                        .truncationMode(.middle)
 
-                    Spacer()
-
-                    if let b = branch, !b.isEmpty {
+                    if aheadCount > 0 {
                         HStack(spacing: DSSpacing.xxs) {
-                            Text(b)
-                                .font(DSFont.sidebarItemSmall)
-                                .foregroundStyle(DSColor.textMuted)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-
-                            if aheadCount > 0 {
-                                HStack(spacing: DSSpacing.xxs) {
-                                    Image(systemName: "arrow.up").font(DSFont.iconXS)
-                                    Text("\(aheadCount)").font(DSFont.iconMD)
-                                }
-                                .foregroundStyle(DSColor.gitAdded)
-                            }
-
-                            if behindCount > 0 {
-                                HStack(spacing: DSSpacing.xxs) {
-                                    Image(systemName: "arrow.down").font(DSFont.iconXS)
-                                    Text("\(behindCount)").font(DSFont.iconMD)
-                                }
-                                .foregroundStyle(DSColor.gitDeleted)
-                            }
+                            Image(systemName: "arrow.up").font(DSFont.iconXS)
+                            Text("\(aheadCount)").font(DSFont.iconMD)
                         }
+                        .foregroundStyle(DSColor.gitAdded)
+                    }
+
+                    if behindCount > 0 {
+                        HStack(spacing: DSSpacing.xxs) {
+                            Image(systemName: "arrow.down").font(DSFont.iconXS)
+                            Text("\(behindCount)").font(DSFont.iconMD)
+                        }
+                        .foregroundStyle(DSColor.gitDeleted)
                     }
                 }
-                .padding(.vertical, DSSpacing.xs)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                onSettings()
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(DSFont.iconBase)
-                    .foregroundStyle(DSColor.textMuted)
-                    .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.leading, DSSpacing.xs)
-        }
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button {
-                onRevealInFinder()
-            } label: {
-                Label("Reveal in Finder", systemImage: "folder")
-            }
-
-            if remoteURL != nil {
-                Button {
-                    onOpenInBrowser()
-                } label: {
-                    Label("Open in GitHub/GitLab", systemImage: "safari")
-                }
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                onRemove()
-            } label: {
-                Label("Remove from VibeStudio", systemImage: "xmark.circle")
             }
         }
-        .sidebarHover()
     }
 }
 
@@ -277,18 +141,14 @@ struct SidebarView: View {
         HStack(spacing: 0) {
             iconStrip
 
-            Rectangle()
-                .fill(DSColor.borderDefault)
-                .frame(width: 1)
+            VerticalDivider()
 
             contentPanel
         }
         .frame(maxHeight: .infinity)
         .background(DSColor.surfaceRaised)
         .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(DSColor.borderDefault)
-                .frame(width: 1)
+            VerticalDivider()
         }
         .onAppear {
             if gitVM == nil {
@@ -483,13 +343,20 @@ struct SidebarView: View {
     private func projectSection(project: Project) -> some View {
         let isActive = project.id == projectManager.activeProjectId
         let isExpanded = expandedProjects.contains(project.id)
+        let isCodeSpeakProject = codeSpeak.isCodeSpeakProject(project.id)
 
         return VStack(alignment: .leading, spacing: 0) {
-            ProjectFileHeaderView(
+            ProjectHeaderRow(
                 project: project,
                 isActive: isActive,
                 isExpanded: isExpanded,
-                isCodeSpeakProject: codeSpeak.isCodeSpeakProject(project.id),
+                icon: ProjectHeaderIcon(
+                    systemName: isCodeSpeakProject ? "doc.text.magnifyingglass" : "folder.fill",
+                    color: isCodeSpeakProject
+                        ? DSColor.agentCodeSpeak
+                        : (isActive ? DSColor.accentPrimary : DSColor.gitModified),
+                    font: DSFont.sidebarItem
+                ),
                 remoteURL: vm.projectRemoteURLs[project.id],
                 onTap: {
                     if isExpanded {
@@ -500,11 +367,14 @@ struct SidebarView: View {
                     projectManager.activeProjectId = project.id
                 },
                 onSettings: { projectForSettings = project },
+                gearTrailingPadding: DSSpacing.xs,
+                gearLeadingPadding: 0,
                 onRevealInFinder: {
                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.path.path)
                 },
                 onOpenInBrowser: { Task { await vm.openInRemote(project: project) } },
-                onRemove: { projectToRemove = project }
+                onRemove: { projectToRemove = project },
+                trailing: { EmptyView() }
             )
 
             if isExpanded {
@@ -563,9 +433,7 @@ struct SidebarView: View {
 
             // Commit panel pinned to bottom, applies to the active project
             if showCommitPanel, let project = activeProject {
-                Rectangle()
-                    .fill(DSColor.borderDefault)
-                    .frame(height: 1)
+                ThinDivider(color: DSColor.borderDefault)
                 CommitPanelView(project: project, gitSidebarVM: vm)
             }
         }

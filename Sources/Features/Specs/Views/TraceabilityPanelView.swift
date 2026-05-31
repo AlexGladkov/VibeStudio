@@ -177,7 +177,7 @@ struct TraceabilityPanelView: View {
                 .padding(.bottom, DSSpacing.xxs)
             }
         }
-        .background(DSColor.surfaceOverlay.opacity(0.4), in: RoundedRectangle(cornerRadius: DSRadius.sm))
+        .background(DSColor.surfaceSubtle, in: RoundedRectangle(cornerRadius: DSRadius.sm))
         .padding(.bottom, DSSpacing.xs)
     }
 
@@ -210,7 +210,7 @@ struct TraceabilityPanelView: View {
                 .padding(.bottom, DSSpacing.xxs)
             }
         }
-        .background(DSColor.surfaceOverlay.opacity(0.4), in: RoundedRectangle(cornerRadius: DSRadius.sm))
+        .background(DSColor.surfaceSubtle, in: RoundedRectangle(cornerRadius: DSRadius.sm))
         .padding(.bottom, DSSpacing.xs)
     }
 
@@ -219,7 +219,7 @@ struct TraceabilityPanelView: View {
     private var loadingView: some View {
         VStack {
             Spacer()
-            ProgressView().scaleEffect(0.7)
+            ProgressView().scaleEffect(DSLayout.progressScaleMedium)
             Spacer()
         }
         .frame(maxWidth: .infinity)

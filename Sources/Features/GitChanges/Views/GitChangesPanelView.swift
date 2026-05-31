@@ -38,10 +38,18 @@ struct GitChangesPanelView: View {
             headerView(status: status)
             Divider()
 
-            if status.isClean {
-                emptyStateView
-            } else {
-                fileListView(status: status, model: model)
+            switch model.loadingState {
+            case .loading where status.isClean:
+                // Initial load — show spinner instead of "clean" until we know.
+                loadingStateView
+            case .error(let message):
+                errorStateView(message: message)
+            case .loading, .ready:
+                if status.isClean {
+                    emptyStateView
+                } else {
+                    fileListView(status: status, model: model)
+                }
             }
         }
         .frame(
@@ -96,6 +104,41 @@ struct GitChangesPanelView: View {
             Text("Working tree clean")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textMuted)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Loading State
+
+    private var loadingStateView: some View {
+        VStack(spacing: DSSpacing.sm) {
+            Spacer()
+            ProgressView().scaleEffect(DSLayout.progressScaleMedium)
+            Text("Loading changes…")
+                .font(DSFont.sidebarItemSmall)
+                .foregroundStyle(DSColor.textMuted)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Error State
+
+    private func errorStateView(message: String) -> some View {
+        VStack(spacing: DSSpacing.sm) {
+            Spacer()
+            Image(systemName: "exclamationmark.triangle")
+                .font(DSFont.emptyStateIcon)
+                .foregroundStyle(DSColor.gitDeleted)
+            Text("Failed to load changes")
+                .font(DSFont.sidebarItem)
+                .foregroundStyle(DSColor.textPrimary)
+            Text(message)
+                .font(DSFont.sidebarItemSmall)
+                .foregroundStyle(DSColor.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DSSpacing.md)
             Spacer()
         }
         .frame(maxWidth: .infinity)

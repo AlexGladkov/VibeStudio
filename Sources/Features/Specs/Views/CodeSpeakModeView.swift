@@ -33,7 +33,11 @@ struct CodeSpeakModeView: View {
         VStack(spacing: 0) {
             HSplitView {
                 specListColumn()
-                    .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
+                    .frame(
+                        minWidth: DSLayout.codeSpeakSpecsColumnMin,
+                        idealWidth: DSLayout.codeSpeakSpecsColumnIdeal,
+                        maxWidth: DSLayout.codeSpeakSpecsColumnMax
+                    )
                     // Report column width so ToolbarView can align breadcrumb
                     // exactly above the center column's left edge.
                     .background(GeometryReader { geo in
@@ -45,10 +49,14 @@ struct CodeSpeakModeView: View {
                     })
 
                 editorColumn()
-                    .frame(minWidth: 300)
+                    .frame(minWidth: DSLayout.codeSpeakEditorColumnMin)
 
                 buildColumn()
-                    .frame(minWidth: 240, idealWidth: 320, maxWidth: 480)
+                    .frame(
+                        minWidth: DSLayout.codeSpeakBuildColumnMin,
+                        idealWidth: DSLayout.codeSpeakBuildColumnIdeal,
+                        maxWidth: DSLayout.codeSpeakBuildColumnMax
+                    )
             }
         }
         .background(DSColor.surfaceBase)
@@ -251,7 +259,7 @@ struct CodeSpeakModeView: View {
 
             if specsExpanded {
                 if vm.specsVM.isLoading {
-                    HStack { Spacer(); ProgressView().scaleEffect(0.6); Spacer() }
+                    HStack { Spacer(); ProgressView().scaleEffect(DSLayout.progressScaleSmall); Spacer() }
                         .frame(height: DSLayout.spinnerRowHeight)
                 } else if vm.specsVM.specFiles.isEmpty {
                     Text("No specs found")
@@ -295,7 +303,7 @@ struct CodeSpeakModeView: View {
                 Color.clear.frame(width: DSLayout.chevronFrameWidth)
 
                 Circle()
-                    .fill(specStatusColor(spec.status))
+                    .fill(spec.status.color)
                     .frame(width: DSLayout.indicatorSize, height: DSLayout.indicatorSize)
 
                 Text(spec.name)
@@ -306,43 +314,17 @@ struct CodeSpeakModeView: View {
 
                 Spacer()
 
-                specStatusBadge(for: spec)
+                SpecStatusBadgeView(status: spec.status)
             }
             .padding(.horizontal, DSSpacing.xs)
             .frame(height: DSLayout.gitFileRowHeight)
             .contentShape(Rectangle())
             .background(
-                isSelected
-                    ? DSColor.accentPrimary.opacity(0.12)
-                    : Color.clear,
+                isSelected ? DSColor.accentPrimarySelected : Color.clear,
                 in: RoundedRectangle(cornerRadius: DSRadius.sm)
             )
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func specStatusBadge(for spec: SpecFile) -> some View {
-        switch spec.status {
-        case .passing:
-            Image(systemName: "checkmark")
-                .font(DSFont.statusBadge)
-                .foregroundStyle(DSColor.gitAdded)
-        case .failing:
-            Image(systemName: "xmark")
-                .font(DSFont.statusBadge)
-                .foregroundStyle(DSColor.gitDeleted)
-        case .unknown:
-            EmptyView()
-        }
-    }
-
-    private func specStatusColor(_ status: SpecStatus) -> Color {
-        switch status {
-        case .passing: return DSColor.gitAdded
-        case .failing:  return DSColor.gitDeleted
-        case .unknown:  return DSColor.indicatorIdle
-        }
     }
 
     // MARK: - Generated Tree Section
@@ -423,9 +405,7 @@ struct CodeSpeakModeView: View {
             .frame(height: DSLayout.gitFileRowHeight)
             .contentShape(Rectangle())
             .background(
-                isSelected
-                    ? DSColor.accentPrimary.opacity(0.12)
-                    : Color.clear,
+                isSelected ? DSColor.accentPrimarySelected : Color.clear,
                 in: RoundedRectangle(cornerRadius: DSRadius.sm)
             )
         }
@@ -476,12 +456,12 @@ struct CodeSpeakModeView: View {
                 .foregroundStyle(DSColor.textPrimary)
 
             Text("read-only")
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: 9, weight: .medium)) // intentional sub-grid badge
                 .foregroundStyle(DSColor.textMuted)
                 .padding(.horizontal, DSSpacing.xs)
                 .padding(.vertical, DSSpacing.xxs)
                 .background(
-                    DSColor.textMuted.opacity(0.12),
+                    DSColor.mutedBadgeBg,
                     in: RoundedRectangle(cornerRadius: DSRadius.sm)
                 )
 
@@ -563,7 +543,7 @@ struct CodeSpeakModeView: View {
                         ForEach(Array(vm.buildVM.outputLines.enumerated()), id: \.offset) { idx, line in
                             Text(line)
                                 .font(DSFont.terminal(size: 11))
-                                .foregroundStyle(buildLineColor(for: line))
+                                .foregroundStyle(DSColor.buildOutputColor(for: line.buildLineKind))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, DSSpacing.md)
@@ -600,17 +580,4 @@ struct CodeSpeakModeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func buildLineColor(for line: String) -> Color {
-        let lower = line.lowercased()
-        if lower.contains("error") || lower.contains("fail") || line.hasPrefix("\u{26A0}") {
-            return DSColor.gitDeleted
-        }
-        if lower.contains("pass") || lower.contains("\u{2713}") || lower.contains("\u{2714}") {
-            return DSColor.gitAdded
-        }
-        if lower.contains("warn") {
-            return DSColor.gitModified
-        }
-        return DSColor.textPrimary
-    }
 }

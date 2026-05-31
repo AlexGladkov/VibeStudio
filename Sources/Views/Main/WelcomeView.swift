@@ -96,7 +96,7 @@ struct WelcomeView: View {
                         .padding(.bottom, DSSpacing.xxs)
 
                     ForEach(projectManager.projects.sorted { $0.lastOpened > $1.lastOpened }) { project in
-                        RecentProjectRow(project: project) {
+                        ProjectListItemView(project: project) {
                             projectManager.activeProjectId = project.id
                         }
                     }
@@ -115,7 +115,7 @@ struct WelcomeView: View {
                         .padding(.bottom, DSSpacing.xxs)
 
                     ForEach(projectManager.recentProjects) { project in
-                        RecentProjectRow(project: project) {
+                        ProjectListItemView(project: project) {
                             _ = model.openRecentProject(project)
                         }
                     }
@@ -153,48 +153,6 @@ struct WelcomeView: View {
                 vm = AddProjectViewModel(projectManager: projectManager)
             }
         }
-    }
-}
-
-// MARK: - RecentProjectRow
-
-private struct RecentProjectRow: View {
-    let project: Project
-    let onTap: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(DSColor.gitModified)
-                    .font(DSFont.iconLG)
-
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(project.name)
-                        .font(DSFont.sidebarItem)
-                        .foregroundStyle(DSColor.textPrimary)
-
-                    Text(project.path.path)
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.textMuted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: DSRadius.sm)
-                    .fill(isHovering ? DSColor.hoverOverlay : Color.clear)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
     }
 }
 

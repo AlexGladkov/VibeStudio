@@ -101,7 +101,12 @@ struct CreateBranchSheet: View {
             )
         }
         .padding(DSSpacing.lg)
-        .frame(minWidth: DSLayout.sheetSmallWidth - 20, idealWidth: DSLayout.sheetSmallWidth, minHeight: DSLayout.sheetSmallHeight - 40, idealHeight: DSLayout.sheetSmallHeight)
+        .frame(
+            minWidth: DSLayout.sheetSmallMinWidth,
+            idealWidth: DSLayout.sheetSmallWidth,
+            minHeight: DSLayout.sheetSmallMinHeight,
+            idealHeight: DSLayout.sheetSmallHeight
+        )
         .background(DSColor.surfaceOverlay)
         .onAppear {
             if vm == nil {

@@ -103,12 +103,11 @@ struct BranchListView: View {
             // Current / loading indicator
             if isOperating {
                 ProgressView()
-                    .scaleEffect(0.5)
+                    .scaleEffect(DSLayout.progressScaleTiny)
                     .frame(width: DSSpacing.md, height: DSSpacing.md)
             } else {
                 Image(systemName: isCurrent ? "checkmark" : "circle")
-                    // TODO: sub-grid size — 6pt has no DS token yet
-                    .font(.system(size: isCurrent ? 9 : 6, weight: isCurrent ? .semibold : .regular))
+                    .font(isCurrent ? DSFont.subGridCheckmark : DSFont.subGridDot)
                     .foregroundStyle(isCurrent ? DSColor.gitAdded : DSColor.textDisabled)
                     .frame(width: DSSpacing.md)
             }

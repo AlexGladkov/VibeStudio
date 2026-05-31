@@ -59,7 +59,7 @@ struct FileColumnView: View {
         case .loading:
             centeredPlaceholder {
                 ProgressView()
-                    .scaleEffect(0.8)
+                    .scaleEffect(DSLayout.progressScaleLarge)
             }
         case .loaded(let text):
             CodeContentView(content: text)
@@ -137,7 +137,7 @@ struct FileColumnView: View {
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColor.gitModified.opacity(0.1))
+        .background(DSColor.gitModifiedSubtle)
     }
 
     private func formatBytes(_ bytes: Int) -> String {

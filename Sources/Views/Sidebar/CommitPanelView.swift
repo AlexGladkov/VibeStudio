@@ -22,12 +22,10 @@ struct CommitPanelView: View {
         let isCommitting = gitSidebarVM.committingProjects.contains(project.id)
         let summaryText = gitSidebarVM.commitSummaries[project.id] ?? ""
         let charCount = summaryText.count
-        let isOverLimit = charCount > 72
+        let isOverLimit = charCount > GitConstants.commitSummaryMaxLength
 
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Rectangle()
-                .fill(DSColor.borderSubtle)
-                .frame(height: 1)
+            ThinDivider()
                 .padding(.vertical, DSSpacing.xxs)
 
             // CodeSpeak drift warning
@@ -70,7 +68,9 @@ struct CommitPanelView: View {
                         Task { await gitSidebarVM.generateAICommitMessage(for: project) }
                     } label: {
                         if isGenerating {
-                            ProgressView().scaleEffect(0.5).frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
+                            ProgressView()
+                                .scaleEffect(DSLayout.progressScaleTiny)
+                                .frame(width: DSLayout.sidebarActionButtonSize, height: DSLayout.sidebarActionButtonSize)
                         } else {
                             Image(systemName: "sparkles")
                                 .font(DSFont.buttonLabel)
@@ -85,16 +85,14 @@ struct CommitPanelView: View {
 
                 // Char count (only when typing)
                 if !summaryText.isEmpty {
-                    Text("\(charCount)/72")
+                    Text("\(charCount)/\(GitConstants.commitSummaryMaxLength)")
                         .font(DSFont.iconSM)
                         .foregroundStyle(isOverLimit ? DSColor.gitDeleted : DSColor.textMuted)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .padding(.top, DSSpacing.xxs)
                 }
 
-                Rectangle()
-                    .fill(DSColor.borderSubtle)
-                    .frame(height: 1)
+                ThinDivider()
                     .padding(.vertical, DSSpacing.xs)
 
                 // Description
@@ -135,7 +133,7 @@ struct CommitPanelView: View {
             } label: {
                 ZStack {
                     if isCommitting {
-                        ProgressView().scaleEffect(0.65)
+                        ProgressView().scaleEffect(DSLayout.progressScaleButton)
                     } else {
                         HStack(spacing: DSSpacing.xs) {
                             Image(systemName: "arrow.up.circle.fill")

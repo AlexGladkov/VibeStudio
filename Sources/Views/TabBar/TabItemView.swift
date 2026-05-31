@@ -186,7 +186,7 @@ struct TabItemView: View {
                 .frame(width: DSLayout.indicatorSize, height: DSLayout.indicatorSize)
                 .shadow(
                     color: showErrorGlow ? DSColor.indicatorError.opacity(0.6) : .clear,
-                    radius: 4
+                    radius: DSLayout.indicatorGlowRadius
                 )
                 .onAppear {
                     showErrorGlow = true

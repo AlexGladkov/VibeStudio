@@ -54,7 +54,7 @@ struct CommandEditorSheet: View {
             Divider().background(DSColor.borderDefault)
             bottomBar
         }
-        .frame(width: 680, height: 520)
+        .frame(width: DSLayout.editorSheetWidth, height: DSLayout.editorSheetHeight)
         .background(DSColor.surfaceDefault)
         .onAppear(perform: load)
     }
@@ -72,7 +72,7 @@ struct CommandEditorSheet: View {
                     TextField("имя-файла", text: $filename)
                         .font(DSFont.monoSmall)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 160)
+                        .frame(width: DSLayout.settingsLabelWidthLong)
 
                     Text(".md")
                         .font(DSFont.monoSmall)

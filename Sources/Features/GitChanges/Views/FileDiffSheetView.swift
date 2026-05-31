@@ -74,7 +74,7 @@ struct FileDiffSheetView: View {
                     .padding(.horizontal, DSSpacing.xs)
                     .padding(.vertical, 1) // sub-grid vertical padding for badge
                     .background(
-                        DSColor.gitAdded.opacity(0.1),
+                        DSColor.gitAddedSubtle,
                         in: RoundedRectangle(cornerRadius: DSRadius.sm)
                     )
             }
@@ -104,7 +104,7 @@ struct FileDiffSheetView: View {
         if isLoading {
             VStack {
                 Spacer()
-                ProgressView().scaleEffect(0.7)
+                ProgressView().scaleEffect(DSLayout.progressScaleMedium)
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

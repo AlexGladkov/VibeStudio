@@ -110,7 +110,7 @@ struct SpecWizardSheet: View {
             .padding(.vertical, DSSpacing.md)
         }
         .background(DSColor.surfaceBase)
-        .frame(width: 400, height: 220)
+        .frame(width: DSLayout.wizardSmallWidth, height: DSLayout.wizardSmallHeight)
     }
 
     // MARK: - Action

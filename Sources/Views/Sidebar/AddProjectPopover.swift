@@ -92,10 +92,15 @@ struct AddProjectPopover: View {
                 .padding(.bottom, DSSpacing.xs)
 
             ForEach(projectManager.recentHistory) { project in
-                RecentRow(project: project) {
+                ProjectListItemView(project: project, onTap: {
                     if model.openRecentProject(project) {
                         dismiss()
                     }
+                }) {
+                    Text(project.lastOpened, format: .relative(presentation: .named))
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textSecondary)
+                        .lineLimit(1)
                 }
             }
 
@@ -134,65 +139,6 @@ struct AddProjectPopover: View {
     }
 }
 
-// MARK: - RecentRow
-
-/// A single row displaying a recent project: folder icon, name, path, and relative date.
-private struct RecentRow: View {
-
-    let project: Project
-    let onTap: () -> Void
-
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "folder.fill")
-                    .font(DSFont.sidebarItem)
-                    .foregroundStyle(DSColor.gitModified)
-
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text(project.name)
-                        .font(DSFont.sidebarItem)
-                        .foregroundStyle(DSColor.textPrimary)
-                        .lineLimit(1)
-
-                    HStack(spacing: DSSpacing.xs) {
-                        Text(abbreviatedPath)
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.textMuted)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-
-                        Spacer()
-
-                        Text(project.lastOpened, format: .relative(presentation: .named))
-                            .font(DSFont.sidebarItemSmall)
-                            .foregroundStyle(DSColor.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DSSpacing.sm)
-            .padding(.vertical, DSSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: DSRadius.sm)
-                    .fill(isHovering ? DSColor.hoverOverlay : Color.clear)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-    }
-
-    /// Path with ~ substituted for the home directory.
-    private var abbreviatedPath: String {
-        NSString(string: project.path.path).abbreviatingWithTildeInPath
-    }
-}
-
 // MARK: - ActionRow
 
 /// A styled action button row (e.g. "Open Folder...", "Create New...").
@@ -201,8 +147,6 @@ private struct ActionRow: View {
     let title: String
     let systemImage: String
     let action: () -> Void
-
-    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
@@ -215,10 +159,6 @@ private struct ActionRow: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(
-            RoundedRectangle(cornerRadius: DSRadius.sm)
-                .fill(isHovering ? DSColor.hoverOverlay : Color.clear)
-        )
-        .onHover { isHovering = $0 }
+        .sidebarHover(cornerRadius: DSRadius.sm)
     }
 }

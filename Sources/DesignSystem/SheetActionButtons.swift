@@ -44,7 +44,7 @@ struct SheetActionButtons: View {
             } label: {
                 Group {
                     if isLoading {
-                        ProgressView().scaleEffect(0.65)
+                        ProgressView().scaleEffect(DSLayout.progressScaleButton)
                     } else {
                         Text(actionLabel)
                     }

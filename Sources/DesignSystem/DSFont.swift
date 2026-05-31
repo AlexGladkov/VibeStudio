@@ -140,4 +140,22 @@ enum DSFont {
     static let emptyStateIcon = Font.system(size: 24)
     /// Large empty state icon: 32pt.
     static let emptyStateIconLarge = Font.system(size: 32)
+
+    // MARK: Action Buttons (intentionally bold play/stop indicators)
+
+    /// Main toolbar play/stop button: 13pt Bold.
+    static let playStopButton = Font.system(size: 13, weight: .bold)
+    /// CodeSpeak run-bar play/stop button: 11pt Bold (compact).
+    static let csPlayStopButton = Font.system(size: 11, weight: .bold)
+    /// Inline menu checkmark indicator: 11pt Semibold.
+    static let menuCheckmark = Font.system(size: 11, weight: .semibold)
+    /// Large monospaced PIN display: 18pt Bold Monospaced.
+    static let pinDisplay = Font.system(size: 18, weight: .bold, design: .monospaced)
+
+    // MARK: Sub-grid icons (BranchListView)
+
+    /// Branch current-indicator checkmark: 9pt Semibold.
+    static let subGridCheckmark = Font.system(size: 9, weight: .semibold)
+    /// Branch non-current dot marker: 6pt Regular.
+    static let subGridDot = Font.system(size: 6)
 }

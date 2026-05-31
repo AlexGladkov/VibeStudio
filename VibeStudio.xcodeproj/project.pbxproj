@@ -212,6 +212,14 @@
 		A1B2C3D400000002F0000001 /* HTTPRequestRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000021 /* HTTPRequestRouter.swift */; };
 		A1B2C3D400000002F0000002 /* RemoteSessionBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000022 /* RemoteSessionBridge.swift */; };
 		A1B2C3D400000002F0000099 /* RemoteWSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000999 /* RemoteWSConstants.swift */; };
+		A1B2C3D400000004F0000001 /* BuildLineKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001001 /* BuildLineKind.swift */; };
+		A1B2C3D400000004F0000002 /* SpecStatus+Display.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001002 /* SpecStatus+Display.swift */; };
+		A1B2C3D400000004F0000003 /* SpecStatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001003 /* SpecStatusBadgeView.swift */; };
+		A1B2C3D400000004F0000004 /* ThinDivider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001004 /* ThinDivider.swift */; };
+		A1B2C3D400000004F0000005 /* ProjectListItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001005 /* ProjectListItemView.swift */; };
+		A1B2C3D400000004F0000006 /* ProjectContextMenuModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001006 /* ProjectContextMenuModifier.swift */; };
+		A1B2C3D400000004F0000007 /* ProjectHeaderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001007 /* ProjectHeaderRow.swift */; };
+		A1B2C3D400000004F0000008 /* GitConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000003F0001008 /* GitConstants.swift */; };
 		A1B2C3D400000002F0000003 /* WebSocketHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000023 /* WebSocketHandler.swift */; };
 		A1B2C3D400000002F0000004 /* RemoteAuditLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */; };
 		A1B2C3D400000002F0000050 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D400000002F0000040 /* NIOCore */; };
@@ -408,6 +416,15 @@
 		A1B2C3D400000002F0000021 /* HTTPRequestRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPRequestRouter.swift; sourceTree = "<group>"; };
 		A1B2C3D400000002F0000022 /* RemoteSessionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSessionBridge.swift; sourceTree = "<group>"; };
 		A1B2C3D400000002F0000999 /* RemoteWSConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteWSConstants.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001001 /* BuildLineKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildLineKind.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001002 /* SpecStatus+Display.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpecStatus+Display.swift"; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001003 /* SpecStatusBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecStatusBadgeView.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001004 /* ThinDivider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinDivider.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001005 /* ProjectListItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListItemView.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001006 /* ProjectContextMenuModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectContextMenuModifier.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001007 /* ProjectHeaderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectHeaderRow.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001008 /* GitConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitConstants.swift; sourceTree = "<group>"; };
+		A1B2C3D400000003F0001009 /* Components */ = {isa = PBXGroup; children = (A1B2C3D400000003F0001007 /* ProjectHeaderRow.swift */); path = Components; sourceTree = "<group>"; };
 		A1B2C3D400000002F0000023 /* WebSocketHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketHandler.swift; sourceTree = "<group>"; };
 		A1B2C3D400000002F0000024 /* RemoteAuditLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAuditLog.swift; sourceTree = "<group>"; };
 		A1B2C3D400000001F0000015 /* BonjourAdvertiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BonjourAdvertiser.swift; sourceTree = "<group>"; };
@@ -538,6 +555,7 @@
 		0EEDAADAC4FDAAF6699DAB8E /* Modifiers */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D400000003F0001006 /* ProjectContextMenuModifier.swift */,
 				B594EDFD37420A40771A34BE /* SidebarHoverModifier.swift */,
 				4768876E4C8F1D377A0D788F /* ToolbarIconButtonModifier.swift */,
 			);
@@ -881,10 +899,12 @@
 		93FADA87D55FD8D043A15E42 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D400000003F0001001 /* BuildLineKind.swift */,
 				FA616F1C6E83EB8E2DAABA63 /* CodeSpeakCommand.swift */,
 				03F6F100CC72F3DF3FBECB8B /* CodeSpeakRunBarState.swift */,
 				DCEFEDA26B2ED499A8B5AB8B /* GeneratedFile.swift */,
 				4003EB2E0C49CB11220571EE /* SpecFile.swift */,
+				A1B2C3D400000003F0001002 /* SpecStatus+Display.swift */,
 				39ED2B20858970168A6BA6FD /* SpecStats.swift */,
 			);
 			path = Models;
@@ -1168,7 +1188,10 @@
 				BC1AE57E3FA63D473CE12EB3 /* AheadBehindBadgeView.swift */,
 				A690F2F12639186A82C7FB29 /* AIAssistantIconView.swift */,
 				51AA5CAFFBEAB587D7AAC0C9 /* DisclosureChevron.swift */,
+				A1B2C3D400000003F0001005 /* ProjectListItemView.swift */,
+				A1B2C3D400000003F0001003 /* SpecStatusBadgeView.swift */,
 				A641F0DC5264769FF7A80408 /* StatusBadgeView.swift */,
+				A1B2C3D400000003F0001004 /* ThinDivider.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -1228,6 +1251,7 @@
 		ECCB5AA7B8B79F82439455AA /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D400000003F0001009 /* Components */,
 				604FFEB16C4E1819715AD0B9 /* AddProjectPopover.swift */,
 				C285049312BEE8B9F29A7BC8 /* BranchListView.swift */,
 				DDB5B6663DBCFBCF0EE7CDB8 /* CommitPanelView.swift */,
@@ -1271,6 +1295,7 @@
 			isa = PBXGroup;
 			children = (
 				520529287B1667F83F70327E /* AIAssistant.swift */,
+				A1B2C3D400000003F0001008 /* GitConstants.swift */,
 				9A9D55643999F7F492E427BC /* SidebarSection.swift */,
 			);
 			path = Models;
@@ -1507,6 +1532,14 @@
 				A1B2C3D400000002F0000001 /* HTTPRequestRouter.swift in Sources */,
 				A1B2C3D400000002F0000002 /* RemoteSessionBridge.swift in Sources */,
 				A1B2C3D400000002F0000099 /* RemoteWSConstants.swift in Sources */,
+				A1B2C3D400000004F0000001 /* BuildLineKind.swift in Sources */,
+				A1B2C3D400000004F0000002 /* SpecStatus+Display.swift in Sources */,
+				A1B2C3D400000004F0000003 /* SpecStatusBadgeView.swift in Sources */,
+				A1B2C3D400000004F0000004 /* ThinDivider.swift in Sources */,
+				A1B2C3D400000004F0000005 /* ProjectListItemView.swift in Sources */,
+				A1B2C3D400000004F0000006 /* ProjectContextMenuModifier.swift in Sources */,
+				A1B2C3D400000004F0000007 /* ProjectHeaderRow.swift in Sources */,
+				A1B2C3D400000004F0000008 /* GitConstants.swift in Sources */,
 				A1B2C3D400000002F0000003 /* WebSocketHandler.swift in Sources */,
 				A1B2C3D400000002F0000004 /* RemoteAuditLog.swift in Sources */,
 				A1B2C3D400000001F0000005 /* BonjourAdvertiser.swift in Sources */,

@@ -14,6 +14,18 @@ import Observation
 @MainActor
 final class GitChangesPanelViewModel {
 
+    // MARK: - LoadingState
+
+    /// Loading lifecycle for the per-file diff stats request.
+    ///
+    /// Drives the panel's empty / loading / error states so a git failure
+    /// (e.g. corrupted index) does not silently render as "Working tree clean".
+    enum LoadingState: Equatable {
+        case loading
+        case ready
+        case error(String)
+    }
+
     // MARK: - State
 
     /// Whether a stage/unstage action is currently in progress.
@@ -21,6 +33,9 @@ final class GitChangesPanelViewModel {
 
     /// Per-file line stats (additions/deletions), keyed by relative path.
     private(set) var fileStats: [String: GitDiffStat] = [:]
+
+    /// Loading lifecycle for `loadStats()`.
+    private(set) var loadingState: LoadingState = .loading
 
     // MARK: - Dependencies
 
@@ -40,12 +55,19 @@ final class GitChangesPanelViewModel {
     func loadStats() async {
         guard let project = projectManager.activeProject else {
             fileStats = [:]
+            loadingState = .ready
             return
         }
+        loadingState = .loading
         do {
             fileStats = try await gitService.diffStats(at: project.path)
+            loadingState = .ready
         } catch {
             fileStats = [:]
+            loadingState = .error(error.localizedDescription)
+            Logger.git.error(
+                "GitChangesPanelVM: loadStats failed: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 

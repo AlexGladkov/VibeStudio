@@ -200,7 +200,7 @@ struct ToolbarView: View {
                                 .foregroundStyle(DSColor.indicatorWaiting)
                         } else if assistant == model.currentAssistant {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(DSFont.menuCheckmark)
                                 .foregroundStyle(DSColor.accentPrimary)
                         }
                     }
@@ -225,11 +225,11 @@ struct ToolbarView: View {
             Group {
                 if model.isRunning {
                     Image(systemName: "stop.fill")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(DSFont.playStopButton)
                         .foregroundStyle(DSColor.actionStop)
                 } else {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(DSFont.playStopButton)
                         .foregroundStyle(
                             model.activeId == nil ? DSColor.textMuted : DSColor.actionRun
                         )
@@ -291,7 +291,7 @@ struct ToolbarView: View {
         }
         .padding(.horizontal, DSSpacing.sm)
         .padding(.vertical, DSSpacing.xxs)
-        .background(DSColor.agentCodeSpeak.opacity(0.08), in: RoundedRectangle(cornerRadius: DSRadius.md))
+        .background(DSColor.agentCodeSpeakSubtle, in: RoundedRectangle(cornerRadius: DSRadius.md))
     }
 
     private var projectPickerPopover: some View {
@@ -304,7 +304,7 @@ struct ToolbarView: View {
                     HStack(spacing: DSSpacing.sm) {
                         if project.id == projectManager.activeProjectId {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(DSFont.menuCheckmark)
                                 .foregroundStyle(DSColor.accentPrimary)
                         } else {
                             Color.clear.frame(width: 11)
@@ -500,7 +500,7 @@ struct ToolbarView: View {
                         ? "stop.fill"
                         : "play.fill"
                 )
-                .font(.system(size: 11, weight: .bold))
+                .font(DSFont.csPlayStopButton)
                 .foregroundStyle(
                     navigationCoordinator.runBar.isRunning
                         ? DSColor.actionStop
@@ -569,7 +569,7 @@ struct ToolbarView: View {
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 200, height: 200)
+                    .frame(width: DSLayout.qrCodeSize, height: DSLayout.qrCodeSize)
             }
 
             // URL text
@@ -600,7 +600,7 @@ struct ToolbarView: View {
                 .foregroundStyle(DSColor.textMuted)
         }
         .padding(DSSpacing.md)
-        .frame(width: 260)
+        .frame(width: DSLayout.qrPopoverWidth)
         .background(DSColor.surfaceOverlay)
     }
 
@@ -629,7 +629,7 @@ struct ToolbarView: View {
         guard let ciImage = filter.outputImage else { return nil }
 
         // Scale up: CIFilter output is tiny (~27×27 px)
-        let scale = 200.0 / ciImage.extent.width
+        let scale = DSLayout.qrCodeSize / ciImage.extent.width
         let scaled = ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
 
         let rep = NSCIImageRep(ciImage: scaled)
@@ -675,7 +675,7 @@ struct ToolbarView: View {
                     .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textSecondary)
                 Text(remoteServer.currentPin)
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .font(DSFont.pinDisplay)
                     .textSelection(.enabled)
                 Spacer()
                 Button { remoteServer.regeneratePin() } label: {
@@ -733,7 +733,7 @@ struct ToolbarView: View {
             }
         }
         .padding(DSSpacing.md)
-        .frame(minWidth: 240, maxWidth: 280)
+        .frame(minWidth: DSLayout.remotePopoverMinWidth, maxWidth: DSLayout.remotePopoverMaxWidth)
     }
 
     // MARK: - Settings Button

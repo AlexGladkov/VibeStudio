@@ -157,7 +157,7 @@ struct SpecsPanelView: View {
             HStack(spacing: DSSpacing.xs) {
                 // Status dot
                 Circle()
-                    .fill(statusColor(spec.status))
+                    .fill(spec.status.color)
                     .frame(width: DSLayout.indicatorSize, height: DSLayout.indicatorSize)
 
                 // Name
@@ -170,7 +170,7 @@ struct SpecsPanelView: View {
                 Spacer()
 
                 // Status badge
-                statusBadge(for: spec)
+                SpecStatusBadgeView(status: spec.status, showUnknown: true)
             }
             .padding(.horizontal, DSSpacing.xs)
             .frame(height: DSLayout.gitFileRowHeight)
@@ -180,39 +180,13 @@ struct SpecsPanelView: View {
         .sidebarHover(cornerRadius: DSRadius.sm)
     }
 
-    @ViewBuilder
-    private func statusBadge(for spec: SpecFile) -> some View {
-        switch spec.status {
-        case .passing:
-            Image(systemName: "checkmark")
-                .font(DSFont.statusBadge)
-                .foregroundStyle(DSColor.gitAdded)
-        case .failing:
-            Image(systemName: "xmark")
-                .font(DSFont.statusBadge)
-                .foregroundStyle(DSColor.gitDeleted)
-        case .unknown:
-            Image(systemName: "questionmark")
-                .font(DSFont.iconMD)
-                .foregroundStyle(DSColor.textMuted)
-        }
-    }
-
-    private func statusColor(_ status: SpecStatus) -> Color {
-        switch status {
-        case .passing: return DSColor.gitAdded
-        case .failing:  return DSColor.gitDeleted
-        case .unknown:  return DSColor.indicatorIdle
-        }
-    }
-
     // MARK: - Empty States
 
     private var loadingView: some View {
         VStack {
             Spacer()
             ProgressView()
-                .scaleEffect(0.7)
+                .scaleEffect(DSLayout.progressScaleMedium)
             Spacer()
         }
         .frame(maxWidth: .infinity)

@@ -260,4 +260,94 @@ enum DSLayout {
 
     /// Character width estimate for gutter calculation.
     static let codeDigitWidth: CGFloat = 8
+
+    // MARK: Settings — Compact Inputs (M23)
+
+    /// Compact port input field width (RemoteControlSettingsPane).
+    static let portInputWidth: CGFloat = 80
+    /// Compact picker width (CodeSpeak default-command picker, etc.).
+    static let compactPickerWidth: CGFloat = 90
+
+    // MARK: Editor Sheets (M24)
+
+    /// Default width for editor sheets (Skill/Text/Command/Claude/Agent editors).
+    static let editorSheetWidth: CGFloat = 680
+    /// Default height for editor sheets.
+    static let editorSheetHeight: CGFloat = 520
+
+    // MARK: Progress Spinner Scales (M26 + M27)
+
+    /// Tiny ProgressView scale (~0.5) — branch row, inline AI sparkle.
+    static let progressScaleTiny: CGFloat = 0.5
+    /// Small ProgressView scale (~0.6) — spec loading.
+    static let progressScaleSmall: CGFloat = 0.6
+    /// Medium ProgressView scale (~0.7) — diff/traceability loading.
+    static let progressScaleMedium: CGFloat = 0.7
+    /// Large ProgressView scale (~0.8) — file-column loading.
+    static let progressScaleLarge: CGFloat = 0.8
+    /// Inline button ProgressView scale (~0.65) — commit-button loading.
+    static let progressScaleButton: CGFloat = 0.65
+
+    // MARK: CodeSpeak HSplitView Columns (M28)
+
+    /// CodeSpeak specs (left) column: minimum width.
+    static let codeSpeakSpecsColumnMin: CGFloat = 180
+    /// CodeSpeak specs (left) column: ideal width.
+    static let codeSpeakSpecsColumnIdeal: CGFloat = 240
+    /// CodeSpeak specs (left) column: maximum width.
+    static let codeSpeakSpecsColumnMax: CGFloat = 320
+    /// CodeSpeak editor (center) column: minimum width.
+    static let codeSpeakEditorColumnMin: CGFloat = 300
+    /// CodeSpeak build-output (right) column: minimum width.
+    static let codeSpeakBuildColumnMin: CGFloat = 240
+    /// CodeSpeak build-output (right) column: ideal width.
+    static let codeSpeakBuildColumnIdeal: CGFloat = 320
+    /// CodeSpeak build-output (right) column: maximum width.
+    static let codeSpeakBuildColumnMax: CGFloat = 480
+
+    // MARK: Settings — Label Column Widths (L17)
+
+    /// Short settings label column (~80pt).
+    static let settingsLabelWidthShort: CGFloat = 80
+    /// Medium settings label column (~90pt).
+    static let settingsLabelWidthMedium: CGFloat = 90
+    /// Long settings label column (~160pt) — e.g. inline TextFields.
+    static let settingsLabelWidthLong: CGFloat = 160
+
+    // MARK: Editor / Tree Misc (L22..L25)
+
+    /// Inset for NSTextView-based editors (CodeSpeakEditorView).
+    static let editorContentInset = NSSize(width: 12, height: 12)
+    /// Placeholder column width for missing tree disclosure chevron (matches iconSM).
+    static let treeChevronPlaceholderWidth: CGFloat = 9
+    /// Drop-target indicator stroke width (intentional thicker line).
+    static let dropIndicatorStrokeWidth: CGFloat = 1.5
+    /// Glow shadow radius for activity indicator pulse.
+    static let indicatorGlowRadius: CGFloat = 4
+
+    // MARK: Remote QR / Popover Sizes (L26)
+
+    /// QR code image side (square).
+    static let qrCodeSize: CGFloat = 200
+    /// QR popover total width.
+    static let qrPopoverWidth: CGFloat = 260
+    /// Remote-status popover minimum width.
+    static let remotePopoverMinWidth: CGFloat = 240
+    /// Remote-status popover maximum width.
+    static let remotePopoverMaxWidth: CGFloat = 280
+
+    // MARK: Sheets (extended L27)
+
+    /// Small wizard sheet width (spec wizard).
+    static let wizardSmallWidth: CGFloat = 400
+    /// Small wizard sheet height.
+    static let wizardSmallHeight: CGFloat = 220
+    /// Large sheet minimum width (spec editor).
+    static let sheetLargeMinWidth: CGFloat = 600
+    /// Large sheet minimum height (spec editor).
+    static let sheetLargeMinHeight: CGFloat = 400
+    /// Small sheet min width = sheetSmallWidth - 20 (used in create-branch sheet).
+    static let sheetSmallMinWidth: CGFloat = sheetSmallWidth - 20
+    /// Small sheet min height = sheetSmallHeight - 40 (used in create-branch sheet).
+    static let sheetSmallMinHeight: CGFloat = sheetSmallHeight - 40
 }

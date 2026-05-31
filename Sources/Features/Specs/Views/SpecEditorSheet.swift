@@ -124,7 +124,12 @@ struct SpecEditorSheet: View {
             .padding(.vertical, DSSpacing.md)
         }
         .background(DSColor.surfaceBase)
-        .frame(minWidth: 600, idealWidth: DSLayout.sheetLargeWidth, minHeight: 400, idealHeight: DSLayout.sheetLargeHeight)
+        .frame(
+            minWidth: DSLayout.sheetLargeMinWidth,
+            idealWidth: DSLayout.sheetLargeWidth,
+            minHeight: DSLayout.sheetLargeMinHeight,
+            idealHeight: DSLayout.sheetLargeHeight
+        )
         .onAppear {
             if vm == nil { vm = SpecEditorViewModel(specFile: specFile) }
         }

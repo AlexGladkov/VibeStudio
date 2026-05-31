@@ -101,7 +101,7 @@ private struct DroppableTerminalPanel: View {
             .overlay {
                 if isDragTarget {
                     RoundedRectangle(cornerRadius: DSRadius.sm)
-                        .stroke(DSColor.accentPrimary, lineWidth: 1.5) // intentional: 1.5pt border for visibility
+                        .stroke(DSColor.accentPrimary, lineWidth: DSLayout.dropIndicatorStrokeWidth)
                         .background(
                             RoundedRectangle(cornerRadius: DSRadius.sm)
                                 .fill(DSColor.dropTargetBg)

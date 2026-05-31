@@ -212,7 +212,7 @@ private struct FileRowView: View {
         HStack(spacing: DSSpacing.xs) {
             // Spacer for disclosure triangle alignment (matches iconSM point size).
             Color.clear
-                .frame(width: 9)
+                .frame(width: DSLayout.treeChevronPlaceholderWidth)
 
             Image(systemName: fileIcon)
                 .font(DSFont.iconLG)

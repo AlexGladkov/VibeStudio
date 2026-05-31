@@ -60,7 +60,7 @@ struct SkillViewerSheet: View {
             Divider().background(DSColor.borderDefault)
             bottomBar
         }
-        .frame(width: 680, height: 520)
+        .frame(width: DSLayout.editorSheetWidth, height: DSLayout.editorSheetHeight)
         .background(DSColor.surfaceDefault)
         .onAppear(perform: load)
     }

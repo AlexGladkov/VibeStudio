@@ -54,7 +54,7 @@ struct CodeSpeakEditorView: NSViewRepresentable {
             .font:            baseFont,
             .foregroundColor: baseColor
         ]
-        textView.textContainerInset      = NSSize(width: 12, height: 12)
+        textView.textContainerInset      = DSLayout.editorContentInset
         textView.drawsBackground         = true
         textView.backgroundColor         = .textBackgroundColor
         textView.isVerticallyResizable   = true
