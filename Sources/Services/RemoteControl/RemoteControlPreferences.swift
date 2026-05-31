@@ -113,9 +113,14 @@ final class RemoteControlPreferences {
             : defaults.bool(forKey: Keys.ngrokEnabled)
 
         // Migrate from UserDefaults to Keychain (one-time).
+        // SEC-L3: only delete the UserDefaults copy AFTER Keychain confirms
+        // the write — otherwise a crash between the two ops could leave the
+        // token in plaintext UserDefaults forever.
         if let legacyToken = defaults.string(forKey: "vs_remote_ngrok_authtoken"), !legacyToken.isEmpty {
-            KeychainHelper.save(account: "vs_ngrok_authtoken", value: legacyToken)
-            defaults.removeObject(forKey: "vs_remote_ngrok_authtoken")
+            let saved = KeychainHelper.save(account: "vs_ngrok_authtoken", value: legacyToken)
+            if saved {
+                defaults.removeObject(forKey: "vs_remote_ngrok_authtoken")
+            }
             ngrokAuthtoken = legacyToken
         } else {
             ngrokAuthtoken = KeychainHelper.load(account: "vs_ngrok_authtoken") ?? ""

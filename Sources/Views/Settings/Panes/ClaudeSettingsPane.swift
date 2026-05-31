@@ -71,8 +71,9 @@ struct ClaudeSettingsPane: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if vm == nil { vm = ClaudeSettingsPaneViewModel() }
-            let m = vm!
+            // ARCH-C3: lazy-init via `viewModel` computed (same as body) — avoids
+            // force unwrap race when SwiftUI re-renders between nil-check and use.
+            let m = viewModel
             m.loadAgents()
             m.loadCommands()
             m.loadSkills()

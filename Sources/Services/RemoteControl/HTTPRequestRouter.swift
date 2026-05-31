@@ -634,26 +634,21 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         let userAgent = head.headers["User-Agent"].first ?? ""
         let authSvc = authService
         let enc = encoder
-        #if DEBUG
-        NSLog("[RC-AUTH] handleAuthToken: clientIP=\(clientIP) remoteAddr=\(remoteAddress)")
-        #endif
+        // ARCH-C1 / SEC-L1: replaced NSLog with privacy-aware os_log.
+        let remoteAddr = remoteAddress
+        Logger.remoteControl.debug("handleAuthToken: clientIP=\(clientIP, privacy: .public) remoteAddr=\(remoteAddr, privacy: .public)")
 
         Task { @MainActor [weak self] in
             guard let self else { return }
             let result = authSvc.validatePin(request.pin, clientIP: clientIP, userAgent: userAgent)
             RemoteAuditLog.authAttempt(ip: clientIP, success: result.isSuccess)
-            #if DEBUG
-            NSLog("[RC-AUTH] validatePin result: \(result.isSuccess ? "OK" : "FAIL") ip=\(clientIP)")
-            #endif
+            Logger.remoteControl.debug("validatePin result=\(result.isSuccess ? "OK" : "FAIL", privacy: .public) ip=\(clientIP, privacy: .public)")
 
             switch result {
             case .success(let tokenResponse):
-                #if DEBUG
-                // SECURITY (I1): never log token material. Even the first 8 hex
-                // chars of a 32-byte token reduce its effective entropy when
-                // logs are exposed (oslog snapshots, Console.app captures).
-                NSLog("[RC-AUTH] auth success ip=\(clientIP)")
-                #endif
+                // SECURITY: never log token material. Even prefix chars reduce
+                // entropy when logs are exposed (oslog snapshots, Console captures).
+                Logger.remoteControl.debug("auth success ip=\(clientIP, privacy: .public)")
                 let resp = AuthTokenResponseDTO(
                     token: tokenResponse.token,
                     expiresAt: Date().addingTimeInterval(RemoteAuthService.tokenTTL),
@@ -740,13 +735,26 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         channel: Channel,
         encoder: JSONEncoder
     ) {
-        // Allow scrollback access for any authenticated device (valid bearer token).
-        // Previously this required an active WS bridge (`isAttached`), which broke
-        // reconnect flows: the client needs scrollback to restore its view before
-        // the WS handshake completes. Authentication is sufficient authorization
-        // here — the session belongs to the local user who chose to share it.
-        // (No session ownership check is needed because all remote clients share
-        // the same local user context.)
+        // SEC-C3: BOLA prevention. If another device currently owns the WS bridge
+        // for this session, deny scrollback access — the buffer may contain that
+        // device's secrets (API keys, passwords typed by the rightful owner).
+        // When no bridge exists (initial fetch / reconnect window) — allow,
+        // because Auth + project scoping is enough authorization there.
+        if let server = serverRef {
+            let foreignOwner = server.activeBridges.values.first { bridge in
+                bridge.sessionId == sessionId && bridge.deviceId != device.id
+            }
+            if foreignOwner != nil {
+                let resp = ErrorResponse(
+                    error: ErrorDetail(
+                        code: "SESSION_NOT_OWNED",
+                        message: "Session is attached to another device."
+                    )
+                )
+                sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
+                return
+            }
+        }
 
         let fullContent = terminalService.rawScrollbackContent(for: sessionId) ?? ""
         let allLines = fullContent.components(separatedBy: "\n")
@@ -996,14 +1004,11 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
-        // M13: Build launch command via the centralised
-        // `AIAssistant.launchCommand(skipPermissions:)` helper. The
-        // skip-permissions flag is sourced from `GeneralPreferences` — the
-        // single source of truth — instead of a duplicated UserDefaults read
-        // that would silently drift if the preference key ever changed.
-        let command = agent.launchCommand(
-            skipPermissions: generalPreferences.claudeSkipPermissions
-        )
+        // SEC-C2: Remote Control clients NEVER receive --dangerously-skip-permissions
+        // regardless of the local preference setting. The flag is intentional only
+        // for direct local invocation — over-the-wire callers (incl. ngrok) must
+        // always go through Claude's standard permission prompts.
+        let command = agent.launchCommand(skipPermissions: false)
         terminalService.sendInput(command, to: shellSession.id)
 
         let resp = AssistantStartResponse(
@@ -1255,6 +1260,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         headers.add(name: "X-Content-Type-Options", value: "nosniff")
         headers.add(name: "X-Frame-Options", value: "DENY")
         headers.add(name: "Referrer-Policy", value: "no-referrer")
+        // SEC-L2: pin clients to HTTPS for a year so a downgrade-MitM cannot
+        // strip TLS on subsequent visits. Safe because the server only serves
+        // its own UI — no third-party subresources.
+        headers.add(name: "Strict-Transport-Security", value: "max-age=31536000")
         if isHTML {
             // Web UI CSP: allow same-origin resources, inline styles for
             // xterm.js theming, and ws:/wss: for the terminal WebSocket.

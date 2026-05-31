@@ -420,14 +420,18 @@ struct CodeSpeakModeView: View {
                 // Read-only: show file name in a minimal bar
                 generatedFileHeader(file: generated)
                 Divider()
+                // ARCH-C2: NO .id(generated.id) — would force NSScrollView/NSTextView
+                // recreation, destroying undo history and re-spawning syntax-highlight
+                // tasks on every selection change. updateNSView already syncs text via
+                // `textView.string != text` comparison.
                 CodeSpeakEditorView(
                     text: .constant(vm.editorContent),
                     isEditable: false,
                     parserRegistry: syntaxParserRegistry,
                     fileExtension: generated.url.pathExtension
                 )
-                .id(generated.id)
             } else if let spec = vm.selectedSpec {
+                // ARCH-C2: same — no .id(spec.id).
                 CodeSpeakEditorView(
                     text: Binding(
                         get: { vm.editorContent },
@@ -437,7 +441,6 @@ struct CodeSpeakModeView: View {
                     parserRegistry: syntaxParserRegistry,
                     fileExtension: "cs.md"
                 )
-                .id(spec.id)
             } else {
                 editorEmptyState
             }

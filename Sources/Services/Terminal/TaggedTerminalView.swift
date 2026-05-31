@@ -68,11 +68,7 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     /// terminal emulator via `super.dataReceived`. This preserves ANSI escape
     /// sequences for remote xterm.js rendering.
     override func dataReceived(slice: ArraySlice<UInt8>) {
-        #if DEBUG
-        if onRawData != nil {
-            NSLog("[RC-TV] dataReceived bytes=\(slice.count) → onRawData callback PRESENT")
-        }
-        #endif
+        // ARCH-C1: NSLog removed — was called per PTY chunk (thousands/sec).
         onRawData?(sessionId, slice)
         super.dataReceived(slice: slice)
     }

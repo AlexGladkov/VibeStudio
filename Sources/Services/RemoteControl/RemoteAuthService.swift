@@ -247,8 +247,7 @@ final class RemoteAuthService {
         regeneratePin()
 
         let tokenCount = self.tokens.count
-        let tokenPrefix = String(token.prefix(8))
-        Logger.remoteControl.info("Device authenticated: \(displayName, privacy: .public) from \(clientIP, privacy: .public) tokenPrefix=\(tokenPrefix, privacy: .public) totalTokens=\(tokenCount, privacy: .public)")
+        Logger.remoteControl.info("Device authenticated: \(displayName, privacy: .public) from \(clientIP, privacy: .public) deviceId=\(deviceId, privacy: .public) totalTokens=\(tokenCount, privacy: .public)")
 
         return .success(AuthTokenResponse(token: token, device: device))
     }

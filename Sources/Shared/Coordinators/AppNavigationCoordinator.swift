@@ -42,7 +42,9 @@ final class AppNavigationCoordinator {
     ///
     /// Updated by `CodeSpeakModeView` via `GeometryReader` so `ToolbarView` can
     /// position the breadcrumb exactly above the center column's left edge.
-    var specsColumnWidth: CGFloat = 220
+    /// ARCH-C4: initial value matches `DSLayout.codeSpeakSpecsColumnIdeal` so the
+    /// breadcrumb never visibly jumps on first render before `GeometryReader` fires.
+    var specsColumnWidth: CGFloat = DSLayout.codeSpeakSpecsColumnIdeal
 
     /// Update `currentMode` based on whether the active project is a CodeSpeak project.
     ///
