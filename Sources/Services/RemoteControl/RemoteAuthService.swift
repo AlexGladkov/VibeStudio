@@ -197,14 +197,10 @@ final class RemoteAuthService {
             return .failure(.maxDevicesReached)
         }
 
-        // Check per-IP rate limit.
-        pruneExpiredAttempts(for: clientIP)
-        let recentFailures = failedAttempts[clientIP] ?? []
-        if recentFailures.count >= Constants.maxFailuresPerIP {
-            let oldestInWindow = recentFailures.first ?? Date()
-            let retryAfter = Int(Constants.rateLimitWindowSeconds - Date().timeIntervalSince(oldestInWindow))
-            Logger.remoteControl.warning("PIN validation rate-limited for IP: \(clientIP, privacy: .public), retry after \(max(retryAfter, 1))s")
-            return .failure(.rateLimited(retryAfterSeconds: max(retryAfter, 1)))
+        // Check per-IP rate limit (shared with token validation — see ``checkRateLimit``).
+        if case .limited(let retryAfter) = checkRateLimit(for: clientIP) {
+            Logger.remoteControl.warning("PIN validation rate-limited for IP: \(clientIP, privacy: .public), retry after \(retryAfter)s")
+            return .failure(.rateLimited(retryAfterSeconds: retryAfter))
         }
 
         // Constant-time comparison to mitigate timing attacks.
@@ -256,17 +252,39 @@ final class RemoteAuthService {
 
     /// Validate a bearer token from a subsequent API request.
     ///
+    /// SEC-H1: shares the same per-IP failure counter as ``validatePin``.
+    /// A blind 64-character hex token has 2^256 possible values, so a brute
+    /// force is computationally infeasible — but without rate limiting the
+    /// WS endpoint could still be enumerated for *issued* tokens. Sharing
+    /// the counter with PIN validation also prevents an attacker from
+    /// alternating PIN and token attempts to evade either limit
+    /// independently.
+    ///
     /// - Parameters:
     ///   - token: The opaque token string.
     ///   - clientIP: The requesting client's IP address.
     /// - Returns: The associated `RemoteDevice` on success, or an `AuthError`.
     func validateToken(_ token: String, clientIP: String) -> Result<RemoteDevice, AuthError> {
+        // Global lockout — same as PIN validation: server is hard-disabled.
+        if isLocked {
+            return .failure(.globalLockout)
+        }
+
+        // Shared per-IP rate limit.
+        if case .limited(let retryAfter) = checkRateLimit(for: clientIP) {
+            Logger.remoteControl.warning("Token validation rate-limited for IP: \(clientIP, privacy: .public), retry after \(retryAfter)s")
+            return .failure(.rateLimited(retryAfterSeconds: retryAfter))
+        }
+
         guard let entry = tokens[token] else {
+            // Unknown token — count as a failed attempt against the IP.
+            recordFailure(for: clientIP)
             return .failure(.invalidToken)
         }
 
         guard Date() < entry.expiresAt else {
-            // Token expired -- remove it.
+            // Token expired -- remove it. Not counted as an attack signal:
+            // honest clients hit this once their token TTL elapses.
             tokens.removeValue(forKey: token)
             removeDevice(entry.deviceId)
             return .failure(.tokenExpired)
@@ -274,10 +292,15 @@ final class RemoteAuthService {
 
         guard entry.clientIP == clientIP else {
             Logger.remoteControl.warning("Token IP mismatch: expected \(entry.clientIP, privacy: .public), got \(clientIP, privacy: .public)")
+            // IP mismatch is a strong attack signal — a leaked token replayed
+            // from a different host. Count it.
+            recordFailure(for: clientIP)
             return .failure(.ipMismatch)
         }
 
         guard let device = connectedDevices.first(where: { $0.id == entry.deviceId }) else {
+            // Token references a revoked device — treat as invalid token.
+            recordFailure(for: clientIP)
             return .failure(.invalidToken)
         }
 
@@ -326,6 +349,27 @@ final class RemoteAuthService {
     }
 
     // MARK: - Private: Rate Limiting
+
+    /// Result of a per-IP rate-limit check.
+    private enum RateLimitStatus {
+        case ok
+        case limited(retryAfterSeconds: Int)
+    }
+
+    /// Inspect the per-IP failure window and decide whether the caller
+    /// should be allowed through. Used by both ``validatePin`` and
+    /// ``validateToken`` so the limits aggregate across both surfaces
+    /// (preventing alternating-attack evasion — see SEC-H1).
+    private func checkRateLimit(for clientIP: String) -> RateLimitStatus {
+        pruneExpiredAttempts(for: clientIP)
+        let recentFailures = failedAttempts[clientIP] ?? []
+        guard recentFailures.count >= Constants.maxFailuresPerIP else {
+            return .ok
+        }
+        let oldestInWindow = recentFailures.first ?? Date()
+        let retryAfter = Int(Constants.rateLimitWindowSeconds - Date().timeIntervalSince(oldestInWindow))
+        return .limited(retryAfterSeconds: max(retryAfter, 1))
+    }
 
     /// Record a failed authentication attempt for rate-limiting purposes.
     private func recordFailure(for clientIP: String) {

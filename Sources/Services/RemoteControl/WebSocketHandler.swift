@@ -6,6 +6,7 @@ import Foundation
 import NIOCore
 import NIOWebSocket
 import OSLog
+import os
 
 /// NIO channel handler for WebSocket connections to terminal sessions.
 ///
@@ -74,14 +75,22 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     /// Idle timeout minutes from preferences.
     private let idleTimeoutMinutes: Int
 
-    /// Heartbeat timer: close connection if no message received within 60 seconds.
-    /// Accessed from the NIO event loop thread only — protected by `bridgeLock`
-    /// to satisfy Swift strict concurrency checking.
-    nonisolated(unsafe) private var heartbeatTask: Task<Void, Never>?
+    /// Bundled lifecycle Tasks (heartbeat + auth-timeout). Held under an
+    /// `OSAllocatedUnfairLock` so that every access from the NIO event loop,
+    /// the MainActor auth success path, and `channelInactive` cleanup uses
+    /// the same serialisation primitive instead of the previous
+    /// `nonisolated(unsafe)` pattern (which silently relied on the caller
+    /// always being on the event loop — false in success-path cancellation).
+    ///
+    /// `Task<Void, Never>` is intentionally non-Sendable in Swift 5.10,
+    /// hence the `@unchecked Sendable` wrapper. The lock makes the access
+    /// safe regardless.
+    private struct LifecycleTasks: @unchecked Sendable {
+        var heartbeat: Task<Void, Never>?
+        var authTimeout: Task<Void, Never>?
+    }
 
-    /// Auth timeout: close if no auth message within 10 seconds.
-    /// Accessed from the NIO event loop thread only — protected by `bridgeLock`.
-    nonisolated(unsafe) private var authTimeoutTask: Task<Void, Never>?
+    private let lifecycleLock = OSAllocatedUnfairLock(initialState: LifecycleTasks())
 
     /// JSON decoder.
     private let decoder = JSONDecoder()
@@ -184,10 +193,8 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         #if DEBUG
         HTTPRequestRouter.wsLog("[WSH] channelInactive")
         #endif
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
-        authTimeoutTask?.cancel()
-        authTimeoutTask = nil
+        cancelHeartbeat()
+        cancelAuthTimeout()
 
         let bridge = takeBridge()
         let serverRef = self.serverRef
@@ -376,8 +383,10 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             case .success(let device):
                 self.deviceInfo = device
                 self.isAuthenticated = true
-                self.authTimeoutTask?.cancel()
-                self.authTimeoutTask = nil
+                // WS race fix: cancel auth-timeout under the lock to close the
+                // window where the timeout task could fire between the
+                // `!isAuthenticated` check inside its body and this cancel.
+                self.cancelAuthTimeout()
 
                 // Send auth success confirmation.
                 let ack = "{\"type\":\"auth_ok\"}"
@@ -431,12 +440,38 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
 
     /// Close connection if no auth message received within 10 seconds.
     private func startAuthTimeout(channel: Channel) {
-        authTimeoutTask = Task { [weak self] in
+        let task = Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
             guard !Task.isCancelled, let self, !self.isAuthenticated else { return }
             Logger.remoteControl.warning("RemoteWebSocketHandler: auth timeout, closing unauthenticated connection")
             self.sendErrorAndClose(code: WSCloseCode.authRequired, reason: "Auth timeout", channel: channel)
         }
+        // Replace any existing auth-timeout under the lock — and cancel the
+        // displaced task so it can't fire after we've overwritten the slot.
+        lifecycleLock.withLock { state in
+            state.authTimeout?.cancel()
+            state.authTimeout = task
+        }
+    }
+
+    /// Cancel and clear the in-flight auth-timeout task, if any.
+    private func cancelAuthTimeout() {
+        let prior: Task<Void, Never>? = lifecycleLock.withLock { state in
+            let pending = state.authTimeout
+            state.authTimeout = nil
+            return pending
+        }
+        prior?.cancel()
+    }
+
+    /// Cancel and clear the in-flight heartbeat task, if any.
+    private func cancelHeartbeat() {
+        let prior: Task<Void, Never>? = lifecycleLock.withLock { state in
+            let pending = state.heartbeat
+            state.heartbeat = nil
+            return pending
+        }
+        prior?.cancel()
     }
 
     // MARK: - Private: Close Handling
@@ -475,10 +510,9 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     // MARK: - Private: Heartbeat
 
     private func resetHeartbeat(channel: Channel) {
-        heartbeatTask?.cancel()
-        heartbeatTask = Task { [weak self] in
+        let task = Task { [weak self] in
             try? await Task.sleep(for: .seconds(60))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self != nil else { return }
             Logger.remoteControl.info("RemoteWebSocketHandler: heartbeat timeout, closing connection")
             var buffer = channel.allocator.buffer(capacity: 2 + "Heartbeat timeout".utf8.count)
             buffer.writeInteger(WSCloseCode.heartbeatTimeout)
@@ -488,5 +522,13 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                 channel.close(promise: nil)
             }
         }
+        // Atomic swap under lock — cancel any prior heartbeat task so a
+        // stale timer can't fire after we've reset.
+        let prior: Task<Void, Never>? = lifecycleLock.withLock { state in
+            let pending = state.heartbeat
+            state.heartbeat = task
+            return pending
+        }
+        prior?.cancel()
     }
 }

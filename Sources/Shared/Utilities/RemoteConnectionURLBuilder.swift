@@ -25,10 +25,30 @@ enum RemoteConnectionURLBuilder {
     /// - Returns: A user-facing URL string ready to encode as a QR.
     static func build(pin: String, ngrokTunnelURL: String?, lanPort: Int) -> String {
         if let ngrok = ngrokTunnelURL, !ngrok.isEmpty {
-            return "\(ngrok)/?pin=\(pin)"
+            // SEC-H2: defence-in-depth. ngrok already returns an https URL,
+            // but if a future change ever serves an http:// tunnel we MUST
+            // upgrade it to https here — the server now refuses non-loopback
+            // WS upgrades that arrive without an HTTPS hop in front
+            // (HTTPRequestRouter.performWebSocketUpgrade).
+            let secured = upgradedToHTTPS(ngrok)
+            return "\(secured)/?pin=\(pin)"
         }
         let ipAddress = NetworkUtility.localLANIPAddress() ?? "127.0.0.1"
         let httpPort = lanPort + 1
         return "http://\(ipAddress):\(httpPort)/?pin=\(pin)"
+    }
+
+    /// Normalise a tunnel URL to use an HTTPS scheme. Idempotent for already
+    /// `https://` URLs; rewrites `http://` and `ws://` to `https://`/`wss://`
+    /// equivalents.
+    private static func upgradedToHTTPS(_ url: String) -> String {
+        if url.hasPrefix("https://") || url.hasPrefix("wss://") { return url }
+        if url.hasPrefix("http://") {
+            return "https://" + url.dropFirst("http://".count)
+        }
+        if url.hasPrefix("ws://") {
+            return "wss://" + url.dropFirst("ws://".count)
+        }
+        return url
     }
 }

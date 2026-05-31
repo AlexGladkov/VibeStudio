@@ -558,6 +558,42 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             return
         }
 
+        // SEC-H2: threat model for transport security on WS upgrade.
+        //
+        // The server itself binds plain HTTP (TLS is terminated upstream when
+        // accessed via the ngrok HTTPS tunnel, or skipped entirely on
+        // loopback — see RemoteConnectionURLBuilder). Without TLS in front of
+        // us, an attacker with on-path access to a non-loopback hop could
+        // sniff/inject the auth token transported as the first WS text frame
+        // and hijack the session.
+        //
+        // Loopback (127.0.0.1 / ::1) is considered safe — no on-path
+        // attacker. For any other client IP we require evidence that an
+        // HTTPS hop terminated TLS upstream. ngrok always forwards the
+        // client-facing scheme in `X-Forwarded-Proto`; if it is missing or
+        // says "http", we refuse the upgrade with 403 so an honest client
+        // sees the failure and reconnects via wss://.
+        if !Self.isLoopback(clientIP: remoteAddress) {
+            let forwardedProto = head.headers["X-Forwarded-Proto"].first?.lowercased()
+                ?? head.headers["Forwarded"].first?
+                    .split(separator: ";")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .first(where: { $0.lowercased().hasPrefix("proto=") })
+                    .map { String($0.dropFirst("proto=".count))
+                        .trimmingCharacters(in: CharacterSet(charactersIn: "\"")).lowercased() }
+            if forwardedProto != "https" {
+                Logger.remoteControl.warning(
+                    "WS upgrade rejected: non-loopback client without HTTPS terminator (ip=\(self.remoteAddress, privacy: .public) proto=\(forwardedProto ?? "missing", privacy: .public))"
+                )
+                writer.sendErrorJSON(
+                    status: .forbidden, code: "TLS_REQUIRED",
+                    message: "WebSocket connections from non-loopback clients must be made over wss://.",
+                    channel: channel, corsOrigin: corsOrigin
+                )
+                return
+            }
+        }
+
         let clientIP = remoteAddress
         let authSvc = authService
         let termSvc = terminalService
@@ -663,6 +699,21 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 channel.close(promise: nil)
             }
         }
+    }
+
+    // MARK: - Helpers
+
+    /// `true` when the captured TCP-level client IP is a loopback address.
+    /// Used by the WS upgrade path to decide whether HTTPS termination
+    /// upstream is required (SEC-H2).
+    private static func isLoopback(clientIP: String) -> Bool {
+        // IPv4 loopback is the entire 127.0.0.0/8 block.
+        if clientIP.hasPrefix("127.") { return true }
+        // IPv6 loopback canonical forms.
+        if clientIP == "::1" || clientIP == "0:0:0:0:0:0:0:1" { return true }
+        // IPv4-mapped IPv6 loopback ("::ffff:127.0.0.1").
+        if clientIP.lowercased().hasPrefix("::ffff:127.") { return true }
+        return false
     }
 
     // MARK: - CORS

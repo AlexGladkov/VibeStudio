@@ -127,11 +127,25 @@ struct RemoteControlSettingsPane: View {
 
                 if remoteServer.isNgrokRunning, let url = remoteServer.ngrokTunnelURL {
                     // Connected — show URL + disconnect button
-                    Text(url)
-                        .font(DSFont.monoSmall)
-                        .foregroundStyle(DSColor.accentPrimary)
-                        .textSelection(.enabled)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        Text(url)
+                            .font(DSFont.monoSmall)
+                            .foregroundStyle(DSColor.accentPrimary)
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                        // SEC-H2: tell the user that the public tunnel only
+                        // accepts secure WebSocket connections, so client
+                        // apps connecting manually must use wss:// — server
+                        // also rejects non-loopback WS upgrades arriving
+                        // without an HTTPS hop in front.
+                        HStack(spacing: DSSpacing.xxs) {
+                            Image(systemName: "lock.fill")
+                                .font(DSFont.iconXS)
+                            Text("Подключайтесь по wss:// (https:// для веб-клиента)")
+                        }
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.textMuted)
+                    }
 
                     Button("Отключить") {
                         remotePreferences.ngrokEnabled = false
