@@ -72,27 +72,20 @@ struct RegularToolbarView: View {
     // MARK: - Play / Stop Button
 
     private var playStopButton: some View {
-        Button {
-            if model.isRunning { model.stopAssistant() } else { model.startAssistant() }
-        } label: {
-            Group {
-                if model.isRunning {
-                    Image(systemName: "stop.fill")
-                        .font(DSFont.playStopButton)
-                        .foregroundStyle(DSColor.actionStop)
-                } else {
-                    Image(systemName: "play.fill")
-                        .font(DSFont.playStopButton)
-                        .foregroundStyle(
-                            model.activeId == nil ? DSColor.textMuted : DSColor.actionRun
-                        )
-                }
+        // Regular mode: `canRun` is just "an assistant is selected" — the
+        // button is fully disabled when `activeId == nil` (matches the
+        // previous `.disabled(model.activeId == nil)` invariant).
+        PlayStopButton(
+            isRunning: model.isRunning,
+            canRun: model.activeId != nil,
+            size: .regular
+        ) {
+            if model.isRunning {
+                model.stopAssistant()
+            } else {
+                model.startAssistant()
             }
-            .frame(width: DSLayout.toolbarIconButtonWidth, height: DSLayout.toolbarButtonHeight)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(model.activeId == nil)
     }
 
     // MARK: - Open in Browser Button

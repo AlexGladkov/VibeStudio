@@ -132,35 +132,15 @@ struct CodexSettingsPane: View {
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
-            HStack(spacing: DSSpacing.sm) {
-                Text(displayConfigPath)
-                    .font(DSFont.monoPath)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer()
-
-                Button {
+            SettingsConfigFileRow(
+                displayPath: displayConfigPath,
+                configExists: true,
+                alwaysShowReveal: true,
+                onReveal: {
                     NSWorkspace.shared.activateFileViewerSelecting([Self.configURL])
-                } label: {
-                    Label("Finder", systemImage: "folder")
-                        .font(DSFont.smallButtonLabel)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button {
-                    showConfigEditor = true
-                } label: {
-                    Label("Редактировать", systemImage: "pencil")
-                        .font(DSFont.smallButtonLabel)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-            .padding(DSSpacing.md)
-            .settingsCard()
+                },
+                onEdit: { showConfigEditor = true }
+            )
         }
     }
 

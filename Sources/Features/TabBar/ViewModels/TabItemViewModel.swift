@@ -27,6 +27,12 @@ final class TabItemViewModel {
 
     func closeProject(_ projectId: UUID) {
         terminalManager.killAllSessions(for: projectId)
-        try? projectManager.removeProject(projectId)
+        do {
+            try projectManager.removeProject(projectId)
+        } catch {
+            Logger.project.error(
+                "Failed to remove project: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 }

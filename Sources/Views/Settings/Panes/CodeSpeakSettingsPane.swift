@@ -98,7 +98,7 @@ struct CodeSpeakSettingsPane: View {
             SettingsSectionHeader(title: "Behaviour")
 
             VStack(alignment: .leading, spacing: 0) {
-                preferenceRow(
+                SettingsToggleRow(
                     title: "Auto-build on save",
                     description: "Run `codespeak build` automatically after saving a spec file",
                     isOn: Binding(
@@ -109,7 +109,7 @@ struct CodeSpeakSettingsPane: View {
 
                 Divider().padding(.leading, DSSpacing.md)
 
-                preferenceRow(
+                SettingsToggleRow(
                     title: "Build on project open",
                     description: "Run `codespeak build` when switching to a CodeSpeak project",
                     isOn: Binding(
@@ -120,7 +120,7 @@ struct CodeSpeakSettingsPane: View {
 
                 Divider().padding(.leading, DSSpacing.md)
 
-                preferenceRow(
+                SettingsToggleRow(
                     title: "Auto-open build panel",
                     description: "Open the build panel automatically when a command starts",
                     isOn: Binding(
@@ -176,7 +176,7 @@ struct CodeSpeakSettingsPane: View {
             SettingsSectionHeader(title: "Display")
 
             VStack(alignment: .leading, spacing: 0) {
-                preferenceRow(
+                SettingsToggleRow(
                     title: "Show failing specs only",
                     description: "Filter the spec list to show only specs with failing status",
                     isOn: Binding(
@@ -196,7 +196,7 @@ struct CodeSpeakSettingsPane: View {
             SettingsSectionHeader(title: "Notifications")
 
             VStack(alignment: .leading, spacing: 0) {
-                preferenceRow(
+                SettingsToggleRow(
                     title: "Notify on complete",
                     description: "Send a macOS notification when a command finishes",
                     isOn: Binding(
@@ -263,30 +263,4 @@ struct CodeSpeakSettingsPane: View {
         .padding(.vertical, DSSpacing.sm)
     }
 
-    private func preferenceRow(
-        title: String,
-        description: String,
-        isOn: Binding<Bool>
-    ) -> some View {
-        HStack(spacing: DSSpacing.sm) {
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Text(title)
-                    .font(DSFont.buttonLabel)
-                    .foregroundStyle(DSColor.textPrimary)
-                Text(description)
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .controlSize(.small)
-        }
-        .padding(.horizontal, DSSpacing.md)
-        .padding(.vertical, DSSpacing.sm)
-    }
 }

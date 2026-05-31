@@ -33,8 +33,7 @@ struct RemoteQRPopover: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(url, forType: .string)
+                ClipboardService.copy(url)
             } label: {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "doc.on.doc")

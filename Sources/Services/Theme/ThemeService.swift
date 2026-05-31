@@ -79,7 +79,7 @@ final class ThemeService: ThemeServicing {
     // MARK: - Init
 
     init() {
-        let stored = defaults.integer(forKey: "vs_appearance")
+        let stored = defaults.integer(forKey: storageKey)
         self.selectedAppearance = AppAppearance(rawValue: stored) ?? .system
 
         // Observe macOS system dark/light toggle.

@@ -37,4 +37,7 @@ extension Logger {
 
     /// Remote Control server: HTTP/WS lifecycle, auth, device management.
     static let remoteControl = Logger(subsystem: subsystem, category: "RemoteControl")
+
+    /// Project management: add/remove projects, activation, persistence.
+    static let project = Logger(subsystem: subsystem, category: "Project")
 }

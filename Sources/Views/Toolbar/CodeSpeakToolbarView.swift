@@ -126,15 +126,12 @@ struct CodeSpeakToolbarView: View {
     private var statsBadge: some View {
         if let id = projectManager.activeProjectId,
            let stats = codeSpeak.projectStats[id] {
-            Text("\(stats.passing)/\(stats.total)")
-                .font(DSFont.smallButtonLabel)
-                .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
-                .padding(.horizontal, DSSpacing.xs)
-                .padding(.vertical, DSSpacing.xxs)
-                .background(
-                    stats.allPassing ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                    in: RoundedRectangle(cornerRadius: DSRadius.sm)
-                )
+            StatusBadgeView(
+                "\(stats.passing)/\(stats.total)",
+                color: stats.allPassing ? DSColor.gitAdded : DSColor.gitModified,
+                font: DSFont.smallButtonLabel,
+                background: .solid(stats.allPassing ? DSColor.diffAddedBg : DSColor.diffDeletedBg)
+            )
         }
     }
 
@@ -232,34 +229,19 @@ struct CodeSpeakToolbarView: View {
     }
 
     private var playStopButton: some View {
-        Button {
+        PlayStopButton(
+            isRunning: navigationCoordinator.runBar.isRunning,
+            canRun: canRun,
+            size: .compact,
+            runningHelp: "Stop codespeak",
+            idleHelp: "Run codespeak \(navigationCoordinator.runBar.command.displayName.lowercased())"
+        ) {
             if navigationCoordinator.runBar.isRunning {
                 navigationCoordinator.runBar.stopRequested = true
             } else {
                 navigationCoordinator.codeSpeakBuildRequested = true
             }
-        } label: {
-            Image(
-                systemName: navigationCoordinator.runBar.isRunning
-                    ? "stop.fill"
-                    : "play.fill"
-            )
-            .font(DSFont.csPlayStopButton)
-            .foregroundStyle(
-                navigationCoordinator.runBar.isRunning
-                    ? DSColor.actionStop
-                    : (canRun ? DSColor.actionRun : DSColor.textMuted)
-            )
-            .frame(width: DSLayout.toolbarButtonHeight, height: DSLayout.toolbarButtonHeight)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(!navigationCoordinator.runBar.isRunning && !canRun)
-        .help(
-            navigationCoordinator.runBar.isRunning
-                ? "Stop codespeak"
-                : "Run codespeak \(navigationCoordinator.runBar.command.displayName.lowercased())"
-        )
     }
 
     // MARK: - Remote QR Button

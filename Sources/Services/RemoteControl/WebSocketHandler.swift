@@ -383,6 +383,16 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                 let ack = "{\"type\":\"auth_ok\"}"
                 self.sendTextOnEventLoop(ack, channel: channel)
 
+                // Reset the in-progress flag on the event-loop thread that
+                // owns it. Without this the flag would remain `true` for the
+                // lifetime of the connection — harmless today because the
+                // first guard short-circuits on `isAuthenticated`, but it
+                // leaves the state inconsistent and would silently break any
+                // future code path that re-checks `authInProgress`.
+                channel.eventLoop.execute {
+                    self.authInProgress = false
+                }
+
                 self.initializeSession(channel: channel, device: device)
 
             case .failure:

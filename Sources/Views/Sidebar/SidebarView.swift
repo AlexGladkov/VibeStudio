@@ -64,21 +64,7 @@ struct ProjectGitHeaderView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    if aheadCount > 0 {
-                        HStack(spacing: DSSpacing.xxs) {
-                            Image(systemName: "arrow.up").font(DSFont.iconXS)
-                            Text("\(aheadCount)").font(DSFont.iconMD)
-                        }
-                        .foregroundStyle(DSColor.gitAdded)
-                    }
-
-                    if behindCount > 0 {
-                        HStack(spacing: DSSpacing.xxs) {
-                            Image(systemName: "arrow.down").font(DSFont.iconXS)
-                            Text("\(behindCount)").font(DSFont.iconMD)
-                        }
-                        .foregroundStyle(DSColor.gitDeleted)
-                    }
+                    AheadBehindBadgeView(ahead: aheadCount, behind: behindCount)
                 }
             }
         }
@@ -389,6 +375,10 @@ struct SidebarView: View {
         return VStack(spacing: 0) {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 0) {
+                    // NOTE: inline header preserved here — the parent VStack
+                    // already applies `sidebarHorizontalPadding`, so using the
+                    // generic `SidebarSectionHeader` would double-pad and shift
+                    // the title 12pt right.
                     HStack {
                         Text("GIT")
                             .font(DSFont.sidebarSection)

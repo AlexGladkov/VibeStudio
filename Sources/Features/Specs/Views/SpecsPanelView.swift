@@ -91,45 +91,41 @@ struct SpecsPanelView: View {
     // MARK: - Header
 
     private func headerView(model: SpecsViewModel) -> some View {
-        HStack(spacing: DSSpacing.xs) {
-            Text("SPECS")
-                .font(DSFont.sidebarSection)
-                .foregroundStyle(DSColor.textSecondary)
-
-            if let stats = model.stats {
-                Text("\(stats.passing)/\(stats.total) passing")
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
-            }
-
-            Spacer()
-
-            // Build button — triggers SpecBuildPanel
-            Button {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    navigationCoordinator.showingSpecPanel = true
+        SidebarSectionHeader(
+            title: "SPECS",
+            badge: {
+                if let stats = model.stats {
+                    Text("\(stats.passing)/\(stats.total) passing")
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
                 }
-            } label: {
-                Image(systemName: "play.circle")
-                    .font(DSFont.sidebarItem)
-                    .foregroundStyle(DSColor.textMuted)
-            }
-            .buttonStyle(.plain)
-            .help("Run codespeak build")
+            },
+            trailing: {
+                // Build button — triggers SpecBuildPanel
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        navigationCoordinator.showingSpecPanel = true
+                    }
+                } label: {
+                    Image(systemName: "play.circle")
+                        .font(DSFont.sidebarItem)
+                        .foregroundStyle(DSColor.textMuted)
+                }
+                .buttonStyle(.plain)
+                .help("Run codespeak build")
 
-            // New spec button
-            Button {
-                activeSheet = .wizard
-            } label: {
-                Image(systemName: "plus")
-                    .font(DSFont.sidebarItem)
-                    .foregroundStyle(DSColor.textMuted)
+                // New spec button
+                Button {
+                    activeSheet = .wizard
+                } label: {
+                    Image(systemName: "plus")
+                        .font(DSFont.sidebarItem)
+                        .foregroundStyle(DSColor.textMuted)
+                }
+                .buttonStyle(.plain)
+                .help("New spec")
             }
-            .buttonStyle(.plain)
-            .help("New spec")
-        }
-        .padding(.horizontal, DSSpacing.md)
-        .frame(height: DSLayout.gitSectionHeaderHeight)
+        )
     }
 
     // MARK: - Spec List
@@ -179,6 +175,8 @@ struct SpecsPanelView: View {
     // MARK: - Empty States
 
     private var loadingView: some View {
+        // Spinner-only placeholder — `PanelStateView` always renders a title,
+        // so we keep the bare spinner here to preserve the original visual.
         VStack {
             Spacer()
             ProgressView()
@@ -189,23 +187,16 @@ struct SpecsPanelView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: DSSpacing.sm) {
-            Spacer()
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(DSFont.emptyStateIcon)
-                .foregroundStyle(DSColor.textMuted)
-            Text("No specs found")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-            Text("spec/*.cs.md")
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textDisabled)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        PanelStateView(
+            kind: .empty,
+            icon: "doc.text.magnifyingglass",
+            title: "No specs found",
+            subtitle: "spec/*.cs.md"
+        )
     }
 
     private var noProjectView: some View {
+        // Title-only placeholder (no icon) — kept lightweight on purpose.
         VStack {
             Spacer()
             Text("No project selected")

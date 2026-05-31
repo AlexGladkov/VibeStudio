@@ -80,11 +80,11 @@ struct CodeSpeakSpecListColumn: View {
                 withAnimation(.easeInOut(duration: 0.18)) { specsExpanded.toggle() }
             } label: {
                 HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "chevron.right")
-                        .font(DSFont.statusBadge)
-                        .foregroundStyle(DSColor.textMuted)
-                        .rotationEffect(.degrees(specsExpanded ? 90 : 0))
-                        .frame(width: DSLayout.chevronFrameWidth)
+                    DisclosureChevron(
+                        isExpanded: specsExpanded,
+                        font: DSFont.statusBadge,
+                        useFixedFrame: true
+                    )
 
                     Text("SPECS")
                         .font(DSFont.sidebarSection)
@@ -200,11 +200,11 @@ struct CodeSpeakSpecListColumn: View {
                 withAnimation(.easeInOut(duration: 0.18)) { generatedExpanded.toggle() }
             } label: {
                 HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "chevron.right")
-                        .font(DSFont.statusBadge)
-                        .foregroundStyle(DSColor.textMuted)
-                        .rotationEffect(.degrees(generatedExpanded ? 90 : 0))
-                        .frame(width: DSLayout.chevronFrameWidth)
+                    DisclosureChevron(
+                        isExpanded: generatedExpanded,
+                        font: DSFont.statusBadge,
+                        useFixedFrame: true
+                    )
 
                     Text("GENERATED")
                         .font(DSFont.sidebarSection)

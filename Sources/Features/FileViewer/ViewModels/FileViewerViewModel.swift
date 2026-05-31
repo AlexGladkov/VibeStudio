@@ -69,8 +69,7 @@ final class FileViewerViewModel {
             parts.append(section)
         }
         let combined = parts.joined(separator: "\n\n")
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(combined, forType: .string)
+        ClipboardService.copy(combined)
     }
 
     // MARK: - Private

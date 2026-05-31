@@ -142,8 +142,7 @@ struct InstallAgentSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(command, forType: .string)
+                ClipboardService.copy(command)
                 copiedCommand = command
                 // ARCH-L2: clipboard confirmation TTL lives in DSLayout.
                 Task { @MainActor in

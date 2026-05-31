@@ -141,9 +141,13 @@ struct OpenProjectResponse: Codable {
 // MARK: - Devices
 
 /// Device info in `GET /api/v1/devices` response.
+///
+/// `ip` is populated only when `isSelf == true`. Other devices' IPs are
+/// withheld to avoid disclosing peer network locations to authenticated
+/// (but possibly compromised) clients (SEC-M3).
 struct DeviceResponse: Codable {
     let deviceId: String
-    let ip: String
+    let ip: String?
     let userAgent: String
     let connectedSince: Date
     let lastActivity: Date
@@ -200,47 +204,20 @@ struct HealthResponse: Codable {
 // MARK: - Server Status
 
 /// `GET /api/v1/status` response.
+///
+/// SEC-M1: intentionally minimal. Previously this endpoint exposed
+/// `uptime`, `port`, `tls` mode, and the full terminal color palette —
+/// all useful for fingerprinting a deployment from a leaked authenticated
+/// token. Now returns only the version + live connection counts.
 struct StatusResponse: Codable {
-    let server: ServerInfoResponse
-    let connections: ConnectionsInfoResponse
-    let theme: ThemeInfoResponse
+    let version: String
+    let connectedDevices: Int
+    let activeWebsockets: Int
 
-    struct ServerInfoResponse: Codable {
-        let version: String
-        let apiVersion: String
-        let uptimeSeconds: Int
-        let port: Int
-        let tls: String
-        let bonjourPublished: Bool
-
-        enum CodingKeys: String, CodingKey {
-            case version, port, tls
-            case apiVersion = "api_version"
-            case uptimeSeconds = "uptime_seconds"
-            case bonjourPublished = "bonjour_published"
-        }
-    }
-
-    struct ConnectionsInfoResponse: Codable {
-        let connectedDevices: Int
-        let maxDevices: Int
-        let activeWebsockets: Int
-
-        enum CodingKeys: String, CodingKey {
-            case connectedDevices = "connected_devices"
-            case maxDevices = "max_devices"
-            case activeWebsockets = "active_websockets"
-        }
-    }
-
-    struct ThemeInfoResponse: Codable {
-        let appearance: String
-        let terminalColors: TerminalColorsResponse
-
-        enum CodingKeys: String, CodingKey {
-            case appearance
-            case terminalColors = "terminal_colors"
-        }
+    enum CodingKeys: String, CodingKey {
+        case version
+        case connectedDevices = "connected_devices"
+        case activeWebsockets = "active_websockets"
     }
 }
 

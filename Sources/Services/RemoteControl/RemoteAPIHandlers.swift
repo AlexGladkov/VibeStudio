@@ -206,14 +206,18 @@ struct RemoteAPIHandlers {
 
     func handleListDevices(device: RemoteDevice, channel: Channel, corsOrigin: String?) {
         let deviceResponses = authService.connectedDevices.map { dev in
-            DeviceResponse(
+            let isSelf = dev.id == device.id
+            // SEC-M3: never expose peer device IPs — only the caller's own IP
+            // is returned, so clients can still display "Connected from <ip>"
+            // for themselves without leaking the broader device topology.
+            return DeviceResponse(
                 deviceId: dev.id.uuidString,
-                ip: dev.ipAddress,
+                ip: isSelf ? dev.ipAddress : nil,
                 userAgent: dev.displayName,
                 connectedSince: dev.connectedAt,
                 lastActivity: dev.connectedAt,
                 attachedSessions: [],
-                isSelf: dev.id == device.id
+                isSelf: isSelf
             )
         }
         let resp = DevicesListResponse(
@@ -247,35 +251,14 @@ struct RemoteAPIHandlers {
     }
 
     func handleStatus(channel: Channel, corsOrigin: String?) {
+        // SEC-M1: deliberately minimal payload. `uptime`, `port`, `tls`,
+        // and the full terminal color palette are no longer exposed — they
+        // were fingerprinting aids for a leaked authenticated token without
+        // any client-side use case.
         let resp = StatusResponse(
-            server: .init(
-                version: metadata.appVersion,
-                apiVersion: "1.0.0",
-                uptimeSeconds: serverRef?.uptimeSeconds ?? 0,
-                port: preferences.remoteControlPort,
-                tls: "self-signed",
-                bonjourPublished: preferences.bonjourEnabled
-            ),
-            connections: .init(
-                connectedDevices: authService.connectedDevices.count,
-                maxDevices: RemoteAuthService.maxDevices,
-                activeWebsockets: serverRef?.activeBridges.count ?? 0
-            ),
-            theme: .init(
-                appearance: "dark",
-                terminalColors: TerminalColorsResponse(
-                    foreground: "#D4D4D4",
-                    background: "#1E1E1E",
-                    cursor: "#AEAFAD",
-                    selection: "#264F78",
-                    ansi: [
-                        "#000000", "#CD3131", "#0DBC79", "#E5E510",
-                        "#2472C8", "#BC3FBC", "#11A8CD", "#E5E5E5",
-                        "#666666", "#F14C4C", "#23D18B", "#F5F543",
-                        "#3B8EEA", "#D670D6", "#29B8DB", "#FFFFFF"
-                    ]
-                )
-            )
+            version: metadata.appVersion,
+            connectedDevices: authService.connectedDevices.count,
+            activeWebsockets: serverRef?.activeBridges.count ?? 0
         )
         writer.sendEncodableResponse(resp, status: .ok, channel: channel, corsOrigin: corsOrigin)
     }

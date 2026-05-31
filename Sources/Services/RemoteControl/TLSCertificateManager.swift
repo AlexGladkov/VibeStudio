@@ -193,11 +193,17 @@ struct TLSCertificateManager {
         key: P256.Signing.PrivateKey
     ) throws -> (certPath: URL, keyPath: URL) {
         let fm = FileManager.default
-        let dir = try storageDir()
+        var dir = try storageDir()
 
         // Create storage directory if needed.
         if !fm.fileExists(atPath: dir.path) {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            // SEC-L4: exclude the TLS material from iCloud / Time Machine
+            // backups — the private key is host-bound and regenerating it
+            // is cheap; backing it up only widens the exposure surface.
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try? dir.setResourceValues(values)
         }
 
         let certPath = dir.appendingPathComponent(certFilename)

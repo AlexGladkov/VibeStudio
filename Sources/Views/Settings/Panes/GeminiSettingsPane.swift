@@ -65,46 +65,14 @@ struct GeminiSettingsPane: View {
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
-            HStack(spacing: DSSpacing.sm) {
-                Text(displayPath)
-                    .font(DSFont.monoPath)
-                    .foregroundStyle(configExists ? DSColor.textPrimary : DSColor.textMuted)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                if !configExists {
-                    Text("не найден")
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.textMuted)
-                }
-
-                Spacer()
-
-                if configExists {
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting([Self.settingsURL])
-                    } label: {
-                        Label("Finder", systemImage: "folder")
-                            .font(DSFont.smallButtonLabel)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-
-                Button {
-                    showEditor = true
-                } label: {
-                    Label(
-                        configExists ? "Редактировать" : "Создать конфиг",
-                        systemImage: configExists ? "pencil" : "plus"
-                    )
-                    .font(DSFont.smallButtonLabel)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-            .padding(DSSpacing.md)
-            .settingsCard()
+            SettingsConfigFileRow(
+                displayPath: displayPath,
+                configExists: configExists,
+                onReveal: {
+                    NSWorkspace.shared.activateFileViewerSelecting([Self.settingsURL])
+                },
+                onEdit: { showEditor = true }
+            )
 
             if configExists {
                 settingsReferenceRow

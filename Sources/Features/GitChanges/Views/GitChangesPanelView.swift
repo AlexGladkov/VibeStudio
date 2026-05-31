@@ -66,11 +66,11 @@ struct GitChangesPanelView: View {
 
     private func headerView(status: GitStatus) -> some View {
         let total = status.stagedFiles.count + status.unstagedFiles.count + status.untrackedFiles.count
-        return HStack(spacing: DSSpacing.xs) {
-            Text("CHANGES")
-                .font(DSFont.sidebarSection)
-                .foregroundStyle(DSColor.textSecondary)
-            Spacer()
+        // The total-count badge originally sat at the trailing edge (after a
+        // Spacer), so we route it through the header's `trailing` slot rather
+        // than the inline `badge` slot — visually identical, single trailing
+        // closure keeps the call site terse.
+        return SidebarSectionHeader(title: "CHANGES") {
             if total > 0 {
                 Text("\(total)")
                     .font(DSFont.sidebarItemSmall)
@@ -80,59 +80,38 @@ struct GitChangesPanelView: View {
                     .background(DSColor.accentPrimary, in: Capsule())
             }
         }
-        .padding(.horizontal, DSSpacing.md)
-        .frame(height: DSLayout.gitSectionHeaderHeight)
     }
 
     // MARK: - Empty State
 
     private var emptyStateView: some View {
-        VStack(spacing: DSSpacing.sm) {
-            Spacer()
-            Image(systemName: "checkmark.circle")
-                .font(DSFont.emptyStateIcon)
-                .foregroundStyle(DSColor.textMuted)
-            Text("Working tree clean")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        PanelStateView(
+            kind: .empty,
+            icon: "checkmark.circle",
+            title: "Working tree clean"
+        )
     }
 
     // MARK: - Loading State
 
     private var loadingStateView: some View {
-        VStack(spacing: DSSpacing.sm) {
-            Spacer()
-            ProgressView().scaleEffect(DSLayout.progressScaleMedium)
-            Text("Loading changes…")
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        PanelStateView(
+            kind: .loading,
+            icon: "ellipsis",
+            title: "Loading changes…"
+        )
     }
 
     // MARK: - Error State
 
     private func errorStateView(message: String) -> some View {
-        VStack(spacing: DSSpacing.sm) {
-            Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(DSFont.emptyStateIcon)
-                .foregroundStyle(DSColor.gitDeleted)
-            Text("Failed to load changes")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textPrimary)
-            Text(message)
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DSSpacing.md)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        PanelStateView(
+            kind: .error,
+            icon: "exclamationmark.triangle",
+            title: "Failed to load changes",
+            subtitle: message,
+            iconColor: DSColor.gitDeleted
+        )
     }
 
     // MARK: - File List

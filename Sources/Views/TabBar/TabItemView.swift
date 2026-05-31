@@ -3,6 +3,7 @@
 // Shows project name, branch, activity indicator, close button.
 // macOS 14+, Swift 5.10
 
+import OSLog
 import SwiftUI
 
 /// A single tab in the tab bar representing one project.
@@ -42,7 +43,13 @@ struct TabItemView: View {
         } else {
             projectManager.activeProjectId = projectManager.projects
                 .first(where: { $0.id != project.id })?.id
-            try? projectManager.removeProject(project.id)
+            do {
+                try projectManager.removeProject(project.id)
+            } catch {
+                Logger.project.error(
+                    "Failed to remove project: \(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
     }
 
@@ -62,12 +69,13 @@ struct TabItemView: View {
                 .lineLimit(1)
 
             if let stats = codeSpeak.projectStats[project.id] {
-                Text("CS:\(stats.passing)/\(stats.total)")
-                    .font(DSFont.badgeSmall)
-                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitDeleted)
-                    .padding(.horizontal, DSSpacing.xs)
-                    .padding(.vertical, 1) // intentionally 1pt for compact badge
-                    .background(DSColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DSRadius.sm))
+                // intentional verticalPadding: 1pt for the compact tab badge
+                StatusBadgeView(
+                    "CS:\(stats.passing)/\(stats.total)",
+                    color: stats.allPassing ? DSColor.gitAdded : DSColor.gitDeleted,
+                    background: .solid(DSColor.surfaceOverlay),
+                    verticalPadding: 1
+                )
             }
 
             if isActive || isHovering {

@@ -81,15 +81,11 @@ struct SpecBuildPanelView: View {
                 // Exit code badge (only for stats-capable commands)
                 if model.selectedCommand.supportsStatsParsing {
                     if let code = model.exitCode {
-                        Text(code == 0 ? "PASS" : "FAIL")
-                            .font(DSFont.badgeSmall)
-                            .foregroundStyle(code == 0 ? DSColor.gitAdded : DSColor.gitDeleted)
-                            .padding(.horizontal, DSSpacing.xs)
-                            .padding(.vertical, DSSpacing.xxs)
-                            .background(
-                                code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg,
-                                in: RoundedRectangle(cornerRadius: DSRadius.sm)
-                            )
+                        StatusBadgeView(
+                            code == 0 ? "PASS" : "FAIL",
+                            color: code == 0 ? DSColor.gitAdded : DSColor.gitDeleted,
+                            background: .solid(code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg)
+                        )
                     }
 
                     // Stats summary

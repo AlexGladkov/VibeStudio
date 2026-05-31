@@ -149,8 +149,7 @@ private struct DirectoryRowView: View {
             .buttonStyle(.plain)
             .contextMenu {
                 Button("Copy Path") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(entry.path.path, forType: .string)
+                    ClipboardService.copy(entry.path.path)
                 }
                 Divider()
                 Button("Reveal in Finder") {
@@ -177,10 +176,7 @@ private struct DirectoryRowView: View {
 
     private var directoryLabel: some View {
         HStack(spacing: DSSpacing.xs) {
-            Image(systemName: "chevron.right")
-                .font(DSFont.iconSM)
-                .foregroundStyle(DSColor.textMuted)
-                .rotationEffect(isExpanded ? .degrees(90) : .zero)
+            DisclosureChevron(isExpanded: isExpanded)
 
             Image(systemName: "folder.fill")
                 .font(DSFont.iconLG)
@@ -209,14 +205,15 @@ private struct FileRowView: View {
     var onDoubleTap: ((FileEntry) -> Void)?
 
     var body: some View {
-        HStack(spacing: DSSpacing.xs) {
+        let icon = FileIconResolver.icon(for: entry.path)
+        return HStack(spacing: DSSpacing.xs) {
             // Spacer for disclosure triangle alignment (matches iconSM point size).
             Color.clear
                 .frame(width: DSLayout.treeChevronPlaceholderWidth)
 
-            Image(systemName: fileIcon)
+            Image(systemName: icon.name)
                 .font(DSFont.iconLG)
-                .foregroundStyle(fileIconColor)
+                .foregroundStyle(icon.color)
 
             Text(entry.path.lastPathComponent)
                 .font(DSFont.sidebarItem)
@@ -240,40 +237,19 @@ private struct FileRowView: View {
         }
         .contextMenu {
             Button("Copy Path") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(entry.path.path, forType: .string)
+                ClipboardService.copy(entry.path.path)
             }
             Button("Copy Relative Path") {
                 let relative = entry.path.path.replacingOccurrences(
                     of: projectPath.path + "/",
                     with: ""
                 )
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(relative, forType: .string)
+                ClipboardService.copy(relative)
             }
             Divider()
             Button("Reveal in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([entry.path])
             }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private var fileIcon: String {
-        let ext = entry.path.pathExtension.lowercased()
-        switch ext {
-        case "swift": return "swift"
-        case "json", "yaml", "yml", "toml": return "gearshape.fill"
-        default: return "doc.text.fill"
-        }
-    }
-
-    private var fileIconColor: Color {
-        let ext = entry.path.pathExtension.lowercased()
-        switch ext {
-        case "swift": return DSColor.swiftOrange
-        default: return DSColor.textSecondary
         }
     }
 

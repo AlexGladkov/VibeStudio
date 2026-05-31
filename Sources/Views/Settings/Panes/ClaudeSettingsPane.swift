@@ -165,35 +165,15 @@ struct ClaudeSettingsPane: View {
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
-            HStack(spacing: DSSpacing.sm) {
-                Text(model.displayPath)
-                    .font(DSFont.monoPath)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer()
-
-                Button {
+            SettingsConfigFileRow(
+                displayPath: model.displayPath,
+                configExists: true,
+                alwaysShowReveal: true,
+                onReveal: {
                     NSWorkspace.shared.activateFileViewerSelecting([ClaudeSettingsPaneViewModel.claudeURL])
-                } label: {
-                    Label("Finder", systemImage: "folder")
-                        .font(DSFont.smallButtonLabel)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button {
-                    showEditor = true
-                } label: {
-                    Label("Редактировать", systemImage: "pencil")
-                        .font(DSFont.smallButtonLabel)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
-            .padding(DSSpacing.md)
-            .settingsCard()
+                },
+                onEdit: { showEditor = true }
+            )
         }
     }
 

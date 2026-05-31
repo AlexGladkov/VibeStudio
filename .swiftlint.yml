@@ -1,0 +1,43 @@
+disabled_rules:
+  - todo
+
+excluded:
+  - .build
+  - DerivedData
+
+identifier_name:
+  excluded:
+    - c
+    - r
+    - g
+    - b
+    - h
+    - w
+    - x
+    - y
+    - z
+    - cs
+    - cx
+    - cy
+    - dx
+    - dy
+    - id
+    - to
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_urls: true
+  ignores_comments: true
+
+file_length:
+  warning: 500
+  error: 800
+
+type_body_length:
+  warning: 300
+  error: 500

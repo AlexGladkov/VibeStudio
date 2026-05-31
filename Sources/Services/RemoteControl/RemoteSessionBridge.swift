@@ -183,6 +183,11 @@ final class RemoteSessionBridge {
     ///   - cols: New column count (clamped to 10...500).
     ///   - rows: New row count (clamped to 4...200).
     func handleResize(cols: Int, rows: Int) {
+        // SEC-M2: reject non-positive dimensions before clamping so a client
+        // cannot probe the lower bound (or trigger PTY ioctl with bogus sizes
+        // that some terminals interpret as "use default"). Clamping alone
+        // would silently coerce `cols = -1` into `10`.
+        guard cols > 0, rows > 0 else { return }
         resetIdleTimer()
         let clampedCols = min(max(cols, 10), 500)
         let clampedRows = min(max(rows, 4), 200)

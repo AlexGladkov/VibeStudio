@@ -126,21 +126,8 @@ struct BranchListView: View {
             Spacer()
 
             // Ahead/behind only for current branch
-            if isCurrent && (aheadCount > 0 || behindCount > 0) {
-                HStack(spacing: DSSpacing.xxs) {
-                    if aheadCount > 0 {
-                        HStack(spacing: DSSpacing.xxs) {
-                            Image(systemName: "arrow.up").font(DSFont.iconXS)
-                            Text("\(aheadCount)").font(DSFont.iconMD)
-                        }.foregroundStyle(DSColor.gitAdded)
-                    }
-                    if behindCount > 0 {
-                        HStack(spacing: DSSpacing.xxs) {
-                            Image(systemName: "arrow.down").font(DSFont.iconXS)
-                            Text("\(behindCount)").font(DSFont.iconMD)
-                        }.foregroundStyle(DSColor.gitDeleted)
-                    }
-                }
+            if isCurrent {
+                AheadBehindBadgeView(ahead: aheadCount, behind: behindCount)
             }
         }
         .padding(.vertical, DSSpacing.xxs)

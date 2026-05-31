@@ -209,8 +209,7 @@ struct RemoteControlSettingsPane: View {
                             Text("1. ")
                                 .foregroundStyle(DSColor.textMuted)
                             Button("brew install ngrok") {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString("brew install ngrok", forType: .string)
+                                ClipboardService.copy("brew install ngrok")
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(DSColor.accentPrimary)

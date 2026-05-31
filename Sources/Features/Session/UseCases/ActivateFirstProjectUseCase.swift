@@ -50,10 +50,19 @@ struct ActivateFirstProjectUseCase {
         // still restoring sessions for all real projects. Creating another session
         // here would produce an unwanted HSplitView with two duplicate terminals.
         guard terminalManager.sessions(for: first.id).isEmpty else { return }
-        try? terminalManager.createSession(
-            for: first.id,
-            shell: first.shellPath,
-            workingDirectory: first.path
-        )
+        do {
+            try terminalManager.createSession(
+                for: first.id,
+                shell: first.shellPath,
+                workingDirectory: first.path
+            )
+        } catch {
+            // Project activation is the user-visible action; PTY spawn
+            // failures (missing shell, sandboxed exec) should be diagnosable
+            // rather than disappearing into a `try?`.
+            Logger.session.error(
+                "Failed to create initial PTY session: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 }

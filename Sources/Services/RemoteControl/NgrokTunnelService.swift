@@ -388,7 +388,16 @@ final class NgrokTunnelService {
     /// Delete the PID file, called from `stop()` after the process is gone.
     private nonisolated static func removePIDFile() {
         guard let url = pidFileURL() else { return }
-        try? FileManager.default.removeItem(at: url)
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            // Don't escalate — the only sane recovery is "try again next
+            // shutdown". But the silent swallow hid genuine permission /
+            // path-corruption issues during debugging.
+            Logger.remoteControl.warning(
+                "Failed to remove ngrok PID file: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     /// Read the PID file and send SIGTERM to that specific process if it exists.

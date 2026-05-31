@@ -18,7 +18,7 @@ import SwiftUI
 struct ToolbarIconButtonModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .font(.system(size: 13, weight: .medium))
+            .font(DSFont.toolbarIcon)
             .frame(width: DSLayout.toolbarIconButtonWidth, height: DSLayout.toolbarButtonHeight)
             .contentShape(Rectangle())
     }

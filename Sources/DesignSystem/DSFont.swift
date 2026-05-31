@@ -145,6 +145,8 @@ enum DSFont {
 
     /// Main toolbar play/stop button: 13pt Bold.
     static let playStopButton = Font.system(size: 13, weight: .bold)
+    /// Toolbar icon button (settings, changes, gear): 13pt Medium.
+    static let toolbarIcon = Font.system(size: 13, weight: .medium)
     /// CodeSpeak run-bar play/stop button: 11pt Bold (compact).
     static let csPlayStopButton = Font.system(size: 11, weight: .bold)
     /// Inline menu checkmark indicator: 11pt Semibold.
