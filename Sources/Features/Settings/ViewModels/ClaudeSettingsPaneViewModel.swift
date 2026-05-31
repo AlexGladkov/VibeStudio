@@ -76,25 +76,8 @@ final class ClaudeSettingsPaneViewModel {
 
     /// Scans `~/.claude/agents/` for markdown files and parses their frontmatter.
     func loadAgents() {
-        let fm = FileManager.default
-        let dir = Self.agentsDirectoryURL
-        guard let contents = try? fm.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.nameKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            agents = []
-            return
-        }
-
-        let mdFiles = contents
-            .filter { $0.pathExtension == "md" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-
-        agents = mdFiles.compactMap { url in
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-            let fields = parseFrontmatter(text)
-            return AgentEntry(
+        agents = AgentDirectoryLoader.load(from: Self.agentsDirectoryURL) { url, fields in
+            AgentEntry(
                 id: url.path,
                 fileURL: url,
                 name: fields.name.isEmpty ? url.deletingPathExtension().lastPathComponent : fields.name,

@@ -5,16 +5,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - QwenAgentEntry
-
-/// Represents a single agent markdown file in ~/.qwen/agents/.
-private struct QwenAgentEntry: Identifiable {
-    let id: String
-    let fileURL: URL
-    let name: String
-    let description: String
-}
-
 // MARK: - QwenSettingsPane
 
 /// Settings pane for Qwen Code CLI.
@@ -24,36 +14,31 @@ private struct QwenAgentEntry: Identifiable {
 /// - `~/.qwen/agents/` — optional subagent markdown files.
 struct QwenSettingsPane: View {
 
+    // MARK: ViewModel (lazy init)
+
+    @State private var vm: QwenSettingsPaneViewModel?
+    private var viewModel: QwenSettingsPaneViewModel {
+        if let existing = vm { return existing }
+        let created = QwenSettingsPaneViewModel()
+        Task { @MainActor in vm = created }
+        return created
+    }
+
     // MARK: State — Config
 
     @State private var showEditor = false
-    @State private var configExists = false
 
     // MARK: State — Agents
 
-    @State private var agents: [QwenAgentEntry] = []
     @State private var editingAgent: QwenAgentEntry?
     @State private var showNewAgent = false
     @State private var agentToDelete: QwenAgentEntry?
     @State private var showDeleteAlert = false
 
-    // MARK: Constants
-
-    private static let qwenURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".qwen/QWEN.md")
-
-    private static let agentsDirectoryURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".qwen/agents")
-
-    private var displayPath: String {
-        Self.qwenURL.tildeAbbreviatedPath
-    }
-
     // MARK: - Body
 
     var body: some View {
+        let model = viewModel
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Qwen")
@@ -62,9 +47,9 @@ struct QwenSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
-                fileRow
+                fileRow(model: model)
 
-                agentsSection
+                agentsSection(model: model)
 
                 authInfoRow
             }
@@ -73,31 +58,36 @@ struct QwenSettingsPane: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            checkConfigExists()
-            loadAgents()
+            let initialModel = viewModel
+            initialModel.checkConfigExists()
+            initialModel.loadAgents()
         }
-        .sheet(isPresented: $showEditor, onDismiss: checkConfigExists) {
-            TextFileEditorSheet(
-                fileURL: Self.qwenURL,
-                displayTitle: "QWEN.md",
-                defaultContent: defaultQwenMd
-            )
-        }
+        .sheet(
+            isPresented: $showEditor,
+            onDismiss: { vm?.checkConfigExists() },
+            content: {
+                TextFileEditorSheet(
+                    fileURL: QwenSettingsPaneViewModel.qwenURL,
+                    displayTitle: "QWEN.md",
+                    defaultContent: defaultQwenMd
+                )
+            }
+        )
         .sheet(item: $editingAgent) { agent in
             TextFileEditorSheet(
                 fileURL: agent.fileURL,
                 displayTitle: agent.name
-            ) { loadAgents() }
+            ) { vm?.loadAgents() }
         }
         .sheet(isPresented: $showNewAgent) {
             TextFileEditorSheet(
-                fileURL: Self.agentsDirectoryURL.appendingPathComponent("new-agent.md"),
+                fileURL: QwenSettingsPaneViewModel.agentsDirectoryURL.appendingPathComponent("new-agent.md"),
                 displayTitle: "Новый агент",
                 defaultContent: newAgentTemplate
-            ) { loadAgents() }
+            ) { vm?.loadAgents() }
         }
         .alert("Удалить агента?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
-            Button("Удалить", role: .destructive) { deleteAgent(agent) }
+            Button("Удалить", role: .destructive) { vm?.deleteAgent(agent) }
             Button("Отмена", role: .cancel) {}
         } message: { agent in
             Text("Файл «\(agent.fileURL.lastPathComponent)» будет удалён без возможности восстановления.")
@@ -106,17 +96,17 @@ struct QwenSettingsPane: View {
 
     // MARK: - Global Config Row
 
-    private var fileRow: some View {
+    private func fileRow(model: QwenSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Глобальный конфиг")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             SettingsConfigFileRow(
-                displayPath: displayPath,
-                configExists: configExists,
+                displayPath: model.displayPath,
+                configExists: model.configExists,
                 onReveal: {
-                    NSWorkspace.shared.activateFileViewerSelecting([Self.qwenURL])
+                    NSWorkspace.shared.activateFileViewerSelecting([QwenSettingsPaneViewModel.qwenURL])
                 },
                 onEdit: { showEditor = true }
             )
@@ -125,18 +115,18 @@ struct QwenSettingsPane: View {
 
     // MARK: - Agents Section
 
-    private var agentsSection: some View {
+    private func agentsSection(model: QwenSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             agentsSectionHeader
 
-            if agents.isEmpty {
+            if model.agents.isEmpty {
                 emptyAgentsState
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 0) {
-                        ForEach(agents) { agent in
+                        ForEach(model.agents) { agent in
                             agentRow(agent)
-                            if agent.id != agents.last?.id {
+                            if agent.id != model.agents.last?.id {
                                 Divider()
                                     .background(DSColor.borderSubtle)
                                     .padding(.horizontal, DSSpacing.md)
@@ -201,48 +191,6 @@ struct QwenSettingsPane: View {
             .padding(DSSpacing.md)
             .settingsCard()
         }
-    }
-
-    // MARK: - Helpers
-
-    private func checkConfigExists() {
-        configExists = FileManager.default.fileExists(atPath: Self.qwenURL.path)
-    }
-
-    // MARK: - Data Loading
-
-    private func loadAgents() {
-        let fm = FileManager.default
-        let dir = Self.agentsDirectoryURL
-        guard let contents = try? fm.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.nameKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            agents = []
-            return
-        }
-
-        agents = contents
-            .filter { $0.pathExtension == "md" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .compactMap { url in
-                guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-                let fields = parseFrontmatter(text)
-                return QwenAgentEntry(
-                    id: url.path,
-                    fileURL: url,
-                    name: fields.name.isEmpty ? url.deletingPathExtension().lastPathComponent : fields.name,
-                    description: fields.description
-                )
-            }
-    }
-
-    // MARK: - Delete
-
-    private func deleteAgent(_ agent: QwenAgentEntry) {
-        try? FileManager.default.removeItem(at: agent.fileURL)
-        loadAgents()
     }
 
     // MARK: - Templates

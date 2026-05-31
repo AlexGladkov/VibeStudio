@@ -5,28 +5,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - CodexMemoryEntry
-
-/// Represents a single Markdown memory file in ~/.codex/memories/.
-private struct CodexMemoryEntry: Identifiable {
-    let id: String
-    let fileURL: URL
-    let filename: String
-
-    var displayName: String {
-        fileURL.deletingPathExtension().lastPathComponent
-    }
-}
-
-// MARK: - CodexSkillEntry
-
-/// Represents a skill directory in ~/.codex/skills/.
-private struct CodexSkillEntry: Identifiable {
-    let id: String
-    let directoryURL: URL
-    var displayName: String { directoryURL.lastPathComponent }
-}
-
 // MARK: - CodexSettingsPane
 
 /// Settings pane for Codex CLI.
@@ -37,43 +15,31 @@ private struct CodexSkillEntry: Identifiable {
 /// 3. **Skills** — Read-only list of directories in `~/.codex/skills/`.
 struct CodexSettingsPane: View {
 
+    // MARK: ViewModel (lazy init)
+
+    @State private var vm: CodexSettingsPaneViewModel?
+    private var viewModel: CodexSettingsPaneViewModel {
+        if let existing = vm { return existing }
+        let created = CodexSettingsPaneViewModel()
+        Task { @MainActor in vm = created }
+        return created
+    }
+
     // MARK: State — Config
 
     @State private var showConfigEditor = false
 
     // MARK: State — Memories
 
-    @State private var memories: [CodexMemoryEntry] = []
     @State private var editingMemory: CodexMemoryEntry?
     @State private var showNewMemory = false
     @State private var memoryToDelete: CodexMemoryEntry?
     @State private var showDeleteAlert = false
 
-    // MARK: State — Skills
-
-    @State private var skills: [CodexSkillEntry] = []
-
-    // MARK: Constants
-
-    private static let configURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".codex/config.toml")
-
-    private static let memoriesURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".codex/memories")
-
-    private static let skillsURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".codex/skills")
-
-    private var displayConfigPath: String {
-        Self.configURL.tildeAbbreviatedPath
-    }
-
     // MARK: - Body
 
     var body: some View {
+        let model = viewModel
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Codex")
@@ -82,23 +48,24 @@ struct CodexSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
-                configSection
+                configSection(model: model)
 
-                memoriesSection
+                memoriesSection(model: model)
 
-                skillsSection
+                skillsSection(model: model)
             }
             .padding(DSSpacing.xl)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            loadMemories()
-            loadSkills()
+            let initialModel = viewModel
+            initialModel.loadMemories()
+            initialModel.loadSkills()
         }
         .sheet(isPresented: $showConfigEditor) {
             TextFileEditorSheet(
-                fileURL: Self.configURL,
+                fileURL: CodexSettingsPaneViewModel.configURL,
                 displayTitle: "config.toml",
                 defaultContent: defaultConfigToml
             )
@@ -107,17 +74,17 @@ struct CodexSettingsPane: View {
             TextFileEditorSheet(
                 fileURL: memory.fileURL,
                 displayTitle: memory.filename
-            ) { loadMemories() }
+            ) { vm?.loadMemories() }
         }
         .sheet(isPresented: $showNewMemory) {
             TextFileEditorSheet(
-                fileURL: Self.memoriesURL.appendingPathComponent("memory.md"),
+                fileURL: CodexSettingsPaneViewModel.memoriesURL.appendingPathComponent("memory.md"),
                 displayTitle: "Новая память",
                 defaultContent: "# Память\n\n"
-            ) { loadMemories() }
+            ) { vm?.loadMemories() }
         }
         .alert("Удалить память?", isPresented: $showDeleteAlert, presenting: memoryToDelete) { mem in
-            Button("Удалить", role: .destructive) { deleteMemory(mem) }
+            Button("Удалить", role: .destructive) { vm?.deleteMemory(mem) }
             Button("Отмена", role: .cancel) {}
         } message: { mem in
             Text("Файл «\(mem.filename)» будет удалён без возможности восстановления.")
@@ -126,18 +93,18 @@ struct CodexSettingsPane: View {
 
     // MARK: - Config Section
 
-    private var configSection: some View {
+    private func configSection(model: CodexSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Конфиг")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             SettingsConfigFileRow(
-                displayPath: displayConfigPath,
+                displayPath: model.displayConfigPath,
                 configExists: true,
                 alwaysShowReveal: true,
                 onReveal: {
-                    NSWorkspace.shared.activateFileViewerSelecting([Self.configURL])
+                    NSWorkspace.shared.activateFileViewerSelecting([CodexSettingsPaneViewModel.configURL])
                 },
                 onEdit: { showConfigEditor = true }
             )
@@ -146,18 +113,18 @@ struct CodexSettingsPane: View {
 
     // MARK: - Memories Section
 
-    private var memoriesSection: some View {
+    private func memoriesSection(model: CodexSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             memoriesSectionHeader
 
-            if memories.isEmpty {
+            if model.memories.isEmpty {
                 emptyMemoriesState
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 0) {
-                        ForEach(memories) { mem in
+                        ForEach(model.memories) { mem in
                             memoryRow(mem)
-                            if mem.id != memories.last?.id {
+                            if mem.id != model.memories.last?.id {
                                 Divider()
                                     .background(DSColor.borderSubtle)
                                     .padding(.horizontal, DSSpacing.md)
@@ -196,18 +163,18 @@ struct CodexSettingsPane: View {
 
     // MARK: - Skills Section
 
-    private var skillsSection: some View {
+    private func skillsSection(model: CodexSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             SettingsSectionHeader(title: "Скиллы")
 
-            if skills.isEmpty {
+            if model.skills.isEmpty {
                 SettingsEmptyState(text: "Нет скиллов")
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 0) {
-                        ForEach(skills) { skill in
+                        ForEach(model.skills) { skill in
                             skillRow(skill)
-                            if skill.id != skills.last?.id {
+                            if skill.id != model.skills.last?.id {
                                 Divider()
                                     .background(DSColor.borderSubtle)
                                     .padding(.horizontal, DSSpacing.md)
@@ -241,61 +208,6 @@ struct CodexSettingsPane: View {
         }
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.sm)
-    }
-
-    // MARK: - Data Loading
-
-    private func loadMemories() {
-        let fm = FileManager.default
-        let dir = Self.memoriesURL
-        guard let contents = try? fm.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.nameKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            memories = []
-            return
-        }
-
-        memories = contents
-            .filter { $0.pathExtension == "md" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { url in
-                CodexMemoryEntry(
-                    id: url.path,
-                    fileURL: url,
-                    filename: url.lastPathComponent
-                )
-            }
-    }
-
-    private func loadSkills() {
-        let fm = FileManager.default
-        let dir = Self.skillsURL
-        guard let contents = try? fm.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            skills = []
-            return
-        }
-
-        skills = contents
-            .filter { url in
-                (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
-            }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { url in
-                CodexSkillEntry(id: url.path, directoryURL: url)
-            }
-    }
-
-    // MARK: - Delete
-
-    private func deleteMemory(_ mem: CodexMemoryEntry) {
-        try? FileManager.default.removeItem(at: mem.fileURL)
-        loadMemories()
     }
 
     // MARK: - Default Config

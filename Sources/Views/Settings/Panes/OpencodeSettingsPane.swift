@@ -5,19 +5,6 @@
 import SwiftUI
 import AppKit
 
-// MARK: - OpencodePluginEntry
-
-/// Represents a single TypeScript plugin file in ~/.config/opencode/plugins/.
-private struct OpencodePluginEntry: Identifiable {
-    let id: String
-    let fileURL: URL
-    let filename: String
-
-    var displayName: String {
-        fileURL.deletingPathExtension().lastPathComponent
-    }
-}
-
 // MARK: - OpencodeSettingsPane
 
 /// Settings pane for opencode.
@@ -26,31 +13,28 @@ private struct OpencodePluginEntry: Identifiable {
 /// `~/.config/opencode/plugins/`, and provides create / edit / delete actions.
 struct OpencodeSettingsPane: View {
 
+    // MARK: ViewModel (lazy init)
+
+    @State private var vm: OpencodeSettingsPaneViewModel?
+    private var viewModel: OpencodeSettingsPaneViewModel {
+        if let existing = vm { return existing }
+        let created = OpencodeSettingsPaneViewModel()
+        Task { @MainActor in vm = created }
+        return created
+    }
+
     // MARK: State
 
-    @State private var plugins: [OpencodePluginEntry] = []
     @State private var editingPlugin: OpencodePluginEntry?
     @State private var showNewPlugin = false
     @State private var pluginToDelete: OpencodePluginEntry?
     @State private var showDeleteAlert = false
-
-    // MARK: Constants
-
-    private static let configDirectoryURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/opencode")
-
-    private static let pluginsDirectoryURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/opencode/plugins")
-
-    private var displayConfigPath: String {
-        Self.configDirectoryURL.tildeAbbreviatedPath
-    }
+    @State private var newPluginName: String = ""
 
     // MARK: - Body
 
     var body: some View {
+        let model = viewModel
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("OpenCode")
@@ -59,9 +43,9 @@ struct OpencodeSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
-                configDirectoryRow
+                configDirectoryRow(model: model)
 
-                pluginsSection
+                pluginsSection(model: model)
 
                 providersInfoRow
             }
@@ -69,18 +53,20 @@ struct OpencodeSettingsPane: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear(perform: loadPlugins)
+        .onAppear {
+            viewModel.loadPlugins()
+        }
         .sheet(item: $editingPlugin) { plugin in
             TextFileEditorSheet(
                 fileURL: plugin.fileURL,
                 displayTitle: plugin.filename
-            ) { loadPlugins() }
+            ) { vm?.loadPlugins() }
         }
         .sheet(isPresented: $showNewPlugin) {
             newPluginSheet
         }
         .alert("Удалить плагин?", isPresented: $showDeleteAlert, presenting: pluginToDelete) { plugin in
-            Button("Удалить", role: .destructive) { deletePlugin(plugin) }
+            Button("Удалить", role: .destructive) { vm?.deletePlugin(plugin) }
             Button("Отмена", role: .cancel) {}
         } message: { plugin in
             Text("Файл «\(plugin.filename)» будет удалён без возможности восстановления.")
@@ -89,14 +75,14 @@ struct OpencodeSettingsPane: View {
 
     // MARK: - Config Directory Row
 
-    private var configDirectoryRow: some View {
+    private func configDirectoryRow(model: OpencodeSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Директория конфига")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
-                Text(displayConfigPath)
+                Text(model.displayConfigPath)
                     .font(DSFont.monoPath)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)
@@ -105,7 +91,7 @@ struct OpencodeSettingsPane: View {
                 Spacer()
 
                 Button {
-                    NSWorkspace.shared.open(Self.configDirectoryURL)
+                    NSWorkspace.shared.open(OpencodeSettingsPaneViewModel.configDirectoryURL)
                 } label: {
                     Label("Finder", systemImage: "folder")
                         .font(DSFont.smallButtonLabel)
@@ -120,18 +106,18 @@ struct OpencodeSettingsPane: View {
 
     // MARK: - Plugins Section
 
-    private var pluginsSection: some View {
+    private func pluginsSection(model: OpencodeSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             pluginsSectionHeader
 
-            if plugins.isEmpty {
+            if model.plugins.isEmpty {
                 emptyPluginsState
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 0) {
-                        ForEach(plugins) { plugin in
+                        ForEach(model.plugins) { plugin in
                             pluginRow(plugin)
-                            if plugin.id != plugins.last?.id {
+                            if plugin.id != model.plugins.last?.id {
                                 Divider()
                                     .background(DSColor.borderSubtle)
                                     .padding(.horizontal, DSSpacing.md)
@@ -170,13 +156,11 @@ struct OpencodeSettingsPane: View {
 
     // MARK: - New Plugin Sheet
 
-    @State private var newPluginName: String = ""
-
     private var newPluginSheet: some View {
         let newFileURL: URL = {
             let name = newPluginName.trimmingCharacters(in: .whitespaces)
             let filename = name.isEmpty ? "my-plugin" : name
-            return Self.pluginsDirectoryURL.appendingPathComponent("\(filename).ts")
+            return OpencodeSettingsPaneViewModel.pluginsDirectoryURL.appendingPathComponent("\(filename).ts")
         }()
 
         return TextFileEditorSheet(
@@ -185,7 +169,7 @@ struct OpencodeSettingsPane: View {
             defaultContent: newPluginTemplate
         ) {
             newPluginName = ""
-            loadPlugins()
+            vm?.loadPlugins()
         }
     }
 
@@ -226,38 +210,5 @@ struct OpencodeSettingsPane: View {
             .padding(DSSpacing.md)
             .settingsCard()
         }
-    }
-
-    // MARK: - Data Loading
-
-    private func loadPlugins() {
-        let fm = FileManager.default
-        let dir = Self.pluginsDirectoryURL
-        guard let contents = try? fm.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.nameKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            plugins = []
-            return
-        }
-
-        plugins = contents
-            .filter { $0.pathExtension == "ts" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { url in
-                OpencodePluginEntry(
-                    id: url.path,
-                    fileURL: url,
-                    filename: url.lastPathComponent
-                )
-            }
-    }
-
-    // MARK: - Delete
-
-    private func deletePlugin(_ plugin: OpencodePluginEntry) {
-        try? FileManager.default.removeItem(at: plugin.fileURL)
-        loadPlugins()
     }
 }

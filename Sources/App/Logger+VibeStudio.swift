@@ -40,4 +40,7 @@ extension Logger {
 
     /// Project management: add/remove projects, activation, persistence.
     static let project = Logger(subsystem: subsystem, category: "Project")
+
+    /// Settings panes: file enumeration, config parsing, auth status probing.
+    static let settings = Logger(subsystem: subsystem, category: "Settings")
 }

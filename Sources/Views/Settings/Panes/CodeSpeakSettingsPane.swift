@@ -38,31 +38,10 @@ struct CodeSpeakSettingsPane: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
-            isInstalled = CLIAgentPathResolver.resolve("codespeak") != nil
-            hasAPIKey = resolveHasAuth()
+            let checker = CodeSpeakAuthChecker.shared
+            isInstalled = checker.isCodeSpeakInstalled()
+            hasAPIKey = checker.hasAuth()
         }
-    }
-
-    // MARK: - Auth Resolution
-
-    /// Checks both codespeak OAuth token and ANTHROPIC_API_KEY (Keychain + process env).
-    /// CodeSpeak can authenticate via `codespeak login` (OAuth) OR via raw API key —
-    /// we show "configured" if either is present.
-    private func resolveHasAuth() -> Bool {
-        if hasCodeSpeakToken() { return true }
-        if let key = KeychainHelper.load(account: "ANTHROPIC_API_KEY"), !key.isEmpty { return true }
-        if let key = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !key.isEmpty { return true }
-        return false
-    }
-
-    /// Returns true if `~/.codespeak/token.json` contains at least one access token.
-    private func hasCodeSpeakToken() -> Bool {
-        let url = URL(fileURLWithPath: NSHomeDirectory())
-            .appending(path: ".codespeak/token.json")
-        guard let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tokens = json["tokens"] as? [[String: Any]] else { return false }
-        return tokens.contains { ($0["access_token"] as? String)?.isEmpty == false }
     }
 
     // MARK: - Status
