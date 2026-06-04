@@ -177,6 +177,8 @@ class DesktopServiceContainer {
     val remoteControlServer: RemoteControlServer = RemoteControlServer(
         preferences = remoteControlPreferences,
         terminalService = terminalService,
+        projectManaging = projectStore,
+        scrollbackAccessing = terminalService,
     )
 
     // ── ViewModels ────────────────────────────────────────────────────────────

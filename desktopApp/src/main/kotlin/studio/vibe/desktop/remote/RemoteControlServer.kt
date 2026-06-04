@@ -44,8 +44,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalRemoteHost
 import studio.vibe.shared.contract.RemoteAuthorizing
+import studio.vibe.shared.contract.TerminalScrollbackAccessing
+import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.RemoteAuthError
 import studio.vibe.shared.model.RemoteAuthResult
 import studio.vibe.shared.model.RemoteDevice as SharedRemoteDevice
@@ -81,6 +84,8 @@ import kotlin.uuid.Uuid
 class RemoteControlServer(
     private val preferences: RemoteControlPreferencesReading,
     private val terminalService: TerminalRemoteHost,
+    private val projectManaging: ProjectManaging? = null,
+    private val scrollbackAccessing: TerminalScrollbackAccessing? = null,
     val authService: RemoteAuthorizing = RemoteAuthServiceImpl(JavaSecureRandom),
 ) {
     companion object {
@@ -462,6 +467,188 @@ class RemoteControlServer(
                                 }?.deviceId?.toString(),
                             )
                         }
+                    )
+                }
+
+                // ── Status ────────────────────────────────────────────────────
+                get("/status") {
+                    call.requireAuth() ?: return@get
+                    call.respond(StatusResponse(theme = "dark"))
+                }
+
+                // ── Projects ──────────────────────────────────────────────────
+                get("/projects") {
+                    call.requireAuth() ?: return@get
+                    val pm = projectManaging
+                    if (pm == null) {
+                        call.respond(ProjectListResponse(projects = emptyList(), activeProjectId = null))
+                        return@get
+                    }
+                    val sessionMap = terminalService.sessionsByProject.value
+                    val activeId = pm.activeProjectId.value?.toString()
+                    val projects = pm.projects.value.map { project ->
+                        val sessions = sessionMap[project.id] ?: emptyList()
+                        ProjectResponse(
+                            id = project.id.toString(),
+                            name = project.name,
+                            path = project.path.path,
+                            sessions = sessions.map { s ->
+                                SessionResponse(
+                                    id = s.id.toString(),
+                                    title = s.title,
+                                    state = when (s.state) {
+                                        is TerminalSessionState.Running -> "running"
+                                        is TerminalSessionState.Exited -> "exited"
+                                        else -> "unknown"
+                                    },
+                                    isAgent = s.isAgentSession,
+                                    hasRemoteAttachment = activeBridges.values.any {
+                                        it.sessionId.toString() == s.id.toString()
+                                    },
+                                    attachedDeviceId = activeBridges.values.firstOrNull {
+                                        it.sessionId.toString() == s.id.toString()
+                                    }?.deviceId?.toString(),
+                                )
+                            },
+                        )
+                    }
+                    call.respond(ProjectListResponse(projects = projects, activeProjectId = activeId))
+                }
+
+                get("/projects/recent") {
+                    call.requireAuth() ?: return@get
+                    val pm = projectManaging
+                    if (pm == null) {
+                        call.respond(ProjectListResponse(projects = emptyList(), activeProjectId = null))
+                        return@get
+                    }
+                    val sessionMap = terminalService.sessionsByProject.value
+                    val activeId = pm.activeProjectId.value?.toString()
+                    val projects = pm.recentProjects.value.map { project ->
+                        val sessions = sessionMap[project.id] ?: emptyList()
+                        ProjectResponse(
+                            id = project.id.toString(),
+                            name = project.name,
+                            path = project.path.path,
+                            sessions = sessions.map { s ->
+                                SessionResponse(
+                                    id = s.id.toString(),
+                                    title = s.title,
+                                    state = when (s.state) {
+                                        is TerminalSessionState.Running -> "running"
+                                        is TerminalSessionState.Exited -> "exited"
+                                        else -> "unknown"
+                                    },
+                                    isAgent = s.isAgentSession,
+                                    hasRemoteAttachment = activeBridges.values.any {
+                                        it.sessionId.toString() == s.id.toString()
+                                    },
+                                    attachedDeviceId = activeBridges.values.firstOrNull {
+                                        it.sessionId.toString() == s.id.toString()
+                                    }?.deviceId?.toString(),
+                                )
+                            },
+                        )
+                    }
+                    call.respond(ProjectListResponse(projects = projects, activeProjectId = activeId))
+                }
+
+                post("/projects/open") {
+                    call.requireAuth() ?: return@post
+                    val pm = projectManaging
+                    if (pm == null) {
+                        call.respond(
+                            HttpStatusCode.NotImplemented,
+                            ErrorResponse(ErrorDetail("not_implemented", "ProjectManaging not wired")),
+                        )
+                        return@post
+                    }
+                    val bodyText = runCatching { call.receiveText() }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Could not read body")))
+                        return@post
+                    }
+                    val req = runCatching { json.decodeFromString<OpenProjectRequest>(bodyText) }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid JSON body")))
+                        return@post
+                    }
+                    val project = runCatching {
+                        pm.addProject(FilePath(req.path))
+                    }.getOrElse { e ->
+                        call.respond(HttpStatusCode.InternalServerError, ErrorResponse(ErrorDetail("open_failed", e.message ?: "Unknown error")))
+                        return@post
+                    }
+                    val sessionMap = terminalService.sessionsByProject.value
+                    call.respond(
+                        ProjectResponse(
+                            id = project.id.toString(),
+                            name = project.name,
+                            path = project.path.path,
+                            sessions = (sessionMap[project.id] ?: emptyList()).map { s ->
+                                SessionResponse(
+                                    id = s.id.toString(),
+                                    title = s.title,
+                                    state = "running",
+                                    isAgent = s.isAgentSession,
+                                    hasRemoteAttachment = false,
+                                    attachedDeviceId = null,
+                                )
+                            },
+                        )
+                    )
+                }
+
+                route("/projects/{projectId}") {
+                    post("/activate") {
+                        call.requireAuth() ?: return@post
+                        val pm = projectManaging
+                        if (pm == null) {
+                            call.respond(
+                                HttpStatusCode.NotImplemented,
+                                ErrorResponse(ErrorDetail("not_implemented", "ProjectManaging not wired")),
+                            )
+                            return@post
+                        }
+                        val projectIdStr = call.parameters["projectId"] ?: run {
+                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Missing projectId")))
+                            return@post
+                        }
+                        val projectId = runCatching { Uuid.parse(projectIdStr) }.getOrElse {
+                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid projectId")))
+                            return@post
+                        }
+                        pm.setActiveProjectId(projectId)
+                        call.respond(OKResponse(ok = true))
+                    }
+
+                    get("/sessions/{sessionId}/scrollback") {
+                        call.requireAuth() ?: return@get
+                        val sessionIdStr = call.parameters["sessionId"] ?: run {
+                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Missing sessionId")))
+                            return@get
+                        }
+                        val sessionId = runCatching { Uuid.parse(sessionIdStr) }.getOrElse {
+                            call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid sessionId")))
+                            return@get
+                        }
+                        val content = scrollbackAccessing?.scrollbackContent(sessionId) ?: ""
+                        call.respond(ScrollbackResponse(content = content, totalLines = if (content.isEmpty()) 0 else content.lines().size))
+                    }
+                }
+
+                // ── Assistant ─────────────────────────────────────────────────
+                post("/assistant/start") {
+                    call.requireAuth() ?: return@post
+                    call.respond(
+                        HttpStatusCode.NotImplemented,
+                        ErrorResponse(ErrorDetail("not_implemented", "Start AI agent from mobile not yet supported")),
+                    )
+                }
+
+                post("/assistant/stop") {
+                    call.requireAuth() ?: return@post
+                    call.respond(
+                        HttpStatusCode.NotImplemented,
+                        ErrorResponse(ErrorDetail("not_implemented", "Stop AI agent from mobile not yet supported")),
                     )
                 }
             }

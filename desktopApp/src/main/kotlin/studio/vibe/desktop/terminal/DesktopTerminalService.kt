@@ -194,7 +194,7 @@ class DesktopTerminalService(
         )
 
         val outputFlow = MutableSharedFlow<String>(
-            replay = 0,
+            replay = 8,
             extraBufferCapacity = 512,
         )
         val scrollback = StringBuilder()
@@ -360,7 +360,7 @@ class DesktopTerminalService(
                 isAgentSession = true,
             )
 
-            val outputFlow = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 512)
+            val outputFlow = MutableSharedFlow<String>(replay = 8, extraBufferCapacity = 512)
             val scrollback = StringBuilder()
             val sessionScope = CoroutineScope(
                 SupervisorJob(serviceScope.coroutineContext[kotlinx.coroutines.Job]) +

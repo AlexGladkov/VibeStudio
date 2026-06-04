@@ -613,7 +613,7 @@ class TerminalManager {
     // SECURITY: Token NOT in URL (prevents leakage in logs/history/Referer).
     // Sent as first WS message after connection.
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = proto + '//' + location.host + '/api/v1/terminal/' + sessionId;
+    const wsUrl = proto + '//' + location.host + '/ws/terminal/' + sessionId;
     // Close previous WS if any
     if (this.ws) {
       this.ws.close();

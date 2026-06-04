@@ -60,6 +60,42 @@ data class SessionResponse(
     @SerialName("attached_device_id") val attachedDeviceId: String?,
 )
 
+@Serializable
+data class ProjectResponse(
+    val id: String,
+    val name: String,
+    val path: String,
+    val sessions: List<SessionResponse>,
+)
+
+@Serializable
+data class ProjectListResponse(
+    val projects: List<ProjectResponse>,
+    @SerialName("active_project_id") val activeProjectId: String?,
+)
+
+@Serializable
+data class ScrollbackResponse(
+    val content: String,
+    @SerialName("total_lines") val totalLines: Int,
+)
+
+@Serializable
+data class StatusResponse(
+    val theme: String?,
+)
+
+@Serializable
+data class OpenProjectRequest(
+    val path: String,
+)
+
+@Serializable
+data class AssistantStartRequest(
+    @SerialName("project_id") val projectId: String,
+    val assistant: String,
+)
+
 // ── WebSocket message envelopes ───────────────────────────────────────────────
 
 @Serializable
