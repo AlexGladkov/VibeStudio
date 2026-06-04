@@ -140,7 +140,7 @@ class FileDiffSheetTest {
         composeTestRule.setContent {
             VibeStudioTheme {
                 FileDiffSheetContent(
-                    gitService = container.gitService,
+                    gitQuerying = container.gitService,
                     file = file,
                     projectPath = tempHome.absolutePath,
                     staged = false,
@@ -159,7 +159,7 @@ class FileDiffSheetTest {
         composeTestRule.setContent {
             VibeStudioTheme {
                 FileDiffSheetContent(
-                    gitService = container.gitService,
+                    gitQuerying = container.gitService,
                     file = file,
                     projectPath = tempHome.absolutePath,
                     staged = false,
@@ -179,7 +179,7 @@ class FileDiffSheetTest {
         composeTestRule.setContent {
             VibeStudioTheme {
                 FileDiffSheetContent(
-                    gitService = container.gitService,
+                    gitQuerying = container.gitService,
                     file = file,
                     projectPath = tempHome.absolutePath,
                     staged = true,
@@ -199,7 +199,7 @@ class FileDiffSheetTest {
         composeTestRule.setContent {
             VibeStudioTheme {
                 FileDiffSheetContent(
-                    gitService = container.gitService,
+                    gitQuerying = container.gitService,
                     file = file,
                     projectPath = tempHome.absolutePath,
                     staged = false,
@@ -219,7 +219,7 @@ class FileDiffSheetTest {
         composeTestRule.setContent {
             VibeStudioTheme {
                 FileDiffSheetContent(
-                    gitService = container.gitService,
+                    gitQuerying = container.gitService,
                     file = file,
                     projectPath = tempHome.absolutePath,
                     staged = false,

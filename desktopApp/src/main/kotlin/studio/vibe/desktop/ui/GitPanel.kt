@@ -268,7 +268,7 @@ fun GitPanel(
     val sheetFile = diffSheetFile
     if (sheetFile != null && activeProject != null) {
         FileDiffSheet(
-            gitService = gitService,
+            gitQuerying = gitService,
             file = sheetFile,
             projectPath = activeProject.path.path,
             staged = diffSheetStaged,

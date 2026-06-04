@@ -44,6 +44,17 @@ data class ToolbarState(
  *                          (Kotlin/Native lacks a dedicated IO dispatcher on the main worker).
  *                          Inject `UnconfinedTestDispatcher` from unit tests.
  */
+/**
+ * Per-project mutable state kept as a snapshot inside a StateFlow.
+ * All mutations go through [_projectData].update { } — thread-safe by design.
+ */
+@OptIn(ExperimentalUuidApi::class)
+private data class ToolbarProjectData(
+    val runningAssistants: Map<Uuid, Boolean> = emptyMap(),
+    val selectedAgents: Map<Uuid, AIAgent> = emptyMap(),
+    val agentSessionIds: Map<Uuid, Uuid> = emptyMap(),
+)
+
 @OptIn(ExperimentalUuidApi::class)
 class ToolbarViewModel(
     private val projectManaging: ProjectManaging,
@@ -54,9 +65,8 @@ class ToolbarViewModel(
     parentScope: CoroutineScope,
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : BaseViewModel(parentScope) {
-    private val runningAssistants = mutableMapOf<Uuid, Boolean>()
-    private val selectedAgents = mutableMapOf<Uuid, AIAgent>()
-    private val agentSessionIds = mutableMapOf<Uuid, Uuid>()
+
+    private val _projectData = MutableStateFlow(ToolbarProjectData())
 
     private var availabilityJob: Job? = null
 
@@ -82,11 +92,15 @@ class ToolbarViewModel(
                 if (event is TerminalSessionEvent.ProcessExited) {
                     val projectId = event.projectId
                     val sessionId = event.sessionId
-                    if (agentSessionIds[projectId] == sessionId) {
-                        runningAssistants.remove(projectId)
-                        agentSessionIds.remove(projectId)
-                        rebuildState()
+                    _projectData.update { data ->
+                        if (data.agentSessionIds[projectId] == sessionId) {
+                            data.copy(
+                                runningAssistants = data.runningAssistants - projectId,
+                                agentSessionIds = data.agentSessionIds - projectId,
+                            )
+                        } else data
                     }
+                    rebuildState()
                 }
             }
         }
@@ -104,7 +118,7 @@ class ToolbarViewModel(
 
     fun selectAgent(agent: AIAgent) {
         val projectId = projectManaging.activeProject?.id ?: return
-        selectedAgents[projectId] = agent
+        _projectData.update { it.copy(selectedAgents = it.selectedAgents + (projectId to agent)) }
         rebuildState()
     }
 
@@ -125,7 +139,7 @@ class ToolbarViewModel(
             return
         }
         val projectId = project.id
-        val agent = selectedAgents[projectId] ?: defaultAgent() ?: run {
+        val agent = _projectData.value.selectedAgents[projectId] ?: defaultAgent() ?: run {
             _state.update { it.copy(errorMessage = "No AI agent available") }
             return
         }
@@ -147,8 +161,12 @@ class ToolbarViewModel(
                 )
             }
             result.onSuccess { session ->
-                runningAssistants[projectId] = true
-                agentSessionIds[projectId] = session.id
+                _projectData.update { data ->
+                    data.copy(
+                        runningAssistants = data.runningAssistants + (projectId to true),
+                        agentSessionIds = data.agentSessionIds + (projectId to session.id),
+                    )
+                }
                 rebuildState()
                 _state.update { it.copy(errorMessage = null) }
             }.onFailure { e ->
@@ -161,11 +179,16 @@ class ToolbarViewModel(
 
     fun stopAgent() {
         val projectId = projectManaging.activeProject?.id ?: return
-        val sessionId = agentSessionIds[projectId] ?: return
-        val agent = selectedAgents[projectId] ?: defaultAgent() ?: return
+        val data = _projectData.value
+        val sessionId = data.agentSessionIds[projectId] ?: return
+        val agent = data.selectedAgents[projectId] ?: defaultAgent() ?: return
 
-        runningAssistants.remove(projectId)
-        agentSessionIds.remove(projectId)
+        _projectData.update { d ->
+            d.copy(
+                runningAssistants = d.runningAssistants - projectId,
+                agentSessionIds = d.agentSessionIds - projectId,
+            )
+        }
         rebuildState()
 
         scope.launch {
@@ -185,9 +208,13 @@ class ToolbarViewModel(
     }
 
     fun cleanupProject(projectId: Uuid) {
-        runningAssistants.remove(projectId)
-        selectedAgents.remove(projectId)
-        agentSessionIds.remove(projectId)
+        _projectData.update { data ->
+            data.copy(
+                runningAssistants = data.runningAssistants - projectId,
+                selectedAgents = data.selectedAgents - projectId,
+                agentSessionIds = data.agentSessionIds - projectId,
+            )
+        }
         rebuildState()
     }
 
@@ -208,9 +235,10 @@ class ToolbarViewModel(
 
     private fun rebuildState() {
         val projectId = projectManaging.activeProject?.id
-        val agent = projectId?.let { selectedAgents[it] } ?: defaultAgent()
-        val isRunning = projectId?.let { runningAssistants[it] } == true
-        val agentSessionId = projectId?.let { agentSessionIds[it] }
+        val data = _projectData.value
+        val agent = projectId?.let { data.selectedAgents[it] } ?: defaultAgent()
+        val isRunning = projectId?.let { data.runningAssistants[it] } == true
+        val agentSessionId = projectId?.let { data.agentSessionIds[it] }
 
         _state.update { s ->
             s.copy(

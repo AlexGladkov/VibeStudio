@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -281,7 +280,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         runCatching { PID_FILE.delete() }
     }
 
-    private fun killPreviousOwnedProcess() {
+    private suspend fun killPreviousOwnedProcess() {
         val content = runCatching { PID_FILE.readText().trim() }.getOrNull() ?: return
         val pid = content.toLongOrNull()?.takeIf { it > 1 } ?: return
 
@@ -292,19 +291,15 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         }
 
         // SIGTERM
-        withContext(scope) {
-            runCatching {
-                ProcessBuilder("kill", "-TERM", pid.toString()).start().waitFor()
-            }
+        runIgnoringExceptions {
+            ProcessBuilder("kill", "-TERM", pid.toString()).start().waitFor()
         }
         log.info("NgrokTunnelService: sent SIGTERM to previous owned ngrok pid=$pid")
 
         // Wait up to 1s for process to exit.
-        var waited = 0
-        while (waited < 10) {
-            Thread.sleep(100)
-            waited++
-            if (!isProcessAlive(pid)) break
+        repeat(10) {
+            delay(100)
+            if (!isProcessAlive(pid)) return@repeat
         }
 
         if (isProcessAlive(pid)) {
@@ -333,9 +328,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         proc.waitFor() == 0
     }.getOrDefault(false)
 
-    // Convenience: run a blocking call in the IO dispatcher without suspend context.
-    private fun <T> withContext(scope: CoroutineScope, block: () -> T) {
-        // Fire-and-forget on IO dispatcher — used for synchronous process ops.
+    private inline fun runIgnoringExceptions(block: () -> Unit) {
         try { block() } catch (_: Exception) {}
     }
 }
