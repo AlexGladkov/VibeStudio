@@ -1,6 +1,7 @@
 package studio.vibe.shared.service.agent
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +48,11 @@ class AgentAvailabilityServiceImpl(
 
     private var lastRefreshAt: Instant = Instant.DISTANT_PAST
 
+    // "Latest wins" — cancel the previous refresh Job before launching a new one.
+    // This prevents stale results from an older slow probe overwriting fresher data
+    // when refreshAll() is called in rapid succession (e.g. project switches).
+    private var refreshJob: Job? = null
+
     init {
         // Re-seed availability whenever the registry changes (plugin add/remove).
         scope.launch {
@@ -60,8 +66,10 @@ class AgentAvailabilityServiceImpl(
 
     override fun refreshAll() {
         lastRefreshAt = Clock.System.now()
-
-        scope.launch {
+        // Cancel any in-flight refresh so its (potentially stale) result does not
+        // overwrite the result of the new one that we are about to start.
+        refreshJob?.cancel()
+        refreshJob = scope.launch {
             val results = mutableMapOf<AIAgent, AgentAvailabilityStatus>()
 
             for (agent in registry.snapshot()) {
@@ -87,6 +95,7 @@ class AgentAvailabilityServiceImpl(
             }
 
             _availabilityFlow.value = results.toMap()
+            refreshJob = null
         }
     }
 

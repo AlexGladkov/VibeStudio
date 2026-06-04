@@ -13,7 +13,7 @@ import studio.vibe.shared.contract.SettingsStorage
 class RemoteControlPreferences(
     private val storage: SettingsStorage,
     private val credentialStorage: CredentialStorage,
-) {
+) : RemoteControlPreferencesWriting {
     private object Keys {
         const val ENABLED = "vs_remote_control_enabled"
         const val PORT = "vs_remote_control_port"
@@ -32,14 +32,14 @@ class RemoteControlPreferences(
      *
      * SECURITY: Opt-in only — disabled on first launch.
      */
-    var remoteControlEnabled: Boolean
+    override var remoteControlEnabled: Boolean
         get() = storage.getString(Keys.ENABLED)?.toBooleanStrictOrNull() ?: false
         set(value) { storage.setBool(Keys.ENABLED, value) }
 
     /**
      * TCP port for the HTTP/WS server. Default: `7842`. Range: 1024..65535.
      */
-    var remoteControlPort: Int
+    override var remoteControlPort: Int
         get() = storage.getInt(Keys.PORT) ?: 7842
         set(value) {
             val clamped = value.coerceIn(1024, 65535)
@@ -52,7 +52,7 @@ class RemoteControlPreferences(
      * SECURITY: Default `false` — LAN access enabled for phone control use case.
      * When `true`, only local connections and SSH tunnels can reach the server.
      */
-    var bindToLocalhost: Boolean
+    override var bindToLocalhost: Boolean
         get() = storage.getString(Keys.BIND_TO_LOCALHOST)?.toBooleanStrictOrNull() ?: false
         set(value) { storage.setBool(Keys.BIND_TO_LOCALHOST, value) }
 
@@ -62,7 +62,7 @@ class RemoteControlPreferences(
      * SECURITY: Off by default. Bonjour broadcasts the server's presence on the local
      * network. Only enable if [bindToLocalhost] is also `false`.
      */
-    var bonjourEnabled: Boolean
+    override var bonjourEnabled: Boolean
         get() = storage.getString(Keys.BONJOUR_ENABLED)?.toBooleanStrictOrNull() ?: false
         set(value) { storage.setBool(Keys.BONJOUR_ENABLED, value) }
 
@@ -72,14 +72,14 @@ class RemoteControlPreferences(
      * SECURITY: Off by default. When enabled, the local server is exposed to the internet
      * via ngrok. PIN authentication is still required.
      */
-    var ngrokEnabled: Boolean
+    override var ngrokEnabled: Boolean
         get() = storage.getString(Keys.NGROK_ENABLED)?.toBooleanStrictOrNull() ?: false
         set(value) { storage.setBool(Keys.NGROK_ENABLED, value) }
 
     /**
      * Idle timeout in minutes before disconnecting inactive remote clients. Default: `30`.
      */
-    var idleTimeoutMinutes: Int
+    override var idleTimeoutMinutes: Int
         get() = storage.getInt(Keys.IDLE_TIMEOUT_MINUTES) ?: 30
         set(value) {
             val clamped = maxOf(value, 1)
@@ -91,13 +91,13 @@ class RemoteControlPreferences(
      *
      * This is a suspend function because secure storage access may be asynchronous.
      */
-    suspend fun loadNgrokAuthtoken(): String =
+    override suspend fun loadNgrokAuthtoken(): String =
         credentialStorage.load(CredentialKeys.NGROK_AUTHTOKEN) ?: ""
 
     /**
      * Persist the ngrok authtoken to secure storage.
      */
-    suspend fun saveNgrokAuthtoken(token: String) {
+    override suspend fun saveNgrokAuthtoken(token: String) {
         credentialStorage.save(CredentialKeys.NGROK_AUTHTOKEN, token)
     }
 }

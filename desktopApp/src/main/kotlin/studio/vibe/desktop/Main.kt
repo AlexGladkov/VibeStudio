@@ -15,7 +15,6 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
@@ -33,38 +32,18 @@ import java.io.File
 fun main() = application {
     val serviceContainer = remember { DesktopServiceContainer() }
 
-    // ── Startup: restore session then auto-activate first project ────────────
+    // ── Startup ───────────────────────────────────────────────────────────────
     val startupScope = rememberCoroutineScope()
-    remember(serviceContainer) {
-        startupScope.launch(Dispatchers.IO) {
-            // Restore previous terminal sessions before UI reveal.
-            serviceContainer.restoreSessionUseCase.execute()
-
-            // Auto-activate first project if none was restored.
-            val projects = serviceContainer.projectStore.projects.value
-            if (serviceContainer.projectStore.activeProjectId.value == null && projects.isNotEmpty()) {
-                serviceContainer.projectStore.setActiveProjectId(projects.first().id)
-            }
-        }
-        true // remember requires a return value
-    }
-
-    // ── Drive syncMode: observe activeProjectId → checkConfig → syncMode ─────
     val navigationCoordinator = serviceContainer.navigationCoordinator
     remember(serviceContainer) {
-        startupScope.launch(Dispatchers.IO) {
-            serviceContainer.projectStore.activeProjectId.collectLatest { activeId ->
-                val project = activeId?.let { serviceContainer.projectStore.project(it) }
-                if (project != null) {
-                    serviceContainer.codeSpeakService.checkConfig(project)
-                }
-                val isCS = activeId?.let {
-                    serviceContainer.codeSpeakService.isCodeSpeakProject(it)
-                } ?: false
-                navigationCoordinator.syncMode(isCS)
-            }
-        }
-        true
+        AppLifecycleCoordinator(
+            projectManaging = serviceContainer.projectStore,
+            codeSpeakService = serviceContainer.codeSpeakService,
+            navigationCoordinator = navigationCoordinator,
+            restoreSessionUseCase = serviceContainer.restoreSessionUseCase,
+            scope = startupScope,
+        ).onStartup()
+        true // remember requires a non-Unit return value
     }
 
     // ── App-level UI state — all driven by navigationCoordinator as single

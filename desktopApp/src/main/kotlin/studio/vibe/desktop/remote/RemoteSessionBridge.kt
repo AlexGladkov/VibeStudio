@@ -13,7 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.contract.TerminalRemoteHost
 import studio.vibe.shared.model.TerminalSize
 import java.util.UUID
 import java.util.logging.Logger
@@ -39,7 +39,7 @@ class RemoteSessionBridge(
     val deviceId: UUID,
     val sessionId: UUID,
     private val wsSession: DefaultWebSocketServerSession,
-    private val terminalService: DesktopTerminalService,
+    private val terminalService: TerminalRemoteHost,
     private val idleTimeoutMinutes: Int,
     private val bridgeScope: CoroutineScope,
 ) {

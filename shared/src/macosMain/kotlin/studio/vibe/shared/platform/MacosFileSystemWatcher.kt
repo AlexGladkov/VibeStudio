@@ -34,9 +34,19 @@ import kotlin.time.Duration.Companion.milliseconds
 class MacosFileSystemWatcher : FileSystemWatcher {
 
     private val fileManager = NSFileManager.defaultManager
+
+    // Tracks the active polling Job so stop() can cancel it when called from
+    // outside the callbackFlow collector. Guarded by the same constraint as the
+    // JVM counterpart: each instance must be used for exactly one watch().
     private var pollingJob: Job? = null
 
     override fun watch(directory: FilePath): Flow<FileChangeEvent> = callbackFlow {
+        if (pollingJob != null) {
+            throw IllegalStateException(
+                "MacosFileSystemWatcher.watch() called twice on the same instance. " +
+                "Create a new instance for each directory."
+            )
+        }
         var previousSnapshot = buildSnapshot(directory)
 
         val job = launch(Dispatchers.Default) {

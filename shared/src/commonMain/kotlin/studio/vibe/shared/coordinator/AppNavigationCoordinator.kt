@@ -99,7 +99,7 @@ class AppNavigationCoordinator {
     }
 
     fun toggleSidebar() {
-        _showingSidebar.value = !_showingSidebar.value
+        _showingSidebar.update { !it }
     }
 
     // MARK: - Mode Sync

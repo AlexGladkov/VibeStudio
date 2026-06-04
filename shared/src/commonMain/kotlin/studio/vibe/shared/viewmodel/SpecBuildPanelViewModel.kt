@@ -43,6 +43,12 @@ class SpecBuildPanelViewModel(
 
     private var runJob: Job? = null
 
+    // Generation counter — incremented on every runCommand() call.
+    // Each launched coroutine captures its own generation snapshot and bails out
+    // if a newer run has started by the time a process output line is processed.
+    // This matches the Swift CodeSpeakProcessRunner actor + generation guard pattern.
+    private var generation: Int = 0
+
     // Tracks the project this panel currently belongs to. Switching tabs
     // must wipe the per-project transient state (output buffer, task name,
     // commit message, stats) so the panel doesn't leak between projects.
@@ -57,6 +63,7 @@ class SpecBuildPanelViewModel(
         if (currentProjectId == projectId) return
         runJob?.cancel()
         runJob = null
+        generation++
         _state.value = SpecBuildPanelState()
         currentProjectId = projectId
     }
@@ -86,28 +93,37 @@ class SpecBuildPanelViewModel(
 
         _state.update { it.copy(isRunning = true, output = "", errorMessage = null, stopRequested = false) }
 
+        // Cancel any previous run before starting a new one (stop+start guard).
+        runJob?.cancel()
+        val myGeneration = ++generation
         runJob = scope.launch {
             runCatching {
                 processRunner.stream(
                     command = fullCommand,
                     workDir = project.path,
                 ).collect { line ->
+                    // Guard: discard output from a superseded run.
+                    if (generation != myGeneration) return@collect
                     appendOutput(line)
                     if (command.supportsStatsParsing) {
                         tryParseStats(line)
                     }
                 }
             }.onFailure { e ->
+                if (generation != myGeneration) return@onFailure
                 _state.update { s ->
                     s.copy(errorMessage = e.message, output = s.output + "\nError: ${e.message}")
                 }
             }
-            _state.update { it.copy(isRunning = false, stopRequested = false) }
+            if (generation == myGeneration) {
+                _state.update { it.copy(isRunning = false, stopRequested = false) }
+            }
         }
     }
 
     fun stopCommand() {
         _state.update { it.copy(stopRequested = true) }
+        generation++ // invalidate any in-flight collect callbacks
         runJob?.cancel()
         runJob = null
         _state.update { it.copy(isRunning = false, stopRequested = false) }

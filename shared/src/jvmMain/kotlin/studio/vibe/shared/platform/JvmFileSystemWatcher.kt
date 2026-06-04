@@ -20,10 +20,26 @@ import kotlin.time.Clock
 
 class JvmFileSystemWatcher : FileSystemWatcher {
 
+    // Tracks the active WatchService so stop() can close it if the callbackFlow
+    // collector is still running. Replaced atomically; the old value is always
+    // closed before being discarded.
     @Volatile
     private var watchService: WatchService? = null
 
+    // Guards against concurrent or repeated watch() calls on the same instance.
+    private val watching = java.util.concurrent.atomic.AtomicBoolean(false)
+
     override fun watch(directory: FilePath): Flow<FileChangeEvent> = callbackFlow {
+        if (!watching.compareAndSet(false, true)) {
+            // Second call on the same instance is a programming error. Each
+            // JvmFileSystemWatcher is owned by a single WatchToken in
+            // JvmFileSystemWatchingService, so this should never happen in normal
+            // usage. Fail fast rather than silently leaking a WatchService fd.
+            throw IllegalStateException(
+                "JvmFileSystemWatcher.watch() called twice on the same instance. " +
+                "Create a new instance for each directory."
+            )
+        }
         val service: WatchService = FileSystems.getDefault().newWatchService()
         watchService = service
 
@@ -75,11 +91,14 @@ class JvmFileSystemWatcher : FileSystemWatcher {
             pollingJob.cancel()
             runCatching { service.close() }
             watchService = null
+            watching.set(false)
         }
     }
 
     override fun stop() {
-        runCatching { watchService?.close() }
+        val svc = watchService
         watchService = null
+        runCatching { svc?.close() }
+        watching.set(false)
     }
 }

@@ -228,7 +228,9 @@ class DesktopServiceContainer {
         gitSidebarViewModel.dispose()
         fileSystemWatchingService.unwatchAll()
         // Stop Remote Control server before terminal service so bridges can detach cleanly.
-        remoteControlServer.stop()
+        // runBlocking ensures stopAsync() completes (Ktor engines stopped, ngrok killed, ports
+        // released) before dispose() cancels the serverScope.
+        runBlocking { remoteControlServer.stopAsync() }
         remoteControlServer.dispose()
         terminalService.dispose()   // kills all live PTY processes before scope cancel
         httpClient.close()

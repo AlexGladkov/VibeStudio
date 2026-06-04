@@ -44,13 +44,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.contract.TerminalRemoteHost
 import studio.vibe.shared.contract.RemoteAuthorizing
 import studio.vibe.shared.model.RemoteAuthError
 import studio.vibe.shared.model.RemoteAuthResult
 import studio.vibe.shared.model.RemoteDevice as SharedRemoteDevice
 import studio.vibe.shared.model.TerminalSessionState
-import studio.vibe.shared.preferences.RemoteControlPreferences
+import studio.vibe.shared.preferences.RemoteControlPreferencesReading
 import studio.vibe.shared.security.JavaSecureRandom
 import studio.vibe.shared.service.remote.RemoteAuthServiceImpl
 import java.util.UUID
@@ -79,8 +79,8 @@ import kotlin.uuid.Uuid
  * concurrent access. [embeddedServer] is [Volatile].
  */
 class RemoteControlServer(
-    private val preferences: RemoteControlPreferences,
-    private val terminalService: DesktopTerminalService,
+    private val preferences: RemoteControlPreferencesReading,
+    private val terminalService: TerminalRemoteHost,
     val authService: RemoteAuthorizing = RemoteAuthServiceImpl(JavaSecureRandom),
 ) {
     companion object {
@@ -479,7 +479,7 @@ class RemoteControlServer(
                 }
 
                 val clientIP = call.request.local.remoteHost
-                val bridgeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+                val bridgeScope = CoroutineScope(SupervisorJob(serverScope.coroutineContext[Job]) + Dispatchers.IO)
 
                 var bridge: RemoteSessionBridge? = null
                 var authTimeoutJob: Job? = null

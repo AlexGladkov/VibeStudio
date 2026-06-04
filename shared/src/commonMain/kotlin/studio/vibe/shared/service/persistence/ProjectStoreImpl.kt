@@ -55,9 +55,15 @@ class ProjectStoreImpl(
     private val _recentProjects = MutableStateFlow<List<Project>>(emptyList())
     override val recentProjects: StateFlow<List<Project>> = _recentProjects.asStateFlow()
 
-    // O(1) lookup maps
-    private var indexById: Map<Uuid, Project> = emptyMap()
-    private var indexByPath: Map<String, Project> = emptyMap()
+    // O(1) lookup maps.
+    //
+    // @Volatile guarantees cross-thread visibility of the reference assignment on
+    // Kotlin/Native (and JVM) without requiring a full mutex for every read.
+    // rebuildIndex() is always called from within saveMutex or from a single-
+    // threaded init path, so there is no torn-write window; we only need the
+    // visibility guarantee for readers on other threads.
+    @Volatile private var indexById: Map<Uuid, Project> = emptyMap()
+    @Volatile private var indexByPath: Map<String, Project> = emptyMap()
 
     // Serializes all persistence writes to prevent torn files on concurrent saves.
     private val saveMutex = Mutex()

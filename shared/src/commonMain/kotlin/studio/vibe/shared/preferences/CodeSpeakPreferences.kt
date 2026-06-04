@@ -13,7 +13,7 @@ import studio.vibe.shared.model.CodeSpeakCommand
  * handled in platform-specific code. [notifyOnComplete] is persisted here;
  * the platform layer is responsible for requesting system permissions.
  */
-class CodeSpeakPreferences(private val storage: SettingsStorage) {
+class CodeSpeakPreferences(private val storage: SettingsStorage) : CodeSpeakPreferencesWriting {
 
     private object Keys {
         const val AUTO_BUILD_ON_SAVE = "cs_auto_build_on_save"
@@ -27,28 +27,28 @@ class CodeSpeakPreferences(private val storage: SettingsStorage) {
     /**
      * Automatically run `codespeak build` after saving a spec file. Default: `false`.
      */
-    var autoBuildOnSave: Boolean
+    override var autoBuildOnSave: Boolean
         get() = storage.getBool(Keys.AUTO_BUILD_ON_SAVE)
         set(value) { storage.setBool(Keys.AUTO_BUILD_ON_SAVE, value) }
 
     /**
      * Run `codespeak build` when switching to a CodeSpeak project. Default: `false`.
      */
-    var buildOnProjectOpen: Boolean
+    override var buildOnProjectOpen: Boolean
         get() = storage.getBool(Keys.BUILD_ON_PROJECT_OPEN)
         set(value) { storage.setBool(Keys.BUILD_ON_PROJECT_OPEN, value) }
 
     /**
      * Automatically open the build panel when a command starts. Default: `true`.
      */
-    var autoOpenBuildPanel: Boolean
+    override var autoOpenBuildPanel: Boolean
         get() = storage.getString(Keys.AUTO_OPEN_PANEL)?.toBooleanStrictOrNull() ?: true
         set(value) { storage.setBool(Keys.AUTO_OPEN_PANEL, value) }
 
     /**
      * Default command executed when pressing the run button. Default: [CodeSpeakCommand.BUILD].
      */
-    var defaultCommand: CodeSpeakCommand
+    override var defaultCommand: CodeSpeakCommand
         get() = storage.getString(Keys.DEFAULT_COMMAND)
             ?.let { raw -> CodeSpeakCommand.entries.firstOrNull { it.id == raw } }
             ?: CodeSpeakCommand.BUILD
@@ -60,14 +60,14 @@ class CodeSpeakPreferences(private val storage: SettingsStorage) {
      * Platform-specific code is responsible for requesting notification permission
      * when this is set to `true`.
      */
-    var notifyOnComplete: Boolean
+    override var notifyOnComplete: Boolean
         get() = storage.getBool(Keys.NOTIFY_ON_COMPLETE)
         set(value) { storage.setBool(Keys.NOTIFY_ON_COMPLETE, value) }
 
     /**
      * Show only failing specs in the spec list. Default: `false`.
      */
-    var showFailingOnly: Boolean
+    override var showFailingOnly: Boolean
         get() = storage.getBool(Keys.SHOW_FAILING_ONLY)
         set(value) { storage.setBool(Keys.SHOW_FAILING_ONLY, value) }
 }

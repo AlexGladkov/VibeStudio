@@ -30,7 +30,7 @@ public enum class AppTheme {
  * Backed by [SettingsStorage] for cross-platform persistence (UserDefaults on macOS,
  * java.util.prefs on JVM, etc.).
  */
-public class GeneralPreferences(private val storage: SettingsStorage) {
+public class GeneralPreferences(private val storage: SettingsStorage) : GeneralPreferencesWriting {
 
     private object Keys {
         const val CONFIRM_TAB_CLOSE = "vs_confirm_tab_close"
@@ -42,10 +42,10 @@ public class GeneralPreferences(private val storage: SettingsStorage) {
     // ── confirmTabClose ──────────────────────────────────────────────────────
 
     private val _confirmTabClose = MutableStateFlow(loadConfirmTabClose())
-    public val confirmTabCloseFlow: StateFlow<Boolean> = _confirmTabClose.asStateFlow()
+    public override val confirmTabCloseFlow: StateFlow<Boolean> = _confirmTabClose.asStateFlow()
 
     /** Show a confirmation alert before closing a tab. Default: `true`. */
-    public var confirmTabClose: Boolean
+    public override var confirmTabClose: Boolean
         get() = _confirmTabClose.value
         set(value) {
             storage.setBool(Keys.CONFIRM_TAB_CLOSE, value)
@@ -55,10 +55,10 @@ public class GeneralPreferences(private val storage: SettingsStorage) {
     // ── claudeSkipPermissions ────────────────────────────────────────────────
 
     private val _claudeSkipPermissions = MutableStateFlow(storage.getBool(Keys.CLAUDE_SKIP_PERMISSIONS))
-    public val claudeSkipPermissionsFlow: StateFlow<Boolean> = _claudeSkipPermissions.asStateFlow()
+    public override val claudeSkipPermissionsFlow: StateFlow<Boolean> = _claudeSkipPermissions.asStateFlow()
 
     /** Launch Claude with `--dangerously-skip-permissions`. Default: `false`. */
-    public var claudeSkipPermissions: Boolean
+    public override var claudeSkipPermissions: Boolean
         get() = _claudeSkipPermissions.value
         set(value) {
             storage.setBool(Keys.CLAUDE_SKIP_PERMISSIONS, value)
@@ -68,10 +68,10 @@ public class GeneralPreferences(private val storage: SettingsStorage) {
     // ── terminalFontSize ─────────────────────────────────────────────────────
 
     private val _terminalFontSize = MutableStateFlow(storage.getInt(Keys.TERMINAL_FONT_SIZE) ?: 13)
-    public val terminalFontSizeFlow: StateFlow<Int> = _terminalFontSize.asStateFlow()
+    public override val terminalFontSizeFlow: StateFlow<Int> = _terminalFontSize.asStateFlow()
 
     /** Terminal font size in points. Default: `13`. Clamped to 9..24. */
-    public var terminalFontSize: Int
+    public override var terminalFontSize: Int
         get() = _terminalFontSize.value
         set(value) {
             val clamped = value.coerceIn(9, 24)
@@ -82,10 +82,10 @@ public class GeneralPreferences(private val storage: SettingsStorage) {
     // ── theme ────────────────────────────────────────────────────────────────
 
     private val _theme = MutableStateFlow(loadTheme())
-    public val themeFlow: StateFlow<AppTheme> = _theme.asStateFlow()
+    public override val themeFlow: StateFlow<AppTheme> = _theme.asStateFlow()
 
     /** Application color theme. Default: [AppTheme.DARK]. Stored as enum name. */
-    public var theme: AppTheme
+    public override var theme: AppTheme
         get() = _theme.value
         set(value) {
             storage.setString(Keys.APP_THEME, value.name)

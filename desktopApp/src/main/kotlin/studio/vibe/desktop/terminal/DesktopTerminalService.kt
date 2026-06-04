@@ -23,7 +23,7 @@ import studio.vibe.shared.contract.TerminalSessionCreating
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.contract.TerminalSessionQuerying
-import studio.vibe.shared.preferences.GeneralPreferences
+import studio.vibe.shared.preferences.GeneralPreferencesReading
 import studio.vibe.shared.service.security.AgentEnvironmentBuilder
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
@@ -107,10 +107,10 @@ internal class PtySessionState(
  */
 class DesktopTerminalService(
     private val serviceScope: CoroutineScope,
-    private val generalPreferences: GeneralPreferences? = null,
+    private val generalPreferences: GeneralPreferencesReading? = null,
     /** Test-only seam: receives the effective launch command instead of (or before) PTY sendInput. */
     internal val commandSink: ((String) -> Unit)? = null,
-) : TerminalSessionManaging {
+) : TerminalSessionManaging, studio.vibe.shared.contract.TerminalRemoteHost {
 
     // ── Session limits ─────────────────────────────────────────────────────
 
@@ -455,7 +455,7 @@ class DesktopTerminalService(
      * Chunks include ANSI escape sequences — the receiver is responsible for
      * rendering or stripping them.  Returns `null` if the session is unknown.
      */
-    fun outputFlow(sessionId: Uuid): Flow<String>? =
+    override fun outputFlow(sessionId: Uuid): Flow<String>? =
         _sessions.value[sessionId]?.outputFlow?.asSharedFlow()
 
     /**

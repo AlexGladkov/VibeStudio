@@ -87,3 +87,27 @@ interface TerminalSessionManaging :
     TerminalSessionQuerying,
     TerminalInputSending,
     TerminalScrollbackAccessing
+
+/**
+ * Minimal terminal surface needed by the Remote Control layer.
+ *
+ * By depending on this interface instead of the concrete [DesktopTerminalService],
+ * [RemoteControlServer] and [RemoteSessionBridge] remain portable across targets
+ * (desktop JVM, future macOS native). Implementations must be thread-safe.
+ *
+ * [outputFlow] returns a hot [kotlinx.coroutines.flow.Flow] of raw PTY output
+ * chunks for the given session, or `null` if the session does not exist.
+ */
+@OptIn(ExperimentalUuidApi::class)
+interface TerminalRemoteHost :
+    TerminalSessionQuerying,
+    TerminalInputSending {
+
+    /**
+     * Returns a hot [kotlinx.coroutines.flow.Flow] of raw PTY output strings
+     * for [sessionId], or `null` when the session is not found.
+     */
+    fun outputFlow(sessionId: Uuid): kotlinx.coroutines.flow.Flow<String>?
+
+    fun resize(sessionId: Uuid, size: TerminalSize)
+}
