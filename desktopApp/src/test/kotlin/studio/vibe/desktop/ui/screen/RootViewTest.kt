@@ -12,11 +12,12 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.RootView
+import studio.vibe.desktop.testutil.RootView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import java.io.File
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 
 /**
  * Integration tests for [RootView].
@@ -115,7 +116,7 @@ class RootViewTest {
     fun rootView_hidesTerminalPlaceholder_whenActiveProjectIsSet() {
         val tempDir = Files.createTempDirectory("vs-rootview-active").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -178,7 +179,7 @@ class RootViewTest {
     @Test
     fun rootView_gitPanelHeaderHidden_whenShowGitPanelFalse() {
         val tempDir = Files.createTempDirectory("vs-rootview-git1").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -201,7 +202,7 @@ class RootViewTest {
     @Test
     fun rootView_gitPanelHeaderVisible_whenShowGitPanelTrueAndProjectActive() {
         val tempDir = Files.createTempDirectory("vs-rootview-git2").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {

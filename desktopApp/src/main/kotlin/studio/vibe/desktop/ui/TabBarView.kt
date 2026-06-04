@@ -61,7 +61,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.viewmodel.ToolbarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -84,12 +86,14 @@ import studio.vibe.shared.model.TabActivityState
  */
 @Composable
 fun TabBarView(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
+    terminalService: DesktopTerminalService,
+    toolbarViewModel: ToolbarViewModel,
     onOpenProject: () -> Unit,
 ) {
-    val projects by container.projectStore.projects.collectAsState()
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
-    val activityStates by container.terminalService.projectActivityStates.collectAsState()
+    val projects by projectStore.projects.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
+    val activityStates by terminalService.projectActivityStates.collectAsState()
 
     val scrollState: ScrollState = rememberScrollState()
 
@@ -128,11 +132,11 @@ fun TabBarView(
                     isDragging = isDragging,
                     dragOffsetX = if (isDragging) dragOffset else 0f,
                     anyDragActive = draggedId != null,
-                    onClick = { container.projectStore.setActiveProjectId(project.id) },
+                    onClick = { projectStore.setActiveProjectId(project.id) },
                     onClose = {
-                        container.terminalService.killAllSessions(project.id)
-                        container.toolbarViewModel.cleanupProject(project.id)
-                        container.projectStore.removeProject(project.id)
+                        terminalService.killAllSessions(project.id)
+                        toolbarViewModel.cleanupProject(project.id)
+                        projectStore.removeProject(project.id)
                     },
                     onDragStart = {
                         draggedId = project.id
@@ -146,14 +150,14 @@ fun TabBarView(
                         if (tabWidthPx > 0f) {
                             when {
                                 dragOffset > threshold && index < projects.lastIndex -> {
-                                    container.projectStore.moveProjects(
+                                    projectStore.moveProjects(
                                         fromIndices = setOf(index),
                                         toDestination = index + 1,
                                     )
                                     dragOffset -= tabWidthPx
                                 }
                                 dragOffset < -threshold && index > 0 -> {
-                                    container.projectStore.moveProjects(
+                                    projectStore.moveProjects(
                                         fromIndices = setOf(index),
                                         toDestination = index - 1,
                                     )
@@ -194,7 +198,7 @@ fun TabBarView(
                 onDismissRequest = { showAddPopover = false },
             ) {
                 AddProjectPopover(
-                    container = container,
+                    projectStore = projectStore,
                     onOpenFolder = {
                         showAddPopover = false
                         onOpenProject()

@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.contract.GitServicing
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -75,7 +75,7 @@ private const val MAX_DIFF_BYTES = 512 * 1024 // 512 KB guard
  */
 @Composable
 fun FileDiffSheet(
-    container: DesktopServiceContainer,
+    gitService: GitServicing,
     file: GitFile,
     projectPath: String,
     staged: Boolean = false,
@@ -92,7 +92,7 @@ fun FileDiffSheet(
         resizable = true,
     ) {
         FileDiffSheetContent(
-            container = container,
+            gitService = gitService,
             file = file,
             projectPath = projectPath,
             staged = staged,
@@ -105,7 +105,7 @@ fun FileDiffSheet(
 
 @Composable
 internal fun FileDiffSheetContent(
-    container: DesktopServiceContainer,
+    gitService: GitServicing,
     file: GitFile,
     projectPath: String,
     staged: Boolean,
@@ -131,7 +131,7 @@ internal fun FileDiffSheetContent(
         }
 
         runCatching {
-            val hunks = container.gitService.diff(
+            val hunks = gitService.diff(
                 file = file.path,
                 staged = staged,
                 at = FilePath(projectPath),

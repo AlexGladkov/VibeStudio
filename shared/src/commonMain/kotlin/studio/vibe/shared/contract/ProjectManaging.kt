@@ -14,14 +14,17 @@ interface ProjectManaging {
     val recentProjects: StateFlow<List<Project>>
 
     fun setActiveProjectId(id: Uuid?)
-    fun addProject(path: FilePath): Project
+
+    suspend fun addProject(path: FilePath): Project
+
     fun removeProject(id: Uuid)
     fun updateProject(id: Uuid, mutate: (Project) -> Project)
     fun moveProjects(fromIndices: Set<Int>, toDestination: Int)
     fun project(id: Uuid): Project?
     fun project(path: FilePath): Project?
-    fun load()
-    fun save()
+
+    suspend fun load()
+    suspend fun save()
 
     val activeProject: Project?
         get() = activeProjectId.value?.let { project(it) }

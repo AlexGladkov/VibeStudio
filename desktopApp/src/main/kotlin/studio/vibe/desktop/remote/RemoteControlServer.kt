@@ -43,11 +43,17 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.contract.RemoteAuthorizing
+import studio.vibe.shared.model.RemoteAuthError
+import studio.vibe.shared.model.RemoteAuthResult
+import studio.vibe.shared.model.RemoteDevice as SharedRemoteDevice
 import studio.vibe.shared.model.TerminalSessionState
 import studio.vibe.shared.preferences.RemoteControlPreferences
+import studio.vibe.shared.service.remote.RemoteAuthServiceImpl
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
+import kotlin.uuid.Uuid
 
 /**
  * Embedded HTTP + WebSocket server for remote terminal control.
@@ -72,6 +78,7 @@ import java.util.logging.Logger
 class RemoteControlServer(
     private val preferences: RemoteControlPreferences,
     private val terminalService: DesktopTerminalService,
+    val authService: RemoteAuthorizing = RemoteAuthServiceImpl(),
 ) {
     companion object {
         private val log = Logger.getLogger("RemoteControlServer")
@@ -80,7 +87,6 @@ class RemoteControlServer(
 
     // ── Public services ────────────────────────────────────────────────────────
 
-    val authService = RemoteAuthService()
     val ngrok: NgrokTunnelService
 
     // ── Observable state ──────────────────────────────────────────────────────
@@ -135,7 +141,7 @@ class RemoteControlServer(
     val isNgrokRunning get() = ngrok.isRunning.value
     val ngrokTunnelURL: String? get() = ngrok.tunnelURL.value
     val ngrokError: String? get() = ngrok.error.value
-    val isLocked get() = authService.isLocked
+    val isLocked: StateFlow<Boolean> get() = authService.isLocked
 
     val uptimeSeconds: Long
         get() = startedAt?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0L
@@ -215,7 +221,6 @@ class RemoteControlServer(
         ngrok.stop()
         ngrokObserveJob?.cancel()
         ngrokObserveJob = null
-        authService.revokeAllDevices()
 
         _isRunning.value = false
         startedAt = null
@@ -223,6 +228,7 @@ class RemoteControlServer(
         loopbackEngine = null
 
         serverScope.launch {
+            authService.revokeAllDevices()
             runCatching { withContext(Dispatchers.IO) { main?.stop(500L, 500L) } }
             runCatching { withContext(Dispatchers.IO) { loopback?.stop(500L, 500L) } }
             _isTransitioning.value = false
@@ -262,6 +268,8 @@ class RemoteControlServer(
         log.info("RemoteControlServer stopped (async)")
     }
 
+    private fun UUID.toKotlinUuid(): Uuid = Uuid.parse(this.toString())
+
     /** Release coroutine scope — call on app quit after [stopAsync]. */
     fun dispose() {
         serverScope.cancel()
@@ -288,8 +296,15 @@ class RemoteControlServer(
     fun disconnect(deviceId: UUID) {
         activeBridges[deviceId]?.detach()
         activeBridges.remove(deviceId)
-        authService.revokeDevice(deviceId)
+        serverScope.launch {
+            authService.revokeDevice(deviceId.toKotlinUuid())
+        }
         _connectedDeviceCount.value = activeBridges.size
+    }
+
+    /** Convenience overload for callers (UI) holding the shared [Uuid] type. */
+    fun disconnect(deviceId: Uuid) {
+        disconnect(UUID.fromString(deviceId.toString()))
     }
 
     // ── Bridge registration ────────────────────────────────────────────────────
@@ -391,26 +406,26 @@ class RemoteControlServer(
                         }
 
                         when (val result = authService.validatePin(body.pin, clientIP, userAgent)) {
-                            is Result.Success -> {
+                            is RemoteAuthResult.Success -> {
                                 call.respond(
                                     AuthTokenResponseDTO(
                                         token = result.value.token,
-                                        expiresAt = result.value.expiresAt,
+                                        expiresAt = result.value.expiresAt.toEpochMilliseconds(),
                                         deviceId = result.value.device.id.toString(),
                                     )
                                 )
                             }
 
-                            is Result.Failure -> {
-                                val (status, code, message) = when (result.error) {
-                                    AuthError.InvalidPin ->
+                            is RemoteAuthResult.Failure -> {
+                                val (status, code, message) = when (val err = result.error) {
+                                    RemoteAuthError.InvalidPin ->
                                         Triple(HttpStatusCode.Unauthorized, "invalid_pin", "Invalid PIN")
-                                    is AuthError.RateLimited ->
+                                    is RemoteAuthError.RateLimited ->
                                         Triple(HttpStatusCode.TooManyRequests, "rate_limited",
-                                            "Too many attempts. Retry after ${result.error.retryAfterSeconds}s")
-                                    AuthError.GlobalLockout ->
+                                            "Too many attempts. Retry after ${err.retryAfterSeconds}s")
+                                    RemoteAuthError.GlobalLockout ->
                                         Triple(HttpStatusCode.Forbidden, "global_lockout", "Server is locked")
-                                    AuthError.MaxDevicesReached ->
+                                    RemoteAuthError.MaxDevicesReached ->
                                         Triple(HttpStatusCode.Forbidden, "max_devices",
                                             "Maximum device limit reached")
                                     else ->
@@ -486,6 +501,19 @@ class RemoteControlServer(
                     }
                 }
 
+                // Hard cap on total session lifetime. RemoteSessionBridge already
+                // cancels the wsSession after idleTimeoutMinutes of silence; this
+                // watchdog is a belt-and-suspenders against half-open TCP states
+                // where ping/pong + idle detection both fail.  Without it the
+                // [bridgeScope] would survive for the lifetime of the parent
+                // application scope when `incoming.receive()` is stuck.
+                val maxSessionMs = (preferences.idleTimeoutMinutes.toLong() + 5L) * 60_000L
+                val sessionWatchdog = bridgeScope.launch {
+                    delay(maxSessionMs)
+                    log.warning("WS session watchdog fired ($maxSessionMs ms) for $clientIP — force-closing")
+                    runCatching { close(CloseReason(CloseReason.Codes.GOING_AWAY, "Session watchdog")) }
+                }
+
                 try {
                     for (frame in incoming) {
                         if (frame !is Frame.Text) {
@@ -518,11 +546,11 @@ class RemoteControlServer(
                             }
 
                             when (val result = authService.validateToken(authToken, clientIP)) {
-                                is Result.Success -> {
+                                is RemoteAuthResult.Success -> {
                                     authTimeoutJob?.cancel()
                                     val device = result.value
                                     bridge = RemoteSessionBridge(
-                                        deviceId = device.id,
+                                        deviceId = UUID.fromString(device.id.toString()),
                                         sessionId = sessionUuid,
                                         wsSession = this,
                                         terminalService = terminalService,
@@ -535,7 +563,7 @@ class RemoteControlServer(
                                     log.info("WS authenticated: device=${device.id} session=$sessionUuid")
                                 }
 
-                                is Result.Failure -> {
+                                is RemoteAuthResult.Failure -> {
                                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Authentication failed"))
                                     break
                                 }
@@ -579,6 +607,7 @@ class RemoteControlServer(
                     }
                 } finally {
                     authTimeoutJob?.cancel()
+                    sessionWatchdog.cancel()
                     bridge?.let { unregisterBridge(it) }
                     bridgeScope.cancel()
                 }
@@ -593,11 +622,11 @@ class RemoteControlServer(
         version = APP_VERSION,
         uptimeSeconds = uptimeSeconds,
         connectedDevices = activeBridges.size,
-        maxDevices = RemoteAuthService.MAX_DEVICES,
+        maxDevices = authService.maxDevices,
         tls = "none",
     )
 
-    private suspend fun ApplicationCall.requireAuth(): RemoteDevice? {
+    private suspend fun ApplicationCall.requireAuth(): SharedRemoteDevice? {
         val token = request.headers["X-Auth-Token"]
             ?: request.headers[HttpHeaders.Authorization]?.removePrefix("Bearer ")?.trim()
 
@@ -610,12 +639,12 @@ class RemoteControlServer(
         }
 
         return when (val result = authService.validateToken(token, request.local.remoteHost)) {
-            is Result.Success -> result.value
-            is Result.Failure -> {
+            is RemoteAuthResult.Success -> result.value
+            is RemoteAuthResult.Failure -> {
                 val (status, code, message) = when (result.error) {
-                    AuthError.TokenExpired ->
+                    RemoteAuthError.TokenExpired ->
                         Triple(HttpStatusCode.Unauthorized, "token_expired", "Token has expired")
-                    AuthError.IpMismatch ->
+                    RemoteAuthError.IpMismatch ->
                         Triple(HttpStatusCode.Unauthorized, "ip_mismatch", "IP address mismatch")
                     else ->
                         Triple(HttpStatusCode.Unauthorized, "invalid_token", "Invalid or unknown token")

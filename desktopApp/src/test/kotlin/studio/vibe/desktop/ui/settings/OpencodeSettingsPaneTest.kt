@@ -41,7 +41,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -52,7 +52,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -65,7 +65,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsConfigDirectorySection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -77,7 +77,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsPluginsSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -94,7 +94,7 @@ class OpencodeSettingsPaneTest {
         // ~/.config/opencode/plugins/ exists on the host machine.
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -109,7 +109,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsAuthenticationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -125,7 +125,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsProvidersCliHint() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -139,7 +139,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsInstallationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 
@@ -151,7 +151,7 @@ class OpencodeSettingsPaneTest {
     fun opencodeSettingsPane_showsShortDescription() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                OpencodeSettingsPane(container = container)
+                OpencodeSettingsPane()
             }
         }
 

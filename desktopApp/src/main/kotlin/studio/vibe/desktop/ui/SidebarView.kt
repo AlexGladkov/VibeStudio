@@ -62,7 +62,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.service.filetree.FileTreeBuilder
+import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -96,18 +100,22 @@ private sealed class SidebarDialog {
  */
 @Composable
 fun SidebarView(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
+    fileTreeBuilder: FileTreeBuilder,
+    gitSidebarViewModel: GitSidebarViewModel,
+    gitService: GitServicing,
+    coroutineScope: CoroutineScope,
     onToggleGitPanel: () -> Unit,
     onOpenProject: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val projects by container.projectStore.projects.collectAsState()
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
     var activeTab by remember { mutableStateOf(SidebarTab.FILES) }
 
     Row(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
         IconStrip(
-            container = container,
+            projectStore = projectStore,
             activeTab = activeTab,
             onTabSelected = { activeTab = it },
             onAddProject = onOpenProject,
@@ -120,13 +128,21 @@ fun SidebarView(
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             when (activeTab) {
                 SidebarTab.FILES -> MultiProjectFileTree(
-                    container = container,
+                    projectStore = projectStore,
+                    fileTreeBuilder = fileTreeBuilder,
+                    gitService = gitService,
+                    coroutineScope = coroutineScope,
                     projects = projects,
                     activeProjectId = activeProjectId,
                 )
-                SidebarTab.GIT  -> GitBranchSection(container)
+                SidebarTab.GIT  -> GitBranchSection(
+                    projectStore = projectStore,
+                    gitSidebarViewModel = gitSidebarViewModel,
+                    gitService = gitService,
+                    coroutineScope = coroutineScope,
+                )
                 SidebarTab.SPECS -> SpecsSection(
-                    container = container,
+                    fileTreeBuilder = fileTreeBuilder,
                     projects = projects,
                     activeProjectId = activeProjectId,
                 )
@@ -139,7 +155,7 @@ fun SidebarView(
 
 @Composable
 private fun IconStrip(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
     activeTab: SidebarTab,
     onTabSelected: (SidebarTab) -> Unit,
     onAddProject: () -> Unit,
@@ -194,7 +210,7 @@ private fun IconStrip(
                 onDismissRequest = { showAddPopover = false },
             ) {
                 AddProjectPopover(
-                    container = container,
+                    projectStore = projectStore,
                     onOpenFolder = {
                         showAddPopover = false
                         onAddProject()
@@ -236,7 +252,10 @@ private fun IconStripButton(
 
 @Composable
 private fun MultiProjectFileTree(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
+    fileTreeBuilder: FileTreeBuilder,
+    gitService: GitServicing,
+    coroutineScope: CoroutineScope,
     projects: List<Project>,
     activeProjectId: Uuid?,
 ) {
@@ -254,7 +273,7 @@ private fun MultiProjectFileTree(
     for (project in projects) {
         if (project.id in expandedProjects && project.id !in fileTrees) {
             LaunchedEffect(project.id) {
-                val tree = container.fileTreeBuilder.buildTree(
+                val tree = fileTreeBuilder.buildTree(
                     root = project.path,
                     maxDepth = 5,
                 )
@@ -275,7 +294,7 @@ private fun MultiProjectFileTree(
                     project = project,
                     isActive = isActive,
                     isExpanded = isExpanded,
-                    onClick = { container.projectStore.setActiveProjectId(project.id) },
+                    onClick = { projectStore.setActiveProjectId(project.id) },
                     onToggleExpand = {
                         expandedProjects = if (isExpanded) {
                             expandedProjects - project.id
@@ -321,14 +340,15 @@ private fun MultiProjectFileTree(
 
     when (val dialog = activeDialog) {
         is SidebarDialog.ProjectSettings -> ProjectSettingsSheet(
-            container = container,
+            projectStore = projectStore,
             projectId = dialog.project.id,
             projectName = dialog.project.name,
             projectPath = dialog.project.path.path,
             onDismiss = { activeDialog = null },
         )
         is SidebarDialog.GitRemoteSetup -> GitRemoteSetupSheet(
-            container = container,
+            gitService = gitService,
+            coroutineScope = coroutineScope,
             projectId = dialog.project.id,
             projectPath = dialog.project.path,
             projectName = dialog.project.name,
@@ -559,16 +579,21 @@ private fun gitStatusColor(status: GitFileStatus, colors: DSColors): Color = whe
 // ── Git Branch Section ────────────────────────────────────────────────────────
 
 @Composable
-private fun GitBranchSection(container: DesktopServiceContainer) {
-    val gitState by container.gitSidebarViewModel.state.collectAsState()
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
-    val projects by container.projectStore.projects.collectAsState()
+private fun GitBranchSection(
+    projectStore: ProjectManaging,
+    gitSidebarViewModel: GitSidebarViewModel,
+    gitService: GitServicing,
+    coroutineScope: CoroutineScope,
+) {
+    val gitState by gitSidebarViewModel.state.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
 
     val activeProject = projects.find { it.id == activeProjectId }
 
     LaunchedEffect(activeProjectId) {
         if (activeProject != null && activeProjectId != null) {
-            container.gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
+            gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
         }
     }
 
@@ -631,7 +656,7 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                                 onCheckout = null, // already current
                                 onPull = { path ->
                                     activeProjectId?.let { id ->
-                                        container.gitSidebarViewModel.gitBranchPull(
+                                        gitSidebarViewModel.gitBranchPull(
                                             projectId = id,
                                             branch = currentBranch.name,
                                             isCurrent = true,
@@ -641,7 +666,7 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                                 },
                                 onPush = { path ->
                                     activeProjectId?.let { id ->
-                                        container.gitSidebarViewModel.gitBranchPush(
+                                        gitSidebarViewModel.gitBranchPush(
                                             projectId = id,
                                             branch = currentBranch.name,
                                             path = path,
@@ -666,12 +691,12 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                             projectPath = activeProject?.path,
                             onCheckout = { path ->
                                 activeProjectId?.let { id ->
-                                    container.gitSidebarViewModel.checkout(id, branch.name, path)
+                                    gitSidebarViewModel.checkout(id, branch.name, path)
                                 }
                             },
                             onPull = { path ->
                                 activeProjectId?.let { id ->
-                                    container.gitSidebarViewModel.gitBranchPull(
+                                    gitSidebarViewModel.gitBranchPull(
                                         projectId = id,
                                         branch = branch.name,
                                         isCurrent = false,
@@ -681,7 +706,7 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
                             },
                             onPush = { path ->
                                 activeProjectId?.let { id ->
-                                    container.gitSidebarViewModel.gitBranchPush(
+                                    gitSidebarViewModel.gitBranchPush(
                                         projectId = id,
                                         branch = branch.name,
                                         path = path,
@@ -741,7 +766,9 @@ private fun GitBranchSection(container: DesktopServiceContainer) {
     // CreateBranchSheet dialog
     if (showCreateBranch && activeProject != null && activeProjectId != null) {
         CreateBranchSheet(
-            container = container,
+            gitService = gitService,
+            coroutineScope = coroutineScope,
+            gitSidebarViewModel = gitSidebarViewModel,
             projectId = activeProjectId!!,
             projectPath = activeProject.path,
             fromBranch = createBranchFromBranch,
@@ -956,7 +983,7 @@ private fun NewBranchRow(onClick: () -> Unit) {
  */
 @Composable
 private fun SpecsSection(
-    container: DesktopServiceContainer,
+    fileTreeBuilder: FileTreeBuilder,
     projects: List<Project>,
     activeProjectId: Uuid?,
 ) {
@@ -966,7 +993,7 @@ private fun SpecsSection(
     val activeProject = projects.find { it.id == activeProjectId }
     if (activeProject != null && activeProjectId != null && activeProjectId !in fileTrees) {
         LaunchedEffect(activeProjectId) {
-            val tree = container.fileTreeBuilder.buildTree(
+            val tree = fileTreeBuilder.buildTree(
                 root = activeProject.path,
                 maxDepth = 5,
             )

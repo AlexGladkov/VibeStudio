@@ -43,7 +43,9 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -71,7 +73,9 @@ private val VALID_BRANCH_REGEX = Regex("^[a-zA-Z0-9._/][a-zA-Z0-9._/\\-]*$")
  */
 @Composable
 fun CreateBranchSheet(
-    container: DesktopServiceContainer,
+    gitService: GitServicing,
+    coroutineScope: CoroutineScope,
+    gitSidebarViewModel: GitSidebarViewModel,
     projectId: Uuid,
     projectPath: FilePath,
     fromBranch: String? = null,
@@ -85,8 +89,8 @@ fun CreateBranchSheet(
 
     val vm = remember(projectId) {
         CreateBranchViewModel(
-            gitService = container.gitService,
-            scope = container.scope,
+            gitService = gitService,
+            scope = coroutineScope,
         ).also { vm ->
             vm.loadBranches(projectPath)
             if (fromBranch != null) {
@@ -100,7 +104,7 @@ fun CreateBranchSheet(
     // Close the dialog after successful creation
     LaunchedEffect(state.isCreated) {
         if (state.isCreated) {
-            container.gitSidebarViewModel.loadGitInfo(projectId, projectPath)
+            gitSidebarViewModel.loadGitInfo(projectId, projectPath)
             onDismiss()
         }
     }

@@ -32,7 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.preferences.CodeSpeakPreferences
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -56,10 +56,10 @@ import java.io.File
  */
 @Composable
 fun CodeSpeakSettingsPane(
-    container: DesktopServiceContainer,
+    preferences: CodeSpeakPreferences,
     modifier: Modifier = Modifier,
 ) {
-    val prefs = container.codeSpeakPreferences
+    val prefs = preferences
 
     // Installation status
     var isInstalled by remember { mutableStateOf(false) }

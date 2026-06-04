@@ -43,7 +43,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -54,7 +54,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsCluadeSectionTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -66,7 +66,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsLaunchSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -78,7 +78,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsSkipPermissionsLaunchOption() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -90,7 +90,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsGlobalConfigSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -102,7 +102,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsSubagentsSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -116,7 +116,7 @@ class ClaudeSettingsPaneTest {
         // whether ~/.claude/agents/ exists or is empty on the host machine.
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -128,7 +128,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsInstallationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -142,7 +142,7 @@ class ClaudeSettingsPaneTest {
     fun claudeSettingsPane_showsNpmInstallHint() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                ClaudeSettingsPane(container = container)
+                ClaudeSettingsPane(preferences = container.generalPreferences)
             }
         }
 

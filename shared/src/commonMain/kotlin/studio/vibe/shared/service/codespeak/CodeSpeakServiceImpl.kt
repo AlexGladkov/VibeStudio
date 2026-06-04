@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.runBlocking
 import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
@@ -31,9 +30,9 @@ class CodeSpeakServiceImpl(
      * Checks whether the given project contains a `codespeak.json` at its root
      * and updates [projectHasConfig] accordingly.
      */
-    fun checkConfig(project: Project) {
+    suspend fun checkConfig(project: Project) {
         val configPath = FilePath("${project.path.path}/$CODESPEAK_CONFIG_FILE")
-        val exists = runBlocking { persistence.fileExists(configPath) }
+        val exists = persistence.fileExists(configPath)
         _projectHasConfig.update { current -> current + (project.id to exists) }
     }
 

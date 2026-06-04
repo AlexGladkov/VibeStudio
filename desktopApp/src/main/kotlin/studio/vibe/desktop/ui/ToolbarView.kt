@@ -43,7 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.remote.RemoteControlServer
+import studio.vibe.shared.viewmodel.ToolbarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -52,6 +53,7 @@ import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.contract.AgentAvailabilityStatus
+import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.model.AIAssistant
 
 // ── ToolbarView ───────────────────────────────────────────────────────────────
@@ -64,13 +66,14 @@ import studio.vibe.shared.model.AIAssistant
  */
 @Composable
 fun ToolbarView(
-    container: DesktopServiceContainer,
+    toolbarViewModel: ToolbarViewModel,
+    remoteControlServer: RemoteControlServer,
     isCodeSpeakMode: Boolean = false,
     onOpenSettings: () -> Unit = {},
     onToggleCodeSpeakMode: () -> Unit = {},
-    onInstallAgent: (AIAssistant) -> Unit = {},
+    onInstallAgent: (AIAgent) -> Unit = {},
 ) {
-    val toolbarState by container.toolbarViewModel.state.collectAsState()
+    val toolbarState by toolbarViewModel.state.collectAsState()
 
     Row(
         modifier = Modifier
@@ -84,10 +87,10 @@ fun ToolbarView(
 
         // Agent picker with availability status
         AgentPickerButton(
-            selectedAssistant = toolbarState.selectedAssistant,
+            selectedAgent = toolbarState.selectedAgent,
             availabilityMap = toolbarState.agentAvailability,
             isRunning = toolbarState.isAgentRunning,
-            onSelectAssistant = { container.toolbarViewModel.selectAssistant(it) },
+            onSelectAgent = { toolbarViewModel.selectAgent(it) },
             onInstallAgent = onInstallAgent,
         )
 
@@ -96,14 +99,14 @@ fun ToolbarView(
         // Play / Stop
         PlayStopButton(
             isRunning = toolbarState.isAgentRunning,
-            onPlay = { container.toolbarViewModel.launchAgent() },
-            onStop = { container.toolbarViewModel.stopAgent() },
+            onPlay = { toolbarViewModel.launchAgent() },
+            onStop = { toolbarViewModel.stopAgent() },
         )
 
         Spacer(Modifier.width(DSSpacing.sm))
 
         // Remote control status badge — shown only when the server is running.
-        RemoteControlBadge(container = container)
+        RemoteControlBadge(server = remoteControlServer)
 
         // Settings gear
         // CodeSpeak mode toggle intentionally not rendered here — the macOS
@@ -137,20 +140,20 @@ fun ToolbarView(
  */
 @Composable
 private fun AgentPickerButton(
-    selectedAssistant: AIAssistant,
-    availabilityMap: Map<AIAssistant, AgentAvailabilityStatus>,
+    selectedAgent: AIAgent?,
+    availabilityMap: Map<AIAgent, AgentAvailabilityStatus>,
     isRunning: Boolean,
-    onSelectAssistant: (AIAssistant) -> Unit,
-    onInstallAgent: (AIAssistant) -> Unit,
+    onSelectAgent: (AIAgent) -> Unit,
+    onInstallAgent: (AIAgent) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val available = AIAssistant.entries.filter { assistant ->
-        val status = availabilityMap[assistant]
-        status is AgentAvailabilityStatus.Available
+    val knownAgents = availabilityMap.keys.toList()
+    val available = knownAgents.filter { agent ->
+        availabilityMap[agent] is AgentAvailabilityStatus.Available
     }
-    val unavailable = AIAssistant.entries.filter { assistant ->
-        val status = availabilityMap[assistant]
+    val unavailable = knownAgents.filter { agent ->
+        val status = availabilityMap[agent]
         status == null || status is AgentAvailabilityStatus.NotInstalled || status is AgentAvailabilityStatus.Checking
     }
 
@@ -170,11 +173,11 @@ private fun AgentPickerButton(
                 Modifier
                     .size(DSFont.iconLG.value.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(agentColor(selectedAssistant, LocalDSColors.current)),
+                    .background(agentColor(selectedAgent, LocalDSColors.current)),
             )
             Spacer(Modifier.width(DSSpacing.xs))
             Text(
-                text = selectedAssistant.displayName,
+                text = selectedAgent?.displayName ?: "—",
                 style = DSFont.tabTitle,
                 color = if (isRunning) LocalDSColors.current.textMuted else LocalDSColors.current.textPrimary,
             )
@@ -191,14 +194,14 @@ private fun AgentPickerButton(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
-            available.forEach { assistant ->
-                val status = availabilityMap[assistant]
+            available.forEach { agent ->
+                val status = availabilityMap[agent]
                 AgentDropdownItem(
-                    assistant = assistant,
+                    agent = agent,
                     status = status,
-                    isSelected = assistant == selectedAssistant,
+                    isSelected = agent == selectedAgent,
                     onClick = {
-                        onSelectAssistant(assistant)
+                        onSelectAgent(agent)
                         expanded = false
                     },
                     onInstall = null,
@@ -210,26 +213,26 @@ private fun AgentPickerButton(
                     color = LocalDSColors.current.borderDefault,
                 )
             }
-            unavailable.forEach { assistant ->
-                val status = availabilityMap[assistant]
+            unavailable.forEach { agent ->
+                val status = availabilityMap[agent]
                 val isNotInstalled = status is AgentAvailabilityStatus.NotInstalled || status == null
                 AgentDropdownItem(
-                    assistant = assistant,
+                    agent = agent,
                     status = status,
-                    isSelected = assistant == selectedAssistant,
+                    isSelected = agent == selectedAgent,
                     onClick = {
                         if (isNotInstalled) {
                             expanded = false
-                            onInstallAgent(assistant)
+                            onInstallAgent(agent)
                         } else {
-                            onSelectAssistant(assistant)
+                            onSelectAgent(agent)
                             expanded = false
                         }
                     },
                     onInstall = if (isNotInstalled) {
                         {
                             expanded = false
-                            onInstallAgent(assistant)
+                            onInstallAgent(agent)
                         }
                     } else null,
                 )
@@ -240,7 +243,7 @@ private fun AgentPickerButton(
 
 @Composable
 private fun AgentDropdownItem(
-    assistant: AIAssistant,
+    agent: AIAgent,
     status: AgentAvailabilityStatus?,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -250,7 +253,7 @@ private fun AgentDropdownItem(
     val isChecking = status is AgentAvailabilityStatus.Checking
     val hasApiKeyWarning = status is AgentAvailabilityStatus.Available &&
         !status.hasAPIKey &&
-        assistant.apiKeyEnvironmentVariable != null
+        agent.apiKeyEnvironmentVariable != null
 
     val dotColor: Color = when {
         isChecking -> LocalDSColors.current.indicatorWaiting
@@ -278,11 +281,11 @@ private fun AgentDropdownItem(
                             Modifier
                                 .size(12.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(agentColor(assistant, LocalDSColors.current)),
+                                .background(agentColor(agent, LocalDSColors.current)),
                         )
                         Spacer(Modifier.width(DSSpacing.xs))
                         Text(
-                            text = assistant.displayName,
+                            text = agent.displayName,
                             style = DSFont.sidebarItem,
                             color = if (isNotInstalled) LocalDSColors.current.textSecondary else LocalDSColors.current.textPrimary,
                         )
@@ -424,8 +427,7 @@ private fun SettingsButton(onClick: () -> Unit) {
  * the user can copy the URL and scan via any QR generator if needed.
  */
 @Composable
-private fun RemoteControlBadge(container: DesktopServiceContainer) {
-    val server = container.remoteControlServer
+private fun RemoteControlBadge(server: RemoteControlServer) {
     val isRunning by server.isRunning.collectAsState()
     if (!isRunning) return
 
@@ -528,11 +530,31 @@ private fun RemoteControlBadge(container: DesktopServiceContainer) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-internal fun agentColor(assistant: AIAssistant, colors: DSColors): Color = when (assistant) {
+/**
+ * Visual brand colour for an agent.  Built-in agents have a dedicated palette;
+ * plugin agents fall back to [DSColors.textSecondary] so they still render
+ * without crashing.  Adding a new built-in colour means extending this map only.
+ */
+internal fun agentColor(agent: AIAgent?, colors: DSColors): Color {
+    if (agent == null) return colors.textSecondary
+    return when (agent.id) {
+        "claude" -> colors.agentClaude
+        "opencode" -> colors.agentOpenCode
+        "codex" -> colors.agentCodex
+        "gemini" -> colors.agentGemini
+        "qwenCode" -> colors.agentQwen
+        "codeSpeak" -> colors.agentCodeSpeak
+        else -> colors.textSecondary
+    }
+}
+
+/** Backwards-compatible colour lookup for code paths still typed on [AIAssistant]. */
+internal fun agentColor(assistant: AIAssistant?, colors: DSColors): Color = when (assistant) {
     AIAssistant.CLAUDE -> colors.agentClaude
     AIAssistant.OPENCODE -> colors.agentOpenCode
     AIAssistant.CODEX -> colors.agentCodex
     AIAssistant.GEMINI -> colors.agentGemini
     AIAssistant.QWEN_CODE -> colors.agentQwen
     AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak
+    null -> colors.textSecondary
 }

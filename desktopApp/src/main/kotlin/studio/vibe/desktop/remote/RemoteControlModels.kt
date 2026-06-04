@@ -2,29 +2,10 @@ package studio.vibe.desktop.remote
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.util.UUID
 
-// ── Domain types ──────────────────────────────────────────────────────────────
-
-/**
- * A remote device that has successfully authenticated via PIN.
- */
-data class RemoteDevice(
-    val id: UUID,
-    val displayName: String,
-    val ipAddress: String,
-    val connectedAt: Long = System.currentTimeMillis(),
-)
-
-/**
- * Internal token storage entry — never exposed to clients.
- */
-internal data class TokenEntry(
-    val deviceId: UUID,
-    val clientIP: String,
-    val issuedAt: Long,
-    val expiresAt: Long,
-)
+// Domain types (RemoteDevice, AuthError, etc.) now live in shared:
+// studio.vibe.shared.model.RemoteDevice, RemoteAuthError, RemoteAuthResult
+// and are surfaced via studio.vibe.shared.contract.RemoteAuthorizing.
 
 // ── REST API DTOs ──────────────────────────────────────────────────────────────
 

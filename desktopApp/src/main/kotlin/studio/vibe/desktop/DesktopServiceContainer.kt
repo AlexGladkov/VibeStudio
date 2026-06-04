@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
 import kotlin.uuid.Uuid
+import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.AICommitServicing
 import studio.vibe.shared.contract.APIKeyResolving
 import studio.vibe.shared.contract.AgentAvailabilityChecking
@@ -18,7 +21,7 @@ import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
 import studio.vibe.shared.model.TabActivityState
@@ -66,11 +69,21 @@ class DesktopServiceContainer {
 
     val gitService: GitServicing = GitCommandExecutor(processRunner)
 
-    val projectStore: ProjectManaging = ProjectStoreImpl(persistenceStore).also { it.load() }
+    val projectStore: ProjectManaging = ProjectStoreImpl(
+        persistence = persistenceStore,
+        scope = scope,
+    ).also { store ->
+        // JVM-only: blocking load during DI startup is acceptable here — we are
+        // not on the EDT yet.  Kotlin/Native containers must use suspend init.
+        runBlocking { store.load() }
+    }
+
+    val agentRegistry: AIAgentRegistry = DefaultAIAgentRegistry()
 
     val agentAvailabilityChecking: AgentAvailabilityChecking = AgentAvailabilityServiceImpl(
         binaryResolver = binaryResolver,
         credentialStorage = credentialStorage,
+        registry = agentRegistry,
         scope = scope,
     ).also { it.refreshAll() }
 
@@ -126,8 +139,10 @@ class DesktopServiceContainer {
             projectManaging = projectStore,
             terminalSessionManaging = terminalService,
             agentAvailabilityChecking = agentAvailabilityChecking,
+            agentRegistry = agentRegistry,
             apiKeyResolving = apiKeyResolving,
             scope = scope,
+            blockingDispatcher = Dispatchers.IO,
         ).also { vm ->
             vm.onResolveHomePath = { System.getProperty("user.home") ?: "" }
             vm.onResolveEnvVar = { name -> System.getenv(name) }
@@ -154,7 +169,8 @@ class DesktopServiceContainer {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun dispose() {
-        projectStore.save()
+        // Final synchronous flush so unsaved in-memory edits hit disk before exit.
+        runBlocking { projectStore.save() }
         gitStatusPoller.stopPolling()
         fileTreeViewModel.stopWatching()
         fileSystemWatchingService.unwatchAll()
@@ -227,7 +243,7 @@ private class StubTerminalSessionManaging : TerminalSessionManaging {
     ): TerminalSession = error("pty4j integration pending — split not available in scaffold")
 
     override fun startAgentSession(
-        agent: AIAssistant,
+        agent: AIAgent,
         projectId: Uuid,
         workingDirectory: String,
         apiKeyValue: String?,

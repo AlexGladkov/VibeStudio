@@ -2,7 +2,6 @@ package studio.vibe.shared.contract
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
 import studio.vibe.shared.model.TabActivityState
@@ -51,7 +50,7 @@ interface TerminalSessionCreating {
      * every failure look identical from the UI.
      */
     fun startAgentSession(
-        agent: AIAssistant,
+        agent: AIAgent,
         projectId: Uuid,
         workingDirectory: String,
         apiKeyValue: String?,

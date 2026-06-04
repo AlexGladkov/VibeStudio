@@ -31,7 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
@@ -51,10 +51,10 @@ import studio.vibe.shared.preferences.AppTheme
  */
 @Composable
 fun GeneralSettingsPane(
-    container: DesktopServiceContainer,
+    preferences: GeneralPreferences,
     modifier: Modifier = Modifier,
 ) {
-    val prefs = container.generalPreferences
+    val prefs = preferences
     val colors = LocalDSColors.current
 
     val confirmTabClose by prefs.confirmTabCloseFlow.collectAsState()

@@ -44,7 +44,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -55,7 +55,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -67,7 +67,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsStatusSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -82,7 +82,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsBehaviourSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -94,7 +94,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsAutoBuildOnSaveToggle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -106,7 +106,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsBuildOnProjectOpenToggle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -118,7 +118,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsAutoOpenBuildPanelToggle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -130,7 +130,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsDisplaySectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -142,7 +142,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsShowFailingOnlyToggle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 
@@ -154,7 +154,7 @@ class CodeSpeakSettingsPaneTest {
     fun codeSpeakSettingsPane_showsNotificationsSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodeSpeakSettingsPane(container = container)
+                CodeSpeakSettingsPane(preferences = container.codeSpeakPreferences)
             }
         }
 

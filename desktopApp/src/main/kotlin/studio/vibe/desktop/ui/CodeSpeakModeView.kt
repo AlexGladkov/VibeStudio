@@ -81,7 +81,10 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.shared.contract.PersistenceStore
+import studio.vibe.shared.contract.ProcessRunner
+import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -124,31 +127,32 @@ import kotlin.uuid.Uuid
  */
 @Composable
 public fun CodeSpeakModeView(
-    container: DesktopServiceContainer,
+    persistenceStore: PersistenceStore,
+    projectStore: ProjectManaging,
+    processRunner: ProcessRunner,
+    coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
 ) {
-    // ── ViewModels ──────────────────────────────────────────────────────────
     val modeVm = remember {
         CodeSpeakModeViewModel(
-            persistenceStore = container.persistenceStore,
-            projectManaging = container.projectStore,
-            scope = container.scope,
+            persistenceStore = persistenceStore,
+            projectManaging = projectStore,
+            scope = coroutineScope,
         )
     }
     val buildVm = remember {
         SpecBuildPanelViewModel(
-            processRunner = container.processRunner,
-            projectManaging = container.projectStore,
-            scope = container.scope,
+            processRunner = processRunner,
+            projectManaging = projectStore,
+            scope = coroutineScope,
         )
     }
 
     val modeState by modeVm.state.collectAsState()
     val buildState by buildVm.state.collectAsState()
 
-    // ── Active project ──────────────────────────────────────────────────────
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
-    val projects by container.projectStore.projects.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
     val activeProject by remember(activeProjectId, projects) {
         derivedStateOf { activeProjectId?.let { id -> projects.find { it.id == id } } }
     }
@@ -193,7 +197,9 @@ public fun CodeSpeakModeView(
     ) {
         // ── LEFT: Specs list ──────────────────────────────────────────────
         SpecsListColumn(
-            container = container,
+            persistenceStore = persistenceStore,
+            projectStore = projectStore,
+            coroutineScope = coroutineScope,
             specs = modeState.specs,
             selectedSpecId = modeState.selectedSpec?.id,
             isLoading = modeState.isLoading,
@@ -267,7 +273,9 @@ private sealed class SpecsPanelDialog {
 
 @Composable
 private fun SpecsListColumn(
-    container: DesktopServiceContainer,
+    persistenceStore: PersistenceStore,
+    projectStore: ProjectManaging,
+    coroutineScope: CoroutineScope,
     specs: List<SpecFile>,
     selectedSpecId: Uuid?,
     isLoading: Boolean,
@@ -371,19 +379,20 @@ private fun SpecsListColumn(
     when (val dialog = activeDialog) {
         is SpecsPanelDialog.Editor -> {
             SpecEditorSheet(
-                container = container,
+                persistenceStore = persistenceStore,
+                coroutineScope = coroutineScope,
                 specFile = dialog.spec,
                 onDismiss = { activeDialog = SpecsPanelDialog.None },
             )
         }
         is SpecsPanelDialog.Wizard -> {
-            val projects by container.projectStore.projects.collectAsState()
+            val projects by projectStore.projects.collectAsState()
             val project = remember(activeProjectId, projects) {
                 activeProjectId?.let { id -> projects.find { it.id == id } }
             }
             if (project != null) {
                 SpecWizardSheet(
-                    container = container,
+                    persistenceStore = persistenceStore,
                     projectId = project.id,
                     projectPath = project.path,
                     onCreated = { onSpecsChanged() },

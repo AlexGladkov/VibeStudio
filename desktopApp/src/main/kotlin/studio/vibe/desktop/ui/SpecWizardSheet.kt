@@ -45,7 +45,7 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlinx.coroutines.launch
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -71,7 +71,7 @@ import kotlin.uuid.Uuid
  */
 @Composable
 public fun SpecWizardSheet(
-    container: DesktopServiceContainer,
+    persistenceStore: PersistenceStore,
     projectId: Uuid,
     projectPath: FilePath,
     onCreated: () -> Unit,
@@ -90,7 +90,7 @@ public fun SpecWizardSheet(
         resizable = false,
     ) {
         SpecWizardContent(
-            container = container,
+            persistenceStore = persistenceStore,
             projectPath = projectPath,
             onCreated = {
                 onCreated()
@@ -103,7 +103,7 @@ public fun SpecWizardSheet(
 
 @Composable
 private fun SpecWizardContent(
-    container: DesktopServiceContainer,
+    persistenceStore: PersistenceStore,
     projectPath: FilePath,
     onCreated: () -> Unit,
     onCancel: () -> Unit,
@@ -132,7 +132,7 @@ private fun SpecWizardContent(
                 val preferredDir = projectPath.child(".codespeak").child("specs")
                 val specDir = if (
                     runCatching {
-                        container.persistenceStore.isDirectory(preferredDir)
+                        persistenceStore.isDirectory(preferredDir)
                     }.getOrElse { false }
                 ) {
                     preferredDir
@@ -142,8 +142,8 @@ private fun SpecWizardContent(
                 val fileName = "$sanitized.cs.md"
                 val filePath = specDir.child(fileName)
                 val template = "# ${specName.trim()}\n\n"
-                container.persistenceStore.createDirectory(specDir)
-                container.persistenceStore.writeFile(filePath, template.encodeToByteArray())
+                persistenceStore.createDirectory(specDir)
+                persistenceStore.writeFile(filePath, template.encodeToByteArray())
                 onCreated()
             }.onFailure { e ->
                 errorMessage = "Failed to create file: ${e.message}"

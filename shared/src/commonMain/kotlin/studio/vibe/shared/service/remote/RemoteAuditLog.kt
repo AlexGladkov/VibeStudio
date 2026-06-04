@@ -2,6 +2,7 @@ package studio.vibe.shared.service.remote
 
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import studio.vibe.shared.model.RemoteDevice
 
 // ── PlatformLogger Interface ──────────────────────────────────────────────────
 

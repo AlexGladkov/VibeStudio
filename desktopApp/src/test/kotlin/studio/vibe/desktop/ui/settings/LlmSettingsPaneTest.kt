@@ -44,7 +44,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forClaude() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CLAUDE, container = container)
+                LlmSettingsPane(assistant = AIAssistant.CLAUDE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -55,7 +55,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToClaudePane_whenAssistantIsClaude() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CLAUDE, container = container)
+                LlmSettingsPane(assistant = AIAssistant.CLAUDE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -68,7 +68,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forOpencode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.OPENCODE, container = container)
+                LlmSettingsPane(assistant = AIAssistant.OPENCODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -79,7 +79,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToOpencodePane_whenAssistantIsOpencode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.OPENCODE, container = container)
+                LlmSettingsPane(assistant = AIAssistant.OPENCODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -92,7 +92,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forCodex() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODEX, container = container)
+                LlmSettingsPane(assistant = AIAssistant.CODEX, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -103,7 +103,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToCodexPane_whenAssistantIsCodex() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODEX, container = container)
+                LlmSettingsPane(assistant = AIAssistant.CODEX, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -116,7 +116,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forGemini() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.GEMINI, container = container)
+                LlmSettingsPane(assistant = AIAssistant.GEMINI, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -127,7 +127,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToGeminiPane_whenAssistantIsGemini() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.GEMINI, container = container)
+                LlmSettingsPane(assistant = AIAssistant.GEMINI, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -140,7 +140,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forQwenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.QWEN_CODE, container = container)
+                LlmSettingsPane(assistant = AIAssistant.QWEN_CODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -151,7 +151,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToQwenPane_whenAssistantIsQwenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.QWEN_CODE, container = container)
+                LlmSettingsPane(assistant = AIAssistant.QWEN_CODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -164,7 +164,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forCodeSpeak() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODE_SPEAK, container = container)
+                LlmSettingsPane(assistant = AIAssistant.CODE_SPEAK, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -175,7 +175,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToCodeSpeakPane_whenAssistantIsCodeSpeak() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODE_SPEAK, container = container)
+                LlmSettingsPane(assistant = AIAssistant.CODE_SPEAK, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 

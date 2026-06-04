@@ -27,12 +27,21 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.desktop.terminal.DesktopTerminalService
 import studio.vibe.desktop.terminal.LocalTerminalRenderer
 import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSLayout
+import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.preferences.GeneralPreferences
+import studio.vibe.shared.service.filetree.FileTreeBuilder
+import studio.vibe.shared.service.git.GitStatusPollerImpl
+import studio.vibe.shared.viewmodel.FileTreeViewModel
+import studio.vibe.shared.viewmodel.GitSidebarViewModel
+import studio.vibe.shared.viewmodel.ToolbarViewModel
 import java.awt.Cursor
 
 /**
@@ -46,52 +55,53 @@ import java.awt.Cursor
  */
 @Composable
 fun RootView(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
+    fileTreeBuilder: FileTreeBuilder,
+    fileTreeViewModel: FileTreeViewModel,
+    gitStatusPoller: GitStatusPollerImpl,
+    gitSidebarViewModel: GitSidebarViewModel,
+    gitService: GitServicing,
+    toolbarViewModel: ToolbarViewModel,
+    terminalService: DesktopTerminalService,
+    generalPreferences: GeneralPreferences,
+    coroutineScope: CoroutineScope,
     onOpenProject: () -> Unit,
     showGitPanel: Boolean,
     showSidebar: Boolean = true,
     onToggleGitPanel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val activeProject by container.projectStore.activeProjectId.collectAsState()
-    val projects by container.projectStore.projects.collectAsState()
+    val activeProject by projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
     var sidebarWidth by remember { mutableStateOf(DSLayout.sidebarDefaultWidth) }
     var gitPanelWidth by remember { mutableStateOf(DSLayout.changesPanelDefaultWidth) }
     val density = LocalDensity.current
 
     // ── File system watching ──────────────────────────────────────────────────
-    // Restarts when the active project changes; stops when project is null.
-    // Debounce (500 ms) is applied inside FileTreeViewModel.startWatching so
-    // rapid burst saves don't trigger excessive tree reloads.
     LaunchedEffect(activeProject) {
         val projectPath = projects.find { it.id == activeProject }?.path
         if (projectPath != null) {
-            container.fileTreeViewModel.loadTree(projectPath)
-            container.fileTreeViewModel.startWatching(projectPath)
+            fileTreeViewModel.loadTree(projectPath)
+            fileTreeViewModel.startWatching(projectPath)
         } else {
-            container.fileTreeViewModel.stopWatching()
+            fileTreeViewModel.stopWatching()
         }
     }
 
     // ── Git status polling ────────────────────────────────────────────────────
-    // Polls every 3 s (active) / 30 s (background) with exponential backoff.
-    // showGitPanel is checked so we only poll at active rate when the panel is
-    // visible; when hidden we fall back to background rate automatically via
-    // GitStatusPollerImpl's isActive flag.
     LaunchedEffect(activeProject, showGitPanel) {
         val projectPath = projects.find { it.id == activeProject }?.path
         if (projectPath != null) {
-            container.gitStatusPoller.startPolling(
+            gitStatusPoller.startPolling(
                 repository = projectPath,
                 isActive = showGitPanel,
             )
         } else {
-            container.gitStatusPoller.stopPolling()
+            gitStatusPoller.stopPolling()
         }
     }
 
     Row(modifier = modifier.fillMaxSize()) {
-        // ── Sidebar (collapsible via Cmd+B) ──────────────────────────────────
         AnimatedVisibility(
             visible = showSidebar,
             enter = expandHorizontally(),
@@ -99,7 +109,11 @@ fun RootView(
         ) {
             Row {
                 SidebarView(
-                    container = container,
+                    projectStore = projectStore,
+                    fileTreeBuilder = fileTreeBuilder,
+                    gitSidebarViewModel = gitSidebarViewModel,
+                    gitService = gitService,
+                    coroutineScope = coroutineScope,
                     onToggleGitPanel = onToggleGitPanel,
                     onOpenProject = onOpenProject,
                     modifier = Modifier
@@ -115,22 +129,20 @@ fun RootView(
             }
         }
 
-        // ── Center: Tab bar + terminal ────────────────────────────────────────
         Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
             TabBarView(
-                container = container,
+                projectStore = projectStore,
+                terminalService = terminalService,
+                toolbarViewModel = toolbarViewModel,
                 onOpenProject = onOpenProject,
             )
 
-            // Terminal area — delegates to the active TerminalRenderer so
-            // headless integration tests can swap the SwingPanel-based
-            // implementation for a Compose-only stub.
             if (activeProject != null) {
                 val project = projects.find { it.id == activeProject }
-                val toolbarState by container.toolbarViewModel.state.collectAsState()
-                val terminalFontSize by container.generalPreferences.terminalFontSizeFlow.collectAsState()
+                val toolbarState by toolbarViewModel.state.collectAsState()
+                val terminalFontSize by generalPreferences.terminalFontSizeFlow.collectAsState()
                 LocalTerminalRenderer.current.Render(
-                    service = container.terminalService,
+                    service = terminalService,
                     projectId = activeProject!!,
                     targetSessionId = toolbarState.activeAgentSessionId,
                     terminalFontSize = terminalFontSize.toFloat(),
@@ -144,18 +156,19 @@ fun RootView(
             }
         }
 
-        // ── Git changes panel (right side) ────────────────────────────────────
         if (showGitPanel && activeProject != null) {
             ResizeHandle(
                 onDrag = { delta ->
-                    // Dragging right = shrink panel, dragging left = grow panel
                     val newWidth = gitPanelWidth - with(density) { delta.toDp() }
                     gitPanelWidth = newWidth.coerceIn(220.dp, 450.dp)
                 },
             )
 
             GitPanel(
-                container = container,
+                gitSidebarViewModel = gitSidebarViewModel,
+                projectStore = projectStore,
+                gitService = gitService,
+                coroutineScope = coroutineScope,
                 modifier = Modifier
                     .width(gitPanelWidth)
                     .fillMaxHeight(),

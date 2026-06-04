@@ -40,7 +40,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 
@@ -51,7 +51,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 
@@ -64,7 +64,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_showsConfigSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 
@@ -76,7 +76,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_showsApiKeyConfigurationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 
@@ -88,7 +88,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_showsInstallationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 
@@ -100,7 +100,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_showsShortDescription() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 
@@ -114,7 +114,7 @@ class GeminiSettingsPaneTest {
     fun geminiSettingsPane_showsConfigFileNotFoundHint_whenFileAbsent() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeminiSettingsPane(container = container)
+                GeminiSettingsPane()
             }
         }
 

@@ -1,9 +1,11 @@
 package studio.vibe.shared.viewmodel
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.model.Project
 import kotlin.uuid.ExperimentalUuidApi
@@ -19,6 +21,7 @@ data class ProjectSettingsState(
 @OptIn(ExperimentalUuidApi::class)
 class ProjectSettingsViewModel(
     private val projectManaging: ProjectManaging,
+    private val scope: CoroutineScope,
 ) {
     private val _state = MutableStateFlow(ProjectSettingsState())
     val state: StateFlow<ProjectSettingsState> = _state.asStateFlow()
@@ -33,14 +36,16 @@ class ProjectSettingsViewModel(
     }
 
     fun saveProductionURL(projectId: Uuid) {
-        runCatching {
-            projectManaging.updateProject(projectId) { project ->
-                project.copy(productionURL = _state.value.productionURL.takeIf { it.isNotBlank() })
+        scope.launch {
+            runCatching {
+                projectManaging.updateProject(projectId) { project ->
+                    project.copy(productionURL = _state.value.productionURL.takeIf { it.isNotBlank() })
+                }
+                projectManaging.save()
+                _state.update { it.copy(isSaved = true, errorMessage = null) }
+            }.onFailure { e ->
+                _state.update { it.copy(errorMessage = e.message, isSaved = false) }
             }
-            projectManaging.save()
-            _state.update { it.copy(isSaved = true, errorMessage = null) }
-        }.onFailure { e ->
-            _state.update { it.copy(errorMessage = e.message, isSaved = false) }
         }
     }
 

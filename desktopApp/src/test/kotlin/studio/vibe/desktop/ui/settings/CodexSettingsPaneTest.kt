@@ -40,7 +40,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -51,7 +51,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -64,7 +64,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsConfigSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -76,7 +76,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsMemoriesSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -91,7 +91,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsSkillsSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -106,7 +106,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsEmptyMemoriesState_whenDirDoesNotExist() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -121,7 +121,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsEmptySkillsState_whenDirDoesNotExist() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -136,7 +136,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsInstallationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 
@@ -148,7 +148,7 @@ class CodexSettingsPaneTest {
     fun codexSettingsPane_showsNpmInstallHint() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                CodexSettingsPane(container = container)
+                CodexSettingsPane()
             }
         }
 

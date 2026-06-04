@@ -35,13 +35,17 @@ class JvmFileSystemWatchingService(
     private val _events = MutableSharedFlow<FileChangeEvent>(extraBufferCapacity = 64)
     override val events: Flow<FileChangeEvent> = _events.asSharedFlow()
 
-    /** Mutable snapshot — only mutated within [scope]. */
+    // Maps are touched from arbitrary caller threads (Main + dispose hook +
+    // window-close coroutines), so all mutations and snapshots are guarded by
+    // [lock].  ConcurrentHashMap is not sufficient on its own because we need
+    // *atomic* multi-map updates (info + job + watcher inserted together).
+    private val lock = Any()
     private val watchInfoMap = mutableMapOf<WatchToken, WatchInfo>()
     private val watchJobs = mutableMapOf<WatchToken, Job>()
     private val watcherInstances = mutableMapOf<WatchToken, JvmFileSystemWatcher>()
 
     override val activeWatches: List<WatchInfo>
-        get() = watchInfoMap.values.toList()
+        get() = synchronized(lock) { watchInfoMap.values.toList() }
 
     override fun watch(directory: FilePath, options: WatchOptions): WatchToken {
         val token = WatchToken()
@@ -51,14 +55,10 @@ class JvmFileSystemWatchingService(
             options = options,
             startedAt = Clock.System.now(),
         )
-        watchInfoMap[token] = info
-
         val watcher = JvmFileSystemWatcher()
-        watcherInstances[token] = watcher
 
         val job = scope.launch {
             watcher.watch(directory).collect { event ->
-                // Apply ignore-pattern filter from WatchOptions before forwarding.
                 val name = event.path.name
                 val ignored = options.ignoredPatterns.any { pattern ->
                     matchesGlob(name, pattern)
@@ -68,18 +68,28 @@ class JvmFileSystemWatchingService(
                 }
             }
         }
-        watchJobs[token] = job
+
+        synchronized(lock) {
+            watchInfoMap[token] = info
+            watcherInstances[token] = watcher
+            watchJobs[token] = job
+        }
         return token
     }
 
     override fun unwatch(token: WatchToken) {
-        watchJobs.remove(token)?.cancel()
-        watcherInstances.remove(token)?.stop()
-        watchInfoMap.remove(token)
+        val (job, watcher) = synchronized(lock) {
+            val j = watchJobs.remove(token)
+            val w = watcherInstances.remove(token)
+            watchInfoMap.remove(token)
+            j to w
+        }
+        job?.cancel()
+        watcher?.stop()
     }
 
     override fun unwatchAll() {
-        val tokens = watchInfoMap.keys.toList()
+        val tokens = synchronized(lock) { watchInfoMap.keys.toList() }
         tokens.forEach { unwatch(it) }
     }
 

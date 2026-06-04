@@ -13,9 +13,9 @@ import studio.vibe.desktop.terminal.LocalTerminalRenderer
 import studio.vibe.desktop.testutil.StubTerminalRenderer
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.RootView
-import studio.vibe.desktop.ui.SidebarView
-import studio.vibe.desktop.ui.TabBarView
+import studio.vibe.desktop.testutil.RootView
+import studio.vibe.desktop.testutil.SidebarView
+import studio.vibe.desktop.testutil.TabBarView
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
@@ -23,6 +23,7 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlinx.coroutines.runBlocking
 
 /**
  * State-flow wiring integration tests.
@@ -69,7 +70,7 @@ class StateFlowWiringTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText(tempDir.name).assertDoesNotExist()
 
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText(tempDir.name).assertExists()
@@ -78,7 +79,7 @@ class StateFlowWiringTest {
     @Test
     fun tabBar_removesTab_whenProjectRemovedAfterRender() {
         val tempDir = Files.createTempDirectory("vs-flow-tabrem").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         composeTestRule.setContent {
             VibeStudioTheme {
@@ -103,7 +104,7 @@ class StateFlowWiringTest {
     @Test
     fun rootView_switchesToTerminal_whenActiveProjectSet() {
         val tempDir = Files.createTempDirectory("vs-flow-root").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         composeTestRule.setContent {
             CompositionLocalProvider(LocalTerminalRenderer provides StubTerminalRenderer) {
@@ -135,7 +136,7 @@ class StateFlowWiringTest {
     @Test
     fun rootView_switchesBackToPlaceholder_whenActiveProjectCleared() {
         val tempDir = Files.createTempDirectory("vs-flow-rootclear").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -178,7 +179,7 @@ class StateFlowWiringTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("VibeStudio").assertExists()
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
         composeTestRule.waitForIdle()
 
@@ -188,7 +189,7 @@ class StateFlowWiringTest {
     @Test
     fun app_switchesBackToWelcome_whenAllProjectsRemoved() {
         val tempDir = Files.createTempDirectory("vs-flow-apprem").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -227,7 +228,7 @@ class StateFlowWiringTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText(tempDir.name).assertDoesNotExist()
 
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText(tempDir.name).assertExists()
@@ -238,7 +239,7 @@ class StateFlowWiringTest {
     @Test
     fun activeProjectId_isNull_afterRemovingOnlyProject() {
         val tempDir = Files.createTempDirectory("vs-flow-consistency").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         assertEquals(project.id, container.projectStore.activeProjectId.value)
@@ -254,7 +255,7 @@ class StateFlowWiringTest {
         val initialCount = container.projectStore.projects.value.size
         val tempDir = Files.createTempDirectory("vs-flow-emit").toFile().also { it.deleteOnExit() }
 
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         assertEquals(initialCount + 1, container.projectStore.projects.value.size)
     }

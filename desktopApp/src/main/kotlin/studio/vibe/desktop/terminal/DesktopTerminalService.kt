@@ -16,13 +16,13 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.TerminalInputSending
 import studio.vibe.shared.contract.TerminalScrollbackAccessing
 import studio.vibe.shared.contract.TerminalSessionCreating
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.contract.TerminalSessionQuerying
-import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
 import studio.vibe.shared.model.TabActivityState
@@ -308,7 +308,7 @@ class DesktopTerminalService(
      * the new session is created, matching Swift TerminalService behaviour.
      */
     override fun startAgentSession(
-        agent: AIAssistant,
+        agent: AIAgent,
         projectId: Uuid,
         workingDirectory: String,
         apiKeyValue: String?,
@@ -425,9 +425,18 @@ class DesktopTerminalService(
 
     // ── TerminalScrollbackAccessing ─────────────────────────────────────────
 
-    /** Returns accumulated scrollback content for [sessionId], or `null`. */
-    override fun scrollbackContent(sessionId: Uuid): String? =
-        _sessions.value[sessionId]?.scrollback?.toString()
+    /**
+     * Returns accumulated scrollback content for [sessionId], or `null`.
+     *
+     * The read is performed under the same monitor used by [receiveOutput]
+     * to mutate the [StringBuilder]; otherwise concurrent appends/deletes
+     * can leave `toString()` observing a torn internal state and throw
+     * `ArrayIndexOutOfBoundsException` on the JVM.
+     */
+    override fun scrollbackContent(sessionId: Uuid): String? {
+        val state = _sessions.value[sessionId] ?: return null
+        return synchronized(state.scrollback) { state.scrollback.toString() }
+    }
 
     // ── Output flow access ──────────────────────────────────────────────────
 
@@ -527,8 +536,12 @@ class DesktopTerminalService(
                 kotlinx.coroutines.delay(10_000)
             }
 
-            removeSession(sessionId)
-            state.scope.cancel()
+            // We are running inside `state.scope`; let it complete naturally
+            // after this lambda returns.  Calling `removeSession` here would
+            // self-cancel via [PtySessionState.scope] and throw a spurious
+            // CancellationException out of `withContext`.
+            unregisterSession(sessionId)
+            runCatching { state.inputWriter.close() }
         }
     }
 
@@ -555,10 +568,41 @@ class DesktopTerminalService(
         rebuildProjectSessions()
     }
 
-    /** Removes a session from the registry and refreshes project map. */
-    private fun removeSession(sessionId: Uuid) {
+    /**
+     * Removes a session entry from the registry without touching the session
+     * scope.  Used by [watchProcessExit] after natural process exit, where the
+     * enclosing `sessionScope.launch { ... }` completes on its own.
+     */
+    private fun unregisterSession(sessionId: Uuid) {
         _sessions.update { it - sessionId }
         rebuildProjectSessions()
+    }
+
+    /**
+     * Removes a session from the registry, closes its stdin writer and cancels
+     * its [CoroutineScope].
+     *
+     * Cancelling the scope is required for the external-kill path
+     * ([killSession], [startAgentSession]'s exited-session cleanup): the
+     * PTY process has been killed but the `sessionScope`'s `watchProcessExit`
+     * coroutine may still be suspended inside `waitFor`.  Without explicit
+     * cancellation that coroutine would survive for the lifetime of
+     * [serviceScope] and leak memory.
+     */
+    private fun removeSession(sessionId: Uuid) {
+        val removed: PtySessionState? = run {
+            var captured: PtySessionState? = null
+            _sessions.update { current ->
+                captured = current[sessionId]
+                if (captured != null) current - sessionId else current
+            }
+            captured
+        }
+        rebuildProjectSessions()
+        if (removed != null) {
+            runCatching { removed.inputWriter.close() }
+            removed.scope.cancel()
+        }
     }
 
     /** Rebuilds the [_sessionsByProject] StateFlow from the current [_sessions] map. */
@@ -593,13 +637,13 @@ class DesktopTerminalService(
      * sandbox.  Trusted binary directories are prepended to `PATH` so that
      * package-manager-installed agent binaries are always discoverable.
      *
-     * The agent's API key is injected via the [AIAssistant.apiKeyEnvironmentVariable]
+     * The agent's API key is injected via the [AIAgent.apiKeyEnvironmentVariable]
      * entry — it never needs to be sent as a visible shell command.
      *
      * @param agent       The AI assistant whose API key variable should be set.
      * @param apiKeyValue The resolved secret value, or `null` if unavailable.
      */
-    private fun buildAgentEnv(agent: AIAssistant, apiKeyValue: String?): Map<String, String> {
+    private fun buildAgentEnv(agent: AIAgent, apiKeyValue: String?): Map<String, String> {
         val allowedVars = setOf(
             "HOME", "USER", "LOGNAME",
             "LANG", "LC_ALL", "LC_CTYPE",

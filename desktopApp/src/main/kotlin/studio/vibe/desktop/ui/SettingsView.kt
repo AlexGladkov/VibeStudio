@@ -43,7 +43,10 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.remote.RemoteControlServer
+import studio.vibe.shared.preferences.CodeSpeakPreferences
+import studio.vibe.shared.preferences.GeneralPreferences
+import studio.vibe.shared.preferences.RemoteControlPreferences
 import studio.vibe.desktop.ui.settings.GeneralSettingsPane
 import studio.vibe.desktop.ui.settings.LlmSettingsPane
 import studio.vibe.desktop.ui.settings.RemoteControlSettingsPane
@@ -75,11 +78,14 @@ import studio.vibe.shared.preferences.AppTheme
  */
 @Composable
 fun SettingsView(
-    container: DesktopServiceContainer,
+    generalPreferences: GeneralPreferences,
+    codeSpeakPreferences: CodeSpeakPreferences,
+    remoteControlPreferences: RemoteControlPreferences,
+    remoteControlServer: RemoteControlServer,
     onDismiss: () -> Unit,
 ) {
     val dialogState = rememberDialogState(size = DpSize(860.dp, 680.dp))
-    val theme by container.generalPreferences.themeFlow.collectAsState()
+    val theme by generalPreferences.themeFlow.collectAsState()
     val isDark = when (theme) {
         AppTheme.SYSTEM -> isSystemInDarkTheme()
         AppTheme.DARK -> true
@@ -92,12 +98,12 @@ fun SettingsView(
         title = "Settings",
         resizable = false,
     ) {
-        // The DialogWindow opens an OS-level window outside the main composition,
-        // so the theme provider must be re-applied here. Without this, LocalDSColors
-        // falls back to the [error("...")] default and crashes the dialog.
         VibeStudioTheme(isDark = isDark) {
             SettingsContent(
-                container = container,
+                generalPreferences = generalPreferences,
+                codeSpeakPreferences = codeSpeakPreferences,
+                remoteControlPreferences = remoteControlPreferences,
+                remoteControlServer = remoteControlServer,
                 onDismiss = onDismiss,
             )
         }
@@ -108,7 +114,10 @@ fun SettingsView(
 
 @Composable
 private fun SettingsContent(
-    container: DesktopServiceContainer,
+    generalPreferences: GeneralPreferences,
+    codeSpeakPreferences: CodeSpeakPreferences,
+    remoteControlPreferences: RemoteControlPreferences,
+    remoteControlServer: RemoteControlServer,
     onDismiss: () -> Unit,
 ) {
     val colors = LocalDSColors.current
@@ -149,7 +158,10 @@ private fun SettingsContent(
             ) {
                 SettingsContentPane(
                     item = selectedItem,
-                    container = container,
+                    generalPreferences = generalPreferences,
+                    codeSpeakPreferences = codeSpeakPreferences,
+                    remoteControlPreferences = remoteControlPreferences,
+                    remoteControlServer = remoteControlServer,
                 )
             }
         }
@@ -295,16 +307,23 @@ private fun SidebarItemIcon(item: SettingsItem, tint: Color) {
 @Composable
 private fun SettingsContentPane(
     item: SettingsItem,
-    container: DesktopServiceContainer,
+    generalPreferences: GeneralPreferences,
+    codeSpeakPreferences: CodeSpeakPreferences,
+    remoteControlPreferences: RemoteControlPreferences,
+    remoteControlServer: RemoteControlServer,
 ) {
     when (item) {
         is SettingsItem.Appearance -> GeneralSettingsPane(
-            container = container,
+            preferences = generalPreferences,
         )
-        is SettingsItem.RemoteControl -> RemoteControlSettingsPane(container = container)
+        is SettingsItem.RemoteControl -> RemoteControlSettingsPane(
+            preferences = remoteControlPreferences,
+            server = remoteControlServer,
+        )
         is SettingsItem.LlmAssistant -> LlmSettingsPane(
             assistant = item.assistant,
-            container = container,
+            generalPreferences = generalPreferences,
+            codeSpeakPreferences = codeSpeakPreferences,
         )
     }
 }

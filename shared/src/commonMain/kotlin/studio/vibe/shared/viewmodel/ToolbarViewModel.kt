@@ -1,5 +1,6 @@
 package studio.vibe.shared.viewmodel
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,51 +9,61 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.APIKeyResolving
 import studio.vibe.shared.contract.AgentAvailabilityChecking
 import studio.vibe.shared.contract.AgentAvailabilityStatus
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.AgentExitSequence
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 data class ToolbarState(
-    val selectedAssistant: AIAssistant = AIAssistant.CLAUDE,
+    val selectedAgent: AIAgent? = null,
     val isAgentRunning: Boolean = false,
     val activeAgentSessionId: Uuid? = null,
-    val agentAvailability: Map<AIAssistant, AgentAvailabilityStatus> = emptyMap(),
+    val agentAvailability: Map<AIAgent, AgentAvailabilityStatus> = emptyMap(),
     val errorMessage: String? = null,
     val isCheckingAvailability: Boolean = false,
 )
 
+/**
+ * Toolbar ViewModel.
+ *
+ * Uses [AIAgentRegistry] for the catalogue of available agents — adding a new
+ * agent (built-in or plugin) does not require modifying this class.
+ *
+ * @param scope            ViewModel coroutine scope (typically a `MainScope` derivative).
+ * @param blockingDispatcher Dispatcher used for blocking work (PTY process start, file I/O).
+ *                          JVM passes `Dispatchers.IO`; macOS Native passes `Dispatchers.Default`
+ *                          (Kotlin/Native lacks a dedicated IO dispatcher on the main worker).
+ *                          Inject `UnconfinedTestDispatcher` from unit tests.
+ */
 @OptIn(ExperimentalUuidApi::class)
 class ToolbarViewModel(
     private val projectManaging: ProjectManaging,
     private val terminalSessionManaging: TerminalSessionManaging,
     private val agentAvailabilityChecking: AgentAvailabilityChecking,
+    private val agentRegistry: AIAgentRegistry,
     private val apiKeyResolving: APIKeyResolving,
     private val scope: CoroutineScope,
+    private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
-    // ── Per-project state (matches Swift ToolbarViewModel) ─────────────────
-
     private val runningAssistants = mutableMapOf<Uuid, Boolean>()
-    private val selectedAssistants = mutableMapOf<Uuid, AIAssistant>()
+    private val selectedAgents = mutableMapOf<Uuid, AIAgent>()
     private val agentSessionIds = mutableMapOf<Uuid, Uuid>()
-
-    // ── Public state (derived from per-project maps + active project) ──────
 
     private val _state = MutableStateFlow(ToolbarState())
     val state: StateFlow<ToolbarState> = _state.asStateFlow()
 
-    /** Platform callback to resolve the home directory path */
     var onResolveHomePath: (() -> String)? = null
-
-    /** Platform callback to resolve environment variables */
     var onResolveEnvVar: ((String) -> String?)? = null
+
+    private fun defaultAgent(): AIAgent? = agentRegistry.snapshot().firstOrNull()
 
     init {
         // Poll agent availability periodically
@@ -65,7 +76,7 @@ class ToolbarViewModel(
             }
         }
 
-        // Subscribe to session exit events so Stop button resets when agent exits
+        // Session-exit events reset Stop button when agent exits
         scope.launch {
             terminalSessionManaging.sessionEvents.collect { event ->
                 if (event is TerminalSessionEvent.ProcessExited) {
@@ -80,17 +91,20 @@ class ToolbarViewModel(
             }
         }
 
-        // Watch active project changes — rebuild toolbar state for the new project
+        // Active project changes — rebuild toolbar for the new project.
         scope.launch {
-            projectManaging.activeProjectId.collect {
-                rebuildState()
-            }
+            projectManaging.activeProjectId.collect { rebuildState() }
+        }
+
+        // Registry changes — surface plugin additions in the picker immediately.
+        scope.launch {
+            agentRegistry.agents.collect { rebuildState() }
         }
     }
 
-    fun selectAssistant(assistant: AIAssistant) {
+    fun selectAgent(agent: AIAgent) {
         val projectId = projectManaging.activeProject?.id ?: return
-        selectedAssistants[projectId] = assistant
+        selectedAgents[projectId] = agent
         rebuildState()
     }
 
@@ -114,23 +128,22 @@ class ToolbarViewModel(
             return
         }
         val projectId = project.id
-        val assistant = selectedAssistants[projectId] ?: AIAssistant.CLAUDE
-        val availability = agentAvailabilityChecking.check(assistant)
-        // Block only on explicit NotInstalled. Allow launch when status is
-        // still Checking (availability not yet resolved after app start).
+        val agent = selectedAgents[projectId] ?: defaultAgent() ?: run {
+            _state.update { it.copy(errorMessage = "No AI agent available") }
+            return
+        }
+        val availability = agentAvailabilityChecking.check(agent)
         if (availability is AgentAvailabilityStatus.NotInstalled) {
             _state.update { it.copy(errorMessage = availability.installHint) }
             return
         }
 
         scope.launch {
-            val apiKeyValue = resolveApiKey(assistant)
+            val apiKeyValue = resolveApiKey(agent)
             val workingDirectory = project.path.path
-            // startAgentSession calls PtyProcessBuilder.start() which blocks —
-            // must run on IO dispatcher, not Main (EDT).
-            val result = withContext(Dispatchers.IO) {
+            val result = withContext(blockingDispatcher) {
                 terminalSessionManaging.startAgentSession(
-                    agent = assistant,
+                    agent = agent,
                     projectId = projectId,
                     workingDirectory = workingDirectory,
                     apiKeyValue = apiKeyValue,
@@ -143,7 +156,7 @@ class ToolbarViewModel(
                 _state.update { it.copy(errorMessage = null) }
             }.onFailure { e ->
                 val msg = e.message?.takeIf { it.isNotBlank() }
-                    ?: "Failed to start ${assistant.displayName}: ${e::class.simpleName}"
+                    ?: "Failed to start ${agent.displayName}: ${e::class.simpleName}"
                 _state.update { it.copy(errorMessage = msg) }
             }
         }
@@ -152,22 +165,20 @@ class ToolbarViewModel(
     fun stopAgent() {
         val projectId = projectManaging.activeProject?.id ?: return
         val sessionId = agentSessionIds[projectId] ?: return
-        val assistant = selectedAssistants[projectId] ?: AIAssistant.CLAUDE
+        val agent = selectedAgents[projectId] ?: defaultAgent() ?: return
 
-        // Optimistic UI reset — matches Swift behaviour where the button
-        // switches to Play immediately after sending the stop signal.
         runningAssistants.remove(projectId)
         agentSessionIds.remove(projectId)
         rebuildState()
 
         scope.launch {
             runCatching {
-                when (val exitSeq = assistant.exitSequence) {
+                when (val exitSeq = agent.exitSequence) {
                     is AgentExitSequence.CtrlC -> {
-                        terminalSessionManaging.sendInput("\u0003", sessionId)
+                        terminalSessionManaging.sendInput("", sessionId)
                     }
                     is AgentExitSequence.CtrlCThenCommand -> {
-                        terminalSessionManaging.sendInput("\u0003", sessionId)
+                        terminalSessionManaging.sendInput("", sessionId)
                         kotlinx.coroutines.delay(300)
                         terminalSessionManaging.sendInput("${exitSeq.command}\n", sessionId)
                     }
@@ -176,10 +187,9 @@ class ToolbarViewModel(
         }
     }
 
-    /** Release all per-project cached state for a removed project. */
     fun cleanupProject(projectId: Uuid) {
         runningAssistants.remove(projectId)
-        selectedAssistants.remove(projectId)
+        selectedAgents.remove(projectId)
         agentSessionIds.remove(projectId)
         rebuildState()
     }
@@ -188,21 +198,20 @@ class ToolbarViewModel(
         _state.update { it.copy(errorMessage = null) }
     }
 
-    private fun resolveApiKey(assistant: AIAssistant): String? {
-        val envVar = assistant.apiKeyEnvironmentVariable ?: return null
+    private fun resolveApiKey(agent: AIAgent): String? {
+        val envVar = agent.apiKeyEnvironmentVariable ?: return null
         return onResolveEnvVar?.invoke(envVar) ?: apiKeyResolving.resolve(envVar)
     }
 
-    /** Rebuilds the public ToolbarState from per-project maps. */
     private fun rebuildState() {
         val projectId = projectManaging.activeProject?.id
-        val assistant = projectId?.let { selectedAssistants[it] } ?: AIAssistant.CLAUDE
+        val agent = projectId?.let { selectedAgents[it] } ?: defaultAgent()
         val isRunning = projectId?.let { runningAssistants[it] } == true
         val agentSessionId = projectId?.let { agentSessionIds[it] }
 
         _state.update { s ->
             s.copy(
-                selectedAssistant = assistant,
+                selectedAgent = agent,
                 isAgentRunning = isRunning,
                 activeAgentSessionId = agentSessionId,
             )

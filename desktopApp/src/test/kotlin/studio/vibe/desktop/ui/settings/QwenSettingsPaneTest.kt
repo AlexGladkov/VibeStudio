@@ -40,7 +40,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -51,7 +51,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -64,7 +64,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsGlobalConfigSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -76,7 +76,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsSubagentsSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -91,7 +91,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsEmptyAgentsState_whenDirDoesNotExist() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -106,7 +106,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsApiKeyConfigurationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -118,7 +118,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsInstallationSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 
@@ -130,7 +130,7 @@ class QwenSettingsPaneTest {
     fun qwenSettingsPane_showsShortDescription() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                QwenSettingsPane(container = container)
+                QwenSettingsPane()
             }
         }
 

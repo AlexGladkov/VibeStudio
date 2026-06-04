@@ -12,12 +12,13 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.TabBarView
+import studio.vibe.desktop.testutil.TabBarView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals
+import kotlinx.coroutines.runBlocking
 
 /**
  * Integration tests for [TabBarView].
@@ -105,8 +106,8 @@ class TabBarViewTest {
         val tempDir1 = Files.createTempDirectory("vs-tab-p1").toFile().also { it.deleteOnExit() }
         val tempDir2 = Files.createTempDirectory("vs-tab-p2").toFile().also { it.deleteOnExit() }
 
-        container.projectStore.addProject(FilePath(tempDir1.absolutePath))
-        container.projectStore.addProject(FilePath(tempDir2.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir1.absolutePath)) }
+        runBlocking { container.projectStore.addProject(FilePath(tempDir2.absolutePath)) }
 
         composeTestRule.setContent {
             VibeStudioTheme {
@@ -140,7 +141,7 @@ class TabBarViewTest {
     @Test
     fun tabBarView_closeButtonExists_forActiveTab() {
         val tempDir = Files.createTempDirectory("vs-tab-close").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -161,8 +162,8 @@ class TabBarViewTest {
         val tempDir1 = Files.createTempDirectory("vs-tab-click1").toFile().also { it.deleteOnExit() }
         val tempDir2 = Files.createTempDirectory("vs-tab-click2").toFile().also { it.deleteOnExit() }
 
-        val project1 = container.projectStore.addProject(FilePath(tempDir1.absolutePath))
-        val project2 = container.projectStore.addProject(FilePath(tempDir2.absolutePath))
+        val project1 = runBlocking { container.projectStore.addProject(FilePath(tempDir1.absolutePath)) }
+        val project2 = runBlocking { container.projectStore.addProject(FilePath(tempDir2.absolutePath)) }
         container.projectStore.setActiveProjectId(project1.id)
 
         composeTestRule.setContent {

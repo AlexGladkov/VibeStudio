@@ -36,6 +36,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,7 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -57,13 +59,15 @@ import studio.vibe.shared.model.Project
 fun WelcomeView(
     onOpenProject: () -> Unit,
     onCreateNew: () -> Unit = {},
-    container: DesktopServiceContainer? = null,
+    projectStore: ProjectManaging? = null,
     modifier: Modifier = Modifier,
 ) {
-    val recentProjects = container?.projectStore?.recentProjects?.let {
+    val recentProjects = projectStore?.recentProjects?.let {
         val state by it.collectAsState()
         state
     } ?: emptyList()
+
+    val coroutineScope = rememberCoroutineScope()
 
     Box(
         modifier = modifier
@@ -177,7 +181,14 @@ fun WelcomeView(
                         RecentProjectRow(
                             project = project,
                             onClick = {
-                                container?.projectStore?.addProject(project.path)
+                                if (projectStore != null) {
+                                    coroutineScope.launch {
+                                        runCatching {
+                                            val opened = projectStore.addProject(project.path)
+                                            projectStore.setActiveProjectId(opened.id)
+                                        }
+                                    }
+                                }
                             },
                         )
                     }

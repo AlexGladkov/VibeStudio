@@ -14,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -35,7 +34,6 @@ import java.io.File
  */
 @Composable
 fun CodexSettingsPane(
-    container: DesktopServiceContainer,
     modifier: Modifier = Modifier,
 ) {
     val homeDir = System.getProperty("user.home") ?: ""

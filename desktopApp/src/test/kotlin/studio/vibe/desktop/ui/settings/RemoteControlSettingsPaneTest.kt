@@ -44,7 +44,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -55,7 +55,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -67,7 +67,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsEnableRemoteControlLabel() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -79,7 +79,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsPortLabel() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -91,7 +91,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsPortRange() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -103,7 +103,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsBindToLocalhostLabel() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -115,7 +115,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsBonjourLabel() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -127,7 +127,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsNgrokTunnelSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -139,7 +139,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsAuthtokenLabel() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -151,7 +151,7 @@ class RemoteControlSettingsPaneTest {
     fun remoteControlSettingsPane_showsStatusSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 
@@ -164,7 +164,7 @@ class RemoteControlSettingsPaneTest {
         // Default preference state has remote control disabled
         composeTestRule.setContent {
             VibeStudioTheme {
-                RemoteControlSettingsPane(container = container)
+                RemoteControlSettingsPane(preferences = container.remoteControlPreferences, server = container.remoteControlServer)
             }
         }
 

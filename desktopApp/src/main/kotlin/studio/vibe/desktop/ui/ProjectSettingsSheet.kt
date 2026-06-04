@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -38,7 +39,7 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -61,7 +62,7 @@ import studio.vibe.shared.viewmodel.ProjectSettingsViewModel
  */
 @Composable
 fun ProjectSettingsSheet(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
     projectId: Uuid,
     projectName: String,
     projectPath: String,
@@ -73,9 +74,12 @@ fun ProjectSettingsSheet(
         height = 280.dp,
     )
 
+    val coroutineScope = rememberCoroutineScope()
     val vm = remember(projectId) {
-        ProjectSettingsViewModel(projectManaging = container.projectStore)
-            .also { it.load(projectId) }
+        ProjectSettingsViewModel(
+            projectManaging = projectStore,
+            scope = coroutineScope,
+        ).also { it.load(projectId) }
     }
 
     val state by vm.state.collectAsState()

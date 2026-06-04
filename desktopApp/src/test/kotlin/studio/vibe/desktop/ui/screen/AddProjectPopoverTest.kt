@@ -11,7 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.AddProjectPopover
+import studio.vibe.desktop.testutil.AddProjectPopover
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import java.io.File
 import kotlin.test.assertTrue

@@ -31,13 +31,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -72,12 +73,18 @@ import kotlin.time.Clock
  */
 @Composable
 public fun AddProjectPopover(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
     onOpenFolder: () -> Unit,
     onCreateNew: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
-    val vm = remember { AddProjectViewModel(projectManaging = container.projectStore) }
+    val coroutineScope = rememberCoroutineScope()
+    val vm = remember {
+        AddProjectViewModel(
+            projectManaging = projectStore,
+            scope = coroutineScope,
+        )
+    }
     val state by vm.state.collectAsState()
     val recentProjects = state.recentProjects
 

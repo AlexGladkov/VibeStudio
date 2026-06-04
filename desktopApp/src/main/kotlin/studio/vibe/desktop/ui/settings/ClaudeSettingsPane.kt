@@ -23,7 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -43,12 +43,10 @@ import java.io.File
  */
 @Composable
 fun ClaudeSettingsPane(
-    container: DesktopServiceContainer,
+    preferences: GeneralPreferences,
     modifier: Modifier = Modifier,
 ) {
-    val prefs = container.generalPreferences
-
-    var skipPermissions by remember { mutableStateOf(prefs.claudeSkipPermissions) }
+    var skipPermissions by remember { mutableStateOf(preferences.claudeSkipPermissions) }
 
     // File-system state
     val claudeConfigPath = remember {
@@ -115,7 +113,7 @@ fun ClaudeSettingsPane(
                         checked = skipPermissions,
                         onCheckedChange = { checked ->
                             skipPermissions = checked
-                            prefs.claudeSkipPermissions = checked
+                            preferences.claudeSkipPermissions = checked
                         },
                         colors = CheckboxDefaults.colors(
                             checkedColor = LocalDSColors.current.agentClaude,

@@ -17,6 +17,7 @@ import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import java.io.File
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 
 /**
  * Integration tests for [VibeStudioDesktopApp].
@@ -109,7 +110,7 @@ class VibeStudioDesktopAppTest {
     @Test
     fun app_showsSettingsButton_whenProjectsExistAndActive() {
         val tempDir = Files.createTempDirectory("vs-app-toolbar").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -130,7 +131,7 @@ class VibeStudioDesktopAppTest {
         val tempDir = Files.createTempDirectory("vs-app-noactive").toFile().also { it.deleteOnExit() }
 
         // Add project but do NOT activate it — simulates the startup bug.
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         composeTestRule.setContent {
             VibeStudioTheme {
@@ -146,7 +147,7 @@ class VibeStudioDesktopAppTest {
     @Test
     fun app_hidesWelcomeView_whenProjectsExistAndActive() {
         val tempDir = Files.createTempDirectory("vs-app-hasproj").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -164,7 +165,7 @@ class VibeStudioDesktopAppTest {
     @Test
     fun app_showsCodeSpeakView_whenIsCodeSpeakModeTrue() {
         val tempDir = Files.createTempDirectory("vs-app-cs").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {
@@ -184,7 +185,7 @@ class VibeStudioDesktopAppTest {
     @Test
     fun app_hidesCodeSpeakView_whenCodeSpeakModeIsFalse() {
         val tempDir = Files.createTempDirectory("vs-app-nocs").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {

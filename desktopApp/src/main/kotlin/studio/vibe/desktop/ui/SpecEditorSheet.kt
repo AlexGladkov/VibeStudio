@@ -46,7 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -69,7 +70,8 @@ import studio.vibe.shared.viewmodel.SpecEditorViewModel
  */
 @Composable
 public fun SpecEditorSheet(
-    container: DesktopServiceContainer,
+    persistenceStore: PersistenceStore,
+    coroutineScope: CoroutineScope,
     specFile: SpecFile,
     onDismiss: () -> Unit,
 ) {
@@ -81,8 +83,8 @@ public fun SpecEditorSheet(
 
     val vm = remember(specFile.id) {
         SpecEditorViewModel(
-            persistenceStore = container.persistenceStore,
-            scope = container.scope,
+            persistenceStore = persistenceStore,
+            scope = coroutineScope,
         ).also { it.loadSpec(specFile.path) }
     }
 

@@ -1,7 +1,7 @@
 package studio.vibe.shared.service.security
 
 import studio.vibe.shared.constants.SecurityConstants
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
 
 /**
  * Constructs a minimal, safe environment map for launching AI CLI agents.
@@ -36,7 +36,7 @@ object AgentEnvironmentBuilder {
      * @return Map of environment variable names to values.
      */
     fun build(
-        assistant: AIAssistant,
+        agent: AIAgent,
         apiKeyValue: String?,
         currentEnv: Map<String, String>,
     ): Map<String, String> {
@@ -72,7 +72,7 @@ object AgentEnvironmentBuilder {
         }
 
         // Inject the agent-specific API key if provided.
-        val envVar = assistant.apiKeyEnvironmentVariable
+        val envVar = agent.apiKeyEnvironmentVariable
         if (envVar != null && !apiKeyValue.isNullOrEmpty()) {
             result[envVar] = apiKeyValue
         }

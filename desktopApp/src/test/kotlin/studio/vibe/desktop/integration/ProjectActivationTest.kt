@@ -15,6 +15,7 @@ import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.ProjectManagerError
 import java.io.File
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 
 /**
  * KEY integration tests — these would have caught Bug #1 and Bug #2:
@@ -54,7 +55,7 @@ class ProjectActivationTest {
     fun addProject_doesNotAutoActivate() {
         val tempDir = Files.createTempDirectory("vs-activation-add").toFile().also { it.deleteOnExit() }
 
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         assertNull(
             container.projectStore.activeProjectId.value,
@@ -66,7 +67,7 @@ class ProjectActivationTest {
     fun addProject_thenSetActiveProjectId_activatesProject() {
         val tempDir = Files.createTempDirectory("vs-activation-set").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         assertEquals(project.id, container.projectStore.activeProjectId.value)
@@ -76,7 +77,7 @@ class ProjectActivationTest {
     fun addProject_projectAppearsInProjectsList() {
         val tempDir = Files.createTempDirectory("vs-activation-list").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         val projects = container.projectStore.projects.value
         assertEquals(1, projects.size)
@@ -87,7 +88,7 @@ class ProjectActivationTest {
     fun addProject_returnsProjectWithCorrectName() {
         val tempDir = Files.createTempDirectory("vs-activation-name").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         assertEquals(tempDir.name, project.name)
     }
@@ -98,10 +99,10 @@ class ProjectActivationTest {
     fun addProject_duplicate_throwsDuplicateError() {
         val tempDir = Files.createTempDirectory("vs-activation-dup").toFile().also { it.deleteOnExit() }
 
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         assertFailsWith<ProjectManagerError.Duplicate> {
-            container.projectStore.addProject(FilePath(tempDir.absolutePath))
+            runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         }
     }
 
@@ -109,10 +110,10 @@ class ProjectActivationTest {
     fun addProject_duplicateError_containsExistingProjectId() {
         val tempDir = Files.createTempDirectory("vs-activation-dupid").toFile().also { it.deleteOnExit() }
 
-        val original = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val original = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         val error = runCatching {
-            container.projectStore.addProject(FilePath(tempDir.absolutePath))
+            runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         }.exceptionOrNull()
 
         assertNotNull(error)
@@ -124,9 +125,9 @@ class ProjectActivationTest {
     fun addProject_handleDuplicate_activatesExistingProject() {
         val tempDir = Files.createTempDirectory("vs-activation-dupact").toFile().also { it.deleteOnExit() }
 
-        val original = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val original = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         try {
-            container.projectStore.addProject(FilePath(tempDir.absolutePath))
+            runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         } catch (e: ProjectManagerError.Duplicate) {
             container.projectStore.setActiveProjectId(e.existingId)
         }
@@ -141,8 +142,8 @@ class ProjectActivationTest {
         val dir1 = Files.createTempDirectory("vs-activation-rem1").toFile().also { it.deleteOnExit() }
         val dir2 = Files.createTempDirectory("vs-activation-rem2").toFile().also { it.deleteOnExit() }
 
-        val project1 = container.projectStore.addProject(FilePath(dir1.absolutePath))
-        val project2 = container.projectStore.addProject(FilePath(dir2.absolutePath))
+        val project1 = runBlocking { container.projectStore.addProject(FilePath(dir1.absolutePath)) }
+        val project2 = runBlocking { container.projectStore.addProject(FilePath(dir2.absolutePath)) }
         container.projectStore.setActiveProjectId(project1.id)
 
         container.projectStore.removeProject(project1.id)
@@ -154,7 +155,7 @@ class ProjectActivationTest {
     fun removeProject_lastProject_activeBecomesNull() {
         val tempDir = Files.createTempDirectory("vs-activation-last").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         container.projectStore.removeProject(project.id)
@@ -167,8 +168,8 @@ class ProjectActivationTest {
         val dir1 = Files.createTempDirectory("vs-activation-nonact1").toFile().also { it.deleteOnExit() }
         val dir2 = Files.createTempDirectory("vs-activation-nonact2").toFile().also { it.deleteOnExit() }
 
-        val project1 = container.projectStore.addProject(FilePath(dir1.absolutePath))
-        val project2 = container.projectStore.addProject(FilePath(dir2.absolutePath))
+        val project1 = runBlocking { container.projectStore.addProject(FilePath(dir1.absolutePath)) }
+        val project2 = runBlocking { container.projectStore.addProject(FilePath(dir2.absolutePath)) }
         container.projectStore.setActiveProjectId(project1.id)
 
         container.projectStore.removeProject(project2.id)
@@ -205,7 +206,7 @@ class ProjectActivationTest {
     fun setActiveProjectId_updatesStateFlow() {
         val tempDir = Files.createTempDirectory("vs-activation-flow").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         assertNull(container.projectStore.activeProjectId.value)
 
         container.projectStore.setActiveProjectId(project.id)
@@ -217,7 +218,7 @@ class ProjectActivationTest {
     fun setActiveProjectId_null_clearsActiveProject() {
         val tempDir = Files.createTempDirectory("vs-activation-clear").toFile().also { it.deleteOnExit() }
 
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         container.projectStore.setActiveProjectId(null)
@@ -233,7 +234,7 @@ class ProjectActivationTest {
             Files.createTempDirectory("vs-activation-multi$it").toFile().also { d -> d.deleteOnExit() }
         }
 
-        dirs.forEach { container.projectStore.addProject(FilePath(it.absolutePath)) }
+        dirs.forEach { runBlocking { container.projectStore.addProject(FilePath(it.absolutePath)) } }
 
         assertEquals(3, container.projectStore.projects.value.size)
     }

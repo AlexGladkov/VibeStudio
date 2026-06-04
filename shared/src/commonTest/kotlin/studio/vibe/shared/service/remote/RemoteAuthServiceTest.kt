@@ -1,530 +1,339 @@
 package studio.vibe.shared.service.remote
 
-import kotlin.test.*
+import kotlinx.coroutines.test.runTest
+import studio.vibe.shared.model.RemoteAuthError
+import studio.vibe.shared.model.RemoteAuthResult
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * Unit tests for [RemoteAuthServiceImpl].
  *
  * Each test constructs a fresh [RemoteAuthServiceImpl] with a deterministic
  * [SecureRandom] stub so results are reproducible.
- *
- * AAA structure is followed throughout. No coroutines are needed because all
- * public methods on [RemoteAuthServiceImpl] are synchronous.
  */
 @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 class RemoteAuthServiceTest {
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /**
-     * A [SecureRandom] implementation that returns a fixed byte sequence.
-     * Rotating through [chunks] allows controlling both PIN and token bytes.
-     */
     private class FixedSecureRandom(private vararg val chunks: ByteArray) : SecureRandom {
         private var index = 0
         override fun nextBytes(size: Int): ByteArray {
             val chunk = chunks[index % chunks.size]
             index++
-            // Return exactly `size` bytes, padding/truncating as needed.
             return ByteArray(size) { i -> if (i < chunk.size) chunk[i] else 0 }
         }
-    }
-
-    /** Builds the PIN that [FixedSecureRandom] with [bytes] would produce. */
-    private fun pinFromBytes(bytes: ByteArray): String {
-        val raw = ((bytes[0].toInt() and 0xFF) or
-                ((bytes[1].toInt() and 0xFF) shl 8) or
-                ((bytes[2].toInt() and 0xFF) shl 16) or
-                ((bytes[3].toInt() and 0xFF) shl 24)).toLong() and 0xFFFFFFFFL
-        return (raw % 1_000_000L).toInt().toString().padStart(6, '0')
     }
 
     private fun freshService(secureRandom: SecureRandom = KotlinSecureRandom): RemoteAuthServiceImpl =
         RemoteAuthServiceImpl(secureRandom = secureRandom)
 
+    private fun <T> RemoteAuthResult<T>.getOrThrowAuth(): T = when (this) {
+        is RemoteAuthResult.Success -> value
+        is RemoteAuthResult.Failure -> error("expected success but got $error")
+    }
+
     // ── PIN Generation ────────────────────────────────────────────────────────
 
     @Test
     fun regeneratePin_producesSixDigitString() {
-        // Arrange
         val service = freshService()
-
-        // Act
         val pin = service.currentPin.value
-
-        // Assert
-        assertEquals(6, pin.length, "PIN must always be exactly 6 characters")
-        assertTrue(pin.all { it.isDigit() }, "PIN must contain only digits, got: $pin")
+        assertEquals(6, pin.length)
+        assertTrue(pin.all { it.isDigit() })
     }
 
     @Test
     fun regeneratePin_zeroPadsShortValues() {
-        // Arrange — bytes that produce the raw value 7 → pin "000007"
         val bytes = byteArrayOf(7, 0, 0, 0)
-        val rng = FixedSecureRandom(
-            bytes,              // used for PIN at init
-            ByteArray(32) { 0 }, // placeholder for token bytes
-        )
-        // Act
+        val rng = FixedSecureRandom(bytes, ByteArray(32) { 0 })
         val service = freshService(rng)
-        val pin = service.currentPin.value
-
-        // Assert
-        assertEquals("000007", pin)
+        assertEquals("000007", service.currentPin.value)
     }
 
     @Test
     fun regeneratePin_neverExceedsSixDigits() {
-        // Arrange — bytes that encode UInt.MAX_VALUE (0xFFFFFFFF = 4294967295)
-        // 4294967295 % 1_000_000 = 967295
         val bytes = byteArrayOf(0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte())
         val rng = FixedSecureRandom(bytes, ByteArray(32))
-        // Act
         val service = freshService(rng)
-        val pin = service.currentPin.value
-
-        // Assert
-        assertEquals(6, pin.length)
-        assertEquals("967295", pin)
+        assertEquals("967295", service.currentPin.value)
     }
 
     @Test
     fun regeneratePin_calledManually_changesCurrentPin() {
-        // Arrange
         val service = freshService()
-        val pinBefore = service.currentPin.value
-
-        // Act
         service.regeneratePin()
         val pinAfter = service.currentPin.value
-
-        // Assert — with real random it is astronomically unlikely to get the same PIN twice
-        // but the contract is that regeneratePin() emits a new value into the StateFlow
         assertEquals(6, pinAfter.length)
         assertTrue(pinAfter.all { it.isDigit() })
-        // The following soft assertion documents intent without depending on randomness
         assertNotNull(pinAfter)
     }
 
     // ── PIN Validation — success path ─────────────────────────────────────────
 
     @Test
-    fun validatePin_correctPin_returnsAuthTokenResponse() {
-        // Arrange
-        val pinBytes = byteArrayOf(42, 0, 0, 0)
-        val tokenBytes = ByteArray(32) { it.toByte() }
-        val rng = FixedSecureRandom(pinBytes, tokenBytes, pinBytes) // init, token, regen
-        val service = freshService(rng)
-        val correctPin = service.currentPin.value
-
-        // Act
+    fun validatePin_correctPin_returnsAuthToken() = runTest {
+        val service = freshService()
+        val pin = service.currentPin.value
         val result = service.validatePin(
-            pin = correctPin,
+            pin = pin,
             clientIP = "127.0.0.1",
             userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5)",
         )
-
-        // Assert
-        assertTrue(result.isSuccess)
-        val response = result.getOrThrow()
+        val response = result.getOrThrowAuth()
         assertEquals("iPhone", response.device.displayName)
         assertEquals("127.0.0.1", response.device.ipAddress)
         assertTrue(response.token.isNotEmpty())
-        assertTrue(response.token.all { it.isLetterOrDigit() })
     }
 
     @Test
-    fun validatePin_correctPin_consumesPinAndRegeneratesIt() {
-        // Arrange
+    fun validatePin_correctPin_consumesPinAndRegeneratesIt() = runTest {
         val service = freshService()
         val pinBeforeAuth = service.currentPin.value
-
-        // Act
-        service.validatePin(pin = pinBeforeAuth, clientIP = "10.0.0.1", userAgent = "test")
-
-        // Assert — PIN must have been regenerated after successful authentication
-        val pinAfterAuth = service.currentPin.value
-        assertEquals(6, pinAfterAuth.length, "New PIN must be 6 digits")
-        // Original PIN is now invalid for a second authentication
-        val secondAttempt = service.validatePin(
-            pin = pinBeforeAuth,
-            clientIP = "10.0.0.2",
-            userAgent = "test",
-        )
-        assertTrue(secondAttempt.isFailure)
-        assertIs<AuthError.InvalidPin>(secondAttempt.exceptionOrNull())
+        service.validatePin(pinBeforeAuth, "10.0.0.1", "test")
+        assertEquals(6, service.currentPin.value.length)
+        val secondAttempt = service.validatePin(pinBeforeAuth, "10.0.0.2", "test")
+        assertIs<RemoteAuthResult.Failure>(secondAttempt)
+        assertEquals(RemoteAuthError.InvalidPin, secondAttempt.error)
     }
 
     @Test
-    fun validatePin_correctPin_addsDeviceToConnectedDevices() {
-        // Arrange
+    fun validatePin_correctPin_addsDeviceToConnectedDevices() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
         assertEquals(0, service.connectedDevices.value.size)
-
-        // Act
-        service.validatePin(pin = pin, clientIP = "192.168.1.1", userAgent = "test-agent")
-
-        // Assert
+        service.validatePin(pin, "192.168.1.1", "test-agent")
         assertEquals(1, service.connectedDevices.value.size)
         assertEquals("192.168.1.1", service.connectedDevices.value.first().ipAddress)
     }
 
     @Test
-    fun validatePin_correctPin_invokesOnDevicesChangedCallback() {
-        // Arrange
+    fun validatePin_correctPin_invokesOnDevicesChangedCallback() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
         var callbackCount = 0
         service.onDevicesChanged = { callbackCount++ }
-
-        // Act
-        service.validatePin(pin = pin, clientIP = "10.0.0.1", userAgent = "agent")
-
-        // Assert
+        service.validatePin(pin, "10.0.0.1", "agent")
         assertEquals(1, callbackCount)
     }
 
     @Test
-    fun validatePin_correctPin_clearsPerIpFailureHistory() {
-        // Arrange — record a failure for the same IP before a success
+    fun validatePin_correctPin_clearsPerIpFailureHistory() = runTest {
         val service = freshService()
-        service.validatePin(pin = "000000", clientIP = "1.2.3.4", userAgent = "x")
+        service.validatePin("000000", "1.2.3.4", "x")
         val correctPin = service.currentPin.value
-
-        // Act — success from the same IP
-        val result = service.validatePin(pin = correctPin, clientIP = "1.2.3.4", userAgent = "x")
-
-        // Assert — the success clears failure history; same IP should not be rate-limited now
+        val result = service.validatePin(correctPin, "1.2.3.4", "x")
         assertTrue(result.isSuccess)
     }
 
     // ── PIN Validation — failure paths ────────────────────────────────────────
 
     @Test
-    fun validatePin_wrongPin_returnsInvalidPin() {
-        // Arrange
+    fun validatePin_wrongPin_returnsInvalidPin() = runTest {
         val service = freshService()
-
-        // Act
-        val result = service.validatePin(pin = "000000", clientIP = "1.1.1.1", userAgent = "x")
-
-        // Assert
-        assertTrue(result.isFailure)
-        assertIs<AuthError.InvalidPin>(result.exceptionOrNull())
+        val result = service.validatePin("000000", "1.1.1.1", "x")
+        assertIs<RemoteAuthResult.Failure>(result)
+        assertEquals(RemoteAuthError.InvalidPin, result.error)
     }
 
     @Test
-    fun validatePin_wrongPin_doesNotAddDevice() {
-        // Arrange
+    fun validatePin_wrongPin_doesNotAddDevice() = runTest {
         val service = freshService()
-
-        // Act
-        service.validatePin(pin = "999999", clientIP = "5.5.5.5", userAgent = "x")
-
-        // Assert
+        service.validatePin("999999", "5.5.5.5", "x")
         assertEquals(0, service.connectedDevices.value.size)
     }
 
     @Test
-    fun validatePin_afterGlobalLockout_returnsGlobalLockout() {
-        // Arrange — trigger global lockout (10 failures across IPs)
+    fun validatePin_afterGlobalLockout_returnsGlobalLockout() = runTest {
         val service = freshService()
         repeat(10) { i ->
-            service.validatePin(pin = "000000", clientIP = "10.0.0.$i", userAgent = "x")
+            service.validatePin("000000", "10.0.0.$i", "x")
         }
-        assertTrue(service.isLocked.value, "Service must be locked after 10 global failures")
-
-        // Act — attempt with any PIN
-        val result = service.validatePin(pin = "000000", clientIP = "99.99.99.99", userAgent = "x")
-
-        // Assert
-        assertIs<AuthError.GlobalLockout>(result.exceptionOrNull())
+        assertTrue(service.isLocked.value)
+        val result = service.validatePin("000000", "99.99.99.99", "x")
+        assertIs<RemoteAuthResult.Failure>(result)
+        assertEquals(RemoteAuthError.GlobalLockout, result.error)
     }
 
     @Test
-    fun validatePin_perIpRateLimit_returnsRateLimited() {
-        // Arrange — 3 failures from the same IP within window
+    fun validatePin_perIpRateLimit_returnsRateLimited() = runTest {
         val service = freshService()
         val ip = "10.10.10.10"
-        repeat(3) {
-            service.validatePin(pin = "000000", clientIP = ip, userAgent = "x")
-        }
-
-        // Act — 4th attempt from same IP
-        val result = service.validatePin(pin = "000000", clientIP = ip, userAgent = "x")
-
-        // Assert
-        assertTrue(result.isFailure)
-        assertIs<AuthError.RateLimited>(result.exceptionOrNull())
-        val err = result.exceptionOrNull() as AuthError.RateLimited
-        assertTrue(err.retryAfterSeconds >= 1, "retryAfterSeconds must be at least 1")
+        repeat(3) { service.validatePin("000000", ip, "x") }
+        val result = service.validatePin("000000", ip, "x")
+        assertIs<RemoteAuthResult.Failure>(result)
+        val err = result.error
+        assertIs<RemoteAuthError.RateLimited>(err)
+        assertTrue(err.retryAfterSeconds >= 1)
     }
 
     @Test
-    fun validatePin_maxDevicesReached_returnsMaxDevicesReached() {
-        // Arrange — fill up 3 device slots
+    fun validatePin_maxDevicesReached_returnsMaxDevicesReached() = runTest {
         val service = freshService()
         repeat(3) { i ->
             val pin = service.currentPin.value
-            service.validatePin(pin = pin, clientIP = "10.0.0.$i", userAgent = "device $i")
+            service.validatePin(pin, "10.0.0.$i", "device $i")
         }
         assertEquals(3, service.connectedDevices.value.size)
-
-        // Act
         val pin = service.currentPin.value
-        val result = service.validatePin(pin = pin, clientIP = "10.0.0.99", userAgent = "overflow device")
-
-        // Assert
-        assertIs<AuthError.MaxDevicesReached>(result.exceptionOrNull())
+        val result = service.validatePin(pin, "10.0.0.99", "overflow")
+        assertIs<RemoteAuthResult.Failure>(result)
+        assertEquals(RemoteAuthError.MaxDevicesReached, result.error)
     }
 
     @Test
-    fun validatePin_globalLockout_firesOnSecurityLockoutCallback() {
-        // Arrange
+    fun validatePin_globalLockout_firesOnSecurityLockoutCallback() = runTest {
         val service = freshService()
         var lockoutFired = false
         service.onSecurityLockout = { lockoutFired = true }
-
-        // Act — 10 failures to trigger global lockout
-        repeat(10) { i ->
-            service.validatePin(pin = "000000", clientIP = "10.0.0.$i", userAgent = "x")
-        }
-
-        // Assert
+        repeat(10) { i -> service.validatePin("000000", "10.0.0.$i", "x") }
         assertTrue(lockoutFired)
     }
 
     // ── Token Validation ──────────────────────────────────────────────────────
 
     @Test
-    fun validateToken_validToken_returnsDevice() {
-        // Arrange
+    fun validateToken_validToken_returnsDevice() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val authResponse = service.validatePin(
-            pin = pin,
-            clientIP = "192.168.0.1",
-            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        ).getOrThrow()
-
-        // Act
-        val result = service.validateToken(
-            token = authResponse.token,
-            clientIP = "192.168.0.1",
-        )
-
-        // Assert
-        assertTrue(result.isSuccess)
-        assertEquals(authResponse.device.id, result.getOrThrow().id)
+        val authResponse = service.validatePin(pin, "192.168.0.1", "Mozilla/5.0 (Macintosh)").getOrThrowAuth()
+        val result = service.validateToken(authResponse.token, "192.168.0.1")
+        val device = result.getOrThrowAuth()
+        assertEquals(authResponse.device.id, device.id)
     }
 
     @Test
-    fun validateToken_unknownToken_returnsInvalidToken() {
-        // Arrange
+    fun validateToken_unknownToken_returnsInvalidToken() = runTest {
         val service = freshService()
-
-        // Act
-        val result = service.validateToken(token = "deadbeef00000000", clientIP = "1.1.1.1")
-
-        // Assert
-        assertIs<AuthError.InvalidToken>(result.exceptionOrNull())
+        val result = service.validateToken("deadbeef00000000", "1.1.1.1")
+        assertIs<RemoteAuthResult.Failure>(result)
+        assertEquals(RemoteAuthError.InvalidToken, result.error)
     }
 
     @Test
-    fun validateToken_ipMismatch_returnsIpMismatch() {
-        // Arrange
+    fun validateToken_ipMismatch_returnsIpMismatch() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val authResponse = service.validatePin(
-            pin = pin,
-            clientIP = "10.0.0.1",
-            userAgent = "agent",
-        ).getOrThrow()
-
-        // Act — validate from a different IP
-        val result = service.validateToken(
-            token = authResponse.token,
-            clientIP = "10.0.0.2",
-        )
-
-        // Assert
-        assertIs<AuthError.IpMismatch>(result.exceptionOrNull())
+        val authResponse = service.validatePin(pin, "10.0.0.1", "agent").getOrThrowAuth()
+        val result = service.validateToken(authResponse.token, "10.0.0.2")
+        assertIs<RemoteAuthResult.Failure>(result)
+        assertEquals(RemoteAuthError.IpMismatch, result.error)
     }
 
     // ── Device Management ─────────────────────────────────────────────────────
 
     @Test
-    fun revokeDevice_removesDeviceAndToken() {
-        // Arrange
+    fun revokeDevice_removesDeviceAndToken() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val authResponse = service.validatePin(
-            pin = pin,
-            clientIP = "10.0.0.1",
-            userAgent = "agent",
-        ).getOrThrow()
+        val authResponse = service.validatePin(pin, "10.0.0.1", "agent").getOrThrowAuth()
         assertEquals(1, service.connectedDevices.value.size)
-
-        // Act
         service.revokeDevice(authResponse.device.id)
-
-        // Assert — device is gone
         assertEquals(0, service.connectedDevices.value.size)
-        // Token is also invalidated
         val tokenResult = service.validateToken(authResponse.token, "10.0.0.1")
-        assertIs<AuthError.InvalidToken>(tokenResult.exceptionOrNull())
+        assertIs<RemoteAuthResult.Failure>(tokenResult)
+        assertEquals(RemoteAuthError.InvalidToken, tokenResult.error)
     }
 
     @Test
-    fun revokeAllDevices_clearsDevicesAndTokens() {
-        // Arrange — connect 2 devices
+    fun revokeAllDevices_clearsDevicesAndTokens() = runTest {
         val service = freshService()
         repeat(2) { i ->
             val pin = service.currentPin.value
-            service.validatePin(pin = pin, clientIP = "10.0.0.$i", userAgent = "d$i")
+            service.validatePin(pin, "10.0.0.$i", "d$i")
         }
         assertEquals(2, service.connectedDevices.value.size)
-
-        // Act
         service.revokeAllDevices()
-
-        // Assert
         assertEquals(0, service.connectedDevices.value.size)
     }
 
     @Test
-    fun revokeAllDevices_invokesOnDevicesChangedWithZero() {
-        // Arrange
+    fun revokeAllDevices_invokesOnDevicesChangedWithZero() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        service.validatePin(pin = pin, clientIP = "1.1.1.1", userAgent = "x")
+        service.validatePin(pin, "1.1.1.1", "x")
         var lastCount = -1
         service.onDevicesChanged = { lastCount = it }
-
-        // Act
         service.revokeAllDevices()
-
-        // Assert
         assertEquals(0, lastCount)
     }
 
     // ── Lockout Reset ─────────────────────────────────────────────────────────
 
     @Test
-    fun resetLockout_unlocksServiceAndAllowsAuth() {
-        // Arrange — trigger global lockout
+    fun resetLockout_unlocksServiceAndAllowsAuth() = runTest {
         val service = freshService()
-        repeat(10) { i ->
-            service.validatePin(pin = "000000", clientIP = "10.0.$i.0", userAgent = "x")
-        }
+        repeat(10) { i -> service.validatePin("000000", "10.0.$i.0", "x") }
         assertTrue(service.isLocked.value)
-
-        // Act
         service.resetLockout()
-
-        // Assert
         assertFalse(service.isLocked.value)
-        // A subsequent correct auth must now succeed
         val pin = service.currentPin.value
-        val result = service.validatePin(pin = pin, clientIP = "10.0.0.1", userAgent = "x")
+        val result = service.validatePin(pin, "10.0.0.1", "x")
         assertTrue(result.isSuccess)
     }
 
     @Test
-    fun resetLockout_generatesNewPin() {
-        // Arrange
+    fun resetLockout_generatesNewPin() = runTest {
         val service = freshService()
-        val pinBeforeReset = service.currentPin.value
-
-        // Act
         service.resetLockout()
-
-        // Assert — PIN is refreshed (may coincidentally be the same, but must be valid 6-digit)
-        val pinAfterReset = service.currentPin.value
-        assertEquals(6, pinAfterReset.length)
-        assertTrue(pinAfterReset.all { it.isDigit() })
-        assertNotNull(pinAfterReset)
+        val pinAfter = service.currentPin.value
+        assertEquals(6, pinAfter.length)
+        assertTrue(pinAfter.all { it.isDigit() })
     }
 
     // ── User-Agent Parsing ────────────────────────────────────────────────────
 
     @Test
-    fun validatePin_iPhoneUserAgent_displaysIphone() {
+    fun validatePin_iPhoneUserAgent_displaysIphone() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val result = service.validatePin(
-            pin = pin,
-            clientIP = "1.2.3.4",
-            userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15",
-        )
-        assertEquals("iPhone", result.getOrThrow().device.displayName)
+        val result = service.validatePin(pin, "1.2.3.4", "Mozilla/5.0 (iPhone)").getOrThrowAuth()
+        assertEquals("iPhone", result.device.displayName)
     }
 
     @Test
-    fun validatePin_iPadUserAgent_displaysIpad() {
+    fun validatePin_iPadUserAgent_displaysIpad() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val result = service.validatePin(
-            pin = pin,
-            clientIP = "1.2.3.4",
-            userAgent = "Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X)",
-        )
-        assertEquals("iPad", result.getOrThrow().device.displayName)
+        val result = service.validatePin(pin, "1.2.3.4", "Mozilla/5.0 (iPad)").getOrThrowAuth()
+        assertEquals("iPad", result.device.displayName)
     }
 
     @Test
-    fun validatePin_macintoshUserAgent_displaysMac() {
+    fun validatePin_macintoshUserAgent_displaysMac() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val result = service.validatePin(
-            pin = pin,
-            clientIP = "1.2.3.4",
-            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        )
-        assertEquals("Mac", result.getOrThrow().device.displayName)
+        val result = service.validatePin(pin, "1.2.3.4", "Mozilla/5.0 (Macintosh)").getOrThrowAuth()
+        assertEquals("Mac", result.device.displayName)
     }
 
     @Test
-    fun validatePin_androidUserAgent_displaysAndroid() {
+    fun validatePin_androidUserAgent_displaysAndroid() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val result = service.validatePin(
-            pin = pin,
-            clientIP = "1.2.3.4",
-            userAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8)",
-        )
-        assertEquals("Android", result.getOrThrow().device.displayName)
+        val result = service.validatePin(pin, "1.2.3.4", "Mozilla/5.0 (Linux; Android)").getOrThrowAuth()
+        assertEquals("Android", result.device.displayName)
     }
 
     @Test
-    fun validatePin_unknownUserAgent_displaysRemoteDevice() {
+    fun validatePin_unknownUserAgent_displaysRemoteDevice() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        val result = service.validatePin(
-            pin = pin,
-            clientIP = "1.2.3.4",
-            userAgent = "curl/7.88.1",
-        )
-        assertEquals("Remote Device", result.getOrThrow().device.displayName)
+        val result = service.validatePin(pin, "1.2.3.4", "curl/7.88.1").getOrThrowAuth()
+        assertEquals("Remote Device", result.device.displayName)
     }
 
     // ── Token format ──────────────────────────────────────────────────────────
 
     @Test
-    fun validatePin_success_tokenIs64HexChars() {
-        // Arrange — 32 random bytes → 64 hex characters
+    fun validatePin_success_tokenIs64HexChars() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-
-        // Act
-        val response = service.validatePin(pin = pin, clientIP = "1.1.1.1", userAgent = "x").getOrThrow()
-
-        // Assert
-        assertEquals(64, response.token.length, "Token must be 64 hex chars (32 bytes)")
-        assertTrue(
-            response.token.all { it in '0'..'9' || it in 'a'..'f' },
-            "Token must be lowercase hex: ${response.token}"
-        )
+        val response = service.validatePin(pin, "1.1.1.1", "x").getOrThrowAuth()
+        assertEquals(64, response.token.length)
+        assertTrue(response.token.all { it in '0'..'9' || it in 'a'..'f' })
     }
 }

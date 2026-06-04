@@ -11,7 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.ToolbarView
+import studio.vibe.desktop.testutil.ToolbarView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.AIAssistant
 import java.io.File

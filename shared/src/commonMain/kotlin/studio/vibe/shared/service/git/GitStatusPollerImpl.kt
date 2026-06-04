@@ -4,6 +4,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.GitStatusPolling
 import studio.vibe.shared.model.FilePath
@@ -64,6 +66,14 @@ class GitStatusPollerImpl(
     private var consecutiveErrors = 0
     private var currentIsActive = true
 
+    /**
+     * Serializes [poll] invocations.  The scheduled poll loop and `refreshNow`
+     * trigger overlapping polls during rapid file saves; without this lock the
+     * `_isPolling` check-then-set window allowed two concurrent git invocations
+     * to race on [_status] and [_lastError].
+     */
+    private val pollMutex = Mutex()
+
     // -------------------------------------------------------------------------
     // GitStatusPolling API
     // -------------------------------------------------------------------------
@@ -116,39 +126,39 @@ class GitStatusPollerImpl(
 
     private suspend fun poll() {
         val repository = currentRepository ?: return
-        if (_isPolling.value) return
+        pollMutex.withLock {
+            _isPolling.value = true
+            try {
+                val newStatus = gitService.status(at = repository)
 
-        _isPolling.value = true
-        try {
-            val newStatus = gitService.status(at = repository)
+                // Augment ahead/behind from the dedicated command when status shows 0/0,
+                // as porcelain output sometimes omits tracking counts.
+                var ahead = newStatus.aheadCount
+                var behind = newStatus.behindCount
+                if (newStatus.branch.isNotEmpty() && ahead == 0 && behind == 0) {
+                    try {
+                        val counts = gitService.aheadBehind(at = repository)
+                        ahead = counts.first
+                        behind = counts.second
+                    } catch (_: Exception) { /* Non-fatal — no upstream configured */ }
+                }
 
-            // Augment ahead/behind from the dedicated command when status shows 0/0,
-            // as porcelain output sometimes omits tracking counts.
-            var ahead = newStatus.aheadCount
-            var behind = newStatus.behindCount
-            if (newStatus.branch.isNotEmpty() && ahead == 0 && behind == 0) {
-                try {
-                    val counts = gitService.aheadBehind(at = repository)
-                    ahead = counts.first
-                    behind = counts.second
-                } catch (_: Exception) { /* Non-fatal — no upstream configured */ }
+                _status.value = GitStatus(
+                    branch = newStatus.branch,
+                    aheadCount = ahead,
+                    behindCount = behind,
+                    stagedFiles = newStatus.stagedFiles,
+                    unstagedFiles = newStatus.unstagedFiles,
+                    untrackedFiles = newStatus.untrackedFiles,
+                )
+                _lastError.value = null
+                consecutiveErrors = 0
+            } catch (e: Exception) {
+                _lastError.value = e
+                consecutiveErrors++
+            } finally {
+                _isPolling.value = false
             }
-
-            _status.value = GitStatus(
-                branch = newStatus.branch,
-                aheadCount = ahead,
-                behindCount = behind,
-                stagedFiles = newStatus.stagedFiles,
-                unstagedFiles = newStatus.unstagedFiles,
-                untrackedFiles = newStatus.untrackedFiles,
-            )
-            _lastError.value = null
-            consecutiveErrors = 0
-        } catch (e: Exception) {
-            _lastError.value = e
-            consecutiveErrors++
-        } finally {
-            _isPolling.value = false
         }
     }
 

@@ -42,7 +42,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_rendersWithoutCrash() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -53,7 +53,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_showsPaneTitle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -65,7 +65,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_showsTerminalSectionHeader() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -77,7 +77,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_showsFontSizeSetting() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -89,7 +89,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_showsBehaviourSection() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -101,7 +101,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_showsConfirmTabCloseToggle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 
@@ -113,7 +113,7 @@ class GeneralSettingsPaneTest {
     fun generalSettingsPane_showsSkipPermissionsToggle() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                GeneralSettingsPane(container = container)
+                GeneralSettingsPane(preferences = container.generalPreferences)
             }
         }
 

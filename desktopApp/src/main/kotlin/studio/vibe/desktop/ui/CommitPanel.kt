@@ -33,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -48,7 +48,7 @@ private const val COMMIT_SUMMARY_LIMIT = 72
  * Full commit panel: summary field with character counter, AI generation button,
  * optional description field, inline error display, and a commit action button.
  *
- * Reads all state from [container.gitSidebarViewModel] and delegates mutations back.
+ * Reads all state from [gitSidebarViewModel] and delegates mutations back.
  * The panel is self-contained — it does not require the caller to hoist any state.
  *
  * @param container Desktop DI container providing gitSidebarViewModel and coroutine scope.
@@ -58,12 +58,12 @@ private const val COMMIT_SUMMARY_LIMIT = 72
  */
 @Composable
 fun CommitPanel(
-    container: DesktopServiceContainer,
+    gitSidebarViewModel: GitSidebarViewModel,
     projectId: Uuid,
     projectPath: FilePath,
     modifier: Modifier = Modifier,
 ) {
-    val gitState by container.gitSidebarViewModel.state.collectAsState()
+    val gitState by gitSidebarViewModel.state.collectAsState()
 
     val summary = gitState.commitSummaries[projectId].orEmpty()
     val description = gitState.commitDescriptions[projectId].orEmpty()
@@ -115,7 +115,7 @@ fun CommitPanel(
                 OutlinedTextField(
                     value = summary,
                     onValueChange = { value ->
-                        container.gitSidebarViewModel.updateCommitSummary(projectId, value)
+                        gitSidebarViewModel.updateCommitSummary(projectId, value)
                     },
                     placeholder = {
                         Text(
@@ -149,7 +149,7 @@ fun CommitPanel(
                 // AI generate button
                 IconButton(
                     onClick = {
-                        container.gitSidebarViewModel.generateAICommitMessage(projectId, projectPath)
+                        gitSidebarViewModel.generateAICommitMessage(projectId, projectPath)
                     },
                     enabled = !isGenerating && !isCommitting,
                     modifier = Modifier
@@ -198,7 +198,7 @@ fun CommitPanel(
             OutlinedTextField(
                 value = description,
                 onValueChange = { value ->
-                    container.gitSidebarViewModel.updateCommitDescription(projectId, value)
+                    gitSidebarViewModel.updateCommitDescription(projectId, value)
                 },
                 placeholder = {
                     Text(
@@ -245,7 +245,7 @@ fun CommitPanel(
         // Commit button (full width)
         Button(
             onClick = {
-                container.gitSidebarViewModel.performCommit(projectId, projectPath)
+                gitSidebarViewModel.performCommit(projectId, projectPath)
             },
             enabled = canCommit,
             shape = RoundedCornerShape(DSRadius.md),

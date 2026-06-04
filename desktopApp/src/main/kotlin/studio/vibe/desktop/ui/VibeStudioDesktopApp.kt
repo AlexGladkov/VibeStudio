@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.ProjectManagerError
 import studio.vibe.shared.preferences.AppTheme
@@ -73,7 +73,7 @@ fun VibeStudioDesktopApp(
     val projects by container.projectStore.projects.collectAsState()
     val scope = rememberCoroutineScope()
 
-    var agentToInstall by remember { mutableStateOf<AIAssistant?>(null) }
+    var agentToInstall by remember { mutableStateOf<AIAgent?>(null) }
 
     // FocusRequester lets the root Box capture keyboard events via onPreviewKeyEvent.
     val focusRequester = remember { FocusRequester() }
@@ -134,12 +134,13 @@ fun VibeStudioDesktopApp(
                 WelcomeView(
                     onOpenProject = openFolderPicker,
                     onCreateNew = openFolderPicker,
-                    container = container,
+                    projectStore = container.projectStore,
                     modifier = Modifier.weight(1f),
                 )
             } else {
                 ToolbarView(
-                    container = container,
+                    toolbarViewModel = container.toolbarViewModel,
+                    remoteControlServer = container.remoteControlServer,
                     isCodeSpeakMode = isCodeSpeakMode,
                     onOpenSettings = { onToggleSettings(true) },
                     onToggleCodeSpeakMode = onToggleCodeSpeakMode,
@@ -147,12 +148,24 @@ fun VibeStudioDesktopApp(
                 )
                 if (isCodeSpeakMode) {
                     CodeSpeakModeView(
-                        container = container,
+                        persistenceStore = container.persistenceStore,
+                        projectStore = container.projectStore,
+                        processRunner = container.processRunner,
+                        coroutineScope = container.scope,
                         modifier = Modifier.weight(1f),
                     )
                 } else {
                     RootView(
-                        container = container,
+                        projectStore = container.projectStore,
+                        fileTreeBuilder = container.fileTreeBuilder,
+                        fileTreeViewModel = container.fileTreeViewModel,
+                        gitStatusPoller = container.gitStatusPoller,
+                        gitSidebarViewModel = container.gitSidebarViewModel,
+                        gitService = container.gitService,
+                        toolbarViewModel = container.toolbarViewModel,
+                        terminalService = container.terminalService,
+                        generalPreferences = container.generalPreferences,
+                        coroutineScope = container.scope,
                         onOpenProject = openFolderPicker,
                         showGitPanel = showGitPanel,
                         showSidebar = showSidebar,
@@ -167,15 +180,18 @@ fun VibeStudioDesktopApp(
     // Settings dialog — rendered above the content stack as a floating overlay
     if (showSettings) {
         SettingsView(
-            container = container,
+            generalPreferences = container.generalPreferences,
+            codeSpeakPreferences = container.codeSpeakPreferences,
+            remoteControlPreferences = container.remoteControlPreferences,
+            remoteControlServer = container.remoteControlServer,
             onDismiss = { onToggleSettings(false) },
         )
     }
 
     // Install agent sheet — shown when user selects an unavailable agent
-    agentToInstall?.let { assistant ->
+    agentToInstall?.let { agent ->
         InstallAgentSheet(
-            assistant = assistant,
+            agent = agent,
             onDismiss = { agentToInstall = null },
         )
     }

@@ -11,12 +11,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.preferences.CodeSpeakPreferences
+import studio.vibe.shared.preferences.GeneralPreferences
 
 /**
  * Dispatcher pane that routes to the correct per-agent settings pane.
@@ -26,16 +27,17 @@ import studio.vibe.shared.model.AIAssistant
 @Composable
 fun LlmSettingsPane(
     assistant: AIAssistant,
-    container: DesktopServiceContainer,
+    generalPreferences: GeneralPreferences,
+    codeSpeakPreferences: CodeSpeakPreferences,
     modifier: Modifier = Modifier,
 ) {
     when (assistant) {
-        AIAssistant.CLAUDE -> ClaudeSettingsPane(container = container, modifier = modifier)
-        AIAssistant.OPENCODE -> OpencodeSettingsPane(container = container, modifier = modifier)
-        AIAssistant.CODEX -> CodexSettingsPane(container = container, modifier = modifier)
-        AIAssistant.GEMINI -> GeminiSettingsPane(container = container, modifier = modifier)
-        AIAssistant.QWEN_CODE -> QwenSettingsPane(container = container, modifier = modifier)
-        AIAssistant.CODE_SPEAK -> CodeSpeakSettingsPane(container = container, modifier = modifier)
+        AIAssistant.CLAUDE -> ClaudeSettingsPane(preferences = generalPreferences, modifier = modifier)
+        AIAssistant.OPENCODE -> OpencodeSettingsPane(modifier = modifier)
+        AIAssistant.CODEX -> CodexSettingsPane(modifier = modifier)
+        AIAssistant.GEMINI -> GeminiSettingsPane(modifier = modifier)
+        AIAssistant.QWEN_CODE -> QwenSettingsPane(modifier = modifier)
+        AIAssistant.CODE_SPEAK -> CodeSpeakSettingsPane(preferences = codeSpeakPreferences, modifier = modifier)
     }
 }
 

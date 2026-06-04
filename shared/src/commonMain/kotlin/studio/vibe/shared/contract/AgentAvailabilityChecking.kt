@@ -1,7 +1,6 @@
 package studio.vibe.shared.contract
 
 import kotlinx.coroutines.flow.StateFlow
-import studio.vibe.shared.model.AIAssistant
 
 sealed class AgentAvailabilityStatus {
     data class Available(val path: String, val hasAPIKey: Boolean) : AgentAvailabilityStatus()
@@ -11,19 +10,17 @@ sealed class AgentAvailabilityStatus {
 
 interface AgentAvailabilityChecking {
     /**
-     * Reactive snapshot of every agent's status. Observers (the toolbar VM,
-     * the install sheet, etc.) should collect this flow instead of polling
-     * the eager `availability` map below — the flow guarantees that an entry
-     * flips from [AgentAvailabilityStatus.Checking] to its final state the
-     * instant the background probe completes.
+     * Reactive snapshot of every registered agent's status, keyed by [AIAgent].
+     * Plugin-supplied agents appear here as soon as they are registered with the
+     * application's [AIAgentRegistry].
      */
-    val availabilityFlow: StateFlow<Map<AIAssistant, AgentAvailabilityStatus>>
+    val availabilityFlow: StateFlow<Map<AIAgent, AgentAvailabilityStatus>>
 
-    /** Eager snapshot for non-Composable callers. Equivalent to `availabilityFlow.value`. */
-    val availability: Map<AIAssistant, AgentAvailabilityStatus>
+    /** Eager snapshot for non-Composable callers. */
+    val availability: Map<AIAgent, AgentAvailabilityStatus>
         get() = availabilityFlow.value
 
     fun refreshAll()
-    fun check(agent: AIAssistant): AgentAvailabilityStatus
-    fun canLaunch(agent: AIAssistant): Boolean
+    fun check(agent: AIAgent): AgentAvailabilityStatus
+    fun canLaunch(agent: AIAgent): Boolean
 }

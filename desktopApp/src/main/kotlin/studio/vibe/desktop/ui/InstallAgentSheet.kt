@@ -46,25 +46,13 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 
-// ── InstallAgentSheet ─────────────────────────────────────────────────────────
-
-/**
- * Step-by-step installation guide for a specific AI CLI agent.
- *
- * Displays numbered installation steps (prerequisites → install → setup).
- * Each step with a shell command includes a copy-to-clipboard button
- * that shows a "Copied!" confirmation for 2 seconds.
- *
- * @param assistant The agent requiring installation.
- * @param onDismiss Called when the user closes the dialog.
- */
 @Composable
 fun InstallAgentSheet(
-    assistant: AIAssistant,
+    agent: AIAgent,
     onDismiss: () -> Unit,
 ) {
     val dialogState = rememberDialogState(size = DpSize(500.dp, 420.dp))
@@ -72,19 +60,16 @@ fun InstallAgentSheet(
     DialogWindow(
         onCloseRequest = onDismiss,
         state = dialogState,
-        title = "Install ${assistant.displayName}",
+        title = "Install ${agent.displayName}",
         resizable = false,
     ) {
-        InstallAgentSheetContent(
-            assistant = assistant,
-            onDismiss = onDismiss,
-        )
+        InstallAgentSheetContent(agent = agent, onDismiss = onDismiss)
     }
 }
 
 @Composable
 private fun InstallAgentSheetContent(
-    assistant: AIAssistant,
+    agent: AIAgent,
     onDismiss: () -> Unit,
 ) {
     Column(
@@ -92,55 +77,45 @@ private fun InstallAgentSheetContent(
             .fillMaxSize()
             .background(LocalDSColors.current.surfaceOverlay),
     ) {
-        // Header
-        InstallSheetHeader(assistant = assistant)
-
+        InstallSheetHeader(agent = agent)
         HorizontalDivider(color = LocalDSColors.current.borderDefault)
-
-        // Scrollable step list
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(DSSpacing.lg),
         ) {
-            InstallSteps(assistant = assistant)
+            InstallSteps(agent = agent)
         }
-
         HorizontalDivider(color = LocalDSColors.current.borderDefault)
-
-        // Footer
         InstallSheetFooter(onDismiss = onDismiss)
     }
 }
 
-// ── Header ────────────────────────────────────────────────────────────────────
-
 @Composable
-private fun InstallSheetHeader(assistant: AIAssistant) {
+private fun InstallSheetHeader(agent: AIAgent) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(DSSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Agent color badge
         Box(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(DSRadius.md))
-                .background(agentColor(assistant, LocalDSColors.current)),
+                .background(agentColor(agent, LocalDSColors.current)),
         )
         Spacer(Modifier.width(DSSpacing.md))
         Column {
             Text(
-                text = "Install ${assistant.displayName}",
+                text = "Install ${agent.displayName}",
                 style = DSFont.gitBranch,
                 color = LocalDSColors.current.textPrimary,
             )
             Spacer(Modifier.height(DSSpacing.xxs))
             Text(
-                text = assistant.shortDescription,
+                text = agent.shortDescription,
                 style = DSFont.sidebarItemSmall,
                 color = LocalDSColors.current.textMuted,
             )
@@ -148,44 +123,34 @@ private fun InstallSheetHeader(assistant: AIAssistant) {
     }
 }
 
-// ── Steps ─────────────────────────────────────────────────────────────────────
-
 @Composable
-private fun InstallSteps(assistant: AIAssistant) {
-    val hasPrereq = assistant.prerequisite != null && assistant.prerequisiteCheckCommand != null
+private fun InstallSteps(agent: AIAgent) {
+    val hasPrereq = agent.prerequisite != null && agent.prerequisiteCheckCommand != null
     val installStepNumber = if (hasPrereq) 2 else 1
     val setupStepNumber = installStepNumber + 1
 
-    // Step 1 — Prerequisite (optional)
     if (hasPrereq) {
         StepWithCommand(
             number = 1,
-            title = "Install ${assistant.prerequisite}",
+            title = "Install ${agent.prerequisite}",
             description = "Verify the required version is installed:",
-            command = assistant.prerequisiteCheckCommand!!,
+            command = agent.prerequisiteCheckCommand!!,
         )
         Spacer(Modifier.height(DSSpacing.xl))
     }
 
-    // Install step
     StepWithCommand(
         number = installStepNumber,
-        title = "Install ${assistant.displayName}",
+        title = "Install ${agent.displayName}",
         description = "Run this command in your terminal:",
-        command = assistant.installHint,
+        command = agent.installHint,
     )
 
-    // Setup step (optional)
-    assistant.setupInstructions?.let { instructions ->
+    agent.setupInstructions?.let { instructions ->
         Spacer(Modifier.height(DSSpacing.xl))
-        SetupStep(
-            number = setupStepNumber,
-            instructions = instructions,
-        )
+        SetupStep(number = setupStepNumber, instructions = instructions)
     }
 }
-
-// ── Step components ───────────────────────────────────────────────────────────
 
 @Composable
 private fun StepWithCommand(
@@ -208,10 +173,7 @@ private fun StepWithCommand(
 }
 
 @Composable
-private fun SetupStep(
-    number: Int,
-    instructions: String,
-) {
+private fun SetupStep(number: Int, instructions: String) {
     Column {
         StepHeader(number = number, title = "Setup")
         Spacer(Modifier.height(DSSpacing.sm))
@@ -235,7 +197,6 @@ private fun SetupStep(
 @Composable
 private fun StepHeader(number: Int, title: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // Numbered circle badge
         Box(
             modifier = Modifier
                 .size(DSLayout.toolbarButtonHeight)
@@ -243,18 +204,10 @@ private fun StepHeader(number: Int, title: String) {
                 .background(LocalDSColors.current.accentPrimary),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "$number",
-                style = DSFont.smallButtonLabel,
-                color = Color.White,
-            )
+            Text(text = "$number", style = DSFont.smallButtonLabel, color = Color.White)
         }
         Spacer(Modifier.width(DSSpacing.sm))
-        Text(
-            text = title,
-            style = DSFont.gitBranch,
-            color = LocalDSColors.current.textPrimary,
-        )
+        Text(text = title, style = DSFont.gitBranch, color = LocalDSColors.current.textPrimary)
     }
 }
 
@@ -282,7 +235,6 @@ private fun CommandBlock(command: String) {
 
         Spacer(Modifier.width(DSSpacing.sm))
 
-        // Copy button
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(DSRadius.sm))
@@ -315,8 +267,6 @@ private fun CommandBlock(command: String) {
     }
 }
 
-// ── Footer ────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun InstallSheetFooter(onDismiss: () -> Unit) {
     Row(
@@ -332,7 +282,6 @@ private fun InstallSheetFooter(onDismiss: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
 
-        // Done button
         Box(
             modifier = Modifier
                 .width(72.dp)
@@ -342,16 +291,10 @@ private fun InstallSheetFooter(onDismiss: () -> Unit) {
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = "Done",
-                style = DSFont.buttonLabel,
-                color = Color.White,
-            )
+            Text(text = "Done", style = DSFont.buttonLabel, color = Color.White)
         }
     }
 }
-
-// ── Clipboard helper ──────────────────────────────────────────────────────────
 
 private fun copyToClipboard(text: String) {
     val clipboard = Toolkit.getDefaultToolkit().systemClipboard

@@ -10,11 +10,12 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.GitPanel
+import studio.vibe.desktop.testutil.GitPanel
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import java.io.File
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 
 /**
  * Integration tests for [GitPanel].
@@ -78,7 +79,7 @@ class GitPanelTest {
     @Test
     fun gitPanel_rendersWithoutCrash_whenActiveProjectSet() {
         val tempDir = Files.createTempDirectory("vs-gitpanel").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
         composeTestRule.setContent {

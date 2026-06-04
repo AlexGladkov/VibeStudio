@@ -12,12 +12,13 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.SidebarView
+import studio.vibe.desktop.testutil.SidebarView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals
+import kotlinx.coroutines.runBlocking
 
 /**
  * Integration tests for [SidebarView].
@@ -131,7 +132,7 @@ class SidebarViewTest {
     @Test
     fun sidebarView_showsProjectName_whenProjectExists() {
         val tempDir = Files.createTempDirectory("vs-sidebar-project").toFile().also { it.deleteOnExit() }
-        container.projectStore.addProject(FilePath(tempDir.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
 
         composeTestRule.setContent {
             VibeStudioTheme {
@@ -152,8 +153,8 @@ class SidebarViewTest {
         val tempDir1 = Files.createTempDirectory("vs-sidebar-p1").toFile().also { it.deleteOnExit() }
         val tempDir2 = Files.createTempDirectory("vs-sidebar-p2").toFile().also { it.deleteOnExit() }
 
-        container.projectStore.addProject(FilePath(tempDir1.absolutePath))
-        container.projectStore.addProject(FilePath(tempDir2.absolutePath))
+        runBlocking { container.projectStore.addProject(FilePath(tempDir1.absolutePath)) }
+        runBlocking { container.projectStore.addProject(FilePath(tempDir2.absolutePath)) }
 
         composeTestRule.setContent {
             VibeStudioTheme {
@@ -175,8 +176,8 @@ class SidebarViewTest {
         val tempDir1 = Files.createTempDirectory("vs-sidebar-click1").toFile().also { it.deleteOnExit() }
         val tempDir2 = Files.createTempDirectory("vs-sidebar-click2").toFile().also { it.deleteOnExit() }
 
-        val project1 = container.projectStore.addProject(FilePath(tempDir1.absolutePath))
-        val project2 = container.projectStore.addProject(FilePath(tempDir2.absolutePath))
+        val project1 = runBlocking { container.projectStore.addProject(FilePath(tempDir1.absolutePath)) }
+        val project2 = runBlocking { container.projectStore.addProject(FilePath(tempDir2.absolutePath)) }
 
         container.projectStore.setActiveProjectId(project1.id)
 

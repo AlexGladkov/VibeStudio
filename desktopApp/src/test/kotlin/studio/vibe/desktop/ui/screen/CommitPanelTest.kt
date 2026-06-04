@@ -10,12 +10,13 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
-import studio.vibe.desktop.ui.CommitPanel
+import studio.vibe.desktop.testutil.CommitPanel
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
 import java.io.File
 import java.nio.file.Files
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.runBlocking
 
 /**
  * UI tests for [CommitPanel].
@@ -36,7 +37,7 @@ class CommitPanelTest {
         container = c
         tempHome = h
         projectDir = Files.createTempDirectory("vs-commit-test").toFile().also { it.deleteOnExit() }
-        val project = container.projectStore.addProject(FilePath(projectDir.absolutePath))
+        val project = runBlocking { container.projectStore.addProject(FilePath(projectDir.absolutePath)) }
         projectId = project.id
     }
 

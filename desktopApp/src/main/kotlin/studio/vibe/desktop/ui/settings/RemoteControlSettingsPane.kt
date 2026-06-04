@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
 package studio.vibe.desktop.ui.settings
 
 import androidx.compose.foundation.background
@@ -41,7 +43,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.remote.RemoteControlServer
+import studio.vibe.shared.preferences.RemoteControlPreferences
 import studio.vibe.desktop.remote.TlsCertificateManager
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -60,11 +63,11 @@ import studio.vibe.desktop.ui.theme.DSSpacing
  */
 @Composable
 fun RemoteControlSettingsPane(
-    container: DesktopServiceContainer,
+    preferences: RemoteControlPreferences,
+    server: RemoteControlServer,
     modifier: Modifier = Modifier,
 ) {
-    val prefs = container.remoteControlPreferences
-    val server = container.remoteControlServer
+    val prefs = preferences
     val scope = rememberCoroutineScope()
 
     // Observe live server state via StateFlow.

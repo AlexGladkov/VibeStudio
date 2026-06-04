@@ -1,9 +1,12 @@
 package studio.vibe.shared.service.persistence
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -18,9 +21,24 @@ import kotlin.uuid.Uuid
 private const val MAX_PROJECTS = 32
 private const val MAX_RECENTS = 10
 
+/**
+ * Default [ProjectManaging] implementation.
+ *
+ * ### Concurrency
+ * - In-memory mutators (`setActiveProjectId`, `removeProject`, `updateProject`,
+ *   `moveProjects`) stay synchronous: they mutate StateFlows on the caller's
+ *   thread and schedule background persistence via [scope] guarded by [saveMutex].
+ * - I/O-bound operations (`addProject`, `load`, `save`) are `suspend` and free
+ *   of any `runBlocking` — required for macOS Kotlin/Native targets where
+ *   `runBlocking` is unavailable on the main dispatcher.
+ *
+ * @param scope Background scope used for fire-and-forget persistence writes.
+ *              The scope's lifetime should match the host application's lifetime.
+ */
 @OptIn(ExperimentalUuidApi::class)
 class ProjectStoreImpl(
     private val persistence: PersistenceStore,
+    private val scope: CoroutineScope,
     private val json: Json = Json { prettyPrint = true; ignoreUnknownKeys = true; isLenient = true },
 ) : ProjectManaging {
 
@@ -40,6 +58,9 @@ class ProjectStoreImpl(
     private var indexById: Map<Uuid, Project> = emptyMap()
     private var indexByPath: Map<String, Project> = emptyMap()
 
+    // Serializes all persistence writes to prevent torn files on concurrent saves.
+    private val saveMutex = Mutex()
+
     private val projectsFile: FilePath
         get() = FilePath("${persistence.appSupportDirectory().path}/projects.json")
 
@@ -51,9 +72,8 @@ class ProjectStoreImpl(
         updateRecentHistory(id)
     }
 
-    override fun addProject(path: FilePath): Project {
-        val isDir = runBlocking { persistence.isDirectory(path) }
-        if (!isDir) {
+    override suspend fun addProject(path: FilePath): Project {
+        if (!persistence.isDirectory(path)) {
             throw ProjectManagerError.InvalidPath(path)
         }
 
@@ -75,7 +95,7 @@ class ProjectStoreImpl(
         val updated = current + project
         _projects.value = updated
         rebuildIndex()
-        save()
+        scheduleSaveProjects()
 
         return project
     }
@@ -94,7 +114,7 @@ class ProjectStoreImpl(
             _activeProjectId.value = updated.firstOrNull()?.id
         }
 
-        save()
+        scheduleSaveProjects()
     }
 
     override fun updateProject(id: Uuid, mutate: (Project) -> Project) {
@@ -108,7 +128,7 @@ class ProjectStoreImpl(
         updated[index] = mutate(current[index])
         _projects.value = updated
         rebuildIndex()
-        save()
+        scheduleSaveProjects()
     }
 
     override fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {
@@ -123,21 +143,23 @@ class ProjectStoreImpl(
         current.addAll(insertAt, moving)
         _projects.value = current
         rebuildIndex()
-        save()
+        scheduleSaveProjects()
     }
 
     override fun project(id: Uuid): Project? = indexById[id]
 
     override fun project(path: FilePath): Project? = indexByPath[path.path]
 
-    override fun load() {
+    override suspend fun load() {
         loadProjects()
         loadRecents()
     }
 
-    override fun save() {
-        saveProjects()
-        saveRecents()
+    override suspend fun save() {
+        saveMutex.withLock {
+            writeProjects()
+            writeRecents()
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -158,7 +180,7 @@ class ProjectStoreImpl(
         current.add(0, project)
         _recentHistory.value = current.take(MAX_RECENTS)
         refreshRecentProjects()
-        saveRecents()
+        scheduleSaveRecents()
     }
 
     private fun refreshRecentProjects() {
@@ -166,9 +188,9 @@ class ProjectStoreImpl(
         _recentProjects.value = _recentHistory.value.filter { it.id !in currentProjectIds }
     }
 
-    private fun loadProjects() {
+    private suspend fun loadProjects() {
         try {
-            val bytes = runBlocking { persistence.readFile(projectsFile) } ?: return
+            val bytes = persistence.readFile(projectsFile) ?: return
             val text = bytes.decodeToString()
             val loaded: List<Project> = json.decodeFromString(text)
             _projects.value = loaded
@@ -180,18 +202,9 @@ class ProjectStoreImpl(
         }
     }
 
-    private fun saveProjects() {
+    private suspend fun loadRecents() {
         try {
-            val text = json.encodeToString(_projects.value)
-            runBlocking { persistence.writeFile(projectsFile, text.encodeToByteArray()) }
-        } catch (e: Exception) {
-            throw ProjectManagerError.PersistenceFailed(e)
-        }
-    }
-
-    private fun loadRecents() {
-        try {
-            val bytes = runBlocking { persistence.readFile(recentsFile) } ?: return
+            val bytes = persistence.readFile(recentsFile) ?: return
             val text = bytes.decodeToString()
             val loaded: List<Project> = json.decodeFromString(text)
             _recentHistory.value = loaded.take(MAX_RECENTS)
@@ -201,12 +214,39 @@ class ProjectStoreImpl(
         }
     }
 
-    private fun saveRecents() {
+    private suspend fun writeProjects() {
+        try {
+            val text = json.encodeToString(_projects.value)
+            persistence.writeFile(projectsFile, text.encodeToByteArray())
+        } catch (e: Exception) {
+            throw ProjectManagerError.PersistenceFailed(e)
+        }
+    }
+
+    private suspend fun writeRecents() {
         try {
             val text = json.encodeToString(_recentHistory.value)
-            runBlocking { persistence.writeFile(recentsFile, text.encodeToByteArray()) }
+            persistence.writeFile(recentsFile, text.encodeToByteArray())
         } catch (_: Exception) {
             // Best-effort: recents loss is not critical
+        }
+    }
+
+    /**
+     * Async fire-and-forget save.  Errors are swallowed because the write is
+     * best-effort — the next mutation will reschedule.  An uncaught exception
+     * here would bubble up to the [scope]'s exception handler and crash test
+     * runners that surface coroutine exceptions.
+     */
+    private fun scheduleSaveProjects() {
+        scope.launch {
+            runCatching { saveMutex.withLock { writeProjects() } }
+        }
+    }
+
+    private fun scheduleSaveRecents() {
+        scope.launch {
+            runCatching { saveMutex.withLock { writeRecents() } }
         }
     }
 }

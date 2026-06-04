@@ -42,7 +42,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -56,18 +59,21 @@ import studio.vibe.shared.model.GitFileStatus
 
 @Composable
 fun GitPanel(
-    container: DesktopServiceContainer,
+    gitSidebarViewModel: GitSidebarViewModel,
+    projectStore: ProjectManaging,
+    gitService: GitServicing,
+    coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
 ) {
-    val gitState by container.gitSidebarViewModel.state.collectAsState()
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
-    val projects by container.projectStore.projects.collectAsState()
+    val gitState by gitSidebarViewModel.state.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
 
     // Load git info when active project changes
     val activeProject = projects.find { it.id == activeProjectId }
     LaunchedEffect(activeProjectId) {
         if (activeProject != null && activeProjectId != null) {
-            container.gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
+            gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
         }
     }
 
@@ -159,13 +165,13 @@ fun GitPanel(
                             },
                             onStageToggle = {
                                 activeProject?.let { proj ->
-                                    container.gitSidebarViewModel.let { vm ->
+                                    gitSidebarViewModel.let { vm ->
                                         // Unstage
                                         activeProjectId?.let { id ->
-                                            val scope = container.scope
+                                            val scope = coroutineScope
                                             scope.launch {
                                                 runCatching {
-                                                    container.gitService.unstage(
+                                                    gitService.unstage(
                                                         files = listOf(file.path),
                                                         at = proj.path,
                                                     )
@@ -196,14 +202,14 @@ fun GitPanel(
                             onStageToggle = {
                                 activeProject?.let { proj ->
                                     activeProjectId?.let { id ->
-                                        val scope = container.scope
+                                        val scope = coroutineScope
                                         scope.launch {
                                             runCatching {
-                                                container.gitService.stage(
+                                                gitService.stage(
                                                     files = listOf(file.path),
                                                     at = proj.path,
                                                 )
-                                                container.gitSidebarViewModel.loadGitInfo(id, proj.path)
+                                                gitSidebarViewModel.loadGitInfo(id, proj.path)
                                             }
                                         }
                                     }
@@ -229,14 +235,14 @@ fun GitPanel(
                             onStageToggle = {
                                 activeProject?.let { proj ->
                                     activeProjectId?.let { id ->
-                                        val scope = container.scope
+                                        val scope = coroutineScope
                                         scope.launch {
                                             runCatching {
-                                                container.gitService.stage(
+                                                gitService.stage(
                                                     files = listOf(file.path),
                                                     at = proj.path,
                                                 )
-                                                container.gitSidebarViewModel.loadGitInfo(id, proj.path)
+                                                gitSidebarViewModel.loadGitInfo(id, proj.path)
                                             }
                                         }
                                     }
@@ -250,7 +256,7 @@ fun GitPanel(
             // Commit panel at bottom — delegates to CommitPanel composable
             if (activeProjectId != null && activeProject != null) {
                 CommitPanel(
-                    container = container,
+                    gitSidebarViewModel = gitSidebarViewModel,
                     projectId = activeProjectId!!,
                     projectPath = activeProject.path,
                 )
@@ -262,7 +268,7 @@ fun GitPanel(
     val sheetFile = diffSheetFile
     if (sheetFile != null && activeProject != null) {
         FileDiffSheet(
-            container = container,
+            gitService = gitService,
             file = sheetFile,
             projectPath = activeProject.path.path,
             staged = diffSheetStaged,

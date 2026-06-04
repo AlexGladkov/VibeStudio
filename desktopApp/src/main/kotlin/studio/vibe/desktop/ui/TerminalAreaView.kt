@@ -36,7 +36,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
-import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.desktop.terminal.LocalTerminalRenderer
 import studio.vibe.desktop.terminal.TerminalView
 import studio.vibe.desktop.ui.theme.DSColor
@@ -62,11 +64,13 @@ import studio.vibe.desktop.ui.theme.DSSpacing
  */
 @Composable
 fun TerminalAreaView(
-    container: DesktopServiceContainer,
+    projectStore: ProjectManaging,
+    terminalService: DesktopTerminalService,
+    generalPreferences: GeneralPreferences,
     modifier: Modifier = Modifier,
 ) {
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
-    val projects by container.projectStore.projects.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
 
     Column(modifier = modifier.background(LocalDSColors.current.surfaceBase)) {
         if (activeProjectId != null) {
@@ -76,9 +80,9 @@ fun TerminalAreaView(
             TerminalTitleBar(
                 sessionLabel = shellName,
                 onClear = {
-                    val sessions = container.terminalService.sessions(activeProjectId!!)
+                    val sessions = terminalService.sessions(activeProjectId!!)
                     sessions.firstOrNull()?.id?.let { id ->
-                        container.terminalService.sendInput("clear\n", id)
+                        terminalService.sendInput("clear\n", id)
                     }
                 },
                 onNewSession = {
@@ -94,9 +98,9 @@ fun TerminalAreaView(
                     .background(LocalDSColors.current.borderDefault),
             )
 
-            val terminalFontSize by container.generalPreferences.terminalFontSizeFlow.collectAsState()
+            val terminalFontSize by generalPreferences.terminalFontSizeFlow.collectAsState()
             LocalTerminalRenderer.current.Render(
-                service = container.terminalService,
+                service = terminalService,
                 projectId = activeProjectId!!,
                 targetSessionId = null,
                 terminalFontSize = terminalFontSize.toFloat(),

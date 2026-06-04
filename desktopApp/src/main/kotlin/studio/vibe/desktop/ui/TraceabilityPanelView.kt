@@ -38,7 +38,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import studio.vibe.desktop.DesktopServiceContainer
+import kotlinx.coroutines.CoroutineScope
+import studio.vibe.shared.contract.PersistenceStore
+import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -62,21 +64,23 @@ import studio.vibe.shared.viewmodel.TraceabilityPanelViewModel
  */
 @Composable
 public fun TraceabilityPanelView(
-    container: DesktopServiceContainer,
+    persistenceStore: PersistenceStore,
+    coroutineScope: CoroutineScope,
+    projectStore: ProjectManaging,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val vm = remember {
         TraceabilityPanelViewModel(
-            persistenceStore = container.persistenceStore,
-            scope = container.scope,
+            persistenceStore = persistenceStore,
+            scope = coroutineScope,
         )
     }
 
     val state by vm.state.collectAsState()
 
-    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
-    val projects by container.projectStore.projects.collectAsState()
+    val activeProjectId by projectStore.activeProjectId.collectAsState()
+    val projects by projectStore.projects.collectAsState()
     val activeProject by remember(activeProjectId, projects) {
         derivedStateOf { activeProjectId?.let { id -> projects.find { it.id == id } } }
     }
