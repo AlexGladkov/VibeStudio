@@ -96,6 +96,19 @@ data class AssistantStartRequest(
     val assistant: String,
 )
 
+@Serializable
+data class AssistantStartResponse(
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("project_id") val projectId: String,
+    val assistant: String,
+)
+
+@Serializable
+data class AssistantStopRequest(
+    @SerialName("project_id") val projectId: String,
+    val assistant: String,
+)
+
 // ── WebSocket message envelopes ───────────────────────────────────────────────
 
 @Serializable

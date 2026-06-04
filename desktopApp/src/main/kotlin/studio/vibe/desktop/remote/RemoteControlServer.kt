@@ -48,6 +48,7 @@ import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalRemoteHost
 import studio.vibe.shared.contract.RemoteAuthorizing
 import studio.vibe.shared.contract.TerminalScrollbackAccessing
+import studio.vibe.shared.usecase.AssistantLauncher
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.RemoteAuthError
 import studio.vibe.shared.model.RemoteAuthResult
@@ -87,6 +88,7 @@ class RemoteControlServer(
     private val projectManaging: ProjectManaging? = null,
     private val scrollbackAccessing: TerminalScrollbackAccessing? = null,
     val authService: RemoteAuthorizing = RemoteAuthServiceImpl(JavaSecureRandom),
+    private val assistantLauncher: AssistantLauncher? = null,
 ) {
     companion object {
         private val log = Logger.getLogger("RemoteControlServer")
@@ -638,18 +640,80 @@ class RemoteControlServer(
                 // ── Assistant ─────────────────────────────────────────────────
                 post("/assistant/start") {
                     call.requireAuth() ?: return@post
-                    call.respond(
-                        HttpStatusCode.NotImplemented,
-                        ErrorResponse(ErrorDetail("not_implemented", "Start AI agent from mobile not yet supported")),
-                    )
+                    val launcher = assistantLauncher
+                    if (launcher == null) {
+                        call.respond(
+                            HttpStatusCode.NotImplemented,
+                            ErrorResponse(ErrorDetail("not_implemented", "AssistantLauncher not wired")),
+                        )
+                        return@post
+                    }
+                    val bodyText = runCatching { call.receiveText() }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Could not read body")))
+                        return@post
+                    }
+                    val req = runCatching { json.decodeFromString<AssistantStartRequest>(bodyText) }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid JSON body")))
+                        return@post
+                    }
+                    val projectId = runCatching { Uuid.parse(req.projectId) }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid project_id")))
+                        return@post
+                    }
+                    val result = launcher.start(projectId, req.assistant)
+                    result.onSuccess { session ->
+                        call.respond(
+                            AssistantStartResponse(
+                                sessionId = session.id.toString(),
+                                projectId = req.projectId,
+                                assistant = req.assistant,
+                            )
+                        )
+                    }.onFailure { e ->
+                        val (status, code, message) = when {
+                            e.message?.contains("not found", ignoreCase = true) == true ->
+                                Triple(HttpStatusCode.NotFound, "not_found", e.message ?: "Not found")
+                            e.message?.contains("install", ignoreCase = true) == true ||
+                                e.message?.contains("not installed", ignoreCase = true) == true ->
+                                Triple(HttpStatusCode.UnprocessableEntity, "agent_not_installed", e.message ?: "Agent not installed")
+                            else ->
+                                Triple(HttpStatusCode.InternalServerError, "launch_failed", e.message ?: "Failed to start agent")
+                        }
+                        call.respond(status, ErrorResponse(ErrorDetail(code, message)))
+                    }
                 }
 
                 post("/assistant/stop") {
                     call.requireAuth() ?: return@post
-                    call.respond(
-                        HttpStatusCode.NotImplemented,
-                        ErrorResponse(ErrorDetail("not_implemented", "Stop AI agent from mobile not yet supported")),
-                    )
+                    val launcher = assistantLauncher
+                    if (launcher == null) {
+                        call.respond(
+                            HttpStatusCode.NotImplemented,
+                            ErrorResponse(ErrorDetail("not_implemented", "AssistantLauncher not wired")),
+                        )
+                        return@post
+                    }
+                    val bodyText = runCatching { call.receiveText() }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Could not read body")))
+                        return@post
+                    }
+                    val req = runCatching { json.decodeFromString<AssistantStopRequest>(bodyText) }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid JSON body")))
+                        return@post
+                    }
+                    val projectId = runCatching { Uuid.parse(req.projectId) }.getOrElse {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse(ErrorDetail("bad_request", "Invalid project_id")))
+                        return@post
+                    }
+                    val result = launcher.stop(projectId, req.assistant)
+                    result.onSuccess {
+                        call.respond(OKResponse(ok = true))
+                    }.onFailure { e ->
+                        call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ErrorResponse(ErrorDetail("stop_failed", e.message ?: "Failed to stop agent")),
+                        )
+                    }
                 }
             }
 

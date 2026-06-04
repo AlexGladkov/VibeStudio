@@ -54,6 +54,7 @@ import studio.vibe.shared.service.persistence.SessionStoreImpl
 import studio.vibe.shared.usecase.RestoreSessionUseCase
 import studio.vibe.desktop.remote.RemoteControlServer
 import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.service.assistant.AssistantLauncherImpl
 import studio.vibe.shared.viewmodel.FileTreeViewModel
 import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.shared.viewmodel.ToolbarViewModel
@@ -167,6 +168,24 @@ class DesktopServiceContainer {
     val navigationCoordinator: AppNavigationCoordinator = AppNavigationCoordinator()
 
     /**
+     * Shared AI-agent start/stop domain service.
+     *
+     * Single instance shared between [toolbarViewModel] and [remoteControlServer] so that
+     * launching an agent from mobile and from the desktop toolbar uses the same logic
+     * and the same running-state tracking. Created eagerly (not lazy) because
+     * [remoteControlServer] is also eager.
+     */
+    val assistantLauncher: AssistantLauncherImpl = AssistantLauncherImpl(
+        projectManaging = projectStore,
+        terminalSessionManaging = terminalService,
+        agentRegistry = agentRegistry,
+        agentAvailabilityChecking = agentAvailabilityChecking,
+        apiKeyResolving = apiKeyResolving,
+        blockingDispatcher = Dispatchers.IO,
+        onResolveEnvVar = { name -> System.getenv(name) },
+    )
+
+    /**
      * Embedded HTTP/WS server for Remote Control.
      *
      * Wired to [remoteControlPreferences] and [terminalService].
@@ -179,6 +198,7 @@ class DesktopServiceContainer {
         terminalService = terminalService,
         projectManaging = projectStore,
         scrollbackAccessing = terminalService,
+        assistantLauncher = assistantLauncher,
     )
 
     // ── ViewModels ────────────────────────────────────────────────────────────
@@ -192,6 +212,7 @@ class DesktopServiceContainer {
             apiKeyResolving = apiKeyResolving,
             parentScope = scope,
             blockingDispatcher = Dispatchers.IO,
+            assistantLauncher = assistantLauncher,
         ).also { vm ->
             vm.onResolveHomePath = { System.getProperty("user.home") ?: "" }
             vm.onResolveEnvVar = { name -> System.getenv(name) }

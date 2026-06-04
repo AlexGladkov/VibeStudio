@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.APIKeyResolving
@@ -18,7 +17,8 @@ import studio.vibe.shared.contract.AgentAvailabilityStatus
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.model.AgentExitSequence
+import studio.vibe.shared.service.assistant.AssistantLauncherImpl
+import studio.vibe.shared.usecase.AssistantLauncher
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -38,21 +38,21 @@ data class ToolbarState(
  * Uses [AIAgentRegistry] for the catalogue of available agents — adding a new
  * agent (built-in or plugin) does not require modifying this class.
  *
- * @param scope            ViewModel coroutine scope (typically a `MainScope` derivative).
+ * Launch/stop logic is delegated to [AssistantLauncher] so [RemoteControlServer]
+ * can trigger the same behaviour without depending on the ViewModel layer.
+ *
+ * @param scope              ViewModel coroutine scope (typically a `MainScope` derivative).
  * @param blockingDispatcher Dispatcher used for blocking work (PTY process start, file I/O).
- *                          JVM passes `Dispatchers.IO`; macOS Native passes `Dispatchers.Default`
- *                          (Kotlin/Native lacks a dedicated IO dispatcher on the main worker).
- *                          Inject `UnconfinedTestDispatcher` from unit tests.
+ *                           JVM passes `Dispatchers.IO`; macOS Native passes `Dispatchers.Default`.
+ *                           Inject `UnconfinedTestDispatcher` from unit tests.
+ * @param assistantLauncher  Shared start/stop domain service.  When `null`, a fresh
+ *                           [AssistantLauncherImpl] is constructed from the other
+ *                           parameters (backward-compatible default).
  */
-/**
- * Per-project mutable state kept as a snapshot inside a StateFlow.
- * All mutations go through [_projectData].update { } — thread-safe by design.
- */
+/** Per-project mutable state kept as a snapshot inside a StateFlow. */
 @OptIn(ExperimentalUuidApi::class)
 private data class ToolbarProjectData(
-    val runningAssistants: Map<Uuid, Boolean> = emptyMap(),
     val selectedAgents: Map<Uuid, AIAgent> = emptyMap(),
-    val agentSessionIds: Map<Uuid, Uuid> = emptyMap(),
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -64,7 +64,25 @@ class ToolbarViewModel(
     private val apiKeyResolving: APIKeyResolving,
     parentScope: CoroutineScope,
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    assistantLauncher: AssistantLauncher? = null,
 ) : BaseViewModel(parentScope) {
+
+    /**
+     * Keep a typed reference so we can call [AssistantLauncherImpl]-only helpers
+     * (sessionIdFor, notifySessionExited, removeProject) without coupling the
+     * interface to ViewModel internals.
+     */
+    private val launcher: AssistantLauncherImpl = when (assistantLauncher) {
+        is AssistantLauncherImpl -> assistantLauncher
+        else -> AssistantLauncherImpl(
+            projectManaging = projectManaging,
+            terminalSessionManaging = terminalSessionManaging,
+            agentRegistry = agentRegistry,
+            agentAvailabilityChecking = agentAvailabilityChecking,
+            apiKeyResolving = apiKeyResolving,
+            blockingDispatcher = blockingDispatcher,
+        )
+    }
 
     private val _projectData = MutableStateFlow(ToolbarProjectData())
 
@@ -74,7 +92,16 @@ class ToolbarViewModel(
     val state: StateFlow<ToolbarState> = _state.asStateFlow()
 
     var onResolveHomePath: (() -> String)? = null
+
+    /**
+     * Setting this forwards the resolver to [launcher] so env-var API keys are
+     * resolved via process environment on JVM (same as before the refactoring).
+     */
     var onResolveEnvVar: ((String) -> String?)? = null
+        set(value) {
+            field = value
+            launcher.onResolveEnvVar = value
+        }
 
     private fun defaultAgent(): AIAgent? = agentRegistry.snapshot().firstOrNull()
 
@@ -86,20 +113,11 @@ class ToolbarViewModel(
             }
         }
 
-        // Session-exit events reset Stop button when agent exits
+        // Session-exit events reset Stop button when agent exits.
         scope.launch {
             terminalSessionManaging.sessionEvents.collect { event ->
                 if (event is TerminalSessionEvent.ProcessExited) {
-                    val projectId = event.projectId
-                    val sessionId = event.sessionId
-                    _projectData.update { data ->
-                        if (data.agentSessionIds[projectId] == sessionId) {
-                            data.copy(
-                                runningAssistants = data.runningAssistants - projectId,
-                                agentSessionIds = data.agentSessionIds - projectId,
-                            )
-                        } else data
-                    }
+                    launcher.notifySessionExited(event.projectId, event.sessionId)
                     rebuildState()
                 }
             }
@@ -113,6 +131,12 @@ class ToolbarViewModel(
         // Registry changes — surface plugin additions in the picker immediately.
         scope.launch {
             agentRegistry.agents.collect { rebuildState() }
+        }
+
+        // Keep toolbar in sync when launcher state changes (e.g. start triggered
+        // from RemoteControlServer while the toolbar is visible).
+        scope.launch {
+            launcher.runningByProject.collect { rebuildState() }
         }
     }
 
@@ -143,6 +167,8 @@ class ToolbarViewModel(
             _state.update { it.copy(errorMessage = "No AI agent available") }
             return
         }
+
+        // Availability guard stays in ViewModel — it is a UI-layer concern.
         val availability = agentAvailabilityChecking.check(agent)
         if (availability is AgentAvailabilityStatus.NotInstalled) {
             _state.update { it.copy(errorMessage = availability.installHint) }
@@ -150,23 +176,8 @@ class ToolbarViewModel(
         }
 
         scope.launch {
-            val apiKeyValue = resolveApiKey(agent)
-            val workingDirectory = project.path.path
-            val result = withContext(blockingDispatcher) {
-                terminalSessionManaging.startAgentSession(
-                    agent = agent,
-                    projectId = projectId,
-                    workingDirectory = workingDirectory,
-                    apiKeyValue = apiKeyValue,
-                )
-            }
-            result.onSuccess { session ->
-                _projectData.update { data ->
-                    data.copy(
-                        runningAssistants = data.runningAssistants + (projectId to true),
-                        agentSessionIds = data.agentSessionIds + (projectId to session.id),
-                    )
-                }
+            val result = launcher.start(projectId, agent.id)
+            result.onSuccess {
                 rebuildState()
                 _state.update { it.copy(errorMessage = null) }
             }.onFailure { e ->
@@ -178,43 +189,23 @@ class ToolbarViewModel(
     }
 
     fun stopAgent() {
-        val projectId = projectManaging.activeProject?.id ?: return
-        val data = _projectData.value
-        val sessionId = data.agentSessionIds[projectId] ?: return
-        val agent = data.selectedAgents[projectId] ?: defaultAgent() ?: return
+        val project = projectManaging.activeProject ?: return
+        val projectId = project.id
+        val agent = _projectData.value.selectedAgents[projectId] ?: defaultAgent() ?: return
 
-        _projectData.update { d ->
-            d.copy(
-                runningAssistants = d.runningAssistants - projectId,
-                agentSessionIds = d.agentSessionIds - projectId,
-            )
-        }
+        // Eagerly update UI — same optimistic behaviour as before.
         rebuildState()
 
         scope.launch {
-            runCatching {
-                when (val exitSeq = agent.exitSequence) {
-                    is AgentExitSequence.CtrlC -> {
-                        terminalSessionManaging.sendInput("", sessionId)
-                    }
-                    is AgentExitSequence.CtrlCThenCommand -> {
-                        terminalSessionManaging.sendInput("", sessionId)
-                        kotlinx.coroutines.delay(300)
-                        terminalSessionManaging.sendInput("${exitSeq.command}\n", sessionId)
-                    }
-                }
-            }
+            launcher.stop(projectId, agent.id)
         }
     }
 
     fun cleanupProject(projectId: Uuid) {
         _projectData.update { data ->
-            data.copy(
-                runningAssistants = data.runningAssistants - projectId,
-                selectedAgents = data.selectedAgents - projectId,
-                agentSessionIds = data.agentSessionIds - projectId,
-            )
+            data.copy(selectedAgents = data.selectedAgents - projectId)
         }
+        launcher.removeProject(projectId)
         rebuildState()
     }
 
@@ -228,17 +219,17 @@ class ToolbarViewModel(
         super.dispose()
     }
 
-    private fun resolveApiKey(agent: AIAgent): String? {
-        val envVar = agent.apiKeyEnvironmentVariable ?: return null
-        return onResolveEnvVar?.invoke(envVar) ?: apiKeyResolving.resolve(envVar)
-    }
-
     private fun rebuildState() {
         val projectId = projectManaging.activeProject?.id
+        val running = projectId?.let { launcher.runningByProject.value[it] } ?: emptySet()
         val data = _projectData.value
         val agent = projectId?.let { data.selectedAgents[it] } ?: defaultAgent()
-        val isRunning = projectId?.let { data.runningAssistants[it] } == true
-        val agentSessionId = projectId?.let { data.agentSessionIds[it] }
+        val isRunning = running.isNotEmpty()
+        // Surface the session UUID of the currently selected agent so the UI can
+        // display a session indicator / link to the terminal tab.
+        val agentSessionId: Uuid? = if (projectId != null && agent != null) {
+            launcher.sessionIdFor(projectId, agent.id)
+        } else null
 
         _state.update { s ->
             s.copy(
