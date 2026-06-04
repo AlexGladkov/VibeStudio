@@ -56,7 +56,7 @@ class GeminiSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        // AIAssistant.GEMINI.displayName = "gemini"
+        // GeminiAgent.displayName = "gemini"
         composeTestRule.onNodeWithText("gemini").assertIsDisplayed()
     }
 

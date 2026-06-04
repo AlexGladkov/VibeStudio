@@ -20,8 +20,9 @@ data class SpecEditorState(
 
 class SpecEditorViewModel(
     private val persistenceStore: PersistenceStore,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(SpecEditorState())
     val state: StateFlow<SpecEditorState> = _state.asStateFlow()
 

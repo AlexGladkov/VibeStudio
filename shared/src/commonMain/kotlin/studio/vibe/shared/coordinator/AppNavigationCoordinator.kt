@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.model.CodeSpeakRunBarState
 
 /**
@@ -27,10 +27,10 @@ class AppNavigationCoordinator {
     // MARK: - Agent Install Wizard
 
     /** The agent whose install wizard should be shown. `null` = dismissed. */
-    private val _agentToInstall = MutableStateFlow<AIAssistant?>(null)
-    val agentToInstall: StateFlow<AIAssistant?> = _agentToInstall.asStateFlow()
+    private val _agentToInstall = MutableStateFlow<AIAgent?>(null)
+    val agentToInstall: StateFlow<AIAgent?> = _agentToInstall.asStateFlow()
 
-    fun setAgentToInstall(agent: AIAssistant?) {
+    fun setAgentToInstall(agent: AIAgent?) {
         _agentToInstall.value = agent
     }
 
@@ -87,6 +87,19 @@ class AppNavigationCoordinator {
 
     fun setShowingTraceabilityPanel(showing: Boolean) {
         _showingTraceabilityPanel.value = showing
+    }
+
+    // MARK: - Sidebar
+
+    private val _showingSidebar = MutableStateFlow(true)
+    val showingSidebar: StateFlow<Boolean> = _showingSidebar.asStateFlow()
+
+    fun setShowingSidebar(showing: Boolean) {
+        _showingSidebar.value = showing
+    }
+
+    fun toggleSidebar() {
+        _showingSidebar.value = !_showingSidebar.value
     }
 
     // MARK: - Mode Sync

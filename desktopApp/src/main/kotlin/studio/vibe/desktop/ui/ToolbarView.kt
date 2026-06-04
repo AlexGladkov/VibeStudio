@@ -54,7 +54,6 @@ import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.contract.AgentAvailabilityStatus
 import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.model.AIAssistant
 
 // ── ToolbarView ───────────────────────────────────────────────────────────────
 
@@ -548,13 +547,3 @@ internal fun agentColor(agent: AIAgent?, colors: DSColors): Color {
     }
 }
 
-/** Backwards-compatible colour lookup for code paths still typed on [AIAssistant]. */
-internal fun agentColor(assistant: AIAssistant?, colors: DSColors): Color = when (assistant) {
-    AIAssistant.CLAUDE -> colors.agentClaude
-    AIAssistant.OPENCODE -> colors.agentOpenCode
-    AIAssistant.CODEX -> colors.agentCodex
-    AIAssistant.GEMINI -> colors.agentGemini
-    AIAssistant.QWEN_CODE -> colors.agentQwen
-    AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak
-    null -> colors.textSecondary
-}

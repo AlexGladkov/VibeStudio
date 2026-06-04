@@ -5,10 +5,8 @@ package studio.vibe.desktop
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.unit.DpSize
@@ -17,9 +15,11 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
+import studio.vibe.shared.coordinator.AppMode
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
 import studio.vibe.shared.model.FilePath
@@ -33,21 +33,48 @@ import java.io.File
 fun main() = application {
     val serviceContainer = remember { DesktopServiceContainer() }
 
-    // Auto-activate first project if none active after load
+    // ── Startup: restore session then auto-activate first project ────────────
+    val startupScope = rememberCoroutineScope()
     remember(serviceContainer) {
-        val projects = serviceContainer.projectStore.projects.value
-        if (serviceContainer.projectStore.activeProjectId.value == null && projects.isNotEmpty()) {
-            serviceContainer.projectStore.setActiveProjectId(projects.first().id)
+        startupScope.launch(Dispatchers.IO) {
+            // Restore previous terminal sessions before UI reveal.
+            serviceContainer.restoreSessionUseCase.execute()
+
+            // Auto-activate first project if none was restored.
+            val projects = serviceContainer.projectStore.projects.value
+            if (serviceContainer.projectStore.activeProjectId.value == null && projects.isNotEmpty()) {
+                serviceContainer.projectStore.setActiveProjectId(projects.first().id)
+            }
         }
         true // remember requires a return value
     }
 
-    // ── App-level UI state hoisted to the Window scope so MenuBar callbacks
-    //    can toggle the same state that VibeStudioDesktopApp reads. ────────────
-    var showGitPanel by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var showSidebar by remember { mutableStateOf(true) }
-    var isCodeSpeakMode by remember { mutableStateOf(false) }
+    // ── Drive syncMode: observe activeProjectId → checkConfig → syncMode ─────
+    val navigationCoordinator = serviceContainer.navigationCoordinator
+    remember(serviceContainer) {
+        startupScope.launch(Dispatchers.IO) {
+            serviceContainer.projectStore.activeProjectId.collectLatest { activeId ->
+                val project = activeId?.let { serviceContainer.projectStore.project(it) }
+                if (project != null) {
+                    serviceContainer.codeSpeakService.checkConfig(project)
+                }
+                val isCS = activeId?.let {
+                    serviceContainer.codeSpeakService.isCodeSpeakProject(it)
+                } ?: false
+                navigationCoordinator.syncMode(isCS)
+            }
+        }
+        true
+    }
+
+    // ── App-level UI state — all driven by navigationCoordinator as single
+    //    source of truth. MenuBar callbacks mutate coordinator; composables read
+    //    coordinator flows. ──────────────────────────────────────────────────────
+    val currentMode by navigationCoordinator.currentMode.collectAsState()
+    val isCodeSpeakMode = currentMode == AppMode.CodeSpeak
+    val showGitPanel by navigationCoordinator.showingChangesPanel.collectAsState()
+    val showSettings by navigationCoordinator.showingSettings.collectAsState()
+    val showSidebar by navigationCoordinator.showingSidebar.collectAsState()
 
     // ── Theme preference — collected reactively so palette switches as soon
     //    as the user picks a different option in Settings. ─────────────────────
@@ -105,18 +132,18 @@ fun main() = application {
                 Item(
                     if (showSidebar) "Hide Sidebar" else "Show Sidebar",
                     shortcut = KeyShortcut(Key.B, meta = true),
-                    onClick = { showSidebar = !showSidebar },
+                    onClick = { navigationCoordinator.toggleSidebar() },
                 )
                 Item(
                     if (showGitPanel) "Hide Git Panel" else "Show Git Panel",
                     shortcut = KeyShortcut(Key.G, meta = true, shift = true),
-                    onClick = { showGitPanel = !showGitPanel },
+                    onClick = { navigationCoordinator.setShowingChangesPanel(!showGitPanel) },
                 )
                 Separator()
                 Item(
                     if (isCodeSpeakMode) "Exit CodeSpeak Mode" else "Enter CodeSpeak Mode",
                     shortcut = KeyShortcut(Key.C, meta = true, shift = true),
-                    onClick = { isCodeSpeakMode = !isCodeSpeakMode },
+                    onClick = { navigationCoordinator.syncMode(!isCodeSpeakMode) },
                 )
             }
 
@@ -125,7 +152,7 @@ fun main() = application {
                 Item(
                     "Settings...",
                     shortcut = KeyShortcut(Key.Comma, meta = true),
-                    onClick = { showSettings = true },
+                    onClick = { navigationCoordinator.setShowingSettings(true) },
                 )
             }
         }
@@ -143,10 +170,10 @@ fun main() = application {
                 showSettings = showSettings,
                 showSidebar = showSidebar,
                 isCodeSpeakMode = isCodeSpeakMode,
-                onToggleGitPanel = { showGitPanel = !showGitPanel },
-                onToggleSettings = { showSettings = it },
-                onToggleSidebar = { showSidebar = !showSidebar },
-                onToggleCodeSpeakMode = { isCodeSpeakMode = !isCodeSpeakMode },
+                onToggleGitPanel = { navigationCoordinator.setShowingChangesPanel(!showGitPanel) },
+                onToggleSettings = { navigationCoordinator.setShowingSettings(it) },
+                onToggleSidebar = { navigationCoordinator.toggleSidebar() },
+                onToggleCodeSpeakMode = { navigationCoordinator.syncMode(!isCodeSpeakMode) },
             )
         }
     }

@@ -44,7 +44,7 @@ class ToolbarViewModelTest {
             agentAvailabilityChecking = availability,
             agentRegistry = registry,
             apiKeyResolving = apiKeys,
-            scope = scope,
+            parentScope = scope,
             blockingDispatcher = UnconfinedTestDispatcher(),
         )
         return vm to ToolbarTestEnv(projects, terminal, availability, registry, apiKeys, scope)

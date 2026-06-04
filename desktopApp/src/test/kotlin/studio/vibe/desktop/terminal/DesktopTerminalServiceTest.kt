@@ -6,13 +6,34 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import studio.vibe.shared.contract.SettingsStorage
+import studio.vibe.shared.preferences.GeneralPreferences
+import studio.vibe.shared.service.agent.ClaudeAgent
+import studio.vibe.shared.service.agent.CodexAgent
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
+
+// ── In-process stub (not available from shared:commonTest in this source set) ──
+
+private class StubSettingsStorage : SettingsStorage {
+    private val strings = mutableMapOf<String, String>()
+    private val bools = mutableMapOf<String, Boolean>()
+    private val ints = mutableMapOf<String, Int>()
+
+    override fun getString(key: String): String? = strings[key]
+    override fun setString(key: String, value: String) { strings[key] = value }
+    override fun getBool(key: String): Boolean = bools[key] ?: false
+    override fun setBool(key: String, value: Boolean) { bools[key] = value }
+    override fun getInt(key: String): Int? = ints[key]
+    override fun setInt(key: String, value: Int) { ints[key] = value }
+    override fun remove(key: String) { strings.remove(key); bools.remove(key); ints.remove(key) }
+}
 
 /**
  * Unit tests for [DesktopTerminalService].
@@ -180,5 +201,93 @@ class DesktopTerminalServiceTest {
         val snapshot2 = service.internalSessions()
         // Both snapshots must be equal (content-wise) but are separate objects.
         assertEquals(snapshot1, snapshot2)
+    }
+
+    // ── claudeSkipPermissions wiring ──────────────────────────────────────────
+
+    @Test
+    fun generalPreferences_claudeSkipPermissions_defaultsFalse() {
+        val prefs = GeneralPreferences(StubSettingsStorage())
+        assertFalse(
+            prefs.claudeSkipPermissions,
+            "claudeSkipPermissions must default to false on fresh storage",
+        )
+    }
+
+    @Test
+    fun generalPreferences_claudeSkipPermissions_persistsTrue() {
+        val storage = StubSettingsStorage()
+        val prefs = GeneralPreferences(storage)
+        prefs.claudeSkipPermissions = true
+        // Reload from same storage — simulates app restart reading persisted value.
+        val reloaded = GeneralPreferences(storage)
+        assertTrue(
+            reloaded.claudeSkipPermissions,
+            "claudeSkipPermissions must survive a reload from the same storage",
+        )
+    }
+
+    // ── buildEffectiveLaunchCommand — skip-permissions flag injection ─────────
+
+    @Test
+    fun claudeAgent_skipPermissionsTrue_commandContainsFlag() {
+        val prefs = GeneralPreferences(StubSettingsStorage()).apply {
+            claudeSkipPermissions = true
+        }
+        val svc = DesktopTerminalService(serviceScope = scope, generalPreferences = prefs)
+        val cmd = svc.buildEffectiveLaunchCommand(ClaudeAgent)
+        assertTrue(
+            cmd.contains("--dangerously-skip-permissions"),
+            "Expected --dangerously-skip-permissions in command, got: $cmd",
+        )
+        assertTrue(cmd.endsWith("\n"), "Launch command must end with newline, got: $cmd")
+    }
+
+    @Test
+    fun claudeAgent_skipPermissionsFalse_commandDoesNotContainFlag() {
+        val prefs = GeneralPreferences(StubSettingsStorage()).apply {
+            claudeSkipPermissions = false
+        }
+        val svc = DesktopTerminalService(serviceScope = scope, generalPreferences = prefs)
+        val cmd = svc.buildEffectiveLaunchCommand(ClaudeAgent)
+        assertFalse(
+            cmd.contains("--dangerously-skip-permissions"),
+            "Flag must NOT appear when claudeSkipPermissions=false, got: $cmd",
+        )
+        assertEquals(ClaudeAgent.launchCommand, cmd)
+    }
+
+    @Test
+    fun nonClaudeAgent_skipPermissionsTrue_commandDoesNotContainFlag() {
+        val prefs = GeneralPreferences(StubSettingsStorage()).apply {
+            claudeSkipPermissions = true
+        }
+        val svc = DesktopTerminalService(serviceScope = scope, generalPreferences = prefs)
+        val cmd = svc.buildEffectiveLaunchCommand(CodexAgent)
+        assertFalse(
+            cmd.contains("--dangerously-skip-permissions"),
+            "Flag must NOT appear for non-Claude agent, got: $cmd",
+        )
+        assertEquals(CodexAgent.launchCommand, cmd)
+    }
+
+    @Test
+    fun serviceConstructsWithGeneralPreferences_andDoesNotThrow() {
+        // Verifies that passing a non-null GeneralPreferences to DesktopTerminalService
+        // is wired correctly: no NPE, no class-cast, service starts up cleanly.
+        val prefs = GeneralPreferences(StubSettingsStorage()).apply {
+            claudeSkipPermissions = true
+        }
+        val scopeWithPrefs = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val serviceWithPrefs = DesktopTerminalService(
+            serviceScope = scopeWithPrefs,
+            generalPreferences = prefs,
+        )
+        try {
+            assertTrue(serviceWithPrefs.sessionsByProject.value.isEmpty())
+        } finally {
+            serviceWithPrefs.dispose()
+            scopeWithPrefs.cancel()
+        }
     }
 }

@@ -24,8 +24,9 @@ data class CreateBranchState(
 @OptIn(ExperimentalUuidApi::class)
 class CreateBranchViewModel(
     private val gitService: GitServicing,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(CreateBranchState())
     val state: StateFlow<CreateBranchState> = _state.asStateFlow()
 

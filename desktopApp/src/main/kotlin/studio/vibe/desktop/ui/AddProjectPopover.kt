@@ -27,6 +27,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,9 +83,10 @@ public fun AddProjectPopover(
     val vm = remember {
         AddProjectViewModel(
             projectManaging = projectStore,
-            scope = coroutineScope,
+            parentScope = coroutineScope,
         )
     }
+    DisposableEffect(vm) { onDispose { vm.dispose() } }
     val state by vm.state.collectAsState()
     val recentProjects = state.recentProjects
 

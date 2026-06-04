@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
@@ -57,9 +58,11 @@ class FakeTerminalSessionManaging : TerminalSessionManaging {
     }
 
     fun registerSession(session: TerminalSession) {
-        _sessionsByProject.value = _sessionsByProject.value.toMutableMap().apply {
-            val current = this[session.projectId] ?: emptyList()
-            this[session.projectId] = current + session
+        _sessionsByProject.update { snapshot ->
+            snapshot.toMutableMap().apply {
+                val current = this[session.projectId] ?: emptyList()
+                this[session.projectId] = current + session
+            }
         }
     }
 
@@ -125,8 +128,11 @@ class FakeTerminalSessionManaging : TerminalSessionManaging {
         _sessionsByProject.value[projectId] ?: emptyList()
 
     override fun markProjectSeen(projectId: Uuid) {
-        _projectActivityStates.value = _projectActivityStates.value.toMutableMap().apply {
-            if (this[projectId] == TabActivityState.RUNNING) this[projectId] = TabActivityState.IDLE
+        _projectActivityStates.update { snapshot ->
+            if (snapshot[projectId] == TabActivityState.RUNNING)
+                snapshot + (projectId to TabActivityState.IDLE)
+            else
+                snapshot
         }
     }
 

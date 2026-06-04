@@ -20,8 +20,9 @@ data class GitRemoteSetupState(
 
 class GitRemoteSetupViewModel(
     private val gitService: GitServicing,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(GitRemoteSetupState())
     val state: StateFlow<GitRemoteSetupState> = _state.asStateFlow()
 

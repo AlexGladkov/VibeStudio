@@ -23,7 +23,6 @@ import studio.vibe.desktop.ui.settings.GeneralSettingsPane
 import studio.vibe.desktop.ui.settings.LlmSettingsPane
 import studio.vibe.desktop.ui.settings.RemoteControlSettingsPane
 import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.FilePath
 import kotlin.uuid.Uuid
 
@@ -223,6 +222,7 @@ fun SettingsView(
         codeSpeakPreferences = container.codeSpeakPreferences,
         remoteControlPreferences = container.remoteControlPreferences,
         remoteControlServer = container.remoteControlServer,
+        agentRegistry = container.agentRegistry,
         onDismiss = onDismiss,
     )
 }
@@ -265,12 +265,12 @@ fun RemoteControlSettingsPane(
 
 @Composable
 fun LlmSettingsPane(
-    assistant: AIAssistant,
+    agent: AIAgent,
     container: DesktopServiceContainer,
     modifier: Modifier = Modifier,
 ) {
     LlmSettingsPane(
-        assistant = assistant,
+        agent = agent,
         generalPreferences = container.generalPreferences,
         codeSpeakPreferences = container.codeSpeakPreferences,
         modifier = modifier,

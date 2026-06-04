@@ -30,6 +30,10 @@ dependencies {
     implementation("org.jetbrains.jediterm:jediterm-core:3.68")
     implementation("org.jetbrains.jediterm:jediterm-ui:3.68")
 
+    // Ktor HTTP client — used by AICommitServiceImpl in DesktopServiceContainer
+    implementation("io.ktor:ktor-client-okhttp:3.5.0")
+    implementation("io.ktor:ktor-client-content-negotiation:3.5.0")
+
     // Embedded HTTP server for Remote Control
     implementation("io.ktor:ktor-server-netty:3.5.0")
     implementation("io.ktor:ktor-server-websockets:3.5.0")

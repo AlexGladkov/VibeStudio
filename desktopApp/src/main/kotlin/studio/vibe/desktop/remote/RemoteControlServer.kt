@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -49,6 +51,7 @@ import studio.vibe.shared.model.RemoteAuthResult
 import studio.vibe.shared.model.RemoteDevice as SharedRemoteDevice
 import studio.vibe.shared.model.TerminalSessionState
 import studio.vibe.shared.preferences.RemoteControlPreferences
+import studio.vibe.shared.security.JavaSecureRandom
 import studio.vibe.shared.service.remote.RemoteAuthServiceImpl
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -78,7 +81,7 @@ import kotlin.uuid.Uuid
 class RemoteControlServer(
     private val preferences: RemoteControlPreferences,
     private val terminalService: DesktopTerminalService,
-    val authService: RemoteAuthorizing = RemoteAuthServiceImpl(),
+    val authService: RemoteAuthorizing = RemoteAuthServiceImpl(JavaSecureRandom),
 ) {
     companion object {
         private val log = Logger.getLogger("RemoteControlServer")
@@ -103,6 +106,10 @@ class RemoteControlServer(
     // ── Server scope ───────────────────────────────────────────────────────────
 
     private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // ── Lifecycle mutex (prevents concurrent start/stop) ───────────────────────
+
+    private val lifecycleMutex = Mutex()
 
     // ── Ktor engine references (null when stopped) ─────────────────────────────
 
@@ -157,51 +164,57 @@ class RemoteControlServer(
      * Optionally starts the ngrok tunnel for external access.
      */
     fun start() {
-        if (_isRunning.value || _isTransitioning.value) {
-            log.warning("RemoteControlServer.start() called while already running or transitioning")
-            return
+        serverScope.launch { startAsync() }
+    }
+
+    suspend fun startAsync() {
+        lifecycleMutex.withLock {
+            if (_isRunning.value || _isTransitioning.value) {
+                log.warning("RemoteControlServer.start() called while already running or transitioning")
+                return
+            }
+            _isTransitioning.value = true
         }
 
-        _isTransitioning.value = true
+        try {
+            val bindHost = if (preferences.bindToLocalhost) "127.0.0.1" else "0.0.0.0"
+            val bindPort = preferences.remoteControlPort
 
-        serverScope.launch {
-            try {
-                val bindHost = if (preferences.bindToLocalhost) "127.0.0.1" else "0.0.0.0"
-                val bindPort = preferences.remoteControlPort
+            val main = embeddedServer(Netty, port = bindPort, host = bindHost) {
+                configureApp()
+            }
 
-                val main = embeddedServer(Netty, port = bindPort, host = bindHost) {
-                    configureApp()
-                }
+            val loopback = embeddedServer(Netty, port = bindPort + 1, host = "127.0.0.1") {
+                configureApp()
+            }
 
-                val loopback = embeddedServer(Netty, port = bindPort + 1, host = "127.0.0.1") {
-                    configureApp()
-                }
+            main.start(wait = false)
+            loopback.start(wait = false)
 
-                main.start(wait = false)
-                loopback.start(wait = false)
-
+            lifecycleMutex.withLock {
                 mainEngine = main
                 loopbackEngine = loopback
                 startedAt = System.currentTimeMillis()
                 _isRunning.value = true
                 _isTransitioning.value = false
-                startNgrokObservation()
-
-                if (preferences.ngrokEnabled) {
-                    val authtoken = withContext(Dispatchers.IO) {
-                        preferences.loadNgrokAuthtoken()
-                    }
-                    if (authtoken.isNotBlank()) {
-                        ngrok.start(httpPort = bindPort + 1, authtoken = authtoken)
-                    }
-                }
-
-                log.info("RemoteControlServer started on $bindHost:$bindPort (loopback: 127.0.0.1:${bindPort + 1})")
-
-            } catch (e: Exception) {
-                log.severe("RemoteControlServer failed to start: ${e.message}")
-                _isTransitioning.value = false
             }
+
+            startNgrokObservation()
+
+            if (preferences.ngrokEnabled) {
+                val authtoken = withContext(Dispatchers.IO) {
+                    preferences.loadNgrokAuthtoken()
+                }
+                if (authtoken.isNotBlank()) {
+                    ngrok.start(httpPort = bindPort + 1, authtoken = authtoken)
+                }
+            }
+
+            log.info("RemoteControlServer started on $bindHost:$bindPort (loopback: 127.0.0.1:${bindPort + 1})")
+
+        } catch (e: Exception) {
+            log.severe("RemoteControlServer failed to start: ${e.message}")
+            lifecycleMutex.withLock { _isTransitioning.value = false }
         }
     }
 
@@ -209,42 +222,18 @@ class RemoteControlServer(
      * Gracefully stop the server, disconnect all devices, and cancel ngrok.
      */
     fun stop() {
-        if (!_isRunning.value || _isTransitioning.value) return
-        _isTransitioning.value = true
-
-        val main = mainEngine
-        val loopback = loopbackEngine
-
-        activeBridges.values.forEach { it.detach() }
-        activeBridges.clear()
-        _connectedDeviceCount.value = 0
-        ngrok.stop()
-        ngrokObserveJob?.cancel()
-        ngrokObserveJob = null
-
-        _isRunning.value = false
-        startedAt = null
-        mainEngine = null
-        loopbackEngine = null
-
-        serverScope.launch {
-            authService.revokeAllDevices()
-            runCatching { withContext(Dispatchers.IO) { main?.stop(500L, 500L) } }
-            runCatching { withContext(Dispatchers.IO) { loopback?.stop(500L, 500L) } }
-            _isTransitioning.value = false
-            log.info("RemoteControlServer stopped")
-        }
+        serverScope.launch { stopAsync() }
     }
 
     /**
      * Stop the server and await full shutdown (for clean app termination).
      */
     suspend fun stopAsync() {
-        if (!_isRunning.value || _isTransitioning.value) return
-        _isTransitioning.value = true
-
-        val main = mainEngine
-        val loopback = loopbackEngine
+        val (main, loopback) = lifecycleMutex.withLock {
+            if (!_isRunning.value || _isTransitioning.value) return
+            _isTransitioning.value = true
+            Pair(mainEngine, loopbackEngine)
+        }
 
         activeBridges.values.forEach { it.detach() }
         activeBridges.clear()
@@ -254,10 +243,12 @@ class RemoteControlServer(
         ngrokObserveJob = null
         authService.revokeAllDevices()
 
-        _isRunning.value = false
-        startedAt = null
-        mainEngine = null
-        loopbackEngine = null
+        lifecycleMutex.withLock {
+            _isRunning.value = false
+            startedAt = null
+            mainEngine = null
+            loopbackEngine = null
+        }
 
         withContext(Dispatchers.IO) {
             runCatching { main?.stop(1_000L, 2_000L) }

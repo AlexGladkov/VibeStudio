@@ -2,6 +2,10 @@
 
 package studio.vibe.desktop
 
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,6 +15,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
 import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.AIAgentRegistry
@@ -19,8 +24,10 @@ import studio.vibe.shared.contract.APIKeyResolving
 import studio.vibe.shared.contract.AgentAvailabilityChecking
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.contract.SessionPersisting
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
+import studio.vibe.shared.coordinator.AppNavigationCoordinator
 import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
@@ -34,6 +41,8 @@ import studio.vibe.shared.platform.JvmPersistenceStore
 import studio.vibe.shared.platform.JvmProcessRunner
 import studio.vibe.shared.platform.JvmSettingsStorage
 import studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl
+import studio.vibe.shared.service.ai.AICommitServiceImpl
+import studio.vibe.shared.service.codespeak.CodeSpeakServiceImpl
 import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitCommandExecutor
 import studio.vibe.shared.service.git.GitStatusPollerImpl
@@ -41,6 +50,8 @@ import studio.vibe.shared.preferences.CodeSpeakPreferences
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.shared.preferences.RemoteControlPreferences
 import studio.vibe.shared.service.persistence.ProjectStoreImpl
+import studio.vibe.shared.service.persistence.SessionStoreImpl
+import studio.vibe.shared.usecase.RestoreSessionUseCase
 import studio.vibe.desktop.remote.RemoteControlServer
 import studio.vibe.desktop.terminal.DesktopTerminalService
 import studio.vibe.shared.viewmodel.FileTreeViewModel
@@ -89,7 +100,23 @@ class DesktopServiceContainer {
 
     val apiKeyResolving: APIKeyResolving = EnvironmentAPIKeyResolver()
 
-    val aiCommitService: AICommitServicing = StubAICommitService()
+    /** Shared JSON instance — single allocation, reused by session store and HTTP client. */
+    val json: Json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = false
+        prettyPrint = false
+    }
+
+    /** Ktor HTTP client backed by OkHttp (JVM engine). Single instance for the app lifetime. */
+    val httpClient: HttpClient = HttpClient(OkHttp) {
+        install(ContentNegotiation) { json(json) }
+    }
+
+    val aiCommitService: AICommitServicing = AICommitServiceImpl(
+        httpClient = httpClient,
+        apiKeyResolver = apiKeyResolving,
+    )
 
     val generalPreferences: GeneralPreferences = GeneralPreferences(settingsStorage)
 
@@ -108,7 +135,7 @@ class DesktopServiceContainer {
     val fileTreeViewModel: FileTreeViewModel = FileTreeViewModel(
         persistenceStore = persistenceStore,
         fileSystemWatchingService = fileSystemWatchingService,
-        scope = scope,
+        parentScope = scope,
     )
 
     val gitStatusPoller: GitStatusPollerImpl = GitStatusPollerImpl(
@@ -117,7 +144,27 @@ class DesktopServiceContainer {
     )
 
     /** Real pty4j-backed terminal service.  Replaces [StubTerminalSessionManaging]. */
-    val terminalService: DesktopTerminalService = DesktopTerminalService(serviceScope = scope)
+    val terminalService: DesktopTerminalService = DesktopTerminalService(
+        serviceScope = scope,
+        generalPreferences = generalPreferences,
+    )
+
+    val sessionStore: SessionPersisting = SessionStoreImpl(
+        persistence = persistenceStore,
+        json = json,
+    )
+
+    val restoreSessionUseCase: RestoreSessionUseCase = RestoreSessionUseCase(
+        projectManager = projectStore,
+        terminalManager = terminalService,
+        sessionPersistence = sessionStore,
+    )
+
+    val codeSpeakService: CodeSpeakServiceImpl = CodeSpeakServiceImpl(
+        persistence = persistenceStore,
+    )
+
+    val navigationCoordinator: AppNavigationCoordinator = AppNavigationCoordinator()
 
     /**
      * Embedded HTTP/WS server for Remote Control.
@@ -141,7 +188,7 @@ class DesktopServiceContainer {
             agentAvailabilityChecking = agentAvailabilityChecking,
             agentRegistry = agentRegistry,
             apiKeyResolving = apiKeyResolving,
-            scope = scope,
+            parentScope = scope,
             blockingDispatcher = Dispatchers.IO,
         ).also { vm ->
             vm.onResolveHomePath = { System.getProperty("user.home") ?: "" }
@@ -153,7 +200,7 @@ class DesktopServiceContainer {
         GitSidebarViewModel(
             gitService = gitService,
             aiCommitService = aiCommitService,
-            scope = scope,
+            parentScope = scope,
         ).also { vm ->
             vm.onOpenURL = { url ->
                 try {
@@ -172,12 +219,19 @@ class DesktopServiceContainer {
         // Final synchronous flush so unsaved in-memory edits hit disk before exit.
         runBlocking { projectStore.save() }
         gitStatusPoller.stopPolling()
-        fileTreeViewModel.stopWatching()
+        // Dispose ViewModels — cancels their child scopes and cleans up resources before
+        // the parent scope is cancelled. fileTreeViewModel is always initialized (eager).
+        // The lazy VMs are safe to access here: if never initialized the lazy block runs
+        // but scope.cancel() follows immediately, so no work is started.
+        fileTreeViewModel.dispose()
+        toolbarViewModel.dispose()
+        gitSidebarViewModel.dispose()
         fileSystemWatchingService.unwatchAll()
         // Stop Remote Control server before terminal service so bridges can detach cleanly.
         remoteControlServer.stop()
         remoteControlServer.dispose()
         terminalService.dispose()   // kills all live PTY processes before scope cancel
+        httpClient.close()
         scope.cancel()
     }
 }
@@ -190,15 +244,6 @@ class DesktopServiceContainer {
  */
 private class EnvironmentAPIKeyResolver : APIKeyResolving {
     override fun resolve(envVar: String): String? = System.getenv(envVar)
-}
-
-/**
- * Stub for AICommitServicing until a real implementation is wired in.
- * Returns a placeholder message — does not make network calls.
- */
-private class StubAICommitService : AICommitServicing {
-    override suspend fun generateCommitMessage(diff: String): String =
-        "chore: update files\n\nAI commit service not yet configured."
 }
 
 /**

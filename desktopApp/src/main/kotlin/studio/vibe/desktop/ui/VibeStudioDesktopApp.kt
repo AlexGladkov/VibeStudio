@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -28,9 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.DesktopServiceContainer
-import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.ProjectManagerError
 import studio.vibe.shared.preferences.AppTheme
@@ -73,7 +69,7 @@ fun VibeStudioDesktopApp(
     val projects by container.projectStore.projects.collectAsState()
     val scope = rememberCoroutineScope()
 
-    var agentToInstall by remember { mutableStateOf<AIAgent?>(null) }
+    val agentToInstall by container.navigationCoordinator.agentToInstall.collectAsState()
 
     // FocusRequester lets the root Box capture keyboard events via onPreviewKeyEvent.
     val focusRequester = remember { FocusRequester() }
@@ -144,7 +140,7 @@ fun VibeStudioDesktopApp(
                     isCodeSpeakMode = isCodeSpeakMode,
                     onOpenSettings = { onToggleSettings(true) },
                     onToggleCodeSpeakMode = onToggleCodeSpeakMode,
-                    onInstallAgent = { agentToInstall = it },
+                    onInstallAgent = { container.navigationCoordinator.setAgentToInstall(it) },
                 )
                 if (isCodeSpeakMode) {
                     CodeSpeakModeView(
@@ -184,6 +180,7 @@ fun VibeStudioDesktopApp(
             codeSpeakPreferences = container.codeSpeakPreferences,
             remoteControlPreferences = container.remoteControlPreferences,
             remoteControlServer = container.remoteControlServer,
+            agentRegistry = container.agentRegistry,
             onDismiss = { onToggleSettings(false) },
         )
     }
@@ -192,7 +189,7 @@ fun VibeStudioDesktopApp(
     agentToInstall?.let { agent ->
         InstallAgentSheet(
             agent = agent,
-            onDismiss = { agentToInstall = null },
+            onDismiss = { container.navigationCoordinator.setAgentToInstall(null) },
         )
     }
 }

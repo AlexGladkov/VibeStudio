@@ -3,6 +3,7 @@ package studio.vibe.shared.viewmodel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -50,12 +51,14 @@ class ToolbarViewModel(
     private val agentAvailabilityChecking: AgentAvailabilityChecking,
     private val agentRegistry: AIAgentRegistry,
     private val apiKeyResolving: APIKeyResolving,
-    private val scope: CoroutineScope,
+    parentScope: CoroutineScope,
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
-) {
+) : BaseViewModel(parentScope) {
     private val runningAssistants = mutableMapOf<Uuid, Boolean>()
     private val selectedAgents = mutableMapOf<Uuid, AIAgent>()
     private val agentSessionIds = mutableMapOf<Uuid, Uuid>()
+
+    private var availabilityJob: Job? = null
 
     private val _state = MutableStateFlow(ToolbarState())
     val state: StateFlow<ToolbarState> = _state.asStateFlow()
@@ -66,13 +69,10 @@ class ToolbarViewModel(
     private fun defaultAgent(): AIAgent? = agentRegistry.snapshot().firstOrNull()
 
     init {
-        // Poll agent availability periodically
-        scope.launch {
-            kotlinx.coroutines.delay(1_000)
-            while (true) {
-                val current = agentAvailabilityChecking.availability
+        // Collect reactive availability updates — no polling needed.
+        availabilityJob = scope.launch {
+            agentAvailabilityChecking.availabilityFlow.collect { current ->
                 _state.update { s -> s.copy(agentAvailability = current) }
-                kotlinx.coroutines.delay(5_000)
             }
         }
 
@@ -111,14 +111,11 @@ class ToolbarViewModel(
     fun refreshAvailability() {
         _state.update { it.copy(isCheckingAvailability = true) }
         agentAvailabilityChecking.refreshAll()
+        // availabilityFlow.collect will pick up the new values automatically;
+        // just reset the loading flag after the service has had a chance to emit.
         scope.launch {
-            kotlinx.coroutines.delay(1_500)
-            _state.update { s ->
-                s.copy(
-                    agentAvailability = agentAvailabilityChecking.availability,
-                    isCheckingAvailability = false,
-                )
-            }
+            kotlinx.coroutines.delay(100)
+            _state.update { s -> s.copy(isCheckingAvailability = false) }
         }
     }
 
@@ -196,6 +193,12 @@ class ToolbarViewModel(
 
     fun clearError() {
         _state.update { it.copy(errorMessage = null) }
+    }
+
+    override fun dispose() {
+        availabilityJob?.cancel()
+        availabilityJob = null
+        super.dispose()
     }
 
     private fun resolveApiKey(agent: AIAgent): String? {

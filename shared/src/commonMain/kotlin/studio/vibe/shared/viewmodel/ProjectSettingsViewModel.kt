@@ -21,8 +21,9 @@ data class ProjectSettingsState(
 @OptIn(ExperimentalUuidApi::class)
 class ProjectSettingsViewModel(
     private val projectManaging: ProjectManaging,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(ProjectSettingsState())
     val state: StateFlow<ProjectSettingsState> = _state.asStateFlow()
 

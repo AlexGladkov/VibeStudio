@@ -3,6 +3,7 @@ package studio.vibe.shared.testutil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
@@ -52,19 +53,19 @@ class FakeProjectManaging(
         addProjectCallCount++
         addProjectError?.let { throw it }
         val project = Project(name = path.name, path = path)
-        _projects.value = _projects.value + project
+        _projects.update { it + project }
         return project
     }
 
     override fun removeProject(id: Uuid) {
-        _projects.value = _projects.value.filter { it.id != id }
+        _projects.update { it.filter { p -> p.id != id } }
         if (_activeProjectId.value == id) {
             _activeProjectId.value = _projects.value.firstOrNull()?.id
         }
     }
 
     override fun updateProject(id: Uuid, mutate: (Project) -> Project) {
-        _projects.value = _projects.value.map { if (it.id == id) mutate(it) else it }
+        _projects.update { it.map { p -> if (p.id == id) mutate(p) else p } }
     }
 
     override fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {

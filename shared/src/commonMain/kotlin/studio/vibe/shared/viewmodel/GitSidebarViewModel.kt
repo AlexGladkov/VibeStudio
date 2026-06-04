@@ -41,8 +41,8 @@ data class GitSidebarState(
 class GitSidebarViewModel(
     private val gitService: GitServicing,
     private val aiCommitService: AICommitServicing,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(GitSidebarState())
     val state: StateFlow<GitSidebarState> = _state.asStateFlow()
 

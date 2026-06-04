@@ -38,16 +38,18 @@ class FreeTabStoreImpl : FreeTabManaging {
     }
 
     override fun moveFreeTabs(fromIndices: Set<Int>, toDestination: Int) {
-        val current = _freeTabs.value.toMutableList()
-        val moving = fromIndices.sortedDescending().mapNotNull { idx ->
-            if (idx in current.indices) current.removeAt(idx) else null
-        }.reversed()
+        _freeTabs.update { snapshot ->
+            val current = snapshot.toMutableList()
+            val moving = fromIndices.sortedDescending().mapNotNull { idx ->
+                if (idx in current.indices) current.removeAt(idx) else null
+            }.reversed()
 
-        val insertAt = (toDestination - fromIndices.count { it < toDestination })
-            .coerceIn(0, current.size)
+            val insertAt = (toDestination - fromIndices.count { it < toDestination })
+                .coerceIn(0, current.size)
 
-        current.addAll(insertAt, moving)
-        _freeTabs.value = current
+            current.addAll(insertAt, moving)
+            current
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.testutil.ToolbarView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.service.agent.ClaudeAgent
 import java.io.File
 
 /**
@@ -73,7 +73,7 @@ class ToolbarViewTest {
 
         composeTestRule.waitForIdle()
         // Default selected agent per ToolbarViewModel initial state is Claude.
-        composeTestRule.onNodeWithText(AIAssistant.CLAUDE.displayName).assertExists()
+        composeTestRule.onNodeWithText(ClaudeAgent.displayName).assertExists()
     }
 
     @Test

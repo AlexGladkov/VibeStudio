@@ -1,6 +1,5 @@
 package studio.vibe.shared.contract
 
-import studio.vibe.shared.model.AIAssistant
 import studio.vibe.shared.model.AgentExitSequence
 
 /**
@@ -15,11 +14,6 @@ import studio.vibe.shared.model.AgentExitSequence
  * [AIAgentRegistry.register]; no modification of [ToolbarViewModel],
  * [AgentAvailabilityServiceImpl][studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl]
  * or other consumers is required.
- *
- * The optional [legacyAssistant] field exists only so this slice of the codebase
- * can be migrated incrementally — existing call-sites still typed in terms of
- * [AIAssistant] map back via [AIAgentRegistry.byAssistant].  Pure-plugin agents
- * leave [legacyAssistant] as `null`.
  */
 interface AIAgent {
 
@@ -47,10 +41,4 @@ interface AIAgent {
     val prerequisite: String?
     val prerequisiteCheckCommand: String?
     val setupInstructions: String?
-
-    /**
-     * Optional mapping to the legacy [AIAssistant] enum.  Built-in agents return
-     * the matching value; user-supplied plugin agents return `null`.
-     */
-    val legacyAssistant: AIAssistant? get() = null
 }

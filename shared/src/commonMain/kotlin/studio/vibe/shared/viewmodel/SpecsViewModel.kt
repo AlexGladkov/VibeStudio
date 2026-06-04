@@ -22,8 +22,9 @@ data class SpecsState(
 @OptIn(ExperimentalUuidApi::class)
 class SpecsViewModel(
     private val persistenceStore: PersistenceStore,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(SpecsState())
     val state: StateFlow<SpecsState> = _state.asStateFlow()
 

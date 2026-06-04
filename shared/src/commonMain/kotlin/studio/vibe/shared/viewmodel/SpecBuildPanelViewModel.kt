@@ -35,8 +35,9 @@ data class SpecBuildPanelState(
 class SpecBuildPanelViewModel(
     private val processRunner: ProcessRunner,
     private val projectManaging: ProjectManaging,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(SpecBuildPanelState())
     val state: StateFlow<SpecBuildPanelState> = _state.asStateFlow()
 
@@ -120,6 +121,12 @@ class SpecBuildPanelViewModel(
         _state.update { it.copy(errorMessage = null) }
     }
 
+    override fun dispose() {
+        runJob?.cancel()
+        runJob = null
+        super.dispose()
+    }
+
     private fun appendOutput(line: String) {
         _state.update { s ->
             val newOutput = if (s.output.isEmpty()) line else "${s.output}\n$line"
@@ -132,7 +139,6 @@ class SpecBuildPanelViewModel(
         val passingPattern = Regex("""(\d+)\s+passing""", RegexOption.IGNORE_CASE)
         val failingPattern = Regex("""(\d+)\s+failing""", RegexOption.IGNORE_CASE)
         val ratioPattern = Regex("""[Pp]assed:\s*(\d+)/(\d+)""")
-        val countPattern = Regex("""(\d+)\s+passed(?:,\s*(\d+)\s+failed)?""", RegexOption.IGNORE_CASE)
 
         ratioPattern.find(line)?.let { match ->
             val passing = match.groupValues[1].toIntOrNull() ?: return

@@ -26,14 +26,16 @@ data class AddProjectState(
  * [Project] is published in `state.openedProject` and must be consumed via
  * [consumeOpened] before issuing the next intent.
  *
- * @param scope Coroutine scope used to launch suspend persistence calls.
- *              Inject a `TestScope` from unit tests.
+ * @param parentScope Parent scope from the DI container or Compose host.
+ *                    The VM creates a child scope that can be cancelled independently
+ *                    via [dispose]. Inject a [TestScope] from unit tests.
  */
 @OptIn(ExperimentalUuidApi::class)
 class AddProjectViewModel(
     private val projectManaging: ProjectManaging,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(AddProjectState())
     val state: StateFlow<AddProjectState> = _state.asStateFlow()
 

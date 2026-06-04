@@ -56,7 +56,7 @@ class CodexSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        // AIAssistant.CODEX.displayName = "codex"
+        // CodexAgent.displayName = "codex"
         composeTestRule.onNodeWithText("codex").assertIsDisplayed()
     }
 

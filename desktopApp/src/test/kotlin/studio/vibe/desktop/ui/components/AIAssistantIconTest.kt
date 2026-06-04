@@ -5,7 +5,12 @@ import androidx.compose.ui.test.onNodeWithText
 import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.service.agent.ClaudeAgent
+import studio.vibe.shared.service.agent.CodeSpeakAgent
+import studio.vibe.shared.service.agent.CodexAgent
+import studio.vibe.shared.service.agent.GeminiAgent
+import studio.vibe.shared.service.agent.OpenCodeAgent
+import studio.vibe.shared.service.agent.QwenCodeAgent
 
 /**
  * UI tests for [AIAssistantIcon].
@@ -19,7 +24,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_rendersWithoutCrash_claude() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.CLAUDE)
+                AIAssistantIcon(agent = ClaudeAgent)
             }
         }
 
@@ -30,7 +35,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_rendersWithoutCrash_opencode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.OPENCODE)
+                AIAssistantIcon(agent = OpenCodeAgent)
             }
         }
 
@@ -41,7 +46,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_rendersWithoutCrash_codex() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.CODEX)
+                AIAssistantIcon(agent = CodexAgent)
             }
         }
 
@@ -52,7 +57,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_rendersWithoutCrash_gemini() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.GEMINI)
+                AIAssistantIcon(agent = GeminiAgent)
             }
         }
 
@@ -63,7 +68,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_rendersWithoutCrash_qwenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.QWEN_CODE)
+                AIAssistantIcon(agent = QwenCodeAgent)
             }
         }
 
@@ -74,7 +79,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_rendersWithoutCrash_codeSpeak() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.CODE_SPEAK)
+                AIAssistantIcon(agent = CodeSpeakAgent)
             }
         }
 
@@ -85,7 +90,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_showsMonogram_C_forClaude() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.CLAUDE)
+                AIAssistantIcon(agent = ClaudeAgent)
             }
         }
 
@@ -97,7 +102,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_showsMonogram_O_forOpenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.OPENCODE)
+                AIAssistantIcon(agent = OpenCodeAgent)
             }
         }
 
@@ -109,7 +114,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_showsMonogram_X_forCodex() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.CODEX)
+                AIAssistantIcon(agent = CodexAgent)
             }
         }
 
@@ -121,7 +126,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_showsMonogram_G_forGemini() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.GEMINI)
+                AIAssistantIcon(agent = GeminiAgent)
             }
         }
 
@@ -133,7 +138,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_showsMonogram_Q_forQwenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.QWEN_CODE)
+                AIAssistantIcon(agent = QwenCodeAgent)
             }
         }
 
@@ -145,7 +150,7 @@ class AIAssistantIconTest {
     fun aiAssistantIcon_showsMonogram_S_forCodeSpeak() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                AIAssistantIcon(assistant = AIAssistant.CODE_SPEAK)
+                AIAssistantIcon(agent = CodeSpeakAgent)
             }
         }
 

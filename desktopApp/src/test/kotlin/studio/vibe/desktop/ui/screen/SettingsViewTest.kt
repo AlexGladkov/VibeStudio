@@ -11,7 +11,9 @@ import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
+import studio.vibe.shared.model.SettingsItem
 import studio.vibe.shared.model.SettingsSectionGroup
+import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
 import java.io.File
 
 /**
@@ -52,24 +54,30 @@ class SettingsViewTest {
 
     @Test
     fun settingsModel_appearanceItem_existsInGeneralGroup() {
-        val item = SettingsSectionGroup.GENERAL.items.firstOrNull { it.displayName == "Appearance" }
+        val registry = DefaultAIAgentRegistry()
+        val item = SettingsSectionGroup.GENERAL.itemsFromRegistry(registry)
+            .firstOrNull { it.displayName == "Appearance" }
         kotlin.test.assertNotNull(item)
     }
 
     @Test
     fun settingsModel_remoteControlItem_existsInGeneralGroup() {
-        val item = SettingsSectionGroup.GENERAL.items.firstOrNull { it.displayName == "Remote Control" }
+        val registry = DefaultAIAgentRegistry()
+        val item = SettingsSectionGroup.GENERAL.itemsFromRegistry(registry)
+            .firstOrNull { it.displayName == "Remote Control" }
         kotlin.test.assertNotNull(item)
     }
 
     @Test
     fun settingsModel_llmGroupHasAgentItems() {
-        kotlin.test.assertTrue(SettingsSectionGroup.LLM.items.isNotEmpty())
+        val registry = DefaultAIAgentRegistry()
+        kotlin.test.assertTrue(SettingsSectionGroup.LLM.itemsFromRegistry(registry).isNotEmpty())
     }
 
     @Test
     fun settingsModel_allItemsHaveUniqueIds() {
-        val allItems = SettingsSectionGroup.entries.flatMap { it.items }
+        val registry = DefaultAIAgentRegistry()
+        val allItems = SettingsSectionGroup.entries.flatMap { it.itemsFromRegistry(registry) }
         val ids = allItems.map { it.id }
         kotlin.test.assertEquals(ids.size, ids.toSet().size)
     }

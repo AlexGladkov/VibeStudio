@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -90,7 +91,7 @@ fun CreateBranchSheet(
     val vm = remember(projectId) {
         CreateBranchViewModel(
             gitService = gitService,
-            scope = coroutineScope,
+            parentScope = coroutineScope,
         ).also { vm ->
             vm.loadBranches(projectPath)
             if (fromBranch != null) {
@@ -98,6 +99,7 @@ fun CreateBranchSheet(
             }
         }
     }
+    DisposableEffect(vm) { onDispose { vm.dispose() } }
 
     val state by vm.state.collectAsState()
 

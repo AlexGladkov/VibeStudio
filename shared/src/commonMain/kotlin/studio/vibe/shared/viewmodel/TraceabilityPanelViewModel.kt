@@ -22,8 +22,8 @@ data class TraceabilityPanelState(
 
 class TraceabilityPanelViewModel(
     private val persistenceStore: PersistenceStore,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(TraceabilityPanelState())
     val state: StateFlow<TraceabilityPanelState> = _state.asStateFlow()
 

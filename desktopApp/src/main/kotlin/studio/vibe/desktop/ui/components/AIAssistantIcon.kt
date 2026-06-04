@@ -20,25 +20,26 @@ import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
 
 /**
- * Displays a branded icon for an AI assistant.
+ * Displays a branded icon for an AI agent.
  *
  * Port of SwiftUI `AIAssistantIconView.swift`.
- * Each assistant is represented by a distinct color circle with an initial or
- * short monogram — matching the brand colors defined in [DSColor].
+ * Each agent is represented by a distinct color circle with an initial derived
+ * from its id — built-in agents have dedicated palette entries; plugin agents
+ * fall back to [DSColors.textSecondary] with the first letter of [AIAgent.displayName].
  *
- * @param assistant The AI assistant whose icon to render.
- * @param size      Diameter of the icon in dp (default 16).
+ * @param agent The AI agent whose icon to render.
+ * @param size  Diameter of the icon in dp (default 16).
  */
 @Composable
 fun AIAssistantIcon(
-    assistant: AIAssistant,
+    agent: AIAgent,
     size: Dp = 16.dp,
     modifier: Modifier = Modifier,
 ) {
-    val (bgColor, label) = assistantStyle(assistant, LocalDSColors.current)
+    val (bgColor, label) = agentStyle(agent, LocalDSColors.current)
     val fontSize = (size.value * 0.5f).sp
 
     Box(
@@ -60,11 +61,16 @@ fun AIAssistantIcon(
     }
 }
 
-private fun assistantStyle(assistant: AIAssistant, colors: DSColors): Pair<Color, String> = when (assistant) {
-    AIAssistant.CLAUDE     -> colors.agentClaude     to "C"
-    AIAssistant.OPENCODE   -> colors.agentOpenCode   to "O"
-    AIAssistant.CODEX      -> colors.agentCodex      to "X"
-    AIAssistant.GEMINI     -> colors.agentGemini     to "G"
-    AIAssistant.QWEN_CODE  -> colors.agentQwen       to "Q"
-    AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak  to "S"
+/**
+ * Id-based style lookup.  Built-in agents have dedicated palette entries;
+ * plugin agents fall back to [DSColors.textSecondary] with a computed monogram.
+ */
+private fun agentStyle(agent: AIAgent, colors: DSColors): Pair<Color, String> = when (agent.id) {
+    "claude"    -> colors.agentClaude    to "C"
+    "opencode"  -> colors.agentOpenCode  to "O"
+    "codex"     -> colors.agentCodex     to "X"
+    "gemini"    -> colors.agentGemini    to "G"
+    "qwenCode"  -> colors.agentQwen      to "Q"
+    "codeSpeak" -> colors.agentCodeSpeak to "S"
+    else -> colors.textSecondary to (agent.displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?")
 }

@@ -56,7 +56,7 @@ class QwenSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        // AIAssistant.QWEN_CODE.displayName = "qwen"
+        // QwenCodeAgent.displayName = "qwen"
         composeTestRule.onNodeWithText("qwen").assertIsDisplayed()
     }
 

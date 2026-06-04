@@ -33,8 +33,8 @@ data class CodeSpeakModeState(
 class CodeSpeakModeViewModel(
     private val persistenceStore: PersistenceStore,
     private val projectManaging: ProjectManaging,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(CodeSpeakModeState())
     val state: StateFlow<CodeSpeakModeState> = _state.asStateFlow()
 

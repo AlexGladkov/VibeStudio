@@ -35,8 +35,9 @@ private const val FILE_WATCH_DEBOUNCE_MS = 500L
 class FileTreeViewModel(
     private val persistenceStore: PersistenceStore,
     private val fileSystemWatchingService: FileSystemWatchingService,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(FileTreeState())
     val state: StateFlow<FileTreeState> = _state.asStateFlow()
 
@@ -99,6 +100,11 @@ class FileTreeViewModel(
 
     fun refresh() {
         currentRootPath?.let { loadTree(it) }
+    }
+
+    override fun dispose() {
+        stopWatching()
+        super.dispose()
     }
 
     private suspend fun buildTree(

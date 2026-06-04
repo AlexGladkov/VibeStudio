@@ -16,7 +16,8 @@ import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.service.agent.GeminiAgent
 import java.io.File
 
 /**
@@ -29,6 +30,7 @@ import java.io.File
  */
 @Composable
 fun GeminiSettingsPane(
+    agent: AIAgent = GeminiAgent,
     modifier: Modifier = Modifier,
 ) {
     val homeDir = System.getProperty("user.home") ?: ""
@@ -40,7 +42,7 @@ fun GeminiSettingsPane(
     }
 
     LlmBasicPane(
-        assistant = AIAssistant.GEMINI,
+        agent = agent,
         modifier = modifier,
         extraContent = {
             // -- Config file ---------------------------------------------

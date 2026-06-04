@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -132,16 +133,18 @@ class ProjectStoreImpl(
     }
 
     override fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {
-        val current = _projects.value.toMutableList()
-        val moving = fromIndices.sortedDescending().mapNotNull { idx ->
-            if (idx in current.indices) current.removeAt(idx) else null
-        }.reversed()
+        _projects.update { snapshot ->
+            val current = snapshot.toMutableList()
+            val moving = fromIndices.sortedDescending().mapNotNull { idx ->
+                if (idx in current.indices) current.removeAt(idx) else null
+            }.reversed()
 
-        val insertAt = (toDestination - fromIndices.count { it < toDestination })
-            .coerceIn(0, current.size)
+            val insertAt = (toDestination - fromIndices.count { it < toDestination })
+                .coerceIn(0, current.size)
 
-        current.addAll(insertAt, moving)
-        _projects.value = current
+            current.addAll(insertAt, moving)
+            current
+        }
         rebuildIndex()
         scheduleSaveProjects()
     }
@@ -175,10 +178,12 @@ class ProjectStoreImpl(
         if (activeId == null) return
         val project = indexById[activeId] ?: return
 
-        val current = _recentHistory.value.toMutableList()
-        current.removeAll { it.id == activeId }
-        current.add(0, project)
-        _recentHistory.value = current.take(MAX_RECENTS)
+        _recentHistory.update { snapshot ->
+            val current = snapshot.toMutableList()
+            current.removeAll { it.id == activeId }
+            current.add(0, project)
+            current.take(MAX_RECENTS)
+        }
         refreshRecentProjects()
         scheduleSaveRecents()
     }

@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -73,9 +74,10 @@ public fun TraceabilityPanelView(
     val vm = remember {
         TraceabilityPanelViewModel(
             persistenceStore = persistenceStore,
-            scope = coroutineScope,
+            parentScope = coroutineScope,
         )
     }
+    DisposableEffect(vm) { onDispose { vm.dispose() } }
 
     val state by vm.state.collectAsState()
 

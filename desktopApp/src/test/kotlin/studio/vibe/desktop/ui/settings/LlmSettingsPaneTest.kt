@@ -10,14 +10,19 @@ import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.service.agent.ClaudeAgent
+import studio.vibe.shared.service.agent.CodeSpeakAgent
+import studio.vibe.shared.service.agent.CodexAgent
+import studio.vibe.shared.service.agent.GeminiAgent
+import studio.vibe.shared.service.agent.OpenCodeAgent
+import studio.vibe.shared.service.agent.QwenCodeAgent
 import java.io.File
 
 /**
  * UI tests for [LlmSettingsPane].
  *
  * Verifies that the dispatcher correctly routes to each sub-pane and that
- * the sub-pane title is visible for each [AIAssistant] selection.
+ * the sub-pane title is visible for each agent selection.
  */
 class LlmSettingsPaneTest {
 
@@ -44,7 +49,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forClaude() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CLAUDE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = ClaudeAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -55,7 +60,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToClaudePane_whenAssistantIsClaude() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CLAUDE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = ClaudeAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -68,7 +73,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forOpencode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.OPENCODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = OpenCodeAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -79,12 +84,12 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToOpencodePane_whenAssistantIsOpencode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.OPENCODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = OpenCodeAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
         composeTestRule.waitForIdle()
-        // OpencodeSettingsPane shows AIAssistant.OPENCODE.displayName = "opencode"
+        // OpenCodeAgent.displayName = "opencode"
         composeTestRule.onNodeWithText("opencode").assertIsDisplayed()
     }
 
@@ -92,7 +97,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forCodex() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODEX, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = CodexAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -103,12 +108,12 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToCodexPane_whenAssistantIsCodex() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODEX, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = CodexAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
         composeTestRule.waitForIdle()
-        // CodexSettingsPane shows AIAssistant.CODEX.displayName = "codex"
+        // CodexAgent.displayName = "codex"
         composeTestRule.onNodeWithText("codex").assertIsDisplayed()
     }
 
@@ -116,7 +121,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forGemini() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.GEMINI, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = GeminiAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -127,12 +132,12 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToGeminiPane_whenAssistantIsGemini() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.GEMINI, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = GeminiAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
         composeTestRule.waitForIdle()
-        // GeminiSettingsPane shows AIAssistant.GEMINI.displayName = "gemini"
+        // GeminiAgent.displayName = "gemini"
         composeTestRule.onNodeWithText("gemini").assertIsDisplayed()
     }
 
@@ -140,7 +145,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forQwenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.QWEN_CODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = QwenCodeAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -151,12 +156,12 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToQwenPane_whenAssistantIsQwenCode() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.QWEN_CODE, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = QwenCodeAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
         composeTestRule.waitForIdle()
-        // QwenSettingsPane shows AIAssistant.QWEN_CODE.displayName = "qwen"
+        // QwenCodeAgent.displayName = "qwen"
         composeTestRule.onNodeWithText("qwen").assertIsDisplayed()
     }
 
@@ -164,7 +169,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_rendersWithoutCrash_forCodeSpeak() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODE_SPEAK, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = CodeSpeakAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 
@@ -175,7 +180,7 @@ class LlmSettingsPaneTest {
     fun llmSettingsPane_routesToCodeSpeakPane_whenAssistantIsCodeSpeak() {
         composeTestRule.setContent {
             VibeStudioTheme {
-                LlmSettingsPane(assistant = AIAssistant.CODE_SPEAK, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
+                LlmSettingsPane(agent = CodeSpeakAgent, generalPreferences = container.generalPreferences, codeSpeakPreferences = container.codeSpeakPreferences)
             }
         }
 

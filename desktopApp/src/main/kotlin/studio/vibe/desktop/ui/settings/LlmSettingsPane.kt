@@ -15,29 +15,33 @@ import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.preferences.CodeSpeakPreferences
 import studio.vibe.shared.preferences.GeneralPreferences
 
 /**
  * Dispatcher pane that routes to the correct per-agent settings pane.
  *
+ * Routing is now id-based so plugin agents registered at runtime are handled by
+ * the [LlmGenericPane] fallback without any modification of this file.
+ *
  * Mirrors Swift LLMSettingsPane.swift.
  */
 @Composable
 fun LlmSettingsPane(
-    assistant: AIAssistant,
+    agent: AIAgent,
     generalPreferences: GeneralPreferences,
     codeSpeakPreferences: CodeSpeakPreferences,
     modifier: Modifier = Modifier,
 ) {
-    when (assistant) {
-        AIAssistant.CLAUDE -> ClaudeSettingsPane(preferences = generalPreferences, modifier = modifier)
-        AIAssistant.OPENCODE -> OpencodeSettingsPane(modifier = modifier)
-        AIAssistant.CODEX -> CodexSettingsPane(modifier = modifier)
-        AIAssistant.GEMINI -> GeminiSettingsPane(modifier = modifier)
-        AIAssistant.QWEN_CODE -> QwenSettingsPane(modifier = modifier)
-        AIAssistant.CODE_SPEAK -> CodeSpeakSettingsPane(preferences = codeSpeakPreferences, modifier = modifier)
+    when (agent.id) {
+        "claude" -> ClaudeSettingsPane(preferences = generalPreferences, modifier = modifier)
+        "opencode" -> OpencodeSettingsPane(agent = agent, modifier = modifier)
+        "codex" -> CodexSettingsPane(agent = agent, modifier = modifier)
+        "gemini" -> GeminiSettingsPane(agent = agent, modifier = modifier)
+        "qwenCode" -> QwenSettingsPane(agent = agent, modifier = modifier)
+        "codeSpeak" -> CodeSpeakSettingsPane(preferences = codeSpeakPreferences, modifier = modifier)
+        else -> LlmGenericPane(agent = agent, modifier = modifier)
     }
 }
 
@@ -47,11 +51,13 @@ fun LlmSettingsPane(
  * Base layout reused by all LLM-agent panes that follow the same structure:
  * title → description → API key section → install hint.
  *
+ * Accepts [AIAgent] so plugin agents can reuse this layout without an enum entry.
+ *
  * Mirrors the shared structure from Swift LLMSettingsPane sub-panes.
  */
 @Composable
 fun LlmBasicPane(
-    assistant: AIAssistant,
+    agent: AIAgent,
     modifier: Modifier = Modifier,
     extraContent: (@Composable () -> Unit)? = null,
 ) {
@@ -61,11 +67,11 @@ fun LlmBasicPane(
             .padding(DSSpacing.xl),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.xl),
     ) {
-        SettingsPaneTitle(title = assistant.displayName)
+        SettingsPaneTitle(title = agent.displayName)
 
         // Short description
         Text(
-            text = assistant.shortDescription,
+            text = agent.shortDescription,
             style = DSFont.bodyMedium,
             color = LocalDSColors.current.textSecondary,
         )
@@ -74,22 +80,34 @@ fun LlmBasicPane(
         extraContent?.invoke()
 
         // API key or auth section
-        val envVar = assistant.apiKeyEnvironmentVariable
+        val envVar = agent.apiKeyEnvironmentVariable
         if (envVar != null) {
-            LlmApiKeySection(assistant = assistant, envVar = envVar)
+            LlmApiKeySection(agent = agent, envVar = envVar)
         } else {
-            LlmNoKeySection(assistant = assistant)
+            LlmNoKeySection(agent = agent)
         }
 
         // Installation
-        LlmInstallSection(assistant = assistant)
+        LlmInstallSection(agent = agent)
 
         Spacer(Modifier.height(DSSpacing.xl))
     }
 }
 
+/**
+ * Generic fallback pane for plugin agents not handled by the built-in dispatcher.
+ * Renders the standard [LlmBasicPane] layout without any agent-specific extras.
+ */
 @Composable
-private fun LlmApiKeySection(assistant: AIAssistant, envVar: String) {
+fun LlmGenericPane(
+    agent: AIAgent,
+    modifier: Modifier = Modifier,
+) {
+    LlmBasicPane(agent = agent, modifier = modifier)
+}
+
+@Composable
+private fun LlmApiKeySection(agent: AIAgent, envVar: String) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
@@ -108,7 +126,7 @@ private fun LlmApiKeySection(assistant: AIAssistant, envVar: String) {
 
         SettingsMonoBlock(text = "export $envVar=your-key-here")
 
-        assistant.setupInstructions?.let { instructions ->
+        agent.setupInstructions?.let { instructions ->
             Text(
                 text = instructions,
                 style = DSFont.bodySmall,
@@ -119,7 +137,7 @@ private fun LlmApiKeySection(assistant: AIAssistant, envVar: String) {
 }
 
 @Composable
-private fun LlmNoKeySection(assistant: AIAssistant) {
+private fun LlmNoKeySection(agent: AIAgent) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
@@ -132,7 +150,7 @@ private fun LlmNoKeySection(assistant: AIAssistant) {
 
         SettingsCard {
             Text(
-                text = assistant.setupInstructions
+                text = agent.setupInstructions
                     ?: "No API key required — uses environment-based authentication.",
                 style = DSFont.bodySmall,
                 color = LocalDSColors.current.textSecondary,
@@ -143,7 +161,7 @@ private fun LlmNoKeySection(assistant: AIAssistant) {
 }
 
 @Composable
-private fun LlmInstallSection(assistant: AIAssistant) {
+private fun LlmInstallSection(agent: AIAgent) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
@@ -154,7 +172,7 @@ private fun LlmInstallSection(assistant: AIAssistant) {
             color = LocalDSColors.current.textSecondary,
         )
 
-        assistant.prerequisite?.let { prereq ->
+        agent.prerequisite?.let { prereq ->
             Text(
                 text = "Requires: $prereq",
                 style = DSFont.sidebarItemSmall,
@@ -162,6 +180,6 @@ private fun LlmInstallSection(assistant: AIAssistant) {
             )
         }
 
-        SettingsMonoBlock(text = assistant.installHint)
+        SettingsMonoBlock(text = agent.installHint)
     }
 }

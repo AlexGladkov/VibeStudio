@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -137,16 +138,19 @@ public fun CodeSpeakModeView(
         CodeSpeakModeViewModel(
             persistenceStore = persistenceStore,
             projectManaging = projectStore,
-            scope = coroutineScope,
+            parentScope = coroutineScope,
         )
     }
+    DisposableEffect(modeVm) { onDispose { modeVm.dispose() } }
+
     val buildVm = remember {
         SpecBuildPanelViewModel(
             processRunner = processRunner,
             projectManaging = projectStore,
-            scope = coroutineScope,
+            parentScope = coroutineScope,
         )
     }
+    DisposableEffect(buildVm) { onDispose { buildVm.dispose() } }
 
     val modeState by modeVm.state.collectAsState()
     val buildState by buildVm.state.collectAsState()

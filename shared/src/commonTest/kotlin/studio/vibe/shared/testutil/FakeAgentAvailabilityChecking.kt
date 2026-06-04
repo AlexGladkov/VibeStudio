@@ -3,6 +3,7 @@ package studio.vibe.shared.testutil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.AgentAvailabilityChecking
 import studio.vibe.shared.contract.AgentAvailabilityStatus
@@ -22,7 +23,7 @@ class FakeAgentAvailabilityChecking(
     var refreshCallCount: Int = 0
 
     fun setAvailability(agent: AIAgent, status: AgentAvailabilityStatus) {
-        _flow.value = _flow.value + (agent to status)
+        _flow.update { it + (agent to status) }
     }
 
     fun setAllAvailable(agents: List<AIAgent>) {

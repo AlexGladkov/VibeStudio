@@ -1,5 +1,8 @@
 package studio.vibe.shared.model
 
+import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.contract.AIAgentRegistry
+
 public enum class SidebarSection {
     FILES,
     GIT,
@@ -10,11 +13,14 @@ public enum class SettingsSectionGroup(public val displayName: String) {
     GENERAL("General"),
     LLM("LLM");
 
-    public val items: List<SettingsItem>
-        get() = when (this) {
-            GENERAL -> listOf(SettingsItem.Appearance, SettingsItem.RemoteControl)
-            LLM -> AIAssistant.entries.map { SettingsItem.LlmAssistant(it) }
-        }
+    /**
+     * Registry-aware items: LLM section is built from [registry] so plugin agents
+     * appear automatically without modifying this file.
+     */
+    public fun itemsFromRegistry(registry: AIAgentRegistry): List<SettingsItem> = when (this) {
+        GENERAL -> listOf(SettingsItem.Appearance, SettingsItem.RemoteControl)
+        LLM -> registry.snapshot().map { SettingsItem.LlmAgent(it) }
+    }
 }
 
 public sealed class SettingsItem {
@@ -37,9 +43,10 @@ public sealed class SettingsItem {
         override val sectionGroup = SettingsSectionGroup.GENERAL
     }
 
-    public data class LlmAssistant(val assistant: AIAssistant) : SettingsItem() {
-        override val id = "llm-${assistant.id}"
-        override val displayName = assistant.displayName.replaceFirstChar { it.uppercase() }
+    /** Registry-aware item backed by [AIAgent]. Used by [SettingsSectionGroup.itemsFromRegistry]. */
+    public data class LlmAgent(val agent: AIAgent) : SettingsItem() {
+        override val id = "llm-${agent.id}"
+        override val displayName = agent.displayName.replaceFirstChar { it.uppercase() }
         override val systemImage = "brain"
         override val sectionGroup = SettingsSectionGroup.LLM
     }

@@ -57,7 +57,8 @@ import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.AIAssistant
+import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.model.SettingsItem
 import studio.vibe.shared.model.SettingsSectionGroup
 import studio.vibe.shared.preferences.AppTheme
@@ -82,6 +83,7 @@ fun SettingsView(
     codeSpeakPreferences: CodeSpeakPreferences,
     remoteControlPreferences: RemoteControlPreferences,
     remoteControlServer: RemoteControlServer,
+    agentRegistry: AIAgentRegistry,
     onDismiss: () -> Unit,
 ) {
     val dialogState = rememberDialogState(size = DpSize(860.dp, 680.dp))
@@ -104,6 +106,7 @@ fun SettingsView(
                 codeSpeakPreferences = codeSpeakPreferences,
                 remoteControlPreferences = remoteControlPreferences,
                 remoteControlServer = remoteControlServer,
+                agentRegistry = agentRegistry,
                 onDismiss = onDismiss,
             )
         }
@@ -118,12 +121,15 @@ private fun SettingsContent(
     codeSpeakPreferences: CodeSpeakPreferences,
     remoteControlPreferences: RemoteControlPreferences,
     remoteControlServer: RemoteControlServer,
+    agentRegistry: AIAgentRegistry,
     onDismiss: () -> Unit,
 ) {
     val colors = LocalDSColors.current
+    // Collect agents as state so Compose recomposes when plugin agents are registered/unregistered
+    val registryAgents by agentRegistry.agents.collectAsState()
     // Default selection: first item in GENERAL group
     var selectedItem: SettingsItem by remember {
-        mutableStateOf(SettingsSectionGroup.GENERAL.items.first())
+        mutableStateOf(SettingsItem.Appearance)
     }
 
     Box(
@@ -133,10 +139,11 @@ private fun SettingsContent(
             .border(1.dp, colors.borderDefault, RoundedCornerShape(DSRadius.lg)),
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
-            // Left sidebar
+            // Left sidebar — registryAgents collected above drives recomposition
             SettingsSidebar(
                 selectedItem = selectedItem,
                 onSelectItem = { selectedItem = it },
+                registryAgents = registryAgents,
                 modifier = Modifier
                     .width(200.dp)
                     .fillMaxHeight(),
@@ -189,6 +196,7 @@ private fun SettingsContent(
 private fun SettingsSidebar(
     selectedItem: SettingsItem,
     onSelectItem: (SettingsItem) -> Unit,
+    registryAgents: List<AIAgent>,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalDSColors.current
@@ -221,8 +229,12 @@ private fun SettingsSidebar(
 
             Spacer(Modifier.height(DSSpacing.xxs))
 
-            // Items
-            group.items.forEach { item ->
+            // Items — LLM section built from registry snapshot so plugin agents appear automatically
+            val items = when (group) {
+                SettingsSectionGroup.GENERAL -> listOf(SettingsItem.Appearance, SettingsItem.RemoteControl)
+                SettingsSectionGroup.LLM -> registryAgents.map { SettingsItem.LlmAgent(it) }
+            }
+            items.forEach { item ->
                 SettingsSidebarRow(
                     item = item,
                     isSelected = selectedItem.id == item.id,
@@ -290,13 +302,13 @@ private fun SidebarItemIcon(item: SettingsItem, tint: Color) {
                 modifier = Modifier.size(14.dp),
             )
         }
-        is SettingsItem.LlmAssistant -> {
-            // Colored dot representing the agent brand color
+        is SettingsItem.LlmAgent -> {
+            // Colored dot representing the agent brand color (registry path)
             Box(
                 modifier = Modifier
                     .size(10.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(settingsAgentColor(item.assistant, colors)),
+                    .background(settingsAgentColorById(item.agent.id, colors)),
             )
         }
     }
@@ -320,8 +332,8 @@ private fun SettingsContentPane(
             preferences = remoteControlPreferences,
             server = remoteControlServer,
         )
-        is SettingsItem.LlmAssistant -> LlmSettingsPane(
-            assistant = item.assistant,
+        is SettingsItem.LlmAgent -> LlmSettingsPane(
+            agent = item.agent,
             generalPreferences = generalPreferences,
             codeSpeakPreferences = codeSpeakPreferences,
         )
@@ -330,17 +342,12 @@ private fun SettingsContentPane(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Maps an [AIAssistant] to its brand accent color using the design system tokens.
- *
- * This mirrors the private `agentColor()` function in [ToolbarView] — kept
- * private here to avoid coupling the two files.
- */
-private fun settingsAgentColor(assistant: AIAssistant, colors: DSColors): Color = when (assistant) {
-    AIAssistant.CLAUDE -> colors.agentClaude
-    AIAssistant.OPENCODE -> colors.agentOpenCode
-    AIAssistant.CODEX -> colors.agentCodex
-    AIAssistant.GEMINI -> colors.agentGemini
-    AIAssistant.QWEN_CODE -> colors.agentQwen
-    AIAssistant.CODE_SPEAK -> colors.agentCodeSpeak
+private fun settingsAgentColorById(agentId: String, colors: DSColors): Color = when (agentId) {
+    "claude"    -> colors.agentClaude
+    "opencode"  -> colors.agentOpenCode
+    "codex"     -> colors.agentCodex
+    "gemini"    -> colors.agentGemini
+    "qwenCode"  -> colors.agentQwen
+    "codeSpeak" -> colors.agentCodeSpeak
+    else -> colors.textSecondary
 }

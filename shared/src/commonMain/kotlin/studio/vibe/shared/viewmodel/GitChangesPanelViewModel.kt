@@ -26,8 +26,9 @@ data class GitChangesPanelState(
 class GitChangesPanelViewModel(
     private val gitService: GitServicing,
     private val projectManaging: ProjectManaging,
-    private val scope: CoroutineScope,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(GitChangesPanelState())
     val state: StateFlow<GitChangesPanelState> = _state.asStateFlow()
 

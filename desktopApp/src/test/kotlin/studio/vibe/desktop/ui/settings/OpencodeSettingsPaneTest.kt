@@ -57,7 +57,7 @@ class OpencodeSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        // AIAssistant.OPENCODE.displayName = "opencode"
+        // OpenCodeAgent.displayName = "opencode"
         composeTestRule.onNodeWithText("opencode").assertIsDisplayed()
     }
 

@@ -23,6 +23,8 @@ import studio.vibe.shared.contract.TerminalSessionCreating
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.contract.TerminalSessionQuerying
+import studio.vibe.shared.preferences.GeneralPreferences
+import studio.vibe.shared.service.security.AgentEnvironmentBuilder
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
 import studio.vibe.shared.model.TabActivityState
@@ -105,6 +107,9 @@ internal class PtySessionState(
  */
 class DesktopTerminalService(
     private val serviceScope: CoroutineScope,
+    private val generalPreferences: GeneralPreferences? = null,
+    /** Test-only seam: receives the effective launch command instead of (or before) PTY sendInput. */
+    internal val commandSink: ((String) -> Unit)? = null,
 ) : TerminalSessionManaging {
 
     // ── Session limits ─────────────────────────────────────────────────────
@@ -378,8 +383,11 @@ class DesktopTerminalService(
             // Watch for process exit (includes 10-second visibility window for agents)
             sessionScope.launch { watchProcessExit(session.id, projectId, ptyState) }
 
-            // Send launch command — API key is already in the env, no export needed
-            sendInput(agent.launchCommand, session.id)
+            // Send launch command — API key is already in the env, no export needed.
+            // For Claude, append --dangerously-skip-permissions when the preference is set.
+            val effectiveLaunchCommand = buildEffectiveLaunchCommand(agent)
+            commandSink?.invoke(effectiveLaunchCommand)
+            sendInput(effectiveLaunchCommand, session.id)
 
             session
         }
@@ -614,6 +622,19 @@ class DesktopTerminalService(
     }
 
     /**
+     * Pure helper: computes the effective agent launch command.
+     *
+     * Extracted so that the flag-injection logic can be unit-tested without
+     * spawning a real PTY process.
+     */
+    internal fun buildEffectiveLaunchCommand(agent: AIAgent): String =
+        if (agent.id == "claude" && generalPreferences?.claudeSkipPermissions == true) {
+            agent.launchCommand.trimEnd('\n') + " --dangerously-skip-permissions\n"
+        } else {
+            agent.launchCommand
+        }
+
+    /**
      * Builds the environment map for the new PTY process.
      *
      * Inherits the current process environment, then ensures `TERM` is set
@@ -631,67 +652,23 @@ class DesktopTerminalService(
     /**
      * Builds a minimal, allowlist-based environment for agent PTY sessions.
      *
-     * Unlike [buildEnv], this method does **not** inherit the entire parent
-     * process environment.  Only a curated set of variables is forwarded to
-     * prevent credential leakage from the host environment into the agent
-     * sandbox.  Trusted binary directories are prepended to `PATH` so that
-     * package-manager-installed agent binaries are always discoverable.
-     *
-     * The agent's API key is injected via the [AIAgent.apiKeyEnvironmentVariable]
-     * entry — it never needs to be sent as a visible shell command.
+     * Delegates to [AgentEnvironmentBuilder] (shared) — single source of truth
+     * for the allowlist and trusted binary directories. Platform-specific
+     * concerns (reading [System.getenv] / [System.getProperty]) are resolved
+     * here before the call so that shared code remains platform-agnostic.
      *
      * @param agent       The AI assistant whose API key variable should be set.
      * @param apiKeyValue The resolved secret value, or `null` if unavailable.
      */
     private fun buildAgentEnv(agent: AIAgent, apiKeyValue: String?): Map<String, String> {
-        val allowedVars = setOf(
-            "HOME", "USER", "LOGNAME",
-            "LANG", "LC_ALL", "LC_CTYPE",
-            "TERM", "COLORTERM",
-            "PATH", "SSH_AUTH_SOCK",
-            "SHELL", "TMPDIR",
-            "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+        // Provide HOME via system property fallback so the builder always has it.
+        val processEnv = System.getenv().toMutableMap()
+        processEnv.putIfAbsent("HOME", System.getProperty("user.home", "/"))
+
+        return AgentEnvironmentBuilder.build(
+            agent = agent,
+            apiKeyValue = apiKeyValue,
+            currentEnv = processEnv,
         )
-
-        val env = mutableMapOf<String, String>()
-        val processEnv = System.getenv()
-
-        for (key in allowedVars) {
-            processEnv[key]?.let { env[key] = it }
-        }
-
-        // Ensure terminal capabilities are always present
-        env["TERM"] = "xterm-256color"
-        env["COLORTERM"] = "truecolor"
-        env.putIfAbsent("LANG", "en_US.UTF-8")
-        env.putIfAbsent("HOME", System.getProperty("user.home", "/"))
-
-        // Prepend trusted binary directories to PATH so agent tools are found
-        // even if the login shell profile has not been sourced yet.
-        val trustedDirs = listOf(
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            "/usr/local/bin",
-            "${System.getProperty("user.home")}/.local/bin",
-            "${System.getProperty("user.home")}/.npm-global/bin",
-            "${System.getProperty("user.home")}/.cargo/bin",
-            "${System.getProperty("user.home")}/.opencode/bin",
-            "/usr/bin",
-        )
-        val currentPath = env["PATH"] ?: "/usr/bin:/bin:/usr/sbin:/sbin"
-        val existingParts = currentPath.split(":")
-        val missingDirs = trustedDirs.filter { it !in existingParts }
-        if (missingDirs.isNotEmpty()) {
-            env["PATH"] = (missingDirs + existingParts).joinToString(":")
-        }
-
-        // Inject the agent-specific API key directly into the environment so it
-        // is never echoed as visible terminal output.
-        val envVar = agent.apiKeyEnvironmentVariable
-        if (envVar != null && !apiKeyValue.isNullOrBlank()) {
-            env[envVar] = apiKeyValue
-        }
-
-        return env
     }
 }

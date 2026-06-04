@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.AIAgentRegistry
-import studio.vibe.shared.model.AIAssistant
 
 /**
  * Default [AIAgentRegistry] seeded with all built-in agents.
@@ -22,9 +21,6 @@ class DefaultAIAgentRegistry(
     override val agents: StateFlow<List<AIAgent>> = _agents.asStateFlow()
 
     override fun byId(id: String): AIAgent? = _agents.value.firstOrNull { it.id == id }
-
-    override fun byAssistant(assistant: AIAssistant): AIAgent? =
-        _agents.value.firstOrNull { it.legacyAssistant == assistant }
 
     override fun register(agent: AIAgent): Boolean {
         var added = false

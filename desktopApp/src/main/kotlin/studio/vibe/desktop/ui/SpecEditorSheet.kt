@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,9 +85,10 @@ public fun SpecEditorSheet(
     val vm = remember(specFile.id) {
         SpecEditorViewModel(
             persistenceStore = persistenceStore,
-            scope = coroutineScope,
+            parentScope = coroutineScope,
         ).also { it.loadSpec(specFile.path) }
     }
+    DisposableEffect(vm) { onDispose { vm.dispose() } }
 
     val state by vm.state.collectAsState()
 
