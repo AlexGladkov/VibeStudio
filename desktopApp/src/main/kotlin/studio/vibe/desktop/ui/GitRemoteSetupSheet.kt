@@ -37,7 +37,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.GitRemoteOperating
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -61,7 +61,7 @@ import studio.vibe.shared.viewmodel.GitRemoteSetupViewModel
  */
 @Composable
 fun GitRemoteSetupSheet(
-    gitService: GitServicing,
+    gitService: GitRemoteOperating,
     coroutineScope: CoroutineScope,
     projectId: Uuid,
     projectPath: FilePath,

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.GitBranching
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
 import kotlin.uuid.ExperimentalUuidApi
@@ -23,7 +23,7 @@ data class CreateBranchState(
 
 @OptIn(ExperimentalUuidApi::class)
 class CreateBranchViewModel(
-    private val gitService: GitServicing,
+    private val gitService: GitBranching,
     parentScope: CoroutineScope,
 ) : BaseViewModel(parentScope) {
 

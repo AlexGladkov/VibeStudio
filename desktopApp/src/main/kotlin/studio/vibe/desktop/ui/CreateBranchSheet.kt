@@ -45,7 +45,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.GitBranching
 import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -74,7 +74,7 @@ private val VALID_BRANCH_REGEX = Regex("^[a-zA-Z0-9._/][a-zA-Z0-9._/\\-]*$")
  */
 @Composable
 fun CreateBranchSheet(
-    gitService: GitServicing,
+    gitService: GitBranching,
     coroutineScope: CoroutineScope,
     gitSidebarViewModel: GitSidebarViewModel,
     projectId: Uuid,

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.GitRemoteOperating
 import studio.vibe.shared.model.FilePath
 
 data class GitRemoteSetupState(
@@ -19,7 +19,7 @@ data class GitRemoteSetupState(
 )
 
 class GitRemoteSetupViewModel(
-    private val gitService: GitServicing,
+    private val gitService: GitRemoteOperating,
     parentScope: CoroutineScope,
 ) : BaseViewModel(parentScope) {
 

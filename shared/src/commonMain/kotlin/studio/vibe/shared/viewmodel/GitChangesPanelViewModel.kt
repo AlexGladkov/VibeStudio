@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.GitStaging
+import studio.vibe.shared.contract.GitStatusQuerying
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitDiffStat
@@ -24,7 +25,8 @@ data class GitChangesPanelState(
 
 @OptIn(ExperimentalUuidApi::class)
 class GitChangesPanelViewModel(
-    private val gitService: GitServicing,
+    private val gitService: GitStatusQuerying,
+    private val stagingService: GitStaging,
     private val projectManaging: ProjectManaging,
     parentScope: CoroutineScope,
 ) : BaseViewModel(parentScope) {
@@ -50,7 +52,7 @@ class GitChangesPanelViewModel(
         val project = projectManaging.project(projectId) ?: return
         scope.launch {
             runCatching {
-                gitService.stage(files = files, at = project.path)
+                stagingService.stage(files = files, at = project.path)
                 loadStats(projectId)
             }.onFailure { e ->
                 _state.update { it.copy(errorMessage = e.message) }
@@ -62,7 +64,7 @@ class GitChangesPanelViewModel(
         val project = projectManaging.project(projectId) ?: return
         scope.launch {
             runCatching {
-                gitService.unstage(files = files, at = project.path)
+                stagingService.unstage(files = files, at = project.path)
                 loadStats(projectId)
             }.onFailure { e ->
                 _state.update { it.copy(errorMessage = e.message) }
@@ -77,7 +79,7 @@ class GitChangesPanelViewModel(
                 val status = _state.value.status
                 val allFiles = (status.unstagedFiles + status.untrackedFiles).map { it.path }
                 if (allFiles.isNotEmpty()) {
-                    gitService.stage(files = allFiles, at = project.path)
+                    stagingService.stage(files = allFiles, at = project.path)
                     loadStats(projectId)
                 }
             }.onFailure { e ->
@@ -92,7 +94,7 @@ class GitChangesPanelViewModel(
             runCatching {
                 val staged = _state.value.status.stagedFiles.map { it.path }
                 if (staged.isNotEmpty()) {
-                    gitService.unstage(files = staged, at = project.path)
+                    stagingService.unstage(files = staged, at = project.path)
                     loadStats(projectId)
                 }
             }.onFailure { e ->
