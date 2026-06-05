@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.AICommitServicing
 import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.UrlConverting
 import studio.vibe.shared.contract.UrlOpening
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
@@ -49,6 +50,7 @@ class GitSidebarViewModel(
      * When `null`, [openInRemote] is a no-op.
      */
     private val urlOpening: UrlOpening? = null,
+    private val urlConverter: UrlConverting = GitURLConverter,
 ) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(GitSidebarState())
     val state: StateFlow<GitSidebarState> = _state.asStateFlow()
@@ -354,7 +356,7 @@ class GitSidebarViewModel(
      * Open the project's git remote URL in the default browser.
      *
      * Fetches the raw remote URL from git, converts it to a browser-accessible
-     * HTTPS URL via [GitURLConverter] (handles SSH/SCP/git:// schemes),
+     * HTTPS URL via [UrlConverting] (handles SSH/SCP/git:// schemes),
      * then invokes [onOpenURL]. Does nothing if the remote is unavailable or
      * the URL cannot be converted to a valid HTTPS address.
      */
@@ -363,7 +365,7 @@ class GitSidebarViewModel(
             runCatching {
                 val rawUrl = gitService.remoteURL(name = "origin", at = path)
                 if (rawUrl != null) {
-                    val browserUrl = GitURLConverter.browserURL(rawUrl)
+                    val browserUrl = urlConverter.browserURL(rawUrl)
                     if (browserUrl != null) {
                         urlOpening?.openUrl(browserUrl)
                     }

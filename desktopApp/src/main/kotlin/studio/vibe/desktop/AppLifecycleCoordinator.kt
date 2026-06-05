@@ -35,21 +35,23 @@ class AppLifecycleCoordinator(
 
     /**
      * Must be called once after the service container is ready.
-     * Safe to call from a non-main coroutine (uses [Dispatchers.IO] internally).
+     *
+     * Phase 1 and Phase 2 run sequentially in a single coroutine: Phase 2 (the
+     * collect loop) only begins after Phase 1 (session restore + auto-activate)
+     * completes. This guarantees that [ProjectManaging.activeProjectId] is
+     * already set when the CS-config sync loop starts its first iteration.
      */
     fun onStartup() {
-        // Phase 1: restore sessions and auto-activate the first project.
         scope.launch(Dispatchers.IO) {
+            // Phase 1: restore sessions and auto-activate the first project.
             restoreSessionUseCase.execute()
 
             val projects = projectManaging.projects.value
             if (projectManaging.activeProjectId.value == null && projects.isNotEmpty()) {
                 projectManaging.setActiveProjectId(projects.first().id)
             }
-        }
 
-        // Phase 2: keep AppMode in sync with the active project's CS config.
-        scope.launch(Dispatchers.IO) {
+            // Phase 2: keep AppMode in sync with the active project's CS config.
             projectManaging.activeProjectId.collectLatest { activeId ->
                 val project = activeId?.let { projectManaging.project(it) }
                 if (project != null) {

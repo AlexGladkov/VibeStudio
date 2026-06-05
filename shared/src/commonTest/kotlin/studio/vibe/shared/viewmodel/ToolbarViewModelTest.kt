@@ -10,11 +10,10 @@ import studio.vibe.shared.service.agent.CodexAgent
 import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
 import studio.vibe.shared.testutil.FakeAPIKeyResolving
 import studio.vibe.shared.testutil.FakeAgentAvailabilityChecking
+import studio.vibe.shared.testutil.FakeAssistantLauncher
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
 import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -36,6 +35,7 @@ class ToolbarViewModelTest {
         availability: FakeAgentAvailabilityChecking = FakeAgentAvailabilityChecking(),
         registry: DefaultAIAgentRegistry = DefaultAIAgentRegistry(),
         apiKeys: FakeAPIKeyResolving = FakeAPIKeyResolving(),
+        launcher: FakeAssistantLauncher = FakeAssistantLauncher(),
         scope: TestScope = TestScope(UnconfinedTestDispatcher()),
     ): Pair<ToolbarViewModel, ToolbarTestEnv> {
         val vm = ToolbarViewModel(
@@ -46,8 +46,9 @@ class ToolbarViewModelTest {
             apiKeyResolving = apiKeys,
             parentScope = scope,
             blockingDispatcher = UnconfinedTestDispatcher(),
+            assistantLauncher = launcher,
         )
-        return vm to ToolbarTestEnv(projects, terminal, availability, registry, apiKeys, scope)
+        return vm to ToolbarTestEnv(projects, terminal, availability, registry, apiKeys, launcher, scope)
     }
 
     private class ToolbarTestEnv(
@@ -56,6 +57,7 @@ class ToolbarViewModelTest {
         val availability: FakeAgentAvailabilityChecking,
         val registry: DefaultAIAgentRegistry,
         val apiKeys: FakeAPIKeyResolving,
+        val launcher: FakeAssistantLauncher,
         val scope: TestScope,
     )
 
@@ -85,7 +87,7 @@ class ToolbarViewModelTest {
         vm.launchAgent()
 
         assertEquals("npm install foo", vm.state.value.errorMessage)
-        assertEquals(0, env.terminal.startAgentCallCount)
+        assertEquals(0, env.launcher.startCallCount)
     }
 
     @Test
@@ -100,10 +102,10 @@ class ToolbarViewModelTest {
 
         vm.launchAgent()
 
-        assertEquals(1, env.terminal.startAgentCallCount)
-        val (agent, _, workDir) = env.terminal.startAgentCalls.single()
-        assertEquals(ClaudeAgent, agent)
-        assertEquals(project.path.path, workDir)
+        assertEquals(1, env.launcher.startCallCount)
+        val (launchProjectId, agentId) = env.launcher.startCalls.single()
+        assertEquals(project.id, launchProjectId)
+        assertEquals(ClaudeAgent.id, agentId)
         assertTrue(vm.state.value.isAgentRunning)
         assertNotNull(vm.state.value.activeAgentSessionId)
     }
@@ -119,7 +121,7 @@ class ToolbarViewModelTest {
         assertEquals(CodexAgent, vm.state.value.selectedAgent)
 
         vm.launchAgent()
-        assertEquals(CodexAgent, env.terminal.startAgentCalls.single().first)
+        assertEquals(CodexAgent.id, env.launcher.startCalls.single().second)
     }
 
     @Test
@@ -129,21 +131,16 @@ class ToolbarViewModelTest {
         env.projects.setActiveProjectId(project.id)
         env.availability.setAllAvailable(env.registry.snapshot())
 
-        // Pre-populate terminal so we know which session id will be returned.
-        val session = TerminalSession(
-            projectId = project.id,
-            title = "claude",
-            state = TerminalSessionState.Running,
-            isAgentSession = true,
-        )
-        env.terminal.startAgentSessionResult = Result.success(session)
-
         vm.launchAgent()
         assertTrue(vm.state.value.isAgentRunning)
 
+        // Retrieve the session id from the active toolbar state.
+        val sessionId = vm.state.value.activeAgentSessionId
+            ?: error("No active session after launchAgent")
+
         env.terminal.emitEvent(
             TerminalSessionEvent.ProcessExited(
-                sessionId = session.id,
+                sessionId = sessionId,
                 projectId = project.id,
                 exitCode = 0,
             ),

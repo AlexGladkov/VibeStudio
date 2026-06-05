@@ -4,6 +4,9 @@ import kotlin.coroutines.cancellation.CancellationException
 import studio.vibe.shared.model.*
 import kotlin.time.Duration
 
+/** Result of comparing local and upstream branch commit counts. */
+data class AheadBehind(val ahead: Int, val behind: Int)
+
 // Git Status Querying
 interface GitStatusQuerying {
     @Throws(GitServiceError::class, CancellationException::class)
@@ -22,7 +25,7 @@ interface GitStatusQuerying {
     suspend fun log(limit: Int = 50, at: FilePath): List<GitCommitInfo>
 
     @Throws(GitServiceError::class, CancellationException::class)
-    suspend fun aheadBehind(at: FilePath): Pair<Int, Int>
+    suspend fun aheadBehind(at: FilePath): AheadBehind
 
     @Throws(GitServiceError::class, CancellationException::class)
     suspend fun diffStats(at: FilePath): Map<String, GitDiffStat>

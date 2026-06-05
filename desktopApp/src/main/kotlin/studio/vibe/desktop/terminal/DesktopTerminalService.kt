@@ -11,8 +11,11 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,6 +56,8 @@ internal class PtySessionState(
     val outputFlow: MutableSharedFlow<String>,
     val scrollback: ScrollbackBuffer,
     val scope: CoroutineScope,
+    /** Job for the 2-second graceful-kill timer. Cancelled in removeSession to prevent double-execution. */
+    @Volatile var graceKillJob: kotlinx.coroutines.Job? = null,
 )
 
 // ── DesktopTerminalService ────────────────────────────────────────────────────
@@ -117,10 +122,13 @@ class DesktopTerminalService(
 
     // ── TerminalSessionQuerying ─────────────────────────────────────────────
 
-    private val _sessionsByProject =
-        MutableStateFlow<Map<Uuid, List<TerminalSession>>>(emptyMap())
+    // Derived atomically from _sessions — no separate rebuild step needed.
     override val sessionsByProject: StateFlow<Map<Uuid, List<TerminalSession>>> =
-        _sessionsByProject
+        _sessions.map { map ->
+            map.values
+                .groupBy { it.session.projectId }
+                .mapValues { (_, states) -> states.map { it.session } }
+        }.stateIn(serviceScope, SharingStarted.Eagerly, emptyMap())
 
     private val _projectActivityStates =
         MutableStateFlow<Map<Uuid, TabActivityState>>(emptyMap())
@@ -208,7 +216,6 @@ class DesktopTerminalService(
         )
 
         _sessions.update { it + (session.id to state) }
-        rebuildProjectSessions()
 
         // NOTE: No output reader coroutine here.  JediTerm reads the PTY
         // InputStream via ProcessTtyConnector and feeds captured chunks back
@@ -251,11 +258,9 @@ class DesktopTerminalService(
         } else {
             runCatching { state.ptyProcess.destroy() }  // sends SIGTERM
             // Grace period: wait 2 seconds, then SIGKILL if still alive.
-            // Launched in a *standalone* scope (not serviceScope) so that
-            // dispose() cancelling serviceScope doesn't prevent the final kill
-            // from reaching the process — the scope completes on its own after
-            // the 2-second delay and is not held by any external reference.
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            // Stored in PtySessionState so removeSession can cancel it and
+            // prevent double-execution if the session is also killed forcibly.
+            state.graceKillJob = serviceScope.launch(Dispatchers.IO) {
                 kotlinx.coroutines.delay(2_000)
                 if (state.ptyProcess.isAlive) {
                     runCatching { state.ptyProcess.destroyForcibly() }
@@ -343,7 +348,6 @@ class DesktopTerminalService(
 
             val session = ptyState.session
             _sessions.update { it + (session.id to ptyState) }
-            rebuildProjectSessions()
 
             // Watch for process exit (includes 10-second visibility window for agents).
             ptyState.scope.launch { watchProcessExit(session.id, projectId, ptyState) }
@@ -486,7 +490,8 @@ class DesktopTerminalService(
             val exitCode = runCatching { state.ptyProcess.waitFor() }.getOrDefault(-1)
             val exited = state.session.copy(state = TerminalSessionState.Exited(exitCode))
             state.session = exited
-            rebuildProjectSessions()
+            // Trigger re-emission of _sessions so that sessionsByProject (derived stateIn) updates.
+            _sessions.update { it }
             _sessionEvents.tryEmit(
                 TerminalSessionEvent.ProcessExited(
                     sessionId = sessionId,
@@ -528,9 +533,10 @@ class DesktopTerminalService(
         _sessions.update { map ->
             val state = map[updated.id] ?: return@update map
             state.session = updated
-            map
+            // Return a new map copy so StateFlow detects the change and re-emits,
+            // which triggers the derived sessionsByProject stateIn to update.
+            map.toMutableMap()
         }
-        rebuildProjectSessions()
     }
 
     /**
@@ -540,7 +546,6 @@ class DesktopTerminalService(
      */
     private fun unregisterSession(sessionId: Uuid) {
         _sessions.update { it - sessionId }
-        rebuildProjectSessions()
     }
 
     /**
@@ -563,19 +568,12 @@ class DesktopTerminalService(
             }
             captured
         }
-        rebuildProjectSessions()
         if (removed != null) {
+            removed.graceKillJob?.cancel()
+            removed.graceKillJob = null
             runCatching { removed.inputWriter.close() }
             removed.scope.cancel()
         }
-    }
-
-    /** Rebuilds the [_sessionsByProject] StateFlow from the current [_sessions] map. */
-    private fun rebuildProjectSessions() {
-        val byProject = _sessions.value.values
-            .groupBy { it.session.projectId }
-            .mapValues { (_, states) -> states.map { it.session } }
-        _sessionsByProject.value = byProject
     }
 
     /**

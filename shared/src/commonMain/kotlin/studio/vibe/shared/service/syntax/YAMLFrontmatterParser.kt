@@ -1,6 +1,7 @@
 package studio.vibe.shared.service.syntax
 
 import studio.vibe.shared.contract.LineContext
+import studio.vibe.shared.contract.ParseLineResult
 import studio.vibe.shared.contract.SyntaxParsing
 import studio.vibe.shared.contract.SyntaxToken
 import studio.vibe.shared.contract.SyntaxTokenKind
@@ -24,20 +25,21 @@ class YAMLFrontmatterParser : SyntaxParsing {
         lineStartOffset: Int,
         lineEndOffset: Int,
         context: LineContext,
-    ): Pair<List<SyntaxToken>, LineContext> {
+    ): ParseLineResult {
         val trimmed = line.trim()
         var ctx = context
 
         // Frontmatter delimiter `---`
         if (trimmed == "---") {
             ctx = ctx.copy(inFrontmatter = !ctx.inFrontmatter)
-            return listOf(
-                SyntaxToken(SyntaxTokenKind.FRONTMATTER_DELIMITER, lineStartOffset, lineEndOffset)
-            ) to ctx
+            return ParseLineResult(
+                listOf(SyntaxToken(SyntaxTokenKind.FRONTMATTER_DELIMITER, lineStartOffset, lineEndOffset)),
+                ctx,
+            )
         }
 
         if (!ctx.inFrontmatter) {
-            return emptyList<SyntaxToken>() to ctx
+            return ParseLineResult(emptyList(), ctx)
         }
 
         // Key: value parsing
@@ -57,10 +59,13 @@ class YAMLFrontmatterParser : SyntaxParsing {
                 tokens.add(SyntaxToken(SyntaxTokenKind.FRONTMATTER_VALUE, valueStart, lineEndOffset))
             }
 
-            return tokens to ctx
+            return ParseLineResult(tokens, ctx)
         }
 
         // Plain frontmatter line (array items, continuation lines, etc.)
-        return listOf(SyntaxToken(SyntaxTokenKind.FRONTMATTER_VALUE, lineStartOffset, lineEndOffset)) to ctx
+        return ParseLineResult(
+            listOf(SyntaxToken(SyntaxTokenKind.FRONTMATTER_VALUE, lineStartOffset, lineEndOffset)),
+            ctx,
+        )
     }
 }

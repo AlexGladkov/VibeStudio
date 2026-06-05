@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.Json
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalRemoteHost
 import studio.vibe.shared.contract.RemoteAuthorizing
+import studio.vibe.shared.contract.SecurityEvent
 import studio.vibe.shared.contract.TerminalScrollbackAccessing
 import studio.vibe.shared.usecase.AssistantLauncher
 import studio.vibe.shared.model.RemoteDevice as SharedRemoteDevice
@@ -57,6 +59,7 @@ class RemoteControlServer(
     private val scrollbackAccessing: TerminalScrollbackAccessing? = null,
     val authService: RemoteAuthorizing = RemoteAuthServiceImpl(JavaSecureRandom),
     private val assistantLauncher: AssistantLauncher? = null,
+    parentScope: CoroutineScope? = null,
 ) {
     companion object {
         private val log = Logger.getLogger("RemoteControlServer")
@@ -79,8 +82,10 @@ class RemoteControlServer(
     val connectedDeviceCount: StateFlow<Int> = _connectedDeviceCount.asStateFlow()
 
     // ── Server scope ───────────────────────────────────────────────────────────
-
-    private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Use a child of the container scope so the app's SupervisorJob hierarchy is respected.
+    private val serverScope = CoroutineScope(
+        SupervisorJob(parentScope?.coroutineContext?.get(kotlinx.coroutines.Job)) + Dispatchers.IO
+    )
 
     // ── Lifecycle mutex (prevents concurrent start/stop) ───────────────────────
 
@@ -145,8 +150,13 @@ class RemoteControlServer(
 
     init {
         ngrok = NgrokTunnelService(serverScope)
-        authService.onSecurityLockout = { handleSecurityLockout() }
-        authService.onDevicesChanged = { count -> _connectedDeviceCount.value = count }
+        authService.securityEvents
+            .filterIsInstance<SecurityEvent.GlobalLockout>()
+            .onEach { handleSecurityLockout() }
+            .launchIn(serverScope)
+        authService.devicesCount
+            .onEach { count -> _connectedDeviceCount.value = count }
+            .launchIn(serverScope)
     }
 
     // ── Properties ─────────────────────────────────────────────────────────────
@@ -177,13 +187,17 @@ class RemoteControlServer(
     }
 
     suspend fun startAsync() {
-        lifecycleMutex.withLock {
+        // Guard: claim exclusive ownership of the transitioning window.
+        val claimed = lifecycleMutex.withLock {
             if (_isRunning.value || _isTransitioning.value) {
                 log.warning("RemoteControlServer.start() called while already running or transitioning")
-                return
+                false
+            } else {
+                _isTransitioning.value = true
+                true
             }
-            _isTransitioning.value = true
         }
+        if (!claimed) return
 
         try {
             val bindHost = if (preferences.bindToLocalhost) "127.0.0.1" else "0.0.0.0"
@@ -200,6 +214,8 @@ class RemoteControlServer(
             main.start(wait = false)
             loopback.start(wait = false)
 
+            // Atomically publish both engines and flip running state so stopAsync
+            // cannot observe a partial state (engines assigned but !_isRunning).
             lifecycleMutex.withLock {
                 mainEngine = main
                 loopbackEngine = loopback

@@ -19,7 +19,6 @@ import studio.vibe.shared.contract.PathResolving
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.service.assistant.AssistantLauncherImpl
 import studio.vibe.shared.usecase.AssistantLauncher
 
 import kotlin.uuid.ExperimentalUuidApi
@@ -48,9 +47,7 @@ data class ToolbarState(
  * @param blockingDispatcher Dispatcher used for blocking work (PTY process start, file I/O).
  *                           JVM passes `Dispatchers.IO`; macOS Native passes `Dispatchers.Default`.
  *                           Inject `UnconfinedTestDispatcher` from unit tests.
- * @param assistantLauncher  Shared start/stop domain service.  When `null`, a fresh
- *                           [AssistantLauncherImpl] is constructed from the other
- *                           parameters (backward-compatible default).
+ * @param assistantLauncher  Shared start/stop domain service. Must be injected explicitly.
  */
 /** Per-project mutable state kept as a snapshot inside a StateFlow. */
 @OptIn(ExperimentalUuidApi::class)
@@ -67,7 +64,7 @@ class ToolbarViewModel(
     private val apiKeyResolving: APIKeyResolving,
     parentScope: CoroutineScope,
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    assistantLauncher: AssistantLauncher? = null,
+    assistantLauncher: AssistantLauncher,
     /**
      * Platform hook for resolving the user's home directory.
      * JVM: `System.getProperty("user.home")`. Injected so platform code stays out of commonMain.
@@ -81,14 +78,7 @@ class ToolbarViewModel(
     private val envVarResolving: EnvVarResolving? = null,
 ) : BaseViewModel(parentScope) {
 
-    private val launcher: AssistantLauncher = assistantLauncher ?: AssistantLauncherImpl(
-        projectManaging = projectManaging,
-        terminalSessionManaging = terminalSessionManaging,
-        agentRegistry = agentRegistry,
-        agentAvailabilityChecking = agentAvailabilityChecking,
-        apiKeyResolving = apiKeyResolving,
-        blockingDispatcher = blockingDispatcher,
-    )
+    private val launcher: AssistantLauncher = assistantLauncher
 
     private val _projectData = MutableStateFlow(ToolbarProjectData())
 
@@ -149,11 +139,9 @@ class ToolbarViewModel(
         _state.update { it.copy(isCheckingAvailability = true) }
         agentAvailabilityChecking.refreshAll()
         // availabilityFlow.collect will pick up the new values automatically;
-        // just reset the loading flag after the service has had a chance to emit.
-        scope.launch {
-            kotlinx.coroutines.delay(100)
-            _state.update { s -> s.copy(isCheckingAvailability = false) }
-        }
+        // the loading flag is reset once the service emits new values (observed
+        // in the availability collect block). No artificial delay needed.
+        _state.update { s -> s.copy(isCheckingAvailability = false) }
     }
 
     fun launchAgent() {

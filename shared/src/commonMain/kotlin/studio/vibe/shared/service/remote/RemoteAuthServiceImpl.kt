@@ -1,7 +1,10 @@
 package studio.vibe.shared.service.remote
 
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
@@ -14,6 +17,7 @@ import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import studio.vibe.shared.contract.RemoteAuthorizing
+import studio.vibe.shared.contract.SecurityEvent
 import studio.vibe.shared.model.RemoteAuthError
 import studio.vibe.shared.model.RemoteAuthResult
 import studio.vibe.shared.model.RemoteAuthorizationToken
@@ -92,8 +96,11 @@ class RemoteAuthServiceImpl(
 
     override val maxDevices: Int = MAX_DEVICES
 
-    override var onSecurityLockout: (() -> Unit)? = null
-    override var onDevicesChanged: ((Int) -> Unit)? = null
+    private val _securityEvents = MutableSharedFlow<SecurityEvent>(replay = 0, extraBufferCapacity = 4)
+    override val securityEvents: SharedFlow<SecurityEvent> = _securityEvents.asSharedFlow()
+
+    private val _devicesCount = MutableStateFlow(0)
+    override val devicesCount: StateFlow<Int> = _devicesCount.asStateFlow()
 
     private val tokens = mutableMapOf<String, TokenEntry>()
     private val failedAttempts = mutableMapOf<String, MutableList<Instant>>()
@@ -158,7 +165,7 @@ class RemoteAuthServiceImpl(
             expiresAt = expiresAt,
         )
         _connectedDevices.update { it + device }
-        onDevicesChanged?.invoke(_connectedDevices.value.size)
+        _devicesCount.value = _connectedDevices.value.size
         failedAttempts.remove(clientIP)
         regeneratePin()
 
@@ -197,7 +204,7 @@ class RemoteAuthServiceImpl(
     override suspend fun revokeAllDevices(): Unit = mutex.withLock {
         tokens.clear()
         _connectedDevices.value = emptyList()
-        onDevicesChanged?.invoke(0)
+        _devicesCount.value = 0
     }
 
     override suspend fun resetLockout(): Unit = mutex.withLock {
@@ -222,7 +229,7 @@ class RemoteAuthServiceImpl(
 
         if (globalFailedCount >= GLOBAL_LOCKOUT_THRESHOLD) {
             _isLocked.value = true
-            onSecurityLockout?.invoke()
+            _securityEvents.tryEmit(SecurityEvent.GlobalLockout)
         }
     }
 
@@ -246,7 +253,7 @@ class RemoteAuthServiceImpl(
 
     private fun removeDeviceInternal(deviceId: Uuid) {
         _connectedDevices.update { devices -> devices.filter { it.id != deviceId } }
-        onDevicesChanged?.invoke(_connectedDevices.value.size)
+        _devicesCount.value = _connectedDevices.value.size
     }
 
     /**

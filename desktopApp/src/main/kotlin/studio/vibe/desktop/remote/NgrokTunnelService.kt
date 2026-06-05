@@ -68,6 +68,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
 
     @Volatile private var process: Process? = null
     @Volatile private var pollJob: Job? = null
+    @Volatile private var stopRequested = false
 
     // ── Start ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
     fun start(httpPort: Int, authtoken: String = "") {
         if (_isRunning.value) return
 
+        stopRequested = false
         _error.value = null
         _tunnelURL.value = null
 
@@ -112,6 +114,9 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
      * Sends SIGTERM first, then SIGKILL after 5 seconds if still running.
      */
     fun stop() {
+        stopRequested = true
+        _isRunning.value = false
+
         pollJob?.cancel()
         pollJob = null
 
@@ -127,9 +132,9 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
             }
         }
 
-        removePidFile()
         process = null
-        _isRunning.value = false
+
+        removePidFile()
         _tunnelURL.value = null
         _error.value = null
         log.info("NgrokTunnelService: stopped")
@@ -165,7 +170,8 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         // Watch for unexpected exit.
         scope.launch(Dispatchers.IO) {
             val exitCode = proc.waitFor()
-            if (process === proc) {
+            if (!stopRequested) {
+                // Unexpected exit (not triggered by stop()).
                 process = null
                 _isRunning.value = false
                 pollJob?.cancel()
@@ -177,7 +183,9 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
                     _error.value = if (stderr.isNotBlank()) "ngrok: $stderr"
                     else "ngrok exited with code $exitCode"
                 }
-                log.info("NgrokTunnelService: process exited code=$exitCode")
+                log.info("NgrokTunnelService: process exited unexpectedly, code=$exitCode")
+            } else {
+                log.info("NgrokTunnelService: process exited after stop(), code=$exitCode")
             }
         }
 

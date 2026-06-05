@@ -65,9 +65,12 @@ class FileTreeViewModel(
             options = WatchOptions.DEFAULT,
         )
         watchJob = scope.launch {
+            val rootPrefix = rootPath.path.trimEnd('/', '\\') + "/"
             fileSystemWatchingService.events
                 .debounce(FILE_WATCH_DEBOUNCE_MS.milliseconds)
                 .collect { event ->
+                    // Ignore events outside this tree's root to prevent cross-project reloads.
+                    if (!event.path.path.startsWith(rootPrefix) && event.path.path != rootPath.path) return@collect
                     when (event.kind) {
                         FileChangeKind.CREATED,
                         FileChangeKind.MODIFIED,

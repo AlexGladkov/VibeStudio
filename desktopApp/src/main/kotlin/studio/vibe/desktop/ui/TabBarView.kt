@@ -70,6 +70,8 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import studio.vibe.shared.model.TabActivityState
 
 /**
@@ -96,6 +98,7 @@ fun TabBarView(
     val activityStates by terminalService.projectActivityStates.collectAsState()
 
     val scrollState: ScrollState = rememberScrollState()
+    val tabBarScope = rememberCoroutineScope()
 
     // ── Drag state shared across all tabs ─────────────────────────────────────
     // draggedId: which tab is being dragged right now.
@@ -136,7 +139,7 @@ fun TabBarView(
                     onClose = {
                         terminalService.killAllSessions(project.id)
                         toolbarViewModel.cleanupProject(project.id)
-                        projectStore.removeProject(project.id)
+                        tabBarScope.launch { projectStore.removeProject(project.id) }
                     },
                     onDragStart = {
                         draggedId = project.id

@@ -3,8 +3,10 @@ package studio.vibe.shared.testutil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.contract.ProjectsState
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
 import studio.vibe.shared.model.ProjectManagerError
@@ -36,6 +38,13 @@ class FakeProjectManaging(
     private val _recentProjects = MutableStateFlow(initialRecents)
     override val recentProjects: StateFlow<List<Project>> = _recentProjects.asStateFlow()
 
+    // projectsState is derived synchronously via combine for test simplicity.
+    // Tests that need a StateFlow snapshot can use .value on the individual flows.
+    private val _projectsState = MutableStateFlow(
+        ProjectsState(initialProjects, null, initialRecents, initialRecents)
+    )
+    override val projectsState: StateFlow<ProjectsState> = _projectsState.asStateFlow()
+
     /** When non-null, [addProject] throws this exception instead of registering the project. */
     var addProjectError: ProjectManagerError? = null
 
@@ -57,7 +66,7 @@ class FakeProjectManaging(
         return project
     }
 
-    override fun removeProject(id: Uuid) {
+    override suspend fun removeProject(id: Uuid) {
         _projects.update { it.filter { p -> p.id != id } }
         if (_activeProjectId.value == id) {
             _activeProjectId.value = _projects.value.firstOrNull()?.id

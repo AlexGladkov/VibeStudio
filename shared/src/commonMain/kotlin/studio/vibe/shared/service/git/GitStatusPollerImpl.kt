@@ -141,8 +141,8 @@ class GitStatusPollerImpl(
                 if (newStatus.branch.isNotEmpty() && ahead == 0 && behind == 0) {
                     try {
                         val counts = gitService.aheadBehind(at = repository)
-                        ahead = counts.first
-                        behind = counts.second
+                        ahead = counts.ahead
+                        behind = counts.behind
                     } catch (_: Exception) { /* Non-fatal — no upstream configured */ }
                 }
 

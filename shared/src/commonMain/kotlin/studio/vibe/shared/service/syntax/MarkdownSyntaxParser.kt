@@ -1,6 +1,7 @@
 package studio.vibe.shared.service.syntax
 
 import studio.vibe.shared.contract.LineContext
+import studio.vibe.shared.contract.ParseLineResult
 import studio.vibe.shared.contract.SyntaxParsing
 import studio.vibe.shared.contract.SyntaxToken
 import studio.vibe.shared.contract.SyntaxTokenKind
@@ -22,7 +23,7 @@ class MarkdownSyntaxParser : SyntaxParsing {
         lineStartOffset: Int,
         lineEndOffset: Int,
         context: LineContext,
-    ): Pair<List<SyntaxToken>, LineContext> {
+    ): ParseLineResult {
         var ctx = context
         val trimmed = line.trim()
 
@@ -37,37 +38,49 @@ class MarkdownSyntaxParser : SyntaxParsing {
             } else {
                 ctx
             }
-            return listOf(SyntaxToken(SyntaxTokenKind.CODE_BLOCK_FENCE, lineStartOffset, lineEndOffset)) to ctx
+            return ParseLineResult(
+                listOf(SyntaxToken(SyntaxTokenKind.CODE_BLOCK_FENCE, lineStartOffset, lineEndOffset)),
+                ctx,
+            )
         }
 
         // Inside code block — whole line is code body
         if (ctx.inCodeBlock) {
-            return listOf(SyntaxToken(SyntaxTokenKind.CODE_BLOCK_BODY, lineStartOffset, lineEndOffset)) to ctx
+            return ParseLineResult(
+                listOf(SyntaxToken(SyntaxTokenKind.CODE_BLOCK_BODY, lineStartOffset, lineEndOffset)),
+                ctx,
+            )
         }
 
         // Horizontal rule: line of only --- or *** or ___ (3+)
         if (isHorizontalRule(trimmed)) {
-            return listOf(SyntaxToken(SyntaxTokenKind.HORIZONTAL_RULE, lineStartOffset, lineEndOffset)) to ctx
+            return ParseLineResult(
+                listOf(SyntaxToken(SyntaxTokenKind.HORIZONTAL_RULE, lineStartOffset, lineEndOffset)),
+                ctx,
+            )
         }
 
         // Heading: # through ######
         headingToken(line, lineStartOffset, lineEndOffset)?.let { token ->
-            return listOf(token) to ctx
+            return ParseLineResult(listOf(token), ctx)
         }
 
         // Blockquote
         if (trimmed.startsWith(">")) {
-            return listOf(SyntaxToken(SyntaxTokenKind.BLOCKQUOTE, lineStartOffset, lineEndOffset)) to ctx
+            return ParseLineResult(
+                listOf(SyntaxToken(SyntaxTokenKind.BLOCKQUOTE, lineStartOffset, lineEndOffset)),
+                ctx,
+            )
         }
 
         // List marker
         listMarkerToken(line, lineStartOffset, lineEndOffset)?.let { token ->
-            return listOf(token) to ctx
+            return ParseLineResult(listOf(token), ctx)
         }
 
         // Inline tokens (bold, italic, inline code, links)
         val inlineTokens = parseInline(line, lineStartOffset)
-        return inlineTokens to ctx
+        return ParseLineResult(inlineTokens, ctx)
     }
 
     // ---------------------------------------------------------------------------

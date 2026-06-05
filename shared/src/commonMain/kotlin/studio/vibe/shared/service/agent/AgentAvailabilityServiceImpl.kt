@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import studio.vibe.shared.contract.AIAgent
 import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.AgentAvailabilityChecking
@@ -53,6 +55,9 @@ class AgentAvailabilityServiceImpl(
     // when refreshAll() is called in rapid succession (e.g. project switches).
     private var refreshJob: Job? = null
 
+    // Guards access to [lastRefreshAt] and [refreshJob] from multiple threads.
+    private val refreshMutex = Mutex()
+
     init {
         // Re-seed availability whenever the registry changes (plugin add/remove).
         scope.launch {
@@ -65,41 +70,51 @@ class AgentAvailabilityServiceImpl(
     }
 
     override fun refreshAll() {
-        lastRefreshAt = Clock.System.now()
-        // Cancel any in-flight refresh so its (potentially stale) result does not
-        // overwrite the result of the new one that we are about to start.
-        refreshJob?.cancel()
-        refreshJob = scope.launch {
-            val results = mutableMapOf<AIAgent, AgentAvailabilityStatus>()
-
-            for (agent in registry.snapshot()) {
-                val executableName = agent.executableName
-
-                val resolvedPath = if (executableName.isNotEmpty() &&
-                    !executableName.contains('/') &&
-                    !executableName.contains("..")
-                ) {
-                    binaryResolver.findExecutable(executableName)?.path
-                } else {
-                    null
-                }
-
-                results[agent] = if (resolvedPath != null) {
-                    AgentAvailabilityStatus.Available(
-                        path = resolvedPath,
-                        hasAPIKey = resolveApiKeyAvailability(agent),
-                    )
-                } else {
-                    AgentAvailabilityStatus.NotInstalled(installHint = agent.installHint)
+        scope.launch {
+            refreshMutex.withLock {
+                lastRefreshAt = Clock.System.now()
+                refreshJob?.cancel()
+                // Launch the actual probe as a child and track it for cancellation.
+                refreshJob = scope.launch {
+                    doRefresh()
                 }
             }
-
-            _availabilityFlow.value = results.toMap()
-            refreshJob = null
         }
     }
 
+    private suspend fun doRefresh() {
+        val results = mutableMapOf<AIAgent, AgentAvailabilityStatus>()
+
+        for (agent in registry.snapshot()) {
+            val executableName = agent.executableName
+
+            val resolvedPath = if (executableName.isNotEmpty() &&
+                !executableName.contains('/') &&
+                !executableName.contains("..")
+            ) {
+                binaryResolver.findExecutable(executableName)?.path
+            } else {
+                null
+            }
+
+            results[agent] = if (resolvedPath != null) {
+                AgentAvailabilityStatus.Available(
+                    path = resolvedPath,
+                    hasAPIKey = resolveApiKeyAvailability(agent),
+                )
+            } else {
+                AgentAvailabilityStatus.NotInstalled(installHint = agent.installHint)
+            }
+        }
+
+        _availabilityFlow.value = results.toMap()
+        // Clear refreshJob reference under mutex so check() sees consistent state.
+        refreshMutex.withLock { refreshJob = null }
+    }
+
     override fun check(agent: AIAgent): AgentAvailabilityStatus {
+        // lastRefreshAt read is best-effort (non-blocking path). Worst case we schedule
+        // an extra refresh which is cheap. The mutex is only acquired in refreshAll/doRefresh.
         val elapsed = Clock.System.now() - lastRefreshAt
         if (elapsed > CACHE_TTL) {
             refreshAll()

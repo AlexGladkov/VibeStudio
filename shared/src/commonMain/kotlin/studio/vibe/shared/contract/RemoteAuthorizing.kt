@@ -1,11 +1,18 @@
 package studio.vibe.shared.contract
 
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import studio.vibe.shared.model.RemoteAuthResult
 import studio.vibe.shared.model.RemoteAuthorizationToken
 import studio.vibe.shared.model.RemoteDevice
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+
+/** One-shot security events emitted by [RemoteAuthorizing]. */
+sealed class SecurityEvent {
+    /** Emitted once when the global lockout threshold is crossed. */
+    data object GlobalLockout : SecurityEvent()
+}
 
 /**
  * PIN-based authorization for the Remote Control HTTP/WebSocket server.
@@ -28,11 +35,11 @@ interface RemoteAuthorizing {
     /** Maximum number of simultaneously authenticated devices. */
     val maxDevices: Int
 
-    /** Optional callback invoked when the global lockout triggers. */
-    var onSecurityLockout: (() -> Unit)?
+    /** Hot stream of security events (e.g. lockout). Replay = 0. */
+    val securityEvents: SharedFlow<SecurityEvent>
 
-    /** Optional callback invoked whenever [connectedDevices] changes. */
-    var onDevicesChanged: ((Int) -> Unit)?
+    /** Count of currently connected devices. Updated whenever [connectedDevices] changes. */
+    val devicesCount: StateFlow<Int>
 
     suspend fun validatePin(
         pin: String,

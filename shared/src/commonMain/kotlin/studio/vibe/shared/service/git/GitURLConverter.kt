@@ -1,5 +1,7 @@
 package studio.vibe.shared.service.git
 
+import studio.vibe.shared.contract.UrlConverting
+
 /**
  * Converts git remote URLs to browser-accessible HTTPS URL strings.
  *
@@ -15,7 +17,7 @@ package studio.vibe.shared.service.git
  * platform-agnostic URL class. Callers on Android/Desktop/iOS can parse the
  * returned string into a platform URL type as needed.
  */
-object GitURLConverter {
+object GitURLConverter : UrlConverting {
 
     /**
      * Convert a git remote URL to a browser-accessible HTTPS URL string.
@@ -24,7 +26,8 @@ object GitURLConverter {
      * @return A normalized `https://` URL string, or `null` if the input
      *   format is unrecognised or produces an invalid URL.
      */
-    fun browserURL(remoteURL: String): String? {
+    override fun browserURL(rawUrl: String): String? {
+        val remoteURL = rawUrl
         var s = remoteURL.trim()
         if (s.isEmpty()) return null
 

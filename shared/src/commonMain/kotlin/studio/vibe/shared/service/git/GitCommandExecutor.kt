@@ -1,8 +1,11 @@
 package studio.vibe.shared.service.git
 
+import studio.vibe.shared.contract.AheadBehind
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.ProcessRunner
 import studio.vibe.shared.model.*
+import studio.vibe.shared.service.git.parser.GitBranchParser
+import studio.vibe.shared.service.git.parser.GitOutputParser
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -29,8 +32,6 @@ class GitCommandExecutor(
     private val defaultTimeout: Duration = 30.seconds
     private val networkTimeout: Duration = 120.seconds
 
-    // Regex for valid git branch/remote names — prevents injection via crafted names.
-    private val validBranchRegex = Regex("^[a-zA-Z0-9/_\\-.@]+$")
 
     // -------------------------------------------------------------------------
     // GitStatusQuerying
@@ -119,7 +120,7 @@ class GitCommandExecutor(
             }
     }
 
-    override suspend fun aheadBehind(at: FilePath): Pair<Int, Int> {
+    override suspend fun aheadBehind(at: FilePath): AheadBehind {
         return try {
             val output = runGit(
                 listOf("rev-list", "--left-right", "--count", "HEAD...@{upstream}"),
@@ -129,12 +130,12 @@ class GitCommandExecutor(
             if (parts.size == 2) {
                 val ahead = parts[0].trim().toIntOrNull() ?: 0
                 val behind = parts[1].trim().toIntOrNull() ?: 0
-                Pair(ahead, behind)
+                AheadBehind(ahead, behind)
             } else {
-                Pair(0, 0)
+                AheadBehind(0, 0)
             }
         } catch (_: Exception) {
-            Pair(0, 0)
+            AheadBehind(0, 0)
         }
     }
 
@@ -466,224 +467,15 @@ class GitCommandExecutor(
     // Internal: Parsing
     // -------------------------------------------------------------------------
 
-    /**
-     * Parse `git status --porcelain=v1 --branch` output.
-     *
-     * Header line format: `## branch...origin/branch [ahead N, behind M]`
-     * Status line format: `XY path` where X=index, Y=worktree
-     */
-    internal fun parseStatus(output: String): GitStatus {
-        var branch = ""
-        var ahead = 0
-        var behind = 0
-        val staged = mutableListOf<GitFile>()
-        val unstaged = mutableListOf<GitFile>()
-        val untracked = mutableListOf<GitFile>()
-
-        for (line in output.split("\n")) {
-            if (line.isEmpty()) continue
-
-            if (line.startsWith("##")) {
-                // Branch line: ## main...origin/main [ahead 2, behind 1]
-                val branchInfo = line.drop(3)
-                branch = when {
-                    branchInfo.contains("...") ->
-                        branchInfo.substringBefore("...")
-                    branchInfo.contains(" ") ->
-                        branchInfo.substringBefore(" ")
-                    else -> branchInfo
-                }
-
-                // Parse ahead/behind counts.
-                val aheadMatch = Regex("ahead (\\d+)").find(branchInfo)
-                if (aheadMatch != null) {
-                    ahead = aheadMatch.groupValues[1].toIntOrNull() ?: 0
-                }
-                val behindMatch = Regex("behind (\\d+)").find(branchInfo)
-                if (behindMatch != null) {
-                    behind = behindMatch.groupValues[1].toIntOrNull() ?: 0
-                }
-                continue
-            }
-
-            if (line.length < 4) continue
-
-            val indexChar = line[0]
-            val worktreeChar = line[1]
-            val filePath = line.substring(3)
-
-            // Untracked files (both columns are '?').
-            if (indexChar == '?') {
-                untracked.add(GitFile(path = filePath, status = GitFileStatus.UNTRACKED))
-                continue
-            }
-
-            // Staged changes (index column).
-            if (indexChar != ' ' && indexChar != '?') {
-                parseFileStatus(indexChar)?.let { status ->
-                    staged.add(GitFile(path = filePath, status = status))
-                }
-            }
-
-            // Unstaged changes (worktree column).
-            if (worktreeChar != ' ' && worktreeChar != '?') {
-                parseFileStatus(worktreeChar)?.let { status ->
-                    unstaged.add(GitFile(path = filePath, status = status))
-                }
-            }
-        }
-
-        return GitStatus(
-            branch = branch,
-            aheadCount = ahead,
-            behindCount = behind,
-            stagedFiles = staged,
-            unstagedFiles = unstaged,
-            untrackedFiles = untracked,
-        )
-    }
-
-    /** Map a single porcelain status character to [GitFileStatus]. */
-    internal fun parseFileStatus(char: Char): GitFileStatus? = when (char) {
-        'M' -> GitFileStatus.MODIFIED
-        'A' -> GitFileStatus.ADDED
-        'D' -> GitFileStatus.DELETED
-        'R' -> GitFileStatus.RENAMED
-        'C' -> GitFileStatus.COPIED
-        else -> null
-    }
-
-    /**
-     * Parse unified diff output into hunks.
-     *
-     * Hunk headers start with `@@` and contain old/new line number offsets.
-     * Lines prefixed with `+` are additions, `-` deletions, ` ` context.
-     */
-    internal fun parseDiff(output: String): List<GitDiffHunk> {
-        val hunks = mutableListOf<GitDiffHunk>()
-        var currentHeader = ""
-        var currentLines = mutableListOf<GitDiffLine>()
-        var oldLine = 0
-        var newLine = 0
-
-        for (line in output.split("\n")) {
-            if (line.startsWith("@@")) {
-                // Save the previous hunk if one is in progress.
-                if (currentHeader.isNotEmpty()) {
-                    hunks.add(GitDiffHunk(header = currentHeader, lines = currentLines))
-                }
-                currentHeader = line
-                currentLines = mutableListOf()
-
-                // Parse hunk header for starting line numbers.
-                val oldMatch = Regex("-(\\d+)").find(line)
-                if (oldMatch != null) {
-                    oldLine = oldMatch.groupValues[1].toIntOrNull() ?: 0
-                }
-                val newMatch = Regex("\\+(\\d+)").find(line)
-                if (newMatch != null) {
-                    newLine = newMatch.groupValues[1].toIntOrNull() ?: 0
-                }
-                continue
-            }
-
-            if (currentHeader.isEmpty()) continue
-
-            when {
-                line.startsWith("+") -> {
-                    currentLines.add(
-                        GitDiffLine(
-                            type = DiffLineType.ADDITION,
-                            content = line.drop(1),
-                            oldLineNumber = null,
-                            newLineNumber = newLine,
-                        )
-                    )
-                    newLine++
-                }
-                line.startsWith("-") -> {
-                    currentLines.add(
-                        GitDiffLine(
-                            type = DiffLineType.DELETION,
-                            content = line.drop(1),
-                            oldLineNumber = oldLine,
-                            newLineNumber = null,
-                        )
-                    )
-                    oldLine++
-                }
-                else -> {
-                    currentLines.add(
-                        GitDiffLine(
-                            type = DiffLineType.CONTEXT,
-                            content = if (line.startsWith(" ")) line.drop(1) else line,
-                            oldLineNumber = oldLine,
-                            newLineNumber = newLine,
-                        )
-                    )
-                    oldLine++
-                    newLine++
-                }
-            }
-        }
-
-        if (currentHeader.isNotEmpty()) {
-            hunks.add(GitDiffHunk(header = currentHeader, lines = currentLines))
-        }
-
-        return hunks
-    }
-
-    /**
-     * Parse `git diff --numstat` output into a path → (added, deleted) map.
-     *
-     * Each line: `<added>\t<deleted>\t<path>`. Binary files show `-` for counts
-     * and are skipped.
-     */
-    internal fun parseNumstat(output: String): Map<String, GitDiffStat> {
-        val dict = mutableMapOf<String, GitDiffStat>()
-        for (line in output.split("\n")) {
-            if (line.isEmpty()) continue
-            val parts = line.split("\t", limit = 3)
-            if (parts.size != 3) continue
-            val added = parts[0].toIntOrNull() ?: continue
-            val deleted = parts[1].toIntOrNull() ?: continue
-            dict[parts[2]] = GitDiffStat(added = added, deleted = deleted)
-        }
-        return dict
-    }
-
     // -------------------------------------------------------------------------
-    // Internal: Validation
+    // Delegated parse/validate helpers — logic lives in parser/ package
     // -------------------------------------------------------------------------
 
-    /**
-     * Validate that a branch or remote name does not contain dangerous characters.
-     *
-     * Prevents command injection via crafted names such as `--upload-pack=evil`
-     * or `; rm -rf /`. Mirrors the rules enforced by git itself.
-     *
-     * @throws [GitServiceError.CommandFailed] if the name is invalid.
-     */
-    internal fun validateBranchName(name: String) {
-        val valid = name.isNotEmpty() &&
-            !name.startsWith("-") &&
-            !name.contains("..") &&
-            !name.contains(" ") &&
-            !name.contains("~") &&
-            !name.contains("^") &&
-            !name.contains(":") &&
-            !name.contains("\\") &&
-            validBranchRegex.matches(name)
-
-        if (!valid) {
-            throw GitServiceError.CommandFailed(
-                command = "validate",
-                exitCode = 1,
-                stderr = "Invalid branch name: $name",
-            )
-        }
-    }
+    internal fun parseStatus(output: String): GitStatus = GitOutputParser.parseStatus(output)
+    internal fun parseFileStatus(char: Char): GitFileStatus? = GitOutputParser.parseFileStatus(char)
+    internal fun parseDiff(output: String): List<GitDiffHunk> = GitOutputParser.parseDiff(output)
+    internal fun parseNumstat(output: String): Map<String, GitDiffStat> = GitOutputParser.parseNumstat(output)
+    internal fun validateBranchName(name: String) = GitBranchParser.validateBranchName(name)
 
     // -------------------------------------------------------------------------
     // Private: ISO 8601 date parsing (commonMain — no java.time / Foundation)

@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.job
 
 /**
  * Base class for all ViewModels that own a coroutine scope.
@@ -39,5 +40,16 @@ abstract class BaseViewModel(parentScope: CoroutineScope) {
      */
     open fun dispose() {
         scope.cancel()
+    }
+
+    /**
+     * Cancels the scope and suspends until all children have completed.
+     *
+     * Useful in tests and teardown sequences where you need to guarantee that
+     * all launched coroutines have finished before proceeding.
+     */
+    suspend fun disposeAndJoin() {
+        scope.cancel()
+        scope.coroutineContext.job.join()
     }
 }

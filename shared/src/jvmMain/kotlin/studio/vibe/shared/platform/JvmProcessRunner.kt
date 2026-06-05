@@ -103,8 +103,10 @@ class JvmProcessRunner : ProcessRunner {
         }
 
         awaitClose {
-            readerJob.cancel()
+            // Kill the process first so the reader's readLine() unblocks immediately,
+            // then cancel the reader job to free its thread.
             process.destroyForcibly()
+            readerJob.cancel()
         }
     }
 }

@@ -1,6 +1,9 @@
 package studio.vibe.shared.service.remote
 
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import studio.vibe.shared.contract.SecurityEvent
 import studio.vibe.shared.model.RemoteAuthError
 import studio.vibe.shared.model.RemoteAuthResult
 import kotlin.test.Test
@@ -111,13 +114,11 @@ class RemoteAuthServiceTest {
     }
 
     @Test
-    fun validatePin_correctPin_invokesOnDevicesChangedCallback() = runTest {
+    fun validatePin_correctPin_updatesDevicesCount() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
-        var callbackCount = 0
-        service.onDevicesChanged = { callbackCount++ }
         service.validatePin(pin, "10.0.0.1", "agent")
-        assertEquals(1, callbackCount)
+        assertEquals(1, service.devicesCount.value)
     }
 
     @Test
@@ -185,12 +186,13 @@ class RemoteAuthServiceTest {
     }
 
     @Test
-    fun validatePin_globalLockout_firesOnSecurityLockoutCallback() = runTest {
+    fun validatePin_globalLockout_emitsSecurityEvent() = runTest {
         val service = freshService()
-        var lockoutFired = false
-        service.onSecurityLockout = { lockoutFired = true }
+        val events = mutableListOf<SecurityEvent>()
+        val collectJob = launch { service.securityEvents.collect { events.add(it) } }
         repeat(10) { i -> service.validatePin("000000", "10.0.0.$i", "x") }
-        assertTrue(lockoutFired)
+        collectJob.cancel()
+        assertTrue(events.any { it is SecurityEvent.GlobalLockout })
     }
 
     // ── Token Validation ──────────────────────────────────────────────────────
@@ -251,14 +253,12 @@ class RemoteAuthServiceTest {
     }
 
     @Test
-    fun revokeAllDevices_invokesOnDevicesChangedWithZero() = runTest {
+    fun revokeAllDevices_resetsDevicesCountToZero() = runTest {
         val service = freshService()
         val pin = service.currentPin.value
         service.validatePin(pin, "1.1.1.1", "x")
-        var lastCount = -1
-        service.onDevicesChanged = { lastCount = it }
         service.revokeAllDevices()
-        assertEquals(0, lastCount)
+        assertEquals(0, service.devicesCount.value)
     }
 
     // ── Lockout Reset ─────────────────────────────────────────────────────────

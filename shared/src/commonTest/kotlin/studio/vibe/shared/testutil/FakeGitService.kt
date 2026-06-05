@@ -1,5 +1,6 @@
 package studio.vibe.shared.testutil
 
+import studio.vibe.shared.contract.AheadBehind
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.model.*
 
@@ -12,8 +13,10 @@ import studio.vibe.shared.model.*
 class FakeGitService : GitServicing {
 
     var statusResult: GitStatus = GitStatus.EMPTY
-    var aheadBehindResult: Pair<Int, Int> = Pair(0, 0)
+    var aheadBehindResult: AheadBehind = AheadBehind(0, 0)
     var throwOnStatus: Throwable? = null
+    var diffResult: List<GitDiffHunk> = emptyList()
+    var throwOnDiff: Throwable? = null
 
     var statusCallCount = 0
     var aheadBehindCallCount = 0
@@ -24,14 +27,17 @@ class FakeGitService : GitServicing {
         return statusResult
     }
 
-    override suspend fun aheadBehind(at: FilePath): Pair<Int, Int> {
+    override suspend fun aheadBehind(at: FilePath): AheadBehind {
         aheadBehindCallCount++
         return aheadBehindResult
     }
 
     // ── Unused stubs ─────────────────────────────────────────────────────────
 
-    override suspend fun diff(file: String, staged: Boolean, at: FilePath): List<GitDiffHunk> = emptyList()
+    override suspend fun diff(file: String, staged: Boolean, at: FilePath): List<GitDiffHunk> {
+        throwOnDiff?.let { throw it }
+        return diffResult
+    }
     override suspend fun fullStagedDiff(at: FilePath): String = ""
     override suspend fun headDiff(at: FilePath): String = ""
     override suspend fun log(limit: Int, at: FilePath): List<GitCommitInfo> = emptyList()
@@ -57,8 +63,10 @@ class FakeGitService : GitServicing {
 
     fun reset() {
         statusResult = GitStatus.EMPTY
-        aheadBehindResult = Pair(0, 0)
+        aheadBehindResult = AheadBehind(0, 0)
         throwOnStatus = null
+        diffResult = emptyList()
+        throwOnDiff = null
         statusCallCount = 0
         aheadBehindCallCount = 0
     }

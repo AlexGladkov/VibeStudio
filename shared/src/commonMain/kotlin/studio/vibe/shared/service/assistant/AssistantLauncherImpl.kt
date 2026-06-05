@@ -4,9 +4,11 @@ package studio.vibe.shared.service.assistant
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import studio.vibe.shared.contract.AIAgentRegistry
@@ -21,14 +23,50 @@ import studio.vibe.shared.usecase.AssistantLauncher
 import kotlin.uuid.Uuid
 
 /**
+ * Unified state for a single [AssistantLauncherImpl] instance.
+ *
+ * Merges [sessionIds] (project → agent → sessionId) and the derived
+ * [runningByProject] (project → set of agentIds) into one atomic structure so
+ * there is never a TOCTOU window between the two.
+ */
+private data class LauncherState(
+    /** project → (agentId → sessionId) */
+    val sessionIds: Map<Uuid, Map<String, Uuid>> = emptyMap(),
+) {
+    /** Derived: project → set of running agentIds (no separate StateFlow needed). */
+    val runningByProject: Map<Uuid, Set<String>>
+        get() = sessionIds.mapValues { (_, agentMap) -> agentMap.keys }
+
+    fun withSession(projectId: Uuid, agentId: String, sessionId: Uuid): LauncherState {
+        val forProject = (sessionIds[projectId] ?: emptyMap()) + (agentId to sessionId)
+        return copy(sessionIds = sessionIds + (projectId to forProject))
+    }
+
+    fun withoutSession(projectId: Uuid, agentId: String): LauncherState {
+        val forProject = (sessionIds[projectId] ?: emptyMap()) - agentId
+        return if (forProject.isEmpty()) copy(sessionIds = sessionIds - projectId)
+        else copy(sessionIds = sessionIds + (projectId to forProject))
+    }
+
+    fun withoutSessionId(projectId: Uuid, sessionId: Uuid): LauncherState {
+        val forProject = (sessionIds[projectId] ?: emptyMap()).filterValues { it != sessionId }
+        return if (forProject.isEmpty()) copy(sessionIds = sessionIds - projectId)
+        else copy(sessionIds = sessionIds + (projectId to forProject))
+    }
+
+    fun withoutProject(projectId: Uuid): LauncherState =
+        copy(sessionIds = sessionIds - projectId)
+}
+
+/**
  * Production implementation of [AssistantLauncher].
  *
  * Encapsulates the start/stop logic that previously lived in [ToolbarViewModel],
  * making it reusable by [RemoteControlServer] without introducing a ViewModel
  * dependency in the network layer.
  *
- * Thread safety: all [MutableStateFlow] mutations go through [MutableStateFlow.update]
- * which is atomic. No concurrent modification issues.
+ * Thread safety: all mutations go through [MutableStateFlow.update] which is atomic.
+ * [LauncherState] is a single immutable value — no split-brain between two flows.
  *
  * @param blockingDispatcher Dispatcher for PTY process start (blocking I/O).
  *   Defaults to [Dispatchers.Default]; inject [UnconfinedTestDispatcher] in tests.
@@ -46,19 +84,36 @@ class AssistantLauncherImpl(
 
     // ── State ──────────────────────────────────────────────────────────────────
 
-    private val _runningByProject = MutableStateFlow<Map<Uuid, Set<String>>>(emptyMap())
-    override val runningByProject: StateFlow<Map<Uuid, Set<String>>> =
-        _runningByProject.asStateFlow()
+    /**
+     * Single source of truth. Merges what used to be [_sessionIds] and
+     * [_runningByProject] so all mutations are atomic in one [update] call.
+     */
+    private val _state = MutableStateFlow(LauncherState())
 
     /**
-     * Internal map: projectId → (agentId → sessionId).
-     * Exposed via [sessionIdFor] so [ToolbarViewModel] can surface the active
-     * session UUID in its toolbar state without duplicating tracking.
+     * StateFlow view of [LauncherState.runningByProject].
+     * Implemented as a delegating StateFlow so callers see it as [StateFlow].
      */
-    private val _sessionIds = MutableStateFlow<Map<Uuid, Map<String, Uuid>>>(emptyMap())
+    override val runningByProject: StateFlow<Map<Uuid, Set<String>>> =
+        object : StateFlow<Map<Uuid, Set<String>>> {
+            override val value: Map<Uuid, Set<String>> get() = _state.value.runningByProject
+            override val replayCache: List<Map<Uuid, Set<String>>> get() = listOf(value)
+            override suspend fun collect(collector: FlowCollector<Map<Uuid, Set<String>>>): Nothing {
+                _state.map { it.runningByProject }.collect(collector)
+                error("unreachable")
+            }
+        }
 
     /** Live snapshot of project → agent → sessionId mappings. */
-    val agentSessionIds: StateFlow<Map<Uuid, Map<String, Uuid>>> = _sessionIds.asStateFlow()
+    val agentSessionIds: StateFlow<Map<Uuid, Map<String, Uuid>>> =
+        object : StateFlow<Map<Uuid, Map<String, Uuid>>> {
+            override val value: Map<Uuid, Map<String, Uuid>> get() = _state.value.sessionIds
+            override val replayCache: List<Map<Uuid, Map<String, Uuid>>> get() = listOf(value)
+            override suspend fun collect(collector: FlowCollector<Map<Uuid, Map<String, Uuid>>>): Nothing {
+                _state.map { it.sessionIds }.collect(collector)
+                error("unreachable")
+            }
+        }
 
     // ── AssistantLauncher ─────────────────────────────────────────────────────
 
@@ -87,14 +142,7 @@ class AssistantLauncherImpl(
         }
 
         result.onSuccess { session ->
-            _sessionIds.update { current ->
-                val forProject = (current[projectId] ?: emptyMap()) + (agentId to session.id)
-                current + (projectId to forProject)
-            }
-            _runningByProject.update { current ->
-                val forProject = (current[projectId] ?: emptySet()) + agentId
-                current + (projectId to forProject)
-            }
+            _state.update { it.withSession(projectId, agentId, session.id) }
         }
 
         return result
@@ -104,11 +152,11 @@ class AssistantLauncherImpl(
         val agent = agentRegistry.byId(agentId)
             ?: return Result.failure(IllegalArgumentException("Unknown agent id: $agentId"))
 
-        val sessionId = _sessionIds.value[projectId]?.get(agentId)
+        val sessionId = _state.value.sessionIds[projectId]?.get(agentId)
             ?: return Result.success(Unit) // already stopped — idempotent
 
         // Optimistic state removal before sending exit signal
-        removeRunning(projectId, agentId)
+        _state.update { it.withoutSession(projectId, agentId) }
 
         return runCatching {
             when (val exitSeq = agent.exitSequence) {
@@ -131,52 +179,24 @@ class AssistantLauncherImpl(
      * Used by [ToolbarViewModel.rebuildState] to populate [ToolbarState.activeAgentSessionId].
      */
     override fun sessionIdFor(projectId: Uuid, agentId: String): Uuid? =
-        _sessionIds.value[projectId]?.get(agentId)
+        _state.value.sessionIds[projectId]?.get(agentId)
 
     /**
      * Called when a PTY process-exit event is received so the launcher stays
      * consistent with actual process state.
      *
-     * The two StateFlow mutations are made atomic with respect to each other by
-     * computing the post-removal agent key set inside the first [update] lambda
-     * and reusing that snapshot in the second — eliminating the TOCTOU window
-     * that existed when the second lambda read [_sessionIds.value] independently.
+     * Single [_state.update] lambda ensures atomicity — no TOCTOU window.
      */
     override fun notifySessionExited(projectId: Uuid, sessionId: Uuid) {
-        var stillRunningSnapshot: Set<String> = emptySet()
-        _sessionIds.update { current ->
-            val forProject = current[projectId] ?: return@update current
-            val filtered = forProject.filterValues { it != sessionId }
-            stillRunningSnapshot = filtered.keys
-            if (filtered.isEmpty()) current - projectId
-            else current + (projectId to filtered)
-        }
-        _runningByProject.update { current ->
-            if (stillRunningSnapshot.isEmpty()) current - projectId
-            else current + (projectId to stillRunningSnapshot)
-        }
+        _state.update { it.withoutSessionId(projectId, sessionId) }
     }
 
     /** Clean up all state for a removed project. */
     override fun removeProject(projectId: Uuid) {
-        _sessionIds.update { it - projectId }
-        _runningByProject.update { it - projectId }
+        _state.update { it.withoutProject(projectId) }
     }
 
     // ── Private ───────────────────────────────────────────────────────────────
-
-    private fun removeRunning(projectId: Uuid, agentId: String) {
-        _sessionIds.update { current ->
-            val forProject = (current[projectId] ?: emptyMap()) - agentId
-            if (forProject.isEmpty()) current - projectId
-            else current + (projectId to forProject)
-        }
-        _runningByProject.update { current ->
-            val forProject = (current[projectId] ?: emptySet()) - agentId
-            if (forProject.isEmpty()) current - projectId
-            else current + (projectId to forProject)
-        }
-    }
 
     private fun resolveApiKey(agentId: String): String? {
         val agent = agentRegistry.byId(agentId) ?: return null

@@ -50,6 +50,12 @@ data class LineContext(
     }
 }
 
+/** Result of parsing a single line. */
+data class ParseLineResult(
+    val tokens: List<SyntaxToken>,
+    val context: LineContext,
+)
+
 // Syntax parser (line-by-line)
 interface SyntaxParsing {
     val supportedExtensions: List<String>
@@ -58,7 +64,7 @@ interface SyntaxParsing {
         lineStartOffset: Int,
         lineEndOffset: Int,
         context: LineContext,
-    ): Pair<List<SyntaxToken>, LineContext>
+    ): ParseLineResult
 }
 
 // Parser registry

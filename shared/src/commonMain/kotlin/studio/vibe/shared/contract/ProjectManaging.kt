@@ -2,17 +2,41 @@ package studio.vibe.shared.contract
 
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
 import studio.vibe.shared.model.ProjectManagerError
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** Unified snapshot of project-manager state. */
+@OptIn(ExperimentalUuidApi::class)
+data class ProjectsState(
+    val projects: List<Project> = emptyList(),
+    val activeProjectId: Uuid? = null,
+    val recentHistory: List<Project> = emptyList(),
+    val recentProjects: List<Project> = emptyList(),
+) {
+    companion object {
+        val EMPTY = ProjectsState()
+    }
+}
+
 @OptIn(ExperimentalUuidApi::class)
 interface ProjectManaging {
+    /** Unified state — prefer this over the individual flows. */
+    val projectsState: StateFlow<ProjectsState>
+
+    /** Deprecated — use [projectsState].projects. Kept for migration compatibility. */
     val projects: StateFlow<List<Project>>
+
+    /** Deprecated — use [projectsState].activeProjectId. Kept for migration compatibility. */
     val activeProjectId: StateFlow<Uuid?>
+
+    /** Deprecated — use [projectsState].recentHistory. Kept for migration compatibility. */
     val recentHistory: StateFlow<List<Project>>
+
+    /** Deprecated — use [projectsState].recentProjects. Kept for migration compatibility. */
     val recentProjects: StateFlow<List<Project>>
 
     fun setActiveProjectId(id: Uuid?)
@@ -26,7 +50,8 @@ interface ProjectManaging {
     @Throws(ProjectManagerError::class, CancellationException::class)
     suspend fun addProject(path: FilePath): Project
 
-    fun removeProject(id: Uuid)
+    @Throws(ProjectManagerError::class, CancellationException::class)
+    suspend fun removeProject(id: Uuid)
     fun updateProject(id: Uuid, mutate: (Project) -> Project)
     fun moveProjects(fromIndices: Set<Int>, toDestination: Int)
     fun project(id: Uuid): Project?

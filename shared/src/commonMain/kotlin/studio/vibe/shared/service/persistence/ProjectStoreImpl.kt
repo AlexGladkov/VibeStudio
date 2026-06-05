@@ -4,6 +4,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -14,6 +17,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.contract.ProjectsState
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
 import studio.vibe.shared.model.ProjectManagerError
@@ -55,6 +59,17 @@ class ProjectStoreImpl(
 
     private val _recentProjects = MutableStateFlow<List<Project>>(emptyList())
     override val recentProjects: StateFlow<List<Project>> = _recentProjects.asStateFlow()
+
+    override val projectsState: StateFlow<ProjectsState> = combine(
+        _projects, _activeProjectId, _recentHistory, _recentProjects
+    ) { projs, activeId, history, recents ->
+        ProjectsState(
+            projects = projs,
+            activeProjectId = activeId,
+            recentHistory = history,
+            recentProjects = recents,
+        )
+    }.stateIn(scope, SharingStarted.Eagerly, ProjectsState.EMPTY)
 
     // O(1) lookup maps.
     //
@@ -109,30 +124,25 @@ class ProjectStoreImpl(
         }
     }
 
-    override fun removeProject(id: Uuid) {
-        // saveMutex.withLock requires suspend; wrap in runBlocking-equivalent
-        // for the synchronous contract.  The lock covers the read→write→activeId
-        // sequence so no concurrent addProject/updateProject can interleave.
-        // NOTE: saveMutex is a kotlinx Mutex (non-reentrant, coroutine-based).
-        // Since removeProject is non-suspend we protect only the in-memory state
-        // atomically via _projects.update; the activeId reset happens under the
-        // same functional block to eliminate the read→write window.
-        var firstRemaining: Uuid? = null
-        var removedActive = false
-        _projects.update { current ->
-            if (current.none { it.id == id }) {
-                throw ProjectManagerError.NotFound(id)
+    override suspend fun removeProject(id: Uuid) {
+        saveMutex.withLock {
+            var firstRemaining: Uuid? = null
+            var removedActive = false
+            _projects.update { current ->
+                if (current.none { it.id == id }) {
+                    throw ProjectManagerError.NotFound(id)
+                }
+                val updated = current.filter { it.id != id }
+                removedActive = _activeProjectId.value == id
+                firstRemaining = updated.firstOrNull()?.id
+                updated
             }
-            val updated = current.filter { it.id != id }
-            removedActive = _activeProjectId.value == id
-            firstRemaining = updated.firstOrNull()?.id
-            updated
+            rebuildIndex()
+            if (removedActive) {
+                _activeProjectId.value = firstRemaining
+            }
+            writeProjects()
         }
-        rebuildIndex()
-        if (removedActive) {
-            _activeProjectId.value = firstRemaining
-        }
-        scheduleSaveProjects()
     }
 
     override fun updateProject(id: Uuid, mutate: (Project) -> Project) {

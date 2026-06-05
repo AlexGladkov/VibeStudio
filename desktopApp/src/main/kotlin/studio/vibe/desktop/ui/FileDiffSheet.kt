@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,9 +37,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import studio.vibe.shared.contract.GitStatusQuerying
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
@@ -105,10 +103,11 @@ internal fun FileDiffSheetContent(
     staged: Boolean,
     onDismiss: () -> Unit,
 ) {
+    val sheetScope = rememberCoroutineScope()
     val vm = remember(gitQuerying) {
         FileDiffViewModel(
             gitQuerying = gitQuerying,
-            parentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+            parentScope = sheetScope,
         )
     }
     DisposableEffect(vm) { onDispose { vm.dispose() } }

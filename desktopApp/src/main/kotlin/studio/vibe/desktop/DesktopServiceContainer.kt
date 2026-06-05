@@ -203,6 +203,7 @@ class DesktopServiceContainer {
         projectManaging = projectStore,
         scrollbackAccessing = terminalService,
         assistantLauncher = assistantLauncher,
+        parentScope = scope,
     )
 
     // ── ViewModels ────────────────────────────────────────────────────────────

@@ -38,10 +38,37 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: true
         SWIFT_STRICT_CONCURRENCY: targeted
+        # KMP framework linkage. The framework is produced by
+        # `:shared:embedAndSignAppleFrameworkForXcode` (see preBuildScripts).
+        # Search path uses the Xcode-managed embed location; xcconfig vars are
+        # set automatically by the gradle task for the requested configuration.
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -framework
+          - VibeStudioShared
         # TODO: Enable SWIFT_TREAT_WARNINGS_AS_ERRORS once Swift 6 concurrency warnings are resolved
         # SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     dependencies:
       - package: SwiftTerm
+    preBuildScripts:
+      - name: Build KMP framework (VibeStudioShared)
+        # Invokes Gradle's embedAndSignAppleFrameworkForXcode which builds the
+        # right slice (arm64/x86_64), embeds into the app bundle and signs.
+        # The task reads CONFIGURATION, SDK_NAME, ARCHS from the Xcode env.
+        script: |
+          set -euo pipefail
+          cd "$SRCROOT"
+          if [ -x "./gradlew" ]; then
+            ./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon
+          else
+            echo "error: ./gradlew not found at $SRCROOT" >&2
+            exit 1
+          fi
+        basedOnDependencyAnalysis: false
+        runOnlyWhenInstalling: false
 
   VibeStudioTests:
     type: bundle.unit-test

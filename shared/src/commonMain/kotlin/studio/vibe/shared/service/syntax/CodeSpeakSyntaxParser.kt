@@ -1,6 +1,7 @@
 package studio.vibe.shared.service.syntax
 
 import studio.vibe.shared.contract.LineContext
+import studio.vibe.shared.contract.ParseLineResult
 import studio.vibe.shared.contract.SyntaxParsing
 import studio.vibe.shared.contract.SyntaxToken
 import studio.vibe.shared.contract.SyntaxTokenKind
@@ -25,7 +26,7 @@ class CodeSpeakSyntaxParser : SyntaxParsing {
         lineStartOffset: Int,
         lineEndOffset: Int,
         context: LineContext,
-    ): Pair<List<SyntaxToken>, LineContext> {
+    ): ParseLineResult {
         val trimmed = line.trim()
 
         // Frontmatter delimiter — delegate to frontmatter parser
@@ -40,7 +41,10 @@ class CodeSpeakSyntaxParser : SyntaxParsing {
 
         // CodeSpeak // single-line comment
         if (trimmed.startsWith("//")) {
-            return listOf(SyntaxToken(SyntaxTokenKind.COMMENT, lineStartOffset, lineEndOffset)) to context
+            return ParseLineResult(
+                listOf(SyntaxToken(SyntaxTokenKind.COMMENT, lineStartOffset, lineEndOffset)),
+                context,
+            )
         }
 
         // Standard Markdown

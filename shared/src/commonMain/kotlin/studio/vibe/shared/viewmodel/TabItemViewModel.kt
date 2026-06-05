@@ -1,6 +1,7 @@
 package studio.vibe.shared.viewmodel
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,30 +27,32 @@ class TabItemViewModel(
     val state: StateFlow<TabItemState> = _state.asStateFlow()
 
     fun closeProject(projectId: Uuid) {
-        runCatching {
-            // Kill all terminal sessions for the project
-            terminalSessionManaging.killAllSessions(projectId)
+        scope.launch {
+            runCatching {
+                // Kill all terminal sessions for the project
+                terminalSessionManaging.killAllSessions(projectId)
 
-            // Determine the next active project before removing
-            val projects = projectManaging.projects.value
-            val currentIndex = projects.indexOfFirst { it.id == projectId }
-            val nextProject = when {
-                projects.size <= 1 -> null
-                currentIndex > 0 -> projects[currentIndex - 1]
-                else -> projects.getOrNull(currentIndex + 1)
+                // Determine the next active project before removing
+                val projects = projectManaging.projects.value
+                val currentIndex = projects.indexOfFirst { it.id == projectId }
+                val nextProject = when {
+                    projects.size <= 1 -> null
+                    currentIndex > 0 -> projects[currentIndex - 1]
+                    else -> projects.getOrNull(currentIndex + 1)
+                }
+
+                projectManaging.removeProject(projectId)
+
+                if (nextProject != null) {
+                    projectManaging.setActiveProjectId(nextProject.id)
+                } else {
+                    projectManaging.setActiveProjectId(null)
+                }
+
+                _state.update { it.copy(isCloseConfirmationVisible = false, errorMessage = null) }
+            }.onFailure { e ->
+                _state.update { it.copy(errorMessage = e.message) }
             }
-
-            projectManaging.removeProject(projectId)
-
-            if (nextProject != null) {
-                projectManaging.setActiveProjectId(nextProject.id)
-            } else {
-                projectManaging.setActiveProjectId(null)
-            }
-
-            _state.update { it.copy(isCloseConfirmationVisible = false, errorMessage = null) }
-        }.onFailure { e ->
-            _state.update { it.copy(errorMessage = e.message) }
         }
     }
 
