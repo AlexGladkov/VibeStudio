@@ -1,6 +1,40 @@
 // MARK: - AIAssistant
 // Domain model for supported AI code assistants.
 // macOS 14+, Swift 5.10
+//
+// ⚠️  MIGRATION (Sprint 4 → KMP):
+// This hard-coded enum will be replaced by `AIAgentRegistry` (KMP-side
+// `studio.vibe.shared.contract.AIAgentRegistering` + Swift façade) so that
+// supported agents can be configured at runtime without touching enum cases.
+//
+// DO NOT add new cases here. Add agents through the registry instead.
+//
+// Migration steps (deferred to a dedicated PR — high blast radius):
+//   1. Introduce `AIAgentDescriptor` struct mirroring this enum's properties.
+//   2. Wire `AIAgentRegistry` into `ServiceContainer` (`@Environment(\.aiAgentRegistry)`).
+//   3. Replace every exhaustive `switch` on `AIAssistant` with descriptor lookup.
+//   4. Remove this enum.
+//
+// Known call sites that must be updated when the migration lands:
+//   - Sources/DesignSystem/Components/AIAssistantIconView.swift       (exhaustive switch)
+//   - Sources/DesignSystem/Components/AgentLogos.swift                (exhaustive switch)
+//   - Sources/Views/Settings/Panes/LLMSettingsPane.swift              (exhaustive switch, picker rows)
+//   - Sources/Views/Toolbar/ToolbarView.swift                         (picker, icons)
+//   - Sources/Views/Toolbar/InstallAgentSheet.swift                   (install wizard)
+//   - Sources/Views/Settings/SettingsView.swift
+//   - Sources/Features/Toolbar/ViewModels/ToolbarViewModel.swift
+//   - Sources/Features/Settings/Models/SettingsSection.swift
+//   - Sources/Services/Agent/AgentAvailabilityService.swift
+//   - Sources/Services/Terminal/TerminalService.swift                 (launch arguments, exit sequence)
+//   - Sources/Services/Security/AgentEnvironmentBuilder.swift         (API key env var)
+//   - Sources/Services/RemoteControl/HTTPRequestRouter.swift
+//   - Sources/Services/RemoteControl/RemoteControlModels.swift
+//   - Sources/Shared/Coordinators/AppNavigationCoordinator.swift
+//   - Sources/Contracts/AgentAvailabilityChecking.swift
+//   - Sources/Contracts/DependencyContainer.swift
+//   - Sources/Contracts/Terminal/TerminalSessionCreating.swift
+//
+// Total: 17 consumer files + this file.
 
 import Foundation
 
@@ -17,6 +51,10 @@ enum AgentExitSequence: Sendable {
 // MARK: - AIAssistant
 
 /// Supported AI code assistants.
+///
+/// - Warning: Deprecated. Will be replaced by KMP-backed `AIAgentRegistry`.
+///   See file header for the migration plan and exhaustive call-site list.
+@available(*, deprecated, message: "Use AIAgentRegistry (KMP). See Sources/Shared/Models/AIAssistant.swift header for migration plan.")
 enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     case claude
     case opencode

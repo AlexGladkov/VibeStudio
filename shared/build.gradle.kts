@@ -1,6 +1,7 @@
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
+    id("co.touchlab.skie") version "0.10.12"
 }
 
 kotlin {
