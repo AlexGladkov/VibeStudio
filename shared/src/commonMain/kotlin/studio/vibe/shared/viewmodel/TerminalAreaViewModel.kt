@@ -1,5 +1,6 @@
 package studio.vibe.shared.viewmodel
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +24,8 @@ data class TerminalAreaState(
 class TerminalAreaViewModel(
     private val projectManaging: ProjectManaging,
     private val terminalSessionManaging: TerminalSessionManaging,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(TerminalAreaState())
     val state: StateFlow<TerminalAreaState> = _state.asStateFlow()
 

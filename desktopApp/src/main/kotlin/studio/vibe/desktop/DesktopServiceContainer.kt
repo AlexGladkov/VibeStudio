@@ -42,6 +42,7 @@ import studio.vibe.shared.platform.JvmProcessRunner
 import studio.vibe.shared.platform.JvmSettingsStorage
 import studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl
 import studio.vibe.shared.service.ai.AICommitServiceImpl
+import studio.vibe.shared.contract.CodeSpeakServicing
 import studio.vibe.shared.service.codespeak.CodeSpeakServiceImpl
 import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitCommandExecutor
@@ -55,6 +56,9 @@ import studio.vibe.shared.usecase.RestoreSessionUseCase
 import studio.vibe.desktop.remote.RemoteControlServer
 import studio.vibe.desktop.terminal.DesktopTerminalService
 import studio.vibe.shared.service.assistant.AssistantLauncherImpl
+import studio.vibe.shared.contract.EnvVarResolving
+import studio.vibe.shared.contract.PathResolving
+import studio.vibe.shared.contract.UrlOpening
 import studio.vibe.shared.viewmodel.FileTreeViewModel
 import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.shared.viewmodel.ToolbarViewModel
@@ -146,7 +150,7 @@ class DesktopServiceContainer {
 
     /** Real pty4j-backed terminal service.  Replaces [StubTerminalSessionManaging]. */
     val terminalService: DesktopTerminalService = DesktopTerminalService(
-        serviceScope = scope,
+        parentScope = scope,
         generalPreferences = generalPreferences,
     )
 
@@ -161,7 +165,7 @@ class DesktopServiceContainer {
         sessionPersistence = sessionStore,
     )
 
-    val codeSpeakService: CodeSpeakServiceImpl = CodeSpeakServiceImpl(
+    val codeSpeakService: CodeSpeakServicing = CodeSpeakServiceImpl(
         persistence = persistenceStore,
     )
 
@@ -213,10 +217,9 @@ class DesktopServiceContainer {
             parentScope = scope,
             blockingDispatcher = Dispatchers.IO,
             assistantLauncher = assistantLauncher,
-        ).also { vm ->
-            vm.onResolveHomePath = { System.getProperty("user.home") ?: "" }
-            vm.onResolveEnvVar = { name -> System.getenv(name) }
-        }
+            pathResolving = JvmPathResolving,
+            envVarResolving = JvmEnvVarResolving,
+        )
     }
 
     val gitSidebarViewModel: GitSidebarViewModel by lazy {
@@ -224,16 +227,8 @@ class DesktopServiceContainer {
             gitService = gitService,
             aiCommitService = aiCommitService,
             parentScope = scope,
-        ).also { vm ->
-            vm.onOpenURL = { url ->
-                try {
-                    val desktop = java.awt.Desktop.getDesktop()
-                    if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
-                        desktop.browse(java.net.URI(url))
-                    }
-                } catch (_: Exception) { /* Ignore — best effort */ }
-            }
-        }
+            urlOpening = JvmUrlOpening,
+        )
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -269,6 +264,28 @@ class DesktopServiceContainer {
  */
 private class EnvironmentAPIKeyResolver : APIKeyResolving {
     override fun resolve(envVar: String): String? = System.getenv(envVar)
+}
+
+/** JVM singleton — reads the user home from system properties. */
+private object JvmPathResolving : PathResolving {
+    override fun resolveHomePath(): String = System.getProperty("user.home") ?: ""
+}
+
+/** JVM singleton — reads environment variables from the process environment. */
+private object JvmEnvVarResolving : EnvVarResolving {
+    override fun resolve(name: String): String? = System.getenv(name)
+}
+
+/** JVM singleton — opens URLs in the AWT Desktop browser. */
+private object JvmUrlOpening : UrlOpening {
+    override fun openUrl(url: String) {
+        try {
+            val desktop = java.awt.Desktop.getDesktop()
+            if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
+                desktop.browse(java.net.URI(url))
+            }
+        } catch (_: Exception) { /* Ignore — best effort */ }
+    }
 }
 
 /**

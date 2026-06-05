@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.AICommitServicing
 import studio.vibe.shared.contract.GitServicing
+import studio.vibe.shared.contract.UrlOpening
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
 import studio.vibe.shared.model.GitStatus
@@ -42,12 +43,15 @@ class GitSidebarViewModel(
     private val gitService: GitServicing,
     private val aiCommitService: AICommitServicing,
     parentScope: CoroutineScope,
+    /**
+     * Platform implementation for opening URLs in the default browser.
+     * JVM: [java.awt.Desktop.browse]. macOS/Native: NSWorkspace.open.
+     * When `null`, [openInRemote] is a no-op.
+     */
+    private val urlOpening: UrlOpening? = null,
 ) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(GitSidebarState())
     val state: StateFlow<GitSidebarState> = _state.asStateFlow()
-
-    /** Platform callback for opening URLs (replaces NSWorkspace.openURL) */
-    var onOpenURL: ((String) -> Unit)? = null
 
     fun toggleExpanded(projectId: Uuid) {
         _state.update { s ->
@@ -361,7 +365,7 @@ class GitSidebarViewModel(
                 if (rawUrl != null) {
                     val browserUrl = GitURLConverter.browserURL(rawUrl)
                     if (browserUrl != null) {
-                        onOpenURL?.invoke(browserUrl)
+                        urlOpening?.openUrl(browserUrl)
                     }
                 }
             }

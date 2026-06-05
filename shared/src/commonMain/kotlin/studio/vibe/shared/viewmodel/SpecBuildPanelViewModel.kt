@@ -36,6 +36,11 @@ class SpecBuildPanelViewModel(
     private val processRunner: ProcessRunner,
     private val projectManaging: ProjectManaging,
     parentScope: CoroutineScope,
+    /**
+     * Clock used to stamp [SpecStats.buildDate].
+     * Default: [Clock.System] for production. Override with a fake in tests.
+     */
+    private val clock: Clock = Clock.System,
 ) : BaseViewModel(parentScope) {
 
     private val _state = MutableStateFlow(SpecBuildPanelState())
@@ -164,7 +169,7 @@ class SpecBuildPanelViewModel(
                     lastStats = SpecStats(
                         passing = passing,
                         total = total,
-                        buildDate = Clock.System.now(),
+                        buildDate = clock.now(),
                     )
                 )
             }
@@ -180,7 +185,7 @@ class SpecBuildPanelViewModel(
                     lastStats = SpecStats(
                         passing = passing,
                         total = total,
-                        buildDate = Clock.System.now(),
+                        buildDate = clock.now(),
                     )
                 )
             }

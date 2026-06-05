@@ -1,5 +1,6 @@
 package studio.vibe.shared.viewmodel
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +20,8 @@ data class TabItemState(
 class TabItemViewModel(
     private val projectManaging: ProjectManaging,
     private val terminalSessionManaging: TerminalSessionManaging,
-) {
+    parentScope: CoroutineScope,
+) : BaseViewModel(parentScope) {
     private val _state = MutableStateFlow(TabItemState())
     val state: StateFlow<TabItemState> = _state.asStateFlow()
 
