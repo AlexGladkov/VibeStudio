@@ -70,9 +70,13 @@ final class ToolbarViewModel {
     /// when an agent's dedicated PTY process exits (e.g. the user exits the agent
     /// or it crashes). Without this the stop button stays red forever.
     private func startSessionEventObservation() {
+        // Capture the dependency, not self — avoids the strong `self` retain that
+        // would block deinit (deinit cancels the task, but the task can't be
+        // cancelled if it's keeping self alive in the first place).
+        let terminalManager = self.terminalManager
         sessionEventTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            for await event in self.terminalManager.sessionEvents {
+            for await event in terminalManager.sessionEvents {
+                guard let self else { return }
                 if case .processExited(let sessionId, let projectId, let exitCode) = event {
                     if self.agentSessionIds[projectId] == sessionId {
                         Logger.ui.info("ToolbarViewModel: agent session \(sessionId) exited with code \(exitCode), clearing running state")
@@ -86,9 +90,11 @@ final class ToolbarViewModel {
 
     /// Observe the projects list and auto-cleanup entries for removed projects.
     private func startProjectCleanupObservation() {
+        // Capture only the dependency strongly; re-acquire `self` via [weak]
+        // each iteration so the long-running observation loop never blocks deinit.
+        let projectManager = self.projectManager
         projectCleanupTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            var knownIds = Set(self.projectManager.projects.map(\.id))
+            var knownIds = Set(projectManager.projects.map(\.id))
 
             while !Task.isCancelled {
                 let holder = ContinuationHolder()
@@ -96,7 +102,7 @@ final class ToolbarViewModel {
                     await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
                         holder.set(c)
                         withObservationTracking {
-                            _ = self.projectManager.projects
+                            _ = projectManager.projects
                         } onChange: {
                             holder.resume()
                         }
@@ -105,7 +111,8 @@ final class ToolbarViewModel {
                     holder.resume()
                 }
                 guard !Task.isCancelled else { return }
-                let currentIds = Set(self.projectManager.projects.map(\.id))
+                let currentIds = Set(projectManager.projects.map(\.id))
+                guard let self else { return }
                 for removed in knownIds.subtracting(currentIds) {
                     self.cleanupProject(removed)
                 }
