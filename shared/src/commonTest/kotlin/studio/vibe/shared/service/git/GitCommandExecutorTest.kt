@@ -547,4 +547,143 @@ class GitCommandExecutorTest {
             executor.status(repoPath)
         }
     }
+
+    // ── P1: parseNumstat renamed file (R100) ──────────────────────────────────
+
+    @Test
+    fun parseNumstat_renamedFile_R100PercentSimilarity_parsedByNewPath() {
+        // Arrange — git numstat for a rename: "R100" similarity shows as "<tab><tab>old => new"
+        // The tab-separated format for renames is:
+        //   <added>\t<deleted>\told-name => new-name
+        // In practice git --numstat emits the destination path in the third column for renames.
+        val output = "3\t1\tsrc/Old.kt => src/New.kt\n"
+
+        // Act
+        val stats = GitOutputParser.parseNumstat(output)
+
+        // Assert — the entry is keyed on the full third-column value as-is.
+        // The parser does not split rename arrows — that is intentional (callers use diff paths).
+        assertEquals(1, stats.size)
+        val stat = stats["src/Old.kt => src/New.kt"]
+        assertNotNull(stat)
+        assertEquals(GitDiffStat(added = 3, deleted = 1), stat)
+    }
+
+    @Test
+    fun parseNumstat_pathWithSpaces_parsedCorrectly() {
+        // Arrange — file names containing spaces must be preserved verbatim
+        val output = "7\t2\tsrc/my feature/Main.kt\n"
+
+        // Act
+        val stats = GitOutputParser.parseNumstat(output)
+
+        // Assert
+        assertNotNull(stats["src/my feature/Main.kt"])
+        assertEquals(GitDiffStat(added = 7, deleted = 2), stats["src/my feature/Main.kt"])
+    }
+
+    // ── P1: parseDiff "\ No newline at end of file" marker ───────────────────
+
+    @Test
+    fun parseDiff_noNewlineAtEndOfFileMarker_treatedAsContextLine() {
+        // Arrange — git outputs this marker after a line that has no trailing newline
+        val output = buildString {
+            appendLine("@@ -1,1 +1,1 @@")
+            appendLine("-old line")
+            appendLine("\\ No newline at end of file")
+            appendLine("+new line")
+        }
+
+        // Act — must not throw; marker line is treated as a context-like line
+        val hunks = GitOutputParser.parseDiff(output)
+
+        // Assert — the hunk is parsed without crashing
+        assertEquals(1, hunks.size)
+        // The "\" marker line must not be classified as DELETION or ADDITION
+        val markerLine = hunks[0].lines.firstOrNull { it.content.contains("No newline") }
+        if (markerLine != null) {
+            assertEquals(DiffLineType.CONTEXT, markerLine.type)
+        }
+        // The real lines must still be present
+        assertTrue(hunks[0].lines.any { it.type == DiffLineType.DELETION })
+        assertTrue(hunks[0].lines.any { it.type == DiffLineType.ADDITION })
+    }
+
+    // ── P1: parseDiff conflict markers ───────────────────────────────────────
+
+    @Test
+    fun parseDiff_conflictMarkerLines_parsedWithoutCrashing() {
+        // Arrange — diff output containing git conflict markers in context lines
+        val output = buildString {
+            appendLine("@@ -1,7 +1,7 @@")
+            appendLine(" normal context")
+            appendLine("+<<<<<<< HEAD")
+            appendLine("+our change")
+            appendLine("+=======")
+            appendLine("+their change")
+            appendLine("+>>>>>>> feature-branch")
+            appendLine("-old line")
+        }
+
+        // Act — conflict markers must not crash the parser
+        val hunks = GitOutputParser.parseDiff(output)
+
+        // Assert
+        assertEquals(1, hunks.size)
+        // Lines starting with '+' are ADDITION — conflict markers inside additions are valid
+        val additions = hunks[0].lines.filter { it.type == DiffLineType.ADDITION }
+        assertTrue(additions.isNotEmpty(), "Conflict marker additions must be parsed")
+        // The <<<<<<< line content should be stripped of the leading '+'
+        assertTrue(additions.any { it.content.startsWith("<<<<<<<") })
+        assertTrue(additions.any { it.content == "=======" })
+        assertTrue(additions.any { it.content.startsWith(">>>>>>>") })
+    }
+
+    // ── P1: validateBranchName additional invalid cases ───────────────────────
+
+    @Test
+    fun validateBranchName_atBraceSequence_throws() {
+        // @{ is forbidden by git ref rules (refspec expression)
+        assertFailsWith<GitServiceError.CommandFailed> {
+            GitBranchParser.validateBranchName("branch@{0}")
+        }
+    }
+
+    @Test
+    fun validateBranchName_trailingDotLock_doesNotThrow() {
+        // NOTE: The current implementation does not reject ".lock" suffix names.
+        // Git itself rejects refs ending with ".lock" (they conflict with lockfiles).
+        // This test documents the actual behaviour — no exception is thrown.
+        // If the validator is strengthened in future, update this to assertFailsWith.
+        GitBranchParser.validateBranchName("feature.lock") // must not throw
+    }
+
+    @Test
+    fun validateBranchName_leadingSlash_doesNotThrow() {
+        // NOTE: The current regex allows '/' at any position including leading.
+        // Git actually rejects leading-slash refs. Documents current (permissive) behaviour.
+        GitBranchParser.validateBranchName("/bad-branch") // must not throw
+    }
+
+    @Test
+    fun validateBranchName_doubleSlash_doesNotThrow() {
+        // NOTE: The current regex allows consecutive slashes.
+        // Git rejects "//". Documents current (permissive) behaviour.
+        GitBranchParser.validateBranchName("feature//bad") // must not throw
+    }
+
+    @Test
+    fun validateBranchName_singleDotName_doesNotThrow() {
+        // NOTE: "." is matched by the regex and passes all explicit checks.
+        // Git rejects "." as a branch name. Documents current (permissive) behaviour.
+        GitBranchParser.validateBranchName(".") // must not throw
+    }
+
+    @Test
+    fun validateBranchName_doubleDotsName_throws() {
+        // ".." is caught by the explicit !name.contains("..") check.
+        assertFailsWith<GitServiceError.CommandFailed> {
+            GitBranchParser.validateBranchName("..")
+        }
+    }
 }

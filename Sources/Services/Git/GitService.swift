@@ -40,7 +40,10 @@ final class GitService: GitServicing, @unchecked Sendable {
     /// Resolved path to the git binary.
     private let gitPath: String
 
-    init() {
+    /// Subprocess spawner — injectable for unit tests.
+    private let spawner: any ProcessSpawning
+
+    init(spawner: any ProcessSpawning = FoundationProcessSpawner()) {
         // Prefer Xcode CLT git, fall back to common paths.
         let candidates = [
             "/usr/bin/git",
@@ -48,6 +51,7 @@ final class GitService: GitServicing, @unchecked Sendable {
             "/opt/homebrew/bin/git"
         ]
         self.gitPath = candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/usr/bin/git"
+        self.spawner = spawner
     }
 
     // MARK: - GitServicing: Status & Info
@@ -441,115 +445,50 @@ final class GitService: GitServicing, @unchecked Sendable {
     ) async throws -> String {
         let effectiveTimeout = timeout ?? defaultTimeout
         let commandDesc = args.first ?? "git"
-        let gitBinary = self.gitPath
 
-        return try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: gitBinary)
-            // Use `git -C <dir>` instead of setting currentDirectoryURL.
-            // Setting currentDirectoryURL causes the forked child process to call
-            // chdir(dir) BEFORE execve — while it still carries VibeStudio's process
-            // identity. That chdir into ~/Documents triggers a TCC dialog on every
-            // git subprocess call. With `-C dir` git itself (an Apple-signed binary)
-            // handles the chdir internally after exec, which does not trigger TCC.
-            process.arguments = ["-C", dir.path] + args
+        // Use `git -C <dir>` instead of setting currentDirectoryURL on the
+        // Process. Setting currentDirectoryURL causes the forked child process
+        // to chdir(dir) BEFORE execve — while it still carries VibeStudio's
+        // process identity. That chdir into ~/Documents triggers a TCC dialog
+        // on every git subprocess call. With `-C dir` git itself (Apple-signed)
+        // handles the chdir internally after exec, which does not trigger TCC.
+        let fullArgs = ["-C", dir.path] + args
 
-            var env = ProcessInfo.processInfo.environment
-            if suppressCredentials {
-                // Non-network commands: prevent any interactive credential prompt.
-                env["GIT_TERMINAL_PROMPT"] = "0"
-                env["GIT_ASKPASS"] = "/usr/bin/true"
-            }
-            // Network commands (suppressCredentials=false) run with the full inherited
-            // environment so the system credential helper (osxkeychain / SSH agent) works.
-            process.environment = env
-
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
-
-            // IOBuffer is a class so it can be captured by reference across @Sendable closures.
-            // All mutations happen on ioQueue (serial) — no data races.
-            final class IOBuffer: @unchecked Sendable {
-                var stdout = Data()
-                var stderr = Data()
-            }
-            let buf = IOBuffer()
-            let ioQueue = DispatchQueue(label: "git.io.\(commandDesc)")
-
-            // Drain pipes incrementally to prevent deadlock when git output exceeds
-            // the OS pipe buffer (~64 KB). Without this, git blocks writing to the
-            // pipe, never exits, and the 30-second timeout fires.
-            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                ioQueue.async { buf.stdout.append(chunk) }
-            }
-            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                ioQueue.async { buf.stderr.append(chunk) }
-            }
-
-            let timeoutItem = DispatchWorkItem { [weak process] in
-                process?.terminate()
-            }
-            DispatchQueue.global().asyncAfter(deadline: .now() + effectiveTimeout, execute: timeoutItem)
-
-            // terminationHandler fires on a background thread when the process exits.
-            // This suspends the continuation asynchronously — the actor is NOT blocked
-            // while git is running, so concurrent git calls can interleave freely.
-            process.terminationHandler = { proc in
-                timeoutItem.cancel()
-
-                // Disable handlers, then flush any bytes that arrived between the last
-                // readabilityHandler call and the process exit (ioQueue.sync ensures
-                // all prior ioQueue.async appends have completed before we read more).
-                stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                stderrPipe.fileHandleForReading.readabilityHandler = nil
-                ioQueue.sync {
-                    buf.stdout.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-                    buf.stderr.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                }
-
-                let stdout = String(data: buf.stdout, encoding: .utf8) ?? ""
-                let stderr = String(data: buf.stderr, encoding: .utf8) ?? ""
-
-                if proc.terminationReason == .uncaughtSignal {
-                    continuation.resume(
-                        throwing: GitServiceError.timeout(command: commandDesc, seconds: effectiveTimeout)
-                    )
-                    return
-                }
-
-                guard proc.terminationStatus == 0 else {
-                    if stderr.contains("not a git repository") {
-                        continuation.resume(
-                            throwing: GitServiceError.notARepository(path: dir)
-                        )
-                    } else {
-                        continuation.resume(
-                            throwing: GitServiceError.commandFailed(
-                                command: commandDesc,
-                                exitCode: proc.terminationStatus,
-                                stderr: stderr
-                            )
-                        )
-                    }
-                    return
-                }
-
-                continuation.resume(returning: stdout)
-            }
-
-            do {
-                try process.run()
-            } catch {
-                timeoutItem.cancel()
-                continuation.resume(throwing: GitServiceError.gitNotFound)
-            }
+        var env = ProcessInfo.processInfo.environment
+        if suppressCredentials {
+            // Non-network commands: prevent any interactive credential prompt.
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            env["GIT_ASKPASS"] = "/usr/bin/true"
         }
+        // Network commands (suppressCredentials=false) keep the full inherited
+        // environment so osxkeychain / SSH agent work normally.
+
+        let result: ProcessResult
+        do {
+            result = try await spawner.spawn(
+                executable: gitPath,
+                args: fullArgs,
+                env: env,
+                cwd: nil,
+                timeout: effectiveTimeout
+            )
+        } catch ProcessSpawnError.timedOut(let seconds) {
+            throw GitServiceError.timeout(command: commandDesc, seconds: seconds)
+        } catch ProcessSpawnError.launchFailed {
+            throw GitServiceError.gitNotFound
+        }
+
+        guard result.exitCode == 0 else {
+            if result.stderr.contains("not a git repository") {
+                throw GitServiceError.notARepository(path: dir)
+            }
+            throw GitServiceError.commandFailed(
+                command: commandDesc,
+                exitCode: result.exitCode,
+                stderr: result.stderr
+            )
+        }
+        return result.stdout
     }
 
     // MARK: - Internal: Parsing (visible to tests)

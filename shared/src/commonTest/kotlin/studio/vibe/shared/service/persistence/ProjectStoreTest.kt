@@ -1,5 +1,7 @@
 package studio.vibe.shared.service.persistence
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -261,5 +263,45 @@ class ProjectStoreTest {
     fun load_missingFile_startsWithEmptyList() = runTest {
         store.load()
         assertTrue(store.projects.value.isEmpty())
+    }
+
+    // ── P1: StateFlow replay on new subscriber ────────────────────────────────
+
+    @Test
+    fun projectsFlow_newSubscriber_receivesCurrentValueImmediately() = runTest {
+        // Arrange — add a project so the flow has non-empty state
+        val path = registerDir("/projects/replay-test")
+        store.addProject(path)
+        assertEquals(1, store.projects.value.size) // sanity
+
+        // Act — collect the first emission (StateFlow has replay=1 by contract)
+        val received = mutableListOf<Int>()
+        val job = this.launch(start = CoroutineStart.UNDISPATCHED) {
+            store.projects.collect { projects -> received.add(projects.size) }
+        }
+        // UnconfinedTestDispatcher runs the collect inline so received is already populated
+        job.cancel()
+
+        // Assert — the subscriber must receive the current value immediately (replay=1)
+        assertTrue(received.isNotEmpty(), "New subscriber must receive at least one emission")
+        assertEquals(1, received.first(), "First emission must be the current state (1 project)")
+    }
+
+    @Test
+    fun activeProjectIdFlow_newSubscriber_receivesCurrentValueImmediately() = runTest {
+        // Arrange
+        val project = store.addProject(registerDir("/projects/active-replay"))
+        store.setActiveProjectId(project.id)
+
+        // Act — new subscriber should immediately get the current value
+        val received = mutableListOf<kotlin.uuid.Uuid?>()
+        val job = this.launch(start = CoroutineStart.UNDISPATCHED) {
+            store.activeProjectId.collect { id -> received.add(id) }
+        }
+        job.cancel()
+
+        // Assert
+        assertTrue(received.isNotEmpty())
+        assertEquals(project.id, received.first())
     }
 }

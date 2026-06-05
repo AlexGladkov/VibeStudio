@@ -277,4 +277,42 @@ class MarkdownParserTest {
         val (_, ctx) = parser.parseLine("```", 0, 3, LineContext.INITIAL)
         assertTrue(ctx.inCodeBlock)
     }
+
+    // ── P1: LineContext reset between files ───────────────────────────────────
+
+    @Test
+    fun lineContext_resetBetweenFiles_secondFileStartsFresh() {
+        // Arrange — first "file" ends in the middle of a code fence (never closed).
+        // The context returned by the last line of file 1 will have inCodeBlock=true.
+        val (_, ctxAfterFile1) = parser.parseLine("```kotlin", 0, 9, LineContext.INITIAL)
+        assertTrue(ctxAfterFile1.inCodeBlock, "Sanity: context must be inside block after open fence")
+
+        // When parsing a second file the caller must pass LineContext.INITIAL (not the
+        // accumulated context from file 1). Verify that the parser behaves correctly when
+        // given a fresh context — it must not carry over the previous file's state.
+        val freshLine = "# Section header"
+        val (tokensFile2, ctxFile2) = parser.parseLine(freshLine, 0, freshLine.length, LineContext.INITIAL)
+
+        // Assert — the second file starts fresh: the heading must be tokenised as HEADING,
+        // not as CODE_BLOCK_BODY (which would happen if the old context leaked through).
+        assertEquals(SyntaxTokenKind.HEADING, tokensFile2.firstOrNull()?.kind,
+            "First line of second file must be parsed as HEADING, not CODE_BLOCK_BODY")
+        assertFalse(ctxFile2.inCodeBlock, "Second file must start outside of any code block")
+    }
+
+    @Test
+    fun lineContext_midFencePreviousFile_bodyLineInSecondFile_notMarkedAsCodeBlock() {
+        // Arrange — simulate a parser instance reused across two files.
+        // File 1: open a fence, never close it.
+        val openCtx = LineContext(inCodeBlock = true, codeBlockFence = "```")
+
+        // File 2: caller correctly passes LineContext.INITIAL (reset).
+        val bodyLine = "just plain text"
+        val (tokens, ctx) = parser.parseLine(bodyLine, 0, bodyLine.length, LineContext.INITIAL)
+
+        // Assert — with a fresh context, "just plain text" is NOT parsed as CODE_BLOCK_BODY.
+        assertTrue(tokens.none { it.kind == SyntaxTokenKind.CODE_BLOCK_BODY },
+            "Plain text with fresh context must not be CODE_BLOCK_BODY")
+        assertFalse(ctx.inCodeBlock)
+    }
 }

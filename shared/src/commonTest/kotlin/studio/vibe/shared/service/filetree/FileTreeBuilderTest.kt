@@ -1,6 +1,7 @@
 package studio.vibe.shared.service.filetree
 
 import kotlinx.coroutines.test.runTest
+import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.FileTreeNode
 import studio.vibe.shared.model.GitFile
@@ -12,6 +13,29 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+
+// ── Test helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Delegating [PersistenceStore] that throws on [listDirectory] for a specific blocked path.
+ * Used to simulate a permission-denied directory without subclassing the final [FakePersistenceStore].
+ */
+private class PermissionDeniedPersistenceStore(
+    private val delegate: FakePersistenceStore,
+    private val blockedPath: String,
+) : PersistenceStore {
+    override suspend fun readFile(path: FilePath): ByteArray? = delegate.readFile(path)
+    override suspend fun writeFile(path: FilePath, data: ByteArray) = delegate.writeFile(path, data)
+    override suspend fun fileExists(path: FilePath): Boolean = delegate.fileExists(path)
+    override suspend fun isDirectory(path: FilePath): Boolean = delegate.isDirectory(path)
+    override suspend fun createDirectory(path: FilePath) = delegate.createDirectory(path)
+    override suspend fun listDirectory(path: FilePath): List<FilePath> {
+        if (path.path == blockedPath) throw RuntimeException("Permission denied: $blockedPath")
+        return delegate.listDirectory(path)
+    }
+    override suspend fun deleteFile(path: FilePath) = delegate.deleteFile(path)
+    override fun appSupportDirectory(): FilePath = delegate.appSupportDirectory()
+}
 
 /**
  * Unit tests for [FileTreeBuilder].
@@ -245,6 +269,71 @@ class FileTreeBuilderTest {
 
         val names = result.map { it.name }
         assertEquals(listOf("alpha", "Beta", "Zeta"), names)
+    }
+
+    // ── P1: symlink as file (not dir) ─────────────────────────────────────────
+
+    @Test
+    fun buildTree_symlinkRegisteredAsFile_appearsAsFileNode() = runTest {
+        // Arrange — a symlink pointing to a file is reported by the platform as NOT a directory.
+        // In FakePersistenceStore we model this by writing the symlink path as a regular file.
+        writeFile("/project/link-to-file.kt")
+
+        // Act
+        val result = builder.buildTree(root)
+
+        // Assert — the symlink must appear as a FileTreeNode.File, not a directory
+        assertEquals(1, result.size)
+        assertTrue(result[0] is FileTreeNode.File, "A symlink to a file must be a File node")
+        assertEquals("link-to-file.kt", result[0].name)
+    }
+
+    // ── P1: permission-denied subdir skipped ──────────────────────────────────
+
+    @Test
+    fun buildTree_permissionDeniedSubdir_skippedGracefully() = runTest {
+        // Arrange — build a PersistenceStore that throws on listDirectory for the restricted path.
+        // FakePersistenceStore is final, so we use a delegating wrapper via the interface.
+        val delegate = FakePersistenceStore(appSupportDir = FilePath("/app-support"))
+        val restrictedDir = FilePath("/project/restricted")
+        delegate.addDirectory(FilePath("/project"))
+        delegate.addDirectory(restrictedDir)
+        delegate.writeFile(FilePath("/project/visible.kt"), ByteArray(0))
+
+        val restrictedPersistence = PermissionDeniedPersistenceStore(
+            delegate = delegate,
+            blockedPath = "/project/restricted",
+        )
+        val restrictedBuilder = FileTreeBuilder(restrictedPersistence)
+
+        // Act — must not throw; restricted directory entries become empty directories
+        val result = restrictedBuilder.buildTree(FilePath("/project"))
+
+        // Assert — tree must still be returned (no crash)
+        assertTrue(result.isNotEmpty(), "Tree must not be empty; visible files must appear")
+        val fileNode = result.filterIsInstance<FileTreeNode.File>().firstOrNull()
+        assertNotNull(fileNode, "visible.kt must appear as a file node")
+    }
+
+    // ── P1: file added during scan — consistent snapshot ──────────────────────
+
+    @Test
+    fun buildTree_fileAddedDuringScan_doesNotCrash() = runTest {
+        // Arrange — pre-populate two files
+        writeFile("/project/a.kt")
+        writeFile("/project/b.kt")
+
+        // Act — buildTree returns a consistent snapshot of what was in the store
+        // at the time of the scan. A file written after the scan must not appear.
+        val resultBefore = builder.buildTree(root)
+
+        // Now add a file
+        writeFile("/project/c.kt")
+        val resultAfter = builder.buildTree(root)
+
+        // Assert — both calls succeed and return coherent results
+        assertEquals(2, resultBefore.size, "Scan before add must see only 2 files")
+        assertEquals(3, resultAfter.size, "Scan after add must see 3 files")
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

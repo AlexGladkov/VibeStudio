@@ -65,6 +65,7 @@ actor MockGitService: GitServicing {
     func stage(files: [String], at repository: URL) async throws {
         stageCallCount += 1
         lastStagedFiles = files
+        if let stageErrorToThrow { throw stageErrorToThrow }
     }
 
     var unstageCallCount = 0
@@ -73,6 +74,7 @@ actor MockGitService: GitServicing {
     func unstage(files: [String], at repository: URL) async throws {
         unstageCallCount += 1
         lastUnstagedFiles = files
+        if let unstageErrorToThrow { throw unstageErrorToThrow }
     }
 
     // MARK: - Commit
@@ -134,13 +136,22 @@ actor MockGitService: GitServicing {
     func checkout(branch: String, at repository: URL) async throws {
         checkoutCallCount += 1
         lastCheckedOutBranch = branch
+        if let checkoutErrorToThrow { throw checkoutErrorToThrow }
     }
 
     var createBranchCallCount = 0
+    var createBranchErrorToThrow: Error?
 
     func createBranch(name: String, from startPoint: String?, at repository: URL) async throws {
         createBranchCallCount += 1
+        if let createBranchErrorToThrow { throw createBranchErrorToThrow }
     }
+
+    var checkoutErrorToThrow: Error?
+
+    var stageErrorToThrow: Error?
+    var unstageErrorToThrow: Error?
+    var commitErrorToThrow: Error?
 
     // MARK: - Utility
 

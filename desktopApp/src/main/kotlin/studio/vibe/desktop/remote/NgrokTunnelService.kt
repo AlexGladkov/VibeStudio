@@ -28,6 +28,23 @@ import java.util.logging.Logger
  */
 class NgrokTunnelService(private val scope: CoroutineScope) {
 
+    /** Internal constructor used by tests to inject collaborator fakes. */
+    internal constructor(
+        scope: CoroutineScope,
+        launcher: NgrokProcessLauncher,
+        urlPoller: NgrokUrlPoller,
+    ) : this(scope) {
+        this.launcherOverride = launcher
+        this.urlPollerOverride = urlPoller
+    }
+
+    // Overrides set by the internal test constructor (null = use default instances).
+    private var launcherOverride: NgrokProcessLauncher? = null
+    private var urlPollerOverride: NgrokUrlPoller? = null
+
+    private val launcher: NgrokProcessLauncher get() = launcherOverride ?: NgrokProcessLauncher()
+    private val urlPoller: NgrokUrlPoller get() = urlPollerOverride ?: NgrokUrlPoller()
+
     companion object {
         private val log = Logger.getLogger("NgrokTunnelService")
         private val PID_FILE = File("/tmp/vibestudio-ngrok.pid")
@@ -43,11 +60,6 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
-
-    // ── Private helpers ────────────────────────────────────────────────────────
-
-    private val launcher = NgrokProcessLauncher()
-    private val urlPoller = NgrokUrlPoller()
 
     // ── Private process state (confined to scope) ──────────────────────────────
 

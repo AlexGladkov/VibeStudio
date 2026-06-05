@@ -209,4 +209,51 @@ class AssistantLauncherImplTest {
 
         assertNull(launcher.runningByProject.value[project.id])
     }
+
+    // ── P1: concurrent start same project+agent ───────────────────────────────
+
+    @Test
+    fun start_concurrentStartSameProjectAndAgent_onlyOneSessionRegistered() = runTest {
+        // Arrange — launch the same agent twice without stopping.
+        // The second start must overwrite (not duplicate) the session entry so only
+        // one entry per (projectId, agentId) key is maintained.
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val launcher = build(projects = projects, availability = availability)
+
+        // Act — start twice (simulates two rapid taps / race condition)
+        val r1 = launcher.start(project.id, ClaudeAgent.id)
+        val r2 = launcher.start(project.id, ClaudeAgent.id)
+
+        assertTrue(r1.isSuccess)
+        assertTrue(r2.isSuccess)
+
+        // Assert — only one agentId entry per project
+        val agentSet = launcher.runningByProject.value[project.id]
+        assertNotNull(agentSet)
+        assertEquals(1, agentSet.size, "Each (projectId, agentId) pair must have exactly one entry")
+        assertTrue(ClaudeAgent.id in agentSet)
+    }
+
+    // ── P1: notifySessionExited unknown sessionId ──────────────────────────────
+
+    @Test
+    fun notifySessionExited_unknownSessionId_isNoOp() = runTest {
+        // Arrange — start one agent so there is real state to check against
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val launcher = build(projects = projects, availability = availability)
+        launcher.start(project.id, ClaudeAgent.id)
+        val stateBefore = launcher.runningByProject.value.toMap()
+
+        // Act — notify with a completely unknown session id
+        launcher.notifySessionExited(project.id, kotlin.uuid.Uuid.random())
+
+        // Assert — state is unchanged
+        assertEquals(stateBefore, launcher.runningByProject.value)
+    }
 }

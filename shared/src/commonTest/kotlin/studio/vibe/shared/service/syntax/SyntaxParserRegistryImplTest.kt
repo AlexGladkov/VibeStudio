@@ -112,4 +112,34 @@ class SyntaxParserRegistryImplTest {
 
         assertSame(p, registry.parser("foo.md"))
     }
+
+    // ── P2: null extension — file with no dot ─────────────────────────────────
+
+    @Test
+    fun parser_nullExtension_fileWithNoDot_returnsNull() {
+        // Arrange — register a parser for "md" and "kt"
+        val registry = SyntaxParserRegistryImpl()
+        registry.register(stubParser("md"))
+        registry.register(stubParser("kt"))
+
+        // Act — lookup with an extension string that has no dot component
+        // (simulates a file like "Makefile", "Dockerfile", "LICENSE")
+        val result = registry.parser("Makefile")
+
+        // Assert — no registered parser matches; must return null
+        assertNull(result, "A file name with no dot extension must resolve to null")
+    }
+
+    @Test
+    fun parser_emptyExtension_returnsNull() {
+        // Arrange
+        val registry = SyntaxParserRegistryImpl()
+        registry.register(stubParser("md"))
+
+        // Act
+        val result = registry.parser("")
+
+        // Assert
+        assertNull(result, "Empty extension must resolve to null")
+    }
 }

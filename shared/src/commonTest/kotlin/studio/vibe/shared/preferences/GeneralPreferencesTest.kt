@@ -100,4 +100,34 @@ class GeneralPreferencesTest {
         prefs.claudeSkipPermissions = true
         assertEquals(true, prefs.claudeSkipPermissionsFlow.value)
     }
+
+    // ── P1: boundary values ───────────────────────────────────────────────────
+
+    @Test
+    fun terminalFontSize_boundary9_staysAt9() {
+        // Exact lower boundary must not be clamped further down
+        prefs.terminalFontSize = 9
+        assertEquals(9, prefs.terminalFontSizeFlow.value)
+    }
+
+    @Test
+    fun terminalFontSize_boundary24_staysAt24() {
+        // Exact upper boundary must not be clamped further up
+        prefs.terminalFontSize = 24
+        assertEquals(24, prefs.terminalFontSizeFlow.value)
+    }
+
+    // ── P1: unknown AppTheme ordinal falls back to DARK ───────────────────────
+
+    @Test
+    fun themeFlow_unknownRawValue_fallsBackToDARK() {
+        // Arrange — write a raw value that does not match any AppTheme name
+        storage.setString("vs_app_theme", "UNKNOWN_THEME_VALUE")
+
+        // Act — create a fresh instance that reads the corrupted storage
+        val freshPrefs = GeneralPreferences(storage)
+
+        // Assert — unknown name must fall back to the default DARK theme
+        assertEquals(AppTheme.DARK, freshPrefs.themeFlow.value)
+    }
 }
