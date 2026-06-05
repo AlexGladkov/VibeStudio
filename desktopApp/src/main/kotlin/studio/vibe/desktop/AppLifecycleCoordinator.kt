@@ -9,7 +9,9 @@ import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.CodeSpeakServicing
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
+import studio.vibe.shared.preferences.RemoteControlPreferences
 import studio.vibe.shared.usecase.RestoreSessionUseCase
+import studio.vibe.desktop.remote.RemoteControlServer
 
 /**
  * Coordinates the application startup sequence and drives the ongoing
@@ -21,7 +23,8 @@ import studio.vibe.shared.usecase.RestoreSessionUseCase
  * Startup order:
  *  1. [RestoreSessionUseCase.execute] — restore previous terminal sessions.
  *  2. Auto-activate the first project if no session was restored.
- *  3. Begin collecting [ProjectManaging.activeProjectId] → checkConfig → syncMode.
+ *  3. Auto-start [RemoteControlServer] if [RemoteControlPreferences.remoteControlEnabled].
+ *  4. Begin collecting [ProjectManaging.activeProjectId] → checkConfig → syncMode.
  *
  * Shutdown: call [onShutdown] from the window close handler before [DesktopServiceContainer.dispose].
  */
@@ -30,6 +33,8 @@ class AppLifecycleCoordinator(
     private val codeSpeakService: CodeSpeakServicing,
     private val navigationCoordinator: AppNavigationCoordinator,
     private val restoreSessionUseCase: RestoreSessionUseCase,
+    private val remoteControlPreferences: RemoteControlPreferences,
+    private val remoteControlServer: RemoteControlServer,
     private val scope: CoroutineScope,
 ) {
 
@@ -49,6 +54,13 @@ class AppLifecycleCoordinator(
             val projects = projectManaging.projects.value
             if (projectManaging.activeProjectId.value == null && projects.isNotEmpty()) {
                 projectManaging.setActiveProjectId(projects.first().id)
+            }
+
+            // Phase 1b: auto-start Remote Control server if the user previously
+            // enabled it — mirrors Swift AppLifecycleCoordinator lines 148-150.
+            // Default is false (opt-in), so this is a no-op on first launch.
+            if (remoteControlPreferences.remoteControlEnabled) {
+                remoteControlServer.startAsync()
             }
 
             // Phase 2: keep AppMode in sync with the active project's CS config.

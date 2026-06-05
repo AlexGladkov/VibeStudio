@@ -41,6 +41,8 @@ fun main() = application {
             codeSpeakService = serviceContainer.codeSpeakService,
             navigationCoordinator = navigationCoordinator,
             restoreSessionUseCase = serviceContainer.restoreSessionUseCase,
+            remoteControlPreferences = serviceContainer.remoteControlPreferences,
+            remoteControlServer = serviceContainer.remoteControlServer,
             scope = startupScope,
         ).onStartup()
         true // remember requires a non-Unit return value
