@@ -72,7 +72,7 @@ class RemoteControlSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Enable Remote Control").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Включить").assertIsDisplayed()
     }
 
     @Test
@@ -84,7 +84,7 @@ class RemoteControlSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Port").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Порт").assertIsDisplayed()
     }
 
     @Test
@@ -108,7 +108,7 @@ class RemoteControlSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Bind to localhost").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Localhost").assertIsDisplayed()
     }
 
     @Test
@@ -132,7 +132,7 @@ class RemoteControlSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("ngrok Tunnel").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Туннель ngrok").assertIsDisplayed()
     }
 
     @Test
@@ -156,7 +156,7 @@ class RemoteControlSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Status").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Статус").assertIsDisplayed()
     }
 
     @Test
@@ -172,7 +172,7 @@ class RemoteControlSettingsPaneTest {
         composeTestRule.mainClock.advanceTimeBy(300)
         composeTestRule.waitForIdle()
 
-        // When disabled the status label shows "Stopped"
-        composeTestRule.onNodeWithText("Stopped").assertIsDisplayed()
+        // When disabled the status label shows "Остановлен"
+        composeTestRule.onNodeWithText("Остановлен").assertIsDisplayed()
     }
 }

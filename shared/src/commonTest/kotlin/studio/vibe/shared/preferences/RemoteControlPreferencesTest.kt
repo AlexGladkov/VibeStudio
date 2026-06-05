@@ -64,8 +64,8 @@ class RemoteControlPreferencesTest {
     // ── remoteControlPort ─────────────────────────────────────────────────────
 
     @Test
-    fun remoteControlPort_defaultIs7842() {
-        assertEquals(7842, prefs.remoteControlPort)
+    fun remoteControlPort_defaultIs7942() {
+        assertEquals(7942, prefs.remoteControlPort)
     }
 
     @Test

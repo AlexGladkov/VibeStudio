@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -501,7 +502,6 @@ private fun OpenInBrowserButton(productionURL: String?) {
 @Composable
 private fun RemoteQRButton(server: RemoteControlServer) {
     val isRunning by server.isRunning.collectAsState()
-    if (!isRunning) return
 
     val colors = LocalDSColors.current
     var showPopup by remember { mutableStateOf(false) }
@@ -516,20 +516,12 @@ private fun RemoteQRButton(server: RemoteControlServer) {
             Icon(
                 Icons.Default.QrCode2,
                 contentDescription = "Показать QR-код удалённого подключения",
-                tint = colors.gitAdded,
+                tint = if (isRunning) colors.gitAdded else colors.textMuted,
                 modifier = Modifier.size(DSFont.iconBase.value.dp),
             )
         }
 
         if (showPopup) {
-            val pin = server.currentPin
-            val lanIP = remember {
-                runCatching { InetAddress.getLocalHost().hostAddress }.getOrDefault("127.0.0.1")
-            }
-            val lanUrl = "http://$lanIP:${server.port + 1}/?pin=$pin"
-            val ngrokUrl = server.ngrokTunnelURL
-            val primaryUrl = if (ngrokUrl != null) "$ngrokUrl/?pin=$pin" else lanUrl
-
             Popup(
                 onDismissRequest = { showPopup = false },
                 properties = PopupProperties(focusable = true),
@@ -549,57 +541,83 @@ private fun RemoteQRButton(server: RemoteControlServer) {
                         verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        // QR image
-                        val qrBitmap = remember(primaryUrl) { generateQrBitmap(primaryUrl, 200) }
-                        if (qrBitmap != null) {
-                            androidx.compose.foundation.Image(
-                                bitmap = qrBitmap,
-                                contentDescription = "QR-код",
-                                modifier = Modifier.size(200.dp),
-                            )
-                        }
-
-                        // URL (selectable)
-                        SelectionContainer {
-                            Text(
-                                text = primaryUrl,
-                                style = DSFont.monoSmall,
-                                color = colors.accentPrimary,
-                            )
-                        }
-
-                        Text(
-                            text = "Отсканируйте камерой телефона",
-                            style = DSFont.sidebarItemSmall,
-                            color = colors.textMuted,
-                        )
-
-                        // Copy URL button
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(DSRadius.sm))
-                                .background(colors.buttonPrimaryBg)
-                                .clickable {
-                                    copyToClipboard(primaryUrl)
-                                    showPopup = false
-                                }
-                                .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                        if (!isRunning) {
                             Icon(
-                                Icons.Default.ContentCopy,
+                                Icons.Default.QrCode2,
                                 contentDescription = null,
-                                tint = colors.buttonPrimaryText,
-                                modifier = Modifier.size(DSFont.iconBase.value.dp),
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(48.dp),
                             )
-                            Spacer(Modifier.width(DSSpacing.xs))
                             Text(
-                                text = "Скопировать URL",
-                                style = DSFont.smallButtonLabel,
-                                color = colors.buttonPrimaryText,
+                                text = "Удалённое управление выключено",
+                                style = DSFont.bodyMedium,
+                                color = colors.textPrimary,
+                                textAlign = TextAlign.Center,
                             )
+                            Text(
+                                text = "Включи в Настройках → Удалённое управление",
+                                style = DSFont.sidebarItemSmall,
+                                color = colors.textMuted,
+                                textAlign = TextAlign.Center,
+                            )
+                        } else {
+                            val pin = server.currentPin
+                            val lanIP = remember {
+                                runCatching { InetAddress.getLocalHost().hostAddress }.getOrDefault("127.0.0.1")
+                            }
+                            val lanUrl = "http://$lanIP:${server.port + 1}/?pin=$pin"
+                            val ngrokUrl = server.ngrokTunnelURL
+                            val primaryUrl = if (ngrokUrl != null) "$ngrokUrl/?pin=$pin" else lanUrl
+
+                            val qrBitmap = remember(primaryUrl) { generateQrBitmap(primaryUrl, 200) }
+                            if (qrBitmap != null) {
+                                androidx.compose.foundation.Image(
+                                    bitmap = qrBitmap,
+                                    contentDescription = "QR-код",
+                                    modifier = Modifier.size(200.dp),
+                                )
+                            }
+
+                            SelectionContainer {
+                                Text(
+                                    text = primaryUrl,
+                                    style = DSFont.monoSmall,
+                                    color = colors.accentPrimary,
+                                )
+                            }
+
+                            Text(
+                                text = "Отсканируйте камерой телефона",
+                                style = DSFont.sidebarItemSmall,
+                                color = colors.textMuted,
+                            )
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(DSRadius.sm))
+                                    .background(colors.buttonPrimaryBg)
+                                    .clickable {
+                                        copyToClipboard(primaryUrl)
+                                        showPopup = false
+                                    }
+                                    .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = null,
+                                    tint = colors.buttonPrimaryText,
+                                    modifier = Modifier.size(DSFont.iconBase.value.dp),
+                                )
+                                Spacer(Modifier.width(DSSpacing.xs))
+                                Text(
+                                    text = "Скопировать URL",
+                                    style = DSFont.smallButtonLabel,
+                                    color = colors.buttonPrimaryText,
+                                )
+                            }
                         }
                     }
                 }

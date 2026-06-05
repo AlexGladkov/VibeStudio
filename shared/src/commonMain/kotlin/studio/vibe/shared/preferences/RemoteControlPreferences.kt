@@ -37,10 +37,12 @@ class RemoteControlPreferences(
         set(value) { storage.setBool(Keys.ENABLED, value) }
 
     /**
-     * TCP port for the HTTP/WS server. Default: `7842`. Range: 1024..65535.
+     * TCP port for the HTTP/WS server. Default: `7942` (offset from Swift's
+     * `7842` to allow both apps to run side-by-side during migration).
+     * Range: 1024..65535.
      */
     override var remoteControlPort: Int
-        get() = storage.getInt(Keys.PORT) ?: 7842
+        get() = storage.getInt(Keys.PORT) ?: 7942
         set(value) {
             val clamped = value.coerceIn(1024, 65535)
             storage.setInt(Keys.PORT, clamped)

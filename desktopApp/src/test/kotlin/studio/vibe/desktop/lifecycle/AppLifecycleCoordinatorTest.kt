@@ -85,12 +85,18 @@ class AppLifecycleCoordinatorTest {
 
         val codeSpeakService = mockk<CodeSpeakServicing>(relaxed = true)
         val navCoordinator = AppNavigationCoordinator()
+        val remoteControlPrefs = mockk<studio.vibe.shared.preferences.RemoteControlPreferences>(relaxed = true) {
+            every { remoteControlEnabled } returns false
+        }
+        val remoteControlServer = mockk<studio.vibe.desktop.remote.RemoteControlServer>(relaxed = true)
 
         val coordinator = AppLifecycleCoordinator(
             projectManaging = projectManaging,
             codeSpeakService = codeSpeakService,
             navigationCoordinator = navCoordinator,
             restoreSessionUseCase = restoreUseCase,
+            remoteControlPreferences = remoteControlPrefs,
+            remoteControlServer = remoteControlServer,
             scope = testScope,
         )
 

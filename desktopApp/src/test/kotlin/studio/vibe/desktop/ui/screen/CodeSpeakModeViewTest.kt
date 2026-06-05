@@ -110,7 +110,7 @@ class CodeSpeakModeViewTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Select a spec to view").assertExists()
+        composeTestRule.onNodeWithText("Select a spec to edit").assertExists()
     }
 
     @Test
@@ -139,7 +139,7 @@ class CodeSpeakModeViewTest {
 
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("SPECS").assertExists()
-        composeTestRule.onNodeWithText("Select a spec to view").assertExists()
+        composeTestRule.onNodeWithText("Select a spec to edit").assertExists()
         composeTestRule.onNodeWithText("Run CodeSpeak to see output").assertExists()
     }
 }

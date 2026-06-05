@@ -2,6 +2,7 @@ package studio.vibe.desktop.ui.settings
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.After
 import org.junit.Before
@@ -58,7 +59,9 @@ class GeneralSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("General").assertIsDisplayed()
+        // "Внешний вид" appears as both the pane title and the section header;
+        // use onAllNodesWithText to avoid the "found 2 nodes" error.
+        composeTestRule.onAllNodesWithText("Внешний вид")[0].assertIsDisplayed()
     }
 
     @Test
@@ -70,7 +73,7 @@ class GeneralSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Terminal").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Терминал").assertIsDisplayed()
     }
 
     @Test
@@ -82,7 +85,7 @@ class GeneralSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Font size").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Шрифт терминала").assertIsDisplayed()
     }
 
     @Test
@@ -94,7 +97,7 @@ class GeneralSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Behaviour").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Поведение").assertIsDisplayed()
     }
 
     @Test
@@ -106,7 +109,7 @@ class GeneralSettingsPaneTest {
         }
 
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("Confirm tab close").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Подтверждать закрытие").assertIsDisplayed()
     }
 
     @Test
