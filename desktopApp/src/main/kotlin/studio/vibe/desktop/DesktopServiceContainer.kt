@@ -10,10 +10,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
@@ -235,22 +237,35 @@ class DesktopServiceContainer {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun dispose() {
-        // Final synchronous flush so unsaved in-memory edits hit disk before exit.
-        runBlocking { projectStore.save() }
-        gitStatusPoller.stopPolling()
-        // Dispose ViewModels — use disposeAndJoin() so each child scope is fully cancelled
-        // and all in-flight coroutines have completed before the parent scope is cancelled.
-        // fileTreeViewModel is always initialized (eager).
-        // The lazy VMs are safe to access here: if never initialized the lazy block runs
-        // but scope.cancel() follows immediately, so no work is started.
-        runBlocking { fileTreeViewModel.disposeAndJoin() }
-        runBlocking { toolbarViewModel.disposeAndJoin() }
-        runBlocking { gitSidebarViewModel.disposeAndJoin() }
-        fileSystemWatchingService.unwatchAll()
-        // Stop Remote Control server before terminal service so bridges can detach cleanly.
-        // runBlocking ensures stopAsync() completes (Ktor engines stopped, ngrok killed, ports
-        // released) before dispose() cancels the serverScope.
-        runBlocking { remoteControlServer.stopAsync() }
+        // scope uses Dispatchers.Main — calling runBlocking on the Main thread would deadlock
+        // because the suspended children (join) can never resume while Main is blocked.
+        // Fix: dispatch the entire shutdown block to Dispatchers.Default, and parallelize
+        // the three independent ViewModel disposals inside a single coroutineScope{} so they
+        // run concurrently instead of sequentially.
+        runBlocking(Dispatchers.Default) {
+            // Final synchronous flush so unsaved in-memory edits hit disk before exit.
+            projectStore.save()
+
+            gitStatusPoller.stopPolling()
+
+            // Dispose ViewModels in parallel — each disposeAndJoin() cancels its own child
+            // scope and awaits completion of in-flight coroutines.
+            // fileTreeViewModel is always initialized (eager).
+            // The lazy VMs are safe to access here: if never initialized the lazy block runs,
+            // but scope.cancel() follows immediately so no work is started.
+            coroutineScope {
+                launch { fileTreeViewModel.disposeAndJoin() }
+                launch { toolbarViewModel.disposeAndJoin() }
+                launch { gitSidebarViewModel.disposeAndJoin() }
+            }
+
+            fileSystemWatchingService.unwatchAll()
+
+            // Stop Remote Control server before terminal service so bridges can detach cleanly.
+            // stopAsync() completes (Ktor engines stopped, ngrok killed, ports released)
+            // before we cancel the parent scope.
+            remoteControlServer.stopAsync()
+        }
         remoteControlServer.dispose()
         terminalService.dispose()   // kills all live PTY processes before scope cancel
         httpClient.close()

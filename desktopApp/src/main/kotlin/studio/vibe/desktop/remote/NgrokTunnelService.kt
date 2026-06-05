@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -70,28 +72,41 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
     @Volatile private var pollJob: Job? = null
     @Volatile private var stopRequested = false
 
+    // Guards the start/stop prelude so the two operations are mutually exclusive.
+    // Without this lock, stop() can set stopRequested=true between start()'s
+    // _isRunning.value check and the stopRequested=false reset (TOCTOU).
+    private val lifecycleMutex = Mutex()
+
     // ── Start ──────────────────────────────────────────────────────────────────
 
     /**
      * Start the ngrok tunnel for [httpPort].
      *
+     * The _isRunning check and stopRequested reset are performed inside
+     * [lifecycleMutex] so a concurrent [stop] cannot slip in between the two
+     * writes (TOCTOU fix).
+     *
      * @param httpPort  Local port to tunnel (e.g. 7842).
      * @param authtoken ngrok authtoken. Pass empty string to use system config.
      */
     fun start(httpPort: Int, authtoken: String = "") {
-        if (_isRunning.value) return
-
-        stopRequested = false
-        _error.value = null
-        _tunnelURL.value = null
-
-        val ngrokPath = resolveNgrok() ?: run {
-            _error.value = "ngrok not found. Install: brew install ngrok"
-            log.warning("NgrokTunnelService: ngrok binary not found in trusted directories")
-            return
-        }
-
         scope.launch(Dispatchers.IO) {
+            val ngrokPath = lifecycleMutex.withLock {
+                // Re-check under lock: stop() might have run between the caller's
+                // decision to call start() and our acquiring the lock.
+                if (_isRunning.value) return@launch
+
+                stopRequested = false
+                _error.value = null
+                _tunnelURL.value = null
+
+                resolveNgrok() ?: run {
+                    _error.value = "ngrok not found. Install: brew install ngrok"
+                    log.warning("NgrokTunnelService: ngrok binary not found in trusted directories")
+                    return@launch
+                }
+            }
+
             // Kill any stale ngrok process from a previous VibeStudio session.
             killPreviousOwnedProcess()
             delay(500)
@@ -111,40 +126,46 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
     /**
      * Stop the ngrok tunnel and terminate the subprocess.
      *
+     * The stopRequested flag and _isRunning reset are performed inside
+     * [lifecycleMutex] so a concurrent [start] cannot slip in and clear
+     * stopRequested after we set it (TOCTOU fix).
+     *
      * Sends SIGTERM first, then SIGKILL after 5 seconds if still running.
      */
     fun stop() {
-        // 1. Signal exit-watcher coroutine first — it gates on stopRequested.
-        stopRequested = true
-        // 2. Clear observable state so UI reacts immediately.
-        _isRunning.value = false
+        scope.launch(Dispatchers.IO) {
+            val proc = lifecycleMutex.withLock {
+                // 1. Signal exit-watcher coroutine first — it gates on stopRequested.
+                stopRequested = true
+                // 2. Clear observable state so UI reacts immediately.
+                _isRunning.value = false
 
-        pollJob?.cancel()
-        pollJob = null
+                pollJob?.cancel()
+                pollJob = null
 
-        val proc = process
-        if (proc != null && proc.isAlive) {
-            // 3. Send SIGTERM synchronously.
-            proc.destroy()
-            // 4. Escalation coroutine runs after SIGTERM.
-            scope.launch(Dispatchers.IO) {
+                // 3. Capture and null out process under lock so start() cannot
+                //    observe a partially-stopped state.
+                val captured = process
+                process = null
+                captured
+            }
+
+            if (proc != null && proc.isAlive) {
+                // 4. Send SIGTERM.
+                proc.destroy()
+                // 5. Escalation after SIGTERM.
                 delay(5_000)
                 if (proc.isAlive) {
                     proc.destroyForcibly()  // SIGKILL
                     log.warning("NgrokTunnelService: escalated to SIGKILL")
                 }
             }
+
+            removePidFile()
+            _tunnelURL.value = null
+            _error.value = null
+            log.info("NgrokTunnelService: stopped")
         }
-
-        // 5. Null out process LAST — after destroy() returns synchronously.
-        //    Exit-watcher coroutine already sees stopRequested=true and will not
-        //    re-enter the unexpected-exit branch.
-        process = null
-
-        removePidFile()
-        _tunnelURL.value = null
-        _error.value = null
-        log.info("NgrokTunnelService: stopped")
     }
 
     // ── Private: launch ────────────────────────────────────────────────────────

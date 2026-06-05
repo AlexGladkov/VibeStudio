@@ -4,23 +4,31 @@
 // macOS 14+, Swift 5.10
 
 import Foundation
+import os
 import VibeStudioShared
+
+private let bridgeLog = Logger(subsystem: "studio.vibe", category: "KMPDisposable")
 
 /// Bridge KMP `BaseViewModel` to the Swift `Disposable` contract.
 ///
-/// `disposeAndJoin()` is SKIE-generated as `async throws`. We swallow any
-/// cancellation error here because:
-/// - Kotlin's `CoroutineScope.cancel()` is documented as idempotent.
-/// - The only error this call can surface is a Kotlin `CancellationException`,
-///   which is the expected outcome of disposal — propagating it would force
-///   every call site to handle a benign condition.
+/// `disposeAndJoin()` is SKIE-generated as `async throws`. We swallow
+/// `CancellationException` (the only expected throw from Kotlin scope teardown)
+/// and log any unexpected error at `.error` level so it is surfaced in
+/// Console.app and `log stream` without crashing the caller.
 extension VibeStudioShared.BaseViewModel: @retroactive Disposable {
     /// Cancel the underlying Kotlin scope and await completion of in-flight work.
     public func dispose() async {
         do {
             try await disposeAndJoin()
         } catch {
-            // Cancellation during teardown is expected — see doc above.
+            // CancellationException is the documented, expected outcome of disposal.
+            // Any other error is unexpected and should be visible to engineers.
+            let desc = String(describing: error)
+            if desc.contains("CancellationException") {
+                // Expected — swallow silently.
+            } else {
+                bridgeLog.error("BaseViewModel.dispose() unexpected error: \(desc, privacy: .public)")
+            }
         }
     }
 }

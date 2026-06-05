@@ -2,6 +2,7 @@ package studio.vibe.shared.service.agent
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,14 +72,22 @@ class AgentAvailabilityServiceImpl(
     }
 
     override fun refreshAll() {
+        // The outer scope.launch is removed to fix a subtle race:
+        // previously refreshJob?.cancel() executed, but the new refreshJob assignment
+        // happened inside the outer launch — meaning a concurrent caller could see
+        // the old refreshJob still alive when the outer launch hadn't run yet.
+        //
+        // Fix: single scope.launch that acquires the mutex, cancels+joins the previous
+        // job (ensuring it has fully stopped), then launches doRefresh() as a child of
+        // the current coroutine so it is tracked correctly.
         scope.launch {
             refreshMutex.withLock {
                 lastRefreshAt = Clock.System.now()
-                refreshJob?.cancel()
-                // Launch the actual probe as a child and track it for cancellation.
-                refreshJob = scope.launch {
-                    doRefresh()
-                }
+                refreshJob?.cancelAndJoin()
+                // Child launch inherits the current coroutine's scope so cancellation
+                // propagates correctly, and the assignment is visible to subsequent
+                // callers entering this mutex.
+                refreshJob = launch { doRefresh() }
             }
         }
     }

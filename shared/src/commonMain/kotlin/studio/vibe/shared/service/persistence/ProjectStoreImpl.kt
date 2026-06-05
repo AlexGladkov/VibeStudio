@@ -69,7 +69,19 @@ class ProjectStoreImpl(
             recentHistory = history,
             recentProjects = recents,
         )
-    }.stateIn(scope, SharingStarted.Eagerly, ProjectsState.EMPTY)
+    }.stateIn(
+        scope,
+        SharingStarted.Eagerly,
+        // Build initial value from the MutableStateFlow fields whose values are
+        // known at construction time — avoids the EMPTY flash that occurred before
+        // all four upstream flows emitted their first value to combine().
+        ProjectsState(
+            projects = _projects.value,
+            activeProjectId = _activeProjectId.value,
+            recentHistory = _recentHistory.value,
+            recentProjects = _recentProjects.value,
+        ),
+    )
 
     // O(1) lookup maps.
     //
@@ -116,8 +128,13 @@ class ProjectStoreImpl(
                 path = path,
             )
 
-            _projects.update { it + project }
-            rebuildIndex()
+            // Rebuild index INSIDE the update lambda so the new index is written
+            // before _projects publishes the new list to observers (reordering fix).
+            _projects.update { current ->
+                val next = current + project
+                rebuildIndex(next)
+                next
+            }
             scheduleSaveProjects()
 
             project
@@ -135,9 +152,11 @@ class ProjectStoreImpl(
                 val updated = current.filter { it.id != id }
                 removedActive = _activeProjectId.value == id
                 firstRemaining = updated.firstOrNull()?.id
+                // Rebuild index inside the update lambda so it is consistent with
+                // the new list before _projects publishes (reordering fix).
+                rebuildIndex(updated)
                 updated
             }
-            rebuildIndex()
             if (removedActive) {
                 _activeProjectId.value = firstRemaining
             }
@@ -154,8 +173,8 @@ class ProjectStoreImpl(
             }
             val updated = current.toMutableList()
             updated[index] = mutate(current[index])
+            rebuildIndex(updated)
             _projects.value = updated
-            rebuildIndex()
             scheduleSaveProjects()
         }
     }
@@ -171,8 +190,8 @@ class ProjectStoreImpl(
                 .coerceIn(0, current.size)
 
             current.addAll(insertAt, moving)
+            rebuildIndex(current)
             _projects.value = current
-            rebuildIndex()
             scheduleSaveProjects()
         }
     }
@@ -195,8 +214,18 @@ class ProjectStoreImpl(
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private fun rebuildIndex() {
-        val list = _projects.value
+    /**
+     * Rebuild lookup indexes from [list].
+     *
+     * Always called with the authoritative list BEFORE or DURING the
+     * corresponding [_projects] emission so that readers who observe the new
+     * [_projects.value] never see a stale index.
+     *
+     * When called from inside a [_projects.update] lambda, pass the `next`
+     * list rather than reading [_projects.value] — the update has not yet
+     * been published at that point.
+     */
+    private fun rebuildIndex(list: List<Project> = _projects.value) {
         indexById = list.associateBy { it.id }
         indexByPath = list.associateBy { it.path.path }
         refreshRecentProjects()
@@ -226,8 +255,8 @@ class ProjectStoreImpl(
             val bytes = persistence.readFile(projectsFile) ?: return
             val text = bytes.decodeToString()
             val loaded: List<Project> = json.decodeFromString(text)
+            rebuildIndex(loaded)
             _projects.value = loaded
-            rebuildIndex()
         } catch (e: Exception) {
             // Migration from Swift format may cause parse errors on first load.
             // Start fresh; the projects.json will be overwritten with Kotlin format on next save.
