@@ -14,8 +14,15 @@ data class TraceabilityEntry(
     val linkedFiles: List<FilePath>,
 )
 
+/** Inverse of [TraceabilityEntry]: which specs reference a given file. */
+data class FileTraceabilityEntry(
+    val filePath: FilePath,
+    val referencedBySpecs: List<String>,
+)
+
 data class TraceabilityPanelState(
     val entries: List<TraceabilityEntry> = emptyList(),
+    val fileEntries: List<FileTraceabilityEntry> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -32,7 +39,8 @@ class TraceabilityPanelViewModel(
             _state.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 val entries = buildTraceabilityMap(projectPath)
-                _state.update { it.copy(entries = entries, isLoading = false) }
+                val fileEntries = buildFileInverseMap(entries)
+                _state.update { it.copy(entries = entries, fileEntries = fileEntries, isLoading = false) }
             }.onFailure { e ->
                 _state.update { it.copy(isLoading = false, errorMessage = e.message) }
             }
@@ -45,6 +53,19 @@ class TraceabilityPanelViewModel(
 
     fun clearError() {
         _state.update { it.copy(errorMessage = null) }
+    }
+
+    private fun buildFileInverseMap(entries: List<TraceabilityEntry>): List<FileTraceabilityEntry> {
+        // Invert: file → list of spec names that reference it
+        val fileToSpecs = mutableMapOf<FilePath, MutableList<String>>()
+        for (entry in entries) {
+            for (file in entry.linkedFiles) {
+                fileToSpecs.getOrPut(file) { mutableListOf() }.add(entry.specName)
+            }
+        }
+        return fileToSpecs.entries
+            .map { (file, specs) -> FileTraceabilityEntry(filePath = file, referencedBySpecs = specs.sorted()) }
+            .sortedBy { it.filePath.name }
     }
 
     private suspend fun buildTraceabilityMap(projectPath: FilePath): List<TraceabilityEntry> {

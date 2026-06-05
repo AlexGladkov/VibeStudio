@@ -3,6 +3,7 @@
 package studio.vibe.desktop.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,8 +18,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TextSnippet
@@ -33,10 +37,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +56,7 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.shared.viewmodel.FileTraceabilityEntry
 import studio.vibe.shared.viewmodel.TraceabilityEntry
 import studio.vibe.shared.viewmodel.TraceabilityPanelViewModel
 
@@ -108,8 +117,11 @@ public fun TraceabilityPanelView(
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when {
                 state.isLoading -> TraceabilityLoadingState()
-                state.entries.isEmpty() -> TraceabilityEmptyState()
-                else -> TraceabilityContent(entries = state.entries)
+                state.entries.isEmpty() && state.fileEntries.isEmpty() -> TraceabilityEmptyState()
+                else -> TraceabilityContent(
+                    entries = state.entries,
+                    fileEntries = state.fileEntries,
+                )
             }
         }
 
@@ -185,37 +197,87 @@ private fun TraceabilityHeader(
 // ── Content ───────────────────────────────────────────────────────────────────
 
 @Composable
-private fun TraceabilityContent(entries: List<TraceabilityEntry>) {
+private fun TraceabilityContent(
+    entries: List<TraceabilityEntry>,
+    fileEntries: List<FileTraceabilityEntry>,
+) {
+    var specsExpanded by rememberSaveable { mutableStateOf(true) }
+    var filesExpanded by rememberSaveable { mutableStateOf(true) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xs),
     ) {
-        // Section header
-        item {
-            TraceabilitySectionHeader(title = "SPECS \u2192 FILES")
+        // \u2500\u2500 SPECS \u2192 FILES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        item(key = "header-specs-files") {
+            CollapsibleSectionHeader(
+                title = "SPECS \u2192 FILES",
+                count = entries.size,
+                expanded = specsExpanded,
+                onToggle = { specsExpanded = !specsExpanded },
+            )
+        }
+        if (specsExpanded) {
+            items(items = entries, key = { "sf-${it.specName}" }) { entry ->
+                TraceabilityEntryCard(entry = entry)
+            }
         }
 
-        items(
-            items = entries,
-            key = { it.specName },
-        ) { entry ->
-            TraceabilityEntryCard(entry = entry)
+        // \u2500\u2500 FILES \u2192 SPECS \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        if (fileEntries.isNotEmpty()) {
+            item(key = "header-files-specs") {
+                CollapsibleSectionHeader(
+                    title = "FILES \u2192 SPECS",
+                    count = fileEntries.size,
+                    expanded = filesExpanded,
+                    onToggle = { filesExpanded = !filesExpanded },
+                )
+            }
+            if (filesExpanded) {
+                items(items = fileEntries, key = { "fs-${it.filePath.path}" }) { entry ->
+                    FileTraceabilityCard(entry = entry)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TraceabilitySectionHeader(title: String) {
-    Text(
-        text = title,
-        style = DSFont.sidebarSection,
-        color = LocalDSColors.current.textMuted,
+private fun CollapsibleSectionHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val chevronRotation by animateFloatAsState(if (expanded) 90f else 0f)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onToggle)
             .padding(horizontal = DSSpacing.xs, vertical = DSSpacing.xs)
             .padding(top = DSSpacing.sm),
-    )
+    ) {
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = LocalDSColors.current.textMuted,
+            modifier = Modifier.size(12.dp).rotate(chevronRotation),
+        )
+        Spacer(Modifier.width(DSSpacing.xxs))
+        Text(
+            text = title,
+            style = DSFont.sidebarSection,
+            color = LocalDSColors.current.textMuted,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = count.toString(),
+            style = DSFont.sidebarItemSmall,
+            color = LocalDSColors.current.textDisabled,
+        )
+    }
 }
 
 @Composable
@@ -267,6 +329,68 @@ private fun TraceabilityEntryCard(entry: TraceabilityEntry) {
                 )
                 Text(
                     text = filePath.name,
+                    style = DSFont.sidebarItemSmall,
+                    color = LocalDSColors.current.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(DSSpacing.xxs))
+    }
+}
+
+@Composable
+private fun FileTraceabilityCard(entry: FileTraceabilityEntry) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = DSSpacing.xs)
+            .clip(RoundedCornerShape(DSRadius.sm))
+            .background(LocalDSColors.current.surfaceOverlay.copy(alpha = 0.4f)),
+    ) {
+        // File name row
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DSLayout.gitFileRowHeight)
+                .padding(horizontal = DSSpacing.xs),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Description,
+                contentDescription = null,
+                tint = LocalDSColors.current.textSecondary,
+                modifier = Modifier.size(12.dp),
+            )
+            Spacer(Modifier.width(DSSpacing.xs))
+            Text(
+                text = entry.filePath.name,
+                style = DSFont.sidebarItem,
+                color = LocalDSColors.current.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        // Referencing specs
+        entry.referencedBySpecs.forEach { specName ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = DSSpacing.md, end = DSSpacing.xs, bottom = DSSpacing.xxs),
+            ) {
+                Text(
+                    text = "→",
+                    style = DSFont.sidebarItemSmall,
+                    color = LocalDSColors.current.agentCodeSpeak,
+                    modifier = Modifier.width(DSLayout.statusLetterWidth),
+                )
+                Text(
+                    text = specName,
                     style = DSFont.sidebarItemSmall,
                     color = LocalDSColors.current.textSecondary,
                     maxLines = 1,

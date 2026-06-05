@@ -12,6 +12,7 @@ import studio.vibe.shared.contract.UrlConverting
 import studio.vibe.shared.contract.UrlOpening
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
+import studio.vibe.shared.model.GitDiffStat
 import studio.vibe.shared.model.GitStatus
 import studio.vibe.shared.service.git.GitURLConverter
 import studio.vibe.shared.viewmodel.git.BranchActionsHandler
@@ -24,6 +25,7 @@ import kotlin.uuid.Uuid
 data class GitSidebarState(
     val gitExpandedProjects: Set<Uuid> = emptySet(),
     val projectGitStatuses: Map<Uuid, GitStatus> = emptyMap(),
+    val projectDiffStats: Map<Uuid, Map<String, GitDiffStat>> = emptyMap(),
     val projectBranches: Map<Uuid, List<GitBranch>> = emptyMap(),
     val nonGitProjects: Set<Uuid> = emptySet(),
     val remoteUnavailableProjects: Set<Uuid> = emptySet(),
@@ -108,9 +110,11 @@ class GitSidebarViewModel(
                 }
                 val status = gitService.status(at = path)
                 val branches = gitService.branches(at = path)
+                val diffStats = runCatching { gitService.diffStats(at = path) }.getOrDefault(emptyMap())
                 _state.update { s ->
                     s.copy(
                         projectGitStatuses = s.projectGitStatuses + (projectId to status),
+                        projectDiffStats = s.projectDiffStats + (projectId to diffStats),
                         projectBranches = s.projectBranches + (projectId to branches),
                         nonGitProjects = s.nonGitProjects - projectId,
                     )
@@ -150,6 +154,7 @@ class GitSidebarViewModel(
             s.copy(
                 gitExpandedProjects = s.gitExpandedProjects - projectId,
                 projectGitStatuses = s.projectGitStatuses - projectId,
+                projectDiffStats = s.projectDiffStats - projectId,
                 projectBranches = s.projectBranches - projectId,
                 nonGitProjects = s.nonGitProjects - projectId,
                 remoteUnavailableProjects = s.remoteUnavailableProjects - projectId,

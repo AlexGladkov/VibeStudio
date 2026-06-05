@@ -52,6 +52,7 @@ import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.shared.model.GitDiffStat
 import studio.vibe.shared.model.GitFile
 import studio.vibe.shared.model.GitFileStatus
 
@@ -78,6 +79,7 @@ fun GitPanel(
     }
 
     val status = activeProjectId?.let { gitState.projectGitStatuses[it] }
+    val diffStats = activeProjectId?.let { gitState.projectDiffStats[it] } ?: emptyMap()
     val stagedFiles = status?.stagedFiles ?: emptyList()
     val unstagedFiles = status?.unstagedFiles ?: emptyList()
     val untrackedFiles = status?.untrackedFiles ?: emptyList()
@@ -158,6 +160,7 @@ fun GitPanel(
                     items(stagedFiles, key = { "s-${it.path}" }) { file ->
                         GitFileRow(
                             file = file,
+                            diffStat = diffStats[file.path],
                             isStaged = true,
                             onOpenDiff = {
                                 diffSheetFile = file
@@ -194,6 +197,7 @@ fun GitPanel(
                     items(unstagedFiles, key = { "u-${it.path}" }) { file ->
                         GitFileRow(
                             file = file,
+                            diffStat = diffStats[file.path],
                             isStaged = false,
                             onOpenDiff = {
                                 diffSheetFile = file
@@ -227,6 +231,7 @@ fun GitPanel(
                     items(untrackedFiles, key = { "t-${it.path}" }) { file ->
                         GitFileRow(
                             file = file,
+                            diffStat = diffStats[file.path],
                             isStaged = false,
                             onOpenDiff = {
                                 diffSheetFile = file
@@ -307,6 +312,7 @@ private fun SectionHeader(label: String, count: Int, accentColor: Color) {
 @Composable
 private fun GitFileRow(
     file: GitFile,
+    diffStat: GitDiffStat?,
     isStaged: Boolean,
     onOpenDiff: () -> Unit,
     onStageToggle: () -> Unit,
@@ -343,6 +349,26 @@ private fun GitFileRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+
+            // +N/-N stats
+            if (diffStat != null && (diffStat.added > 0 || diffStat.deleted > 0)) {
+                Spacer(Modifier.width(DSSpacing.xs))
+                if (diffStat.added > 0) {
+                    Text(
+                        text = "+${diffStat.added}",
+                        style = DSFont.gitStatus,
+                        color = LocalDSColors.current.gitAdded,
+                    )
+                }
+                if (diffStat.deleted > 0) {
+                    if (diffStat.added > 0) Spacer(Modifier.width(2.dp))
+                    Text(
+                        text = "-${diffStat.deleted}",
+                        style = DSFont.gitStatus,
+                        color = LocalDSColors.current.gitDeleted,
+                    )
+                }
+            }
 
             Spacer(Modifier.width(DSSpacing.xs))
 

@@ -35,8 +35,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +69,12 @@ fun WelcomeView(
         state
     } ?: emptyList()
 
+    val openProjects = projectStore?.projects?.let {
+        val state by it.collectAsState()
+        state.sortedByDescending { p -> p.lastOpened }
+    } ?: emptyList()
+
+    var openError by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     Box(
@@ -160,7 +168,56 @@ fun WelcomeView(
                 }
             }
 
-            // Recent projects section
+            // Inline open error
+            if (openError != null) {
+                Spacer(Modifier.height(DSSpacing.sm))
+                Text(
+                    text = openError!!,
+                    style = DSFont.sidebarItemSmall,
+                    color = LocalDSColors.current.gitDeleted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            // PROJECTS section — currently-open projects
+            if (openProjects.isNotEmpty()) {
+                Spacer(Modifier.height(DSSpacing.xl))
+
+                Text(
+                    text = "PROJECTS",
+                    style = DSFont.sidebarSection,
+                    color = LocalDSColors.current.textSecondary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = DSSpacing.xxs),
+                )
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(DSSpacing.xs),
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    items(openProjects, key = { it.id }) { project ->
+                        RecentProjectRow(
+                            project = project,
+                            onClick = {
+                                if (projectStore != null) {
+                                    openError = null
+                                    coroutineScope.launch {
+                                        runCatching {
+                                            projectStore.setActiveProjectId(project.id)
+                                        }.onFailure { e ->
+                                            openError = e.message ?: "Failed to open project"
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+
+            // RECENT section — history of previously opened projects
             if (recentProjects.isNotEmpty()) {
                 Spacer(Modifier.height(DSSpacing.xl))
 
@@ -182,10 +239,13 @@ fun WelcomeView(
                             project = project,
                             onClick = {
                                 if (projectStore != null) {
+                                    openError = null
                                     coroutineScope.launch {
                                         runCatching {
                                             val opened = projectStore.addProject(project.path)
                                             projectStore.setActiveProjectId(opened.id)
+                                        }.onFailure { e ->
+                                            openError = e.message ?: "Failed to open project"
                                         }
                                     }
                                 }
@@ -193,7 +253,9 @@ fun WelcomeView(
                         )
                     }
                 }
-            } else {
+            }
+
+            if (openProjects.isEmpty() && recentProjects.isEmpty()) {
                 Spacer(Modifier.weight(1f))
             }
         }
