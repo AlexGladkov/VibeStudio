@@ -14,11 +14,14 @@ import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.APIKeyResolving
 import studio.vibe.shared.contract.AgentAvailabilityChecking
 import studio.vibe.shared.contract.AgentAvailabilityStatus
+import studio.vibe.shared.contract.EnvVarResolving
+import studio.vibe.shared.contract.PathResolving
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.service.assistant.AssistantLauncherImpl
 import studio.vibe.shared.usecase.AssistantLauncher
+
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -65,24 +68,27 @@ class ToolbarViewModel(
     parentScope: CoroutineScope,
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
     assistantLauncher: AssistantLauncher? = null,
+    /**
+     * Platform hook for resolving the user's home directory.
+     * JVM: `System.getProperty("user.home")`. Injected so platform code stays out of commonMain.
+     */
+    private val pathResolving: PathResolving? = null,
+    /**
+     * Platform hook for reading process environment variables.
+     * When provided, it is forwarded to [launcher] so env-var API keys are resolved
+     * via the process environment on JVM (same behaviour as the previous callback var).
+     */
+    private val envVarResolving: EnvVarResolving? = null,
 ) : BaseViewModel(parentScope) {
 
-    /**
-     * Keep a typed reference so we can call [AssistantLauncherImpl]-only helpers
-     * (sessionIdFor, notifySessionExited, removeProject) without coupling the
-     * interface to ViewModel internals.
-     */
-    private val launcher: AssistantLauncherImpl = when (assistantLauncher) {
-        is AssistantLauncherImpl -> assistantLauncher
-        else -> AssistantLauncherImpl(
-            projectManaging = projectManaging,
-            terminalSessionManaging = terminalSessionManaging,
-            agentRegistry = agentRegistry,
-            agentAvailabilityChecking = agentAvailabilityChecking,
-            apiKeyResolving = apiKeyResolving,
-            blockingDispatcher = blockingDispatcher,
-        )
-    }
+    private val launcher: AssistantLauncher = assistantLauncher ?: AssistantLauncherImpl(
+        projectManaging = projectManaging,
+        terminalSessionManaging = terminalSessionManaging,
+        agentRegistry = agentRegistry,
+        agentAvailabilityChecking = agentAvailabilityChecking,
+        apiKeyResolving = apiKeyResolving,
+        blockingDispatcher = blockingDispatcher,
+    )
 
     private val _projectData = MutableStateFlow(ToolbarProjectData())
 
@@ -91,21 +97,14 @@ class ToolbarViewModel(
     private val _state = MutableStateFlow(ToolbarState())
     val state: StateFlow<ToolbarState> = _state.asStateFlow()
 
-    var onResolveHomePath: (() -> String)? = null
-
-    /**
-     * Setting this forwards the resolver to [launcher] so env-var API keys are
-     * resolved via process environment on JVM (same as before the refactoring).
-     */
-    var onResolveEnvVar: ((String) -> String?)? = null
-        set(value) {
-            field = value
-            launcher.onResolveEnvVar = value
-        }
-
     private fun defaultAgent(): AIAgent? = agentRegistry.snapshot().firstOrNull()
 
     init {
+        // Forward env-var resolver to launcher so process environment is used on JVM.
+        if (envVarResolving != null) {
+            launcher.onResolveEnvVar = { name -> envVarResolving.resolve(name) }
+        }
+
         // Collect reactive availability updates — no polling needed.
         availabilityJob = scope.launch {
             agentAvailabilityChecking.availabilityFlow.collect { current ->

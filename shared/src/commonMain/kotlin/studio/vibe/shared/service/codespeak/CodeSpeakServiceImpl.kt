@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import studio.vibe.shared.contract.CodeSpeakServicing
 import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
@@ -16,21 +17,21 @@ private const val CODESPEAK_CONFIG_FILE = "codespeak.json"
 @OptIn(ExperimentalUuidApi::class)
 class CodeSpeakServiceImpl(
     private val persistence: PersistenceStore,
-) {
+) : CodeSpeakServicing {
 
     // Whether each project has a codespeak.json at its root
     private val _projectHasConfig = MutableStateFlow<Map<Uuid, Boolean>>(emptyMap())
-    val projectHasConfig: StateFlow<Map<Uuid, Boolean>> = _projectHasConfig.asStateFlow()
+    override val projectHasConfig: StateFlow<Map<Uuid, Boolean>> = _projectHasConfig.asStateFlow()
 
     // Latest SpecStats per project
     private val _projectStats = MutableStateFlow<Map<Uuid, SpecStats>>(emptyMap())
-    val projectStats: StateFlow<Map<Uuid, SpecStats>> = _projectStats.asStateFlow()
+    override val projectStats: StateFlow<Map<Uuid, SpecStats>> = _projectStats.asStateFlow()
 
     /**
      * Checks whether the given project contains a `codespeak.json` at its root
      * and updates [projectHasConfig] accordingly.
      */
-    suspend fun checkConfig(project: Project) {
+    override suspend fun checkConfig(project: Project) {
         val configPath = FilePath("${project.path.path}/$CODESPEAK_CONFIG_FILE")
         val exists = persistence.fileExists(configPath)
         _projectHasConfig.update { current -> current + (project.id to exists) }
@@ -39,7 +40,7 @@ class CodeSpeakServiceImpl(
     /**
      * Updates [SpecStats] for a given project.
      */
-    fun updateStats(stats: SpecStats, projectId: Uuid) {
+    override fun updateStats(stats: SpecStats, projectId: Uuid) {
         _projectStats.update { current -> current + (projectId to stats) }
     }
 
@@ -47,13 +48,13 @@ class CodeSpeakServiceImpl(
      * Returns true if the project has been confirmed to have a codespeak.json.
      * Returns false if the project is unknown (not yet checked).
      */
-    fun isCodeSpeakProject(projectId: Uuid): Boolean =
+    override fun isCodeSpeakProject(projectId: Uuid): Boolean =
         _projectHasConfig.value[projectId] == true
 
     /**
      * Removes cached config and stats entries for the given project.
      */
-    fun clearCache(projectId: Uuid) {
+    override fun clearCache(projectId: Uuid) {
         _projectHasConfig.update { current -> current - projectId }
         _projectStats.update { current -> current - projectId }
     }

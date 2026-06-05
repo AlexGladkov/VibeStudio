@@ -37,4 +37,33 @@ interface AssistantLauncher {
      * No-op if the agent is not currently running in that project.
      */
     suspend fun stop(projectId: Uuid, agentId: String): Result<Unit>
+
+    /**
+     * Returns the session UUID for a currently running agent, or null if not running.
+     *
+     * Used by [ToolbarViewModel] to populate [ToolbarState.activeAgentSessionId].
+     */
+    fun sessionIdFor(projectId: Uuid, agentId: String): Uuid?
+
+    /**
+     * Notifies the launcher that a PTY process has exited so internal state stays
+     * consistent with actual process state.
+     *
+     * Should be called from the [TerminalSessionManaging.sessionEvents] collector
+     * on [TerminalSessionEvent.ProcessExited].
+     */
+    fun notifySessionExited(projectId: Uuid, sessionId: Uuid)
+
+    /**
+     * Cleans up all tracked state for [projectId] when a project is removed.
+     */
+    fun removeProject(projectId: Uuid)
+
+    /**
+     * Optional platform hook for resolving environment variables (e.g. process env on JVM).
+     *
+     * When set, the launcher uses this before falling back to [APIKeyResolving].
+     * Default: null (no override).
+     */
+    var onResolveEnvVar: ((String) -> String?)?
 }

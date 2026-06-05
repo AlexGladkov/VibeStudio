@@ -6,8 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import studio.vibe.shared.contract.CodeSpeakServicing
 import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.service.codespeak.CodeSpeakServiceImpl
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
 import studio.vibe.shared.usecase.RestoreSessionUseCase
 
@@ -27,7 +27,7 @@ import studio.vibe.shared.usecase.RestoreSessionUseCase
  */
 class AppLifecycleCoordinator(
     private val projectManaging: ProjectManaging,
-    private val codeSpeakService: CodeSpeakServiceImpl,
+    private val codeSpeakService: CodeSpeakServicing,
     private val navigationCoordinator: AppNavigationCoordinator,
     private val restoreSessionUseCase: RestoreSessionUseCase,
     private val scope: CoroutineScope,

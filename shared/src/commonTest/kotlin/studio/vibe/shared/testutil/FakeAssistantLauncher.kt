@@ -80,6 +80,30 @@ class FakeAssistantLauncher : AssistantLauncher {
         return stopResult
     }
 
+    // ── AssistantLauncher lifecycle helpers ───────────────────────────────────
+
+    override fun sessionIdFor(projectId: Uuid, agentId: String): Uuid? =
+        sessions[projectId]?.get(agentId)
+
+    override fun notifySessionExited(projectId: Uuid, sessionId: Uuid) {
+        val forProject = sessions[projectId] ?: return
+        val agentId = forProject.entries.firstOrNull { it.value == sessionId }?.key ?: return
+        forProject.remove(agentId)
+        if (forProject.isEmpty()) sessions.remove(projectId)
+        _runningByProject.update { current ->
+            val remaining = (current[projectId] ?: emptySet()) - agentId
+            if (remaining.isEmpty()) current - projectId
+            else current + (projectId to remaining)
+        }
+    }
+
+    override fun removeProject(projectId: Uuid) {
+        sessions.remove(projectId)
+        _runningByProject.update { it - projectId }
+    }
+
+    override var onResolveEnvVar: ((String) -> String?)? = null
+
     // ── Test helpers ──────────────────────────────────────────────────────────
 
     /** Manually register a running session (simulates an already-running agent). */
@@ -89,8 +113,4 @@ class FakeAssistantLauncher : AssistantLauncher {
             current + (projectId to ((current[projectId] ?: emptySet()) + agentId))
         }
     }
-
-    /** Returns the session ID for the given project+agent, or null if not running. */
-    fun sessionIdFor(projectId: Uuid, agentId: String): Uuid? =
-        sessions[projectId]?.get(agentId)
 }
