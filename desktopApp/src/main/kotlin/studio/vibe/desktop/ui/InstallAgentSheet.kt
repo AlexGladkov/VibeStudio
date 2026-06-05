@@ -132,8 +132,8 @@ private fun InstallSteps(agent: AIAgent) {
     if (hasPrereq) {
         StepWithCommand(
             number = 1,
-            title = "Install ${agent.prerequisite}",
-            description = "Verify the required version is installed:",
+            title = "Установи ${agent.prerequisite}",
+            description = "Убедись что установлена нужная версия:",
             command = agent.prerequisiteCheckCommand!!,
         )
         Spacer(Modifier.height(DSSpacing.xl))
@@ -141,8 +141,8 @@ private fun InstallSteps(agent: AIAgent) {
 
     StepWithCommand(
         number = installStepNumber,
-        title = "Install ${agent.displayName}",
-        description = "Run this command in your terminal:",
+        title = "Установи ${agent.displayName}",
+        description = "Выполни команду в терминале:",
         command = agent.installHint,
     )
 
@@ -175,7 +175,7 @@ private fun StepWithCommand(
 @Composable
 private fun SetupStep(number: Int, instructions: String) {
     Column {
-        StepHeader(number = number, title = "Setup")
+        StepHeader(number = number, title = "Настройка")
         Spacer(Modifier.height(DSSpacing.sm))
         Box(
             modifier = Modifier
@@ -276,7 +276,7 @@ private fun InstallSheetFooter(onDismiss: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Restart VibeStudio after installation",
+            text = "После установки перезапусти VibeStudio",
             style = DSFont.sidebarItemSmall,
             color = LocalDSColors.current.textMuted,
             modifier = Modifier.weight(1f),

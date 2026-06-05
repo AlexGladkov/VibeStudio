@@ -114,12 +114,12 @@ fun RemoteControlSettingsPane(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Enable Remote Control",
+                            text = "Включить",
                             style = DSFont.sidebarItem,
                             color = LocalDSColors.current.textPrimary,
                         )
                         Text(
-                            text = "Start the HTTP/WS server for remote device access",
+                            text = "Запустить HTTP/WS сервер для удалённого доступа",
                             style = DSFont.sidebarItemSmall,
                             color = LocalDSColors.current.textMuted,
                         )
@@ -157,7 +157,7 @@ fun RemoteControlSettingsPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Port",
+                        text = "Порт",
                         style = DSFont.sidebarItem,
                         color = if (enabled) LocalDSColors.current.textPrimary else LocalDSColors.current.textDisabled,
                         modifier = Modifier.width(140.dp),
@@ -210,12 +210,12 @@ fun RemoteControlSettingsPane(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Bind to localhost",
+                            text = "Localhost",
                             style = DSFont.sidebarItem,
                             color = if (enabled) LocalDSColors.current.textPrimary else LocalDSColors.current.textDisabled,
                         )
                         Text(
-                            text = "Local connections only (disables LAN access)",
+                            text = "Только локальные подключения",
                             style = DSFont.sidebarItemSmall,
                             color = LocalDSColors.current.textMuted,
                         )
@@ -253,7 +253,7 @@ fun RemoteControlSettingsPane(
                             color = if (enabled && !bindLocalhost) LocalDSColors.current.textPrimary else LocalDSColors.current.textDisabled,
                         )
                         Text(
-                            text = "Advertise server on local network (macOS only)",
+                            text = "Обнаружение в сети",
                             style = DSFont.sidebarItemSmall,
                             color = LocalDSColors.current.textMuted,
                         )
@@ -284,7 +284,7 @@ fun RemoteControlSettingsPane(
             verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
         ) {
             Text(
-                text = "ngrok Tunnel",
+                text = "Туннель ngrok",
                 style = DSFont.buttonLabel,
                 color = LocalDSColors.current.textSecondary,
             )
@@ -323,7 +323,7 @@ fun RemoteControlSettingsPane(
                                     },
                                 ) {
                                     Text(
-                                        text = "Disconnect",
+                                        text = "Отключить",
                                         style = DSFont.sidebarItemSmall,
                                         color = LocalDSColors.current.indicatorError,
                                     )
@@ -338,7 +338,7 @@ fun RemoteControlSettingsPane(
                                     color = LocalDSColors.current.accentPrimary,
                                 )
                                 Text(
-                                    text = "Connecting...",
+                                    text = "Подключение...",
                                     style = DSFont.sidebarItemSmall,
                                     color = LocalDSColors.current.textMuted,
                                 )
@@ -353,7 +353,7 @@ fun RemoteControlSettingsPane(
                                     },
                                 ) {
                                     Text(
-                                        text = "Connect",
+                                        text = "Подключить",
                                         style = DSFont.sidebarItem,
                                         color = LocalDSColors.current.accentPrimary,
                                     )
@@ -368,7 +368,7 @@ fun RemoteControlSettingsPane(
                                     )
                                 } else {
                                     Text(
-                                        text = "Access outside Wi-Fi",
+                                        text = "Доступ вне Wi-Fi",
                                         style = DSFont.sidebarItemSmall,
                                         color = LocalDSColors.current.textMuted,
                                     )
@@ -377,7 +377,7 @@ fun RemoteControlSettingsPane(
 
                             else -> {
                                 Text(
-                                    text = "Access outside Wi-Fi",
+                                    text = "Доступ вне Wi-Fi",
                                     style = DSFont.sidebarItemSmall,
                                     color = LocalDSColors.current.textMuted,
                                 )
@@ -442,13 +442,13 @@ fun RemoteControlSettingsPane(
                             verticalArrangement = Arrangement.spacedBy(DSSpacing.xs),
                         ) {
                             Text(
-                                text = "Setup (one-time):",
+                                text = "Настройка (однократно):",
                                 style = DSFont.sidebarItemSmall,
                                 color = LocalDSColors.current.textSecondary,
                             )
                             Text(text = "1. brew install ngrok", style = DSFont.monoSmall, color = LocalDSColors.current.textMuted)
-                            Text(text = "2. Sign up at ngrok.com → copy authtoken above", style = DSFont.monoSmall, color = LocalDSColors.current.textMuted)
-                            Text(text = "3. Enable Remote Control + Connect", style = DSFont.monoSmall, color = LocalDSColors.current.textMuted)
+                            Text(text = "2. ngrok.com → регистрация (бесплатно) → скопировать authtoken", style = DSFont.monoSmall, color = LocalDSColors.current.textMuted)
+                            Text(text = "3. Вставить токен в поле выше → Подключить", style = DSFont.monoSmall, color = LocalDSColors.current.textMuted)
                         }
                     }
                 }
@@ -462,7 +462,7 @@ fun RemoteControlSettingsPane(
             verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
         ) {
             Text(
-                text = "Authentication",
+                text = "Аутентификация",
                 style = DSFont.buttonLabel,
                 color = LocalDSColors.current.textSecondary,
             )
@@ -500,7 +500,7 @@ fun RemoteControlSettingsPane(
                             enabled = enabled,
                         ) {
                             Text(
-                                text = "Regenerate",
+                                text = "Обновить",
                                 style = DSFont.sidebarItemSmall,
                                 color = if (enabled) LocalDSColors.current.accentPrimary else LocalDSColors.current.textDisabled,
                             )
@@ -541,7 +541,7 @@ fun RemoteControlSettingsPane(
             verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
         ) {
             Text(
-                text = "Status",
+                text = "Статус",
                 style = DSFont.buttonLabel,
                 color = LocalDSColors.current.textSecondary,
             )
@@ -565,7 +565,7 @@ fun RemoteControlSettingsPane(
                     Spacer(Modifier.width(DSSpacing.sm))
 
                     Text(
-                        text = if (isRunning) "Active (port ${prefs.remoteControlPort})" else "Stopped",
+                        text = if (isRunning) "Активен (порт ${prefs.remoteControlPort})" else "Остановлен",
                         style = DSFont.sidebarItem,
                         color = LocalDSColors.current.textSecondary,
                     )
@@ -581,7 +581,7 @@ fun RemoteControlSettingsPane(
                         verticalArrangement = Arrangement.spacedBy(DSSpacing.xs),
                     ) {
                         Text(
-                            text = "Connected Devices",
+                            text = "Подключённые устройства",
                             style = DSFont.sidebarItemSmall,
                             color = LocalDSColors.current.textSecondary,
                         )
@@ -606,7 +606,7 @@ fun RemoteControlSettingsPane(
                                     onClick = { server.disconnect(device.id) },
                                 ) {
                                     Text(
-                                        text = "Kick",
+                                        text = "Отключить",
                                         style = DSFont.sidebarItemSmall,
                                         color = LocalDSColors.current.indicatorError,
                                     )

@@ -182,7 +182,7 @@ private fun SettingsContent(
         ) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "Close settings",
+                contentDescription = "Закрыть",
                 tint = colors.textSecondary,
                 modifier = Modifier.size(16.dp),
             )

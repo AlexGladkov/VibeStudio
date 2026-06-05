@@ -72,7 +72,7 @@ fun GeneralSettingsPane(
             .padding(DSSpacing.xl),
         verticalArrangement = Arrangement.spacedBy(DSSpacing.xl),
     ) {
-        SettingsPaneTitle(title = "General")
+        SettingsPaneTitle(title = "Внешний вид")
 
         // -- Appearance -------------------------------------------------------
 
@@ -81,7 +81,7 @@ fun GeneralSettingsPane(
             verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
         ) {
             Text(
-                text = "Appearance",
+                text = "Внешний вид",
                 style = DSFont.buttonLabel,
                 color = colors.textSecondary,
             )
@@ -93,7 +93,7 @@ fun GeneralSettingsPane(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Theme",
+                            text = "Тема",
                             style = DSFont.sidebarItem,
                             color = colors.textPrimary,
                             modifier = Modifier.width(170.dp),
@@ -115,7 +115,7 @@ fun GeneralSettingsPane(
             verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
         ) {
             Text(
-                text = "Terminal",
+                text = "Терминал",
                 style = DSFont.buttonLabel,
                 color = colors.textSecondary,
             )
@@ -127,7 +127,7 @@ fun GeneralSettingsPane(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Font size",
+                            text = "Шрифт терминала",
                             style = DSFont.sidebarItem,
                             color = colors.textPrimary,
                             modifier = Modifier.width(170.dp),
@@ -165,7 +165,7 @@ fun GeneralSettingsPane(
             verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
         ) {
             Text(
-                text = "Behaviour",
+                text = "Поведение",
                 style = DSFont.buttonLabel,
                 color = colors.textSecondary,
             )
@@ -181,14 +181,14 @@ fun GeneralSettingsPane(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "Confirm tab close",
+                            text = "Подтверждать закрытие",
                             style = DSFont.sidebarItem,
                             color = colors.textPrimary,
                             modifier = Modifier.weight(1f),
                         )
 
                         Text(
-                            text = "Ask before closing tabs",
+                            text = "Спрашивать перед закрытием вкладок",
                             style = DSFont.sidebarItemSmall,
                             color = colors.textMuted,
                         )
@@ -265,9 +265,9 @@ private fun ThemeSegmentedControl(
 ) {
     val colors = LocalDSColors.current
     val segments = listOf(
-        AppTheme.LIGHT  to "Light",
-        AppTheme.DARK   to "Dark",
         AppTheme.SYSTEM to "System",
+        AppTheme.DARK   to "Dark",
+        AppTheme.LIGHT  to "Light",
     )
     val shape = RoundedCornerShape(DSRadius.sm)
 
