@@ -160,6 +160,10 @@ class ProjectStoreImpl(
             if (removedActive) {
                 _activeProjectId.value = firstRemaining
             }
+            // Prune the removed project from recentHistory so it does not resurface
+            // after a restart (the history is persisted and filtered on load).
+            _recentHistory.update { history -> history.filterNot { it.id == id } }
+            scheduleSaveRecents()
             writeProjects()
         }
     }
@@ -240,7 +244,7 @@ class ProjectStoreImpl(
     private fun rebuildIndex(list: List<Project> = _projects.value) {
         indexById = list.associateBy { it.id }
         indexByPath = list.associateBy { it.path.path }
-        refreshRecentProjects()
+        refreshRecentProjects(list)
     }
 
     private fun updateRecentHistory(activeId: Uuid?) {
@@ -257,8 +261,19 @@ class ProjectStoreImpl(
         scheduleSaveRecents()
     }
 
-    private fun refreshRecentProjects() {
-        val currentProjectIds = _projects.value.map { it.id }.toSet()
+    /**
+     * Recompute [_recentProjects] from [_recentHistory] using [projectsList] as
+     * the authoritative set of current projects.
+     *
+     * Accepts an explicit [projectsList] so callers inside a [_projects.update]
+     * lambda can pass the new list directly rather than reading [_projects.value],
+     * which still holds the old value until the lambda returns (stale-read fix).
+     *
+     * Defaults to [_projects.value] for call sites that run after the update has
+     * already been published (e.g. [updateRecentHistory], [loadRecents]).
+     */
+    private fun refreshRecentProjects(projectsList: List<Project> = _projects.value) {
+        val currentProjectIds = projectsList.map { it.id }.toSet()
         _recentProjects.value = _recentHistory.value.filter { it.id !in currentProjectIds }
     }
 

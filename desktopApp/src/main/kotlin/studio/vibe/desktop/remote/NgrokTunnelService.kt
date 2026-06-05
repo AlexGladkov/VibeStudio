@@ -170,7 +170,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
 
     // ── Private: launch ────────────────────────────────────────────────────────
 
-    private fun launchNgrok(path: String, httpPort: Int, env: MutableMap<String, String>) {
+    private suspend fun launchNgrok(path: String, httpPort: Int, env: MutableMap<String, String>) {
         val cmd = listOf(
             path,
             "http",
@@ -184,16 +184,31 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
             redirectErrorStream(false)
         }
 
+        // Spawn the OS process OUTSIDE the mutex — ProcessBuilder.start() can block.
         val proc = runCatching { pb.start() }.getOrElse { e ->
             _error.value = "Failed to launch ngrok: ${e.message}"
             log.severe("NgrokTunnelService: failed to launch: ${e.message}")
             return
         }
 
-        writePidFile(proc.pid())
-        process = proc
-        _isRunning.value = true
-        log.info("NgrokTunnelService: started, tunneling port $httpPort")
+        // Gate all state writes inside the mutex.  A concurrent stop() may have
+        // set stopRequested=true while we were waiting for pb.start() to return.
+        // In that case destroy the freshly-spawned process and exit without
+        // publishing any "running" state.
+        val launched = lifecycleMutex.withLock {
+            if (stopRequested) {
+                proc.destroyForcibly()
+                log.info("NgrokTunnelService: stop() raced launchNgrok — destroyed proc immediately")
+                false
+            } else {
+                writePidFile(proc.pid())
+                process = proc
+                _isRunning.value = true
+                log.info("NgrokTunnelService: started, tunneling port $httpPort")
+                true
+            }
+        }
+        if (!launched) return
 
         // Watch for unexpected exit.
         // All state mutations are wrapped in lifecycleMutex to prevent races with

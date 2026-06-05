@@ -158,7 +158,10 @@ class AssistantLauncherImpl(
         // Send exit signal FIRST — if sendInput throws, the OS process is orphaned
         // but we still clean up state so the UI is consistent (zombie OS process is
         // acceptable at exit; dangling state that blocks re-launch is not).
-        val sendResult = runCatching {
+        //
+        // Note: do NOT use runCatching here — it catches CancellationException,
+        // which would suppress cooperative cancellation and leak the OS process.
+        val sendResult: Result<Unit> = try {
             when (val exitSeq = agent.exitSequence) {
                 is AgentExitSequence.CtrlC -> {
                     terminalSessionManaging.sendInput("", sessionId)
@@ -169,6 +172,11 @@ class AssistantLauncherImpl(
                     terminalSessionManaging.sendInput("${exitSeq.command}\n", sessionId)
                 }
             }
+            Result.success(Unit)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e  // propagate cooperative cancellation — do not swallow
+        } catch (e: Exception) {
+            Result.failure(e)
         }
 
         if (sendResult.isFailure) {
