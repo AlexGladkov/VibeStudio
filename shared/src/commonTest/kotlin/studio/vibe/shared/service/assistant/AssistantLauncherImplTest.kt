@@ -9,6 +9,7 @@ import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.TerminalSession
 import studio.vibe.shared.model.TerminalSessionState
 import studio.vibe.shared.service.agent.ClaudeAgent
+import studio.vibe.shared.service.agent.CodexAgent
 import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
 import studio.vibe.shared.testutil.FakeAPIKeyResolving
 import studio.vibe.shared.testutil.FakeAgentAvailabilityChecking
@@ -151,6 +152,34 @@ class AssistantLauncherImplTest {
 
         assertNull(launcher.runningByProject.value[project.id])
         assertNull(launcher.sessionIdFor(project.id, ClaudeAgent.id))
+    }
+
+    @Test
+    fun notifySessionExited_oneOfTwoAgents_keepsRemainingAgentInRunning() = runTest {
+        // Validates that runningByProject stays consistent when one of two
+        // concurrently-running agents exits (the TOCTOU fix).
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent, CodexAgent))
+        val launcher = build(projects = projects, availability = availability)
+
+        val claudeResult = launcher.start(project.id, ClaudeAgent.id)
+        assertTrue(claudeResult.isSuccess)
+        val codexResult = launcher.start(project.id, CodexAgent.id)
+        assertTrue(codexResult.isSuccess)
+
+        val claudeSessionId = claudeResult.getOrNull()!!.id
+
+        // Claude exits — Codex must remain in running state
+        launcher.notifySessionExited(project.id, claudeSessionId)
+
+        val running = launcher.runningByProject.value[project.id]
+        assertNotNull(running, "project must still be in runningByProject after one of two agents exits")
+        assertFalse(ClaudeAgent.id in running, "Claude must be removed from running after exit")
+        assertTrue(CodexAgent.id in running, "Codex must remain in running")
+        assertNull(launcher.sessionIdFor(project.id, ClaudeAgent.id))
+        assertNotNull(launcher.sessionIdFor(project.id, CodexAgent.id))
     }
 
     @Test

@@ -56,7 +56,7 @@ class DesktopTerminalServiceTest {
     fun setup() {
         // Use IO dispatcher so the service can be created without Dispatchers.Main.
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        service = DesktopTerminalService(serviceScope = scope)
+        service = DesktopTerminalService(parentScope = scope)
     }
 
     @AfterTest
@@ -234,7 +234,7 @@ class DesktopTerminalServiceTest {
         val prefs = GeneralPreferences(StubSettingsStorage()).apply {
             claudeSkipPermissions = true
         }
-        val svc = DesktopTerminalService(serviceScope = scope, generalPreferences = prefs)
+        val svc = DesktopTerminalService(parentScope = scope, generalPreferences = prefs)
         val cmd = svc.buildEffectiveLaunchCommand(ClaudeAgent)
         assertTrue(
             cmd.contains("--dangerously-skip-permissions"),
@@ -248,7 +248,7 @@ class DesktopTerminalServiceTest {
         val prefs = GeneralPreferences(StubSettingsStorage()).apply {
             claudeSkipPermissions = false
         }
-        val svc = DesktopTerminalService(serviceScope = scope, generalPreferences = prefs)
+        val svc = DesktopTerminalService(parentScope = scope, generalPreferences = prefs)
         val cmd = svc.buildEffectiveLaunchCommand(ClaudeAgent)
         assertFalse(
             cmd.contains("--dangerously-skip-permissions"),
@@ -262,7 +262,7 @@ class DesktopTerminalServiceTest {
         val prefs = GeneralPreferences(StubSettingsStorage()).apply {
             claudeSkipPermissions = true
         }
-        val svc = DesktopTerminalService(serviceScope = scope, generalPreferences = prefs)
+        val svc = DesktopTerminalService(parentScope = scope, generalPreferences = prefs)
         val cmd = svc.buildEffectiveLaunchCommand(CodexAgent)
         assertFalse(
             cmd.contains("--dangerously-skip-permissions"),
@@ -280,7 +280,7 @@ class DesktopTerminalServiceTest {
         }
         val scopeWithPrefs = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val serviceWithPrefs = DesktopTerminalService(
-            serviceScope = scopeWithPrefs,
+            parentScope = scopeWithPrefs,
             generalPreferences = prefs,
         )
         try {

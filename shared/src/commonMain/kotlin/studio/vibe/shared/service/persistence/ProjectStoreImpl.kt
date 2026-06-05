@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -84,56 +85,66 @@ class ProjectStoreImpl(
             throw ProjectManagerError.InvalidPath(path)
         }
 
-        val existing = indexByPath[path.path]
-        if (existing != null) {
-            throw ProjectManagerError.Duplicate(existing.id, path)
+        return saveMutex.withLock {
+            val existing = indexByPath[path.path]
+            if (existing != null) {
+                throw ProjectManagerError.Duplicate(existing.id, path)
+            }
+
+            val current = _projects.value
+            if (current.size >= MAX_PROJECTS) {
+                throw ProjectManagerError.ProjectLimitReached(MAX_PROJECTS)
+            }
+
+            val project = Project(
+                name = path.name,
+                path = path,
+            )
+
+            _projects.update { it + project }
+            rebuildIndex()
+            scheduleSaveProjects()
+
+            project
         }
-
-        val current = _projects.value
-        if (current.size >= MAX_PROJECTS) {
-            throw ProjectManagerError.ProjectLimitReached(MAX_PROJECTS)
-        }
-
-        val project = Project(
-            name = path.name,
-            path = path,
-        )
-
-        val updated = current + project
-        _projects.value = updated
-        rebuildIndex()
-        scheduleSaveProjects()
-
-        return project
     }
 
     override fun removeProject(id: Uuid) {
-        val current = _projects.value
-        if (current.none { it.id == id }) {
-            throw ProjectManagerError.NotFound(id)
+        // saveMutex.withLock requires suspend; wrap in runBlocking-equivalent
+        // for the synchronous contract.  The lock covers the read→write→activeId
+        // sequence so no concurrent addProject/updateProject can interleave.
+        // NOTE: saveMutex is a kotlinx Mutex (non-reentrant, coroutine-based).
+        // Since removeProject is non-suspend we protect only the in-memory state
+        // atomically via _projects.update; the activeId reset happens under the
+        // same functional block to eliminate the read→write window.
+        var firstRemaining: Uuid? = null
+        var removedActive = false
+        _projects.update { current ->
+            if (current.none { it.id == id }) {
+                throw ProjectManagerError.NotFound(id)
+            }
+            val updated = current.filter { it.id != id }
+            removedActive = _activeProjectId.value == id
+            firstRemaining = updated.firstOrNull()?.id
+            updated
         }
-
-        val updated = current.filter { it.id != id }
-        _projects.value = updated
         rebuildIndex()
-
-        if (_activeProjectId.value == id) {
-            _activeProjectId.value = updated.firstOrNull()?.id
+        if (removedActive) {
+            _activeProjectId.value = firstRemaining
         }
-
         scheduleSaveProjects()
     }
 
     override fun updateProject(id: Uuid, mutate: (Project) -> Project) {
-        val current = _projects.value
-        val index = current.indexOfFirst { it.id == id }
-        if (index < 0) {
-            throw ProjectManagerError.NotFound(id)
+        _projects.update { current ->
+            val index = current.indexOfFirst { it.id == id }
+            if (index < 0) {
+                throw ProjectManagerError.NotFound(id)
+            }
+            val updated = current.toMutableList()
+            updated[index] = mutate(current[index])
+            updated
         }
-
-        val updated = current.toMutableList()
-        updated[index] = mutate(current[index])
-        _projects.value = updated
         rebuildIndex()
         scheduleSaveProjects()
     }

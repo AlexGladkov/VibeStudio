@@ -24,7 +24,6 @@ import studio.vibe.shared.contract.TerminalSessionEvent
 import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.contract.TerminalSessionQuerying
 import studio.vibe.shared.preferences.GeneralPreferencesReading
-import studio.vibe.shared.service.security.AgentEnvironmentBuilder
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SplitDirection
 import studio.vibe.shared.model.TabActivityState
@@ -35,31 +34,6 @@ import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 import kotlin.uuid.Uuid
 
-// ── Platform helpers ──────────────────────────────────────────────────────────
-
-private val isWindows: Boolean
-    get() = System.getProperty("os.name", "").lowercase().contains("windows")
-
-private val isMac: Boolean
-    get() = System.getProperty("os.name", "").lowercase().contains("mac")
-
-/**
- * Resolves the user's preferred shell.
- *
- * Priority:
- * 1. `SHELL` environment variable (set by the user's login session)
- * 2. macOS / Linux fallback: `/bin/zsh` on macOS, `/bin/bash` elsewhere
- * 3. Windows: `cmd.exe`
- */
-internal fun resolveDefaultShell(): String {
-    System.getenv("SHELL")?.takeIf { it.isNotBlank() }?.let { return it }
-    return when {
-        isWindows -> "cmd.exe"
-        isMac -> "/bin/zsh"
-        else -> "/bin/bash"
-    }
-}
-
 // ── Internal state ─────────────────────────────────────────────────────────────
 
 /**
@@ -69,7 +43,7 @@ internal fun resolveDefaultShell(): String {
  * @property ptyProcess     The underlying pty4j process.
  * @property inputWriter    Buffered writer over the process stdin for sending keystrokes.
  * @property outputFlow     Hot [MutableSharedFlow] of raw PTY output chunks.
- * @property scrollback     Accumulated scrollback buffer.
+ * @property scrollback     Thread-safe scrollback buffer (see [ScrollbackBuffer]).
  * @property scope          Child [CoroutineScope] tied to this session's lifetime.
  */
 internal class PtySessionState(
@@ -77,7 +51,7 @@ internal class PtySessionState(
     val ptyProcess: com.pty4j.PtyProcess,
     val inputWriter: BufferedWriter,
     val outputFlow: MutableSharedFlow<String>,
-    val scrollback: StringBuilder,
+    val scrollback: ScrollbackBuffer,
     val scope: CoroutineScope,
 )
 
@@ -87,9 +61,9 @@ internal class PtySessionState(
  * Desktop (JVM) implementation of [TerminalSessionManaging] backed by pty4j.
  *
  * ### Lifecycle
- * Each session gets its own child [CoroutineScope] derived from [serviceScope]
- * via a [SupervisorJob].  Cancelling [serviceScope] (e.g. on app exit) tears
- * down all active PTY processes gracefully.
+ * Each session gets its own child [CoroutineScope] derived from the internal
+ * [serviceScope] via a [SupervisorJob].  Calling [dispose] cancels only the
+ * internal scope and does NOT affect the [parentScope] passed by the caller.
  *
  * ### Output
  * PTY output is read by JediTerm via [com.jediterm.terminal.ProcessTtyConnector].
@@ -103,14 +77,34 @@ internal class PtySessionState(
  * on the coroutine dispatcher through [_sessions.update].  [PtySessionState]
  * internals (scrollback, inputWriter) are accessed on [Dispatchers.IO].
  *
- * @param serviceScope Parent coroutine scope.  Typically the app's main scope.
+ * @param parentScope Parent coroutine scope. The service creates its own child
+ *   scope so that [dispose] cancels only this service, not the whole app tree.
  */
 class DesktopTerminalService(
-    private val serviceScope: CoroutineScope,
+    parentScope: CoroutineScope,
     private val generalPreferences: GeneralPreferencesReading? = null,
     /** Test-only seam: receives the effective launch command instead of (or before) PTY sendInput. */
     internal val commandSink: ((String) -> Unit)? = null,
 ) : TerminalSessionManaging, studio.vibe.shared.contract.TerminalRemoteHost {
+
+    /**
+     * Internal scope for all service-level coroutines (output watcher, session
+     * scopes, grace-period kills).  Derived from [parentScope] via a child
+     * SupervisorJob so that [dispose] can cancel only this service without
+     * affecting the rest of the application's coroutine tree.
+     */
+    private val serviceScope: CoroutineScope = CoroutineScope(
+        SupervisorJob(parentScope.coroutineContext[kotlinx.coroutines.Job]) +
+            parentScope.coroutineContext,
+    )
+
+    // ── AgentSessionFactory ────────────────────────────────────────────────
+
+    private val agentSessionFactory = AgentSessionFactory(
+        generalPreferences = generalPreferences,
+        serviceScope = serviceScope,
+        commandSink = commandSink,
+    )
 
     // ── Session limits ─────────────────────────────────────────────────────
 
@@ -197,7 +191,7 @@ class DesktopTerminalService(
             replay = 8,
             extraBufferCapacity = 512,
         )
-        val scrollback = StringBuilder()
+        val scrollback = ScrollbackBuffer()
         val sessionScope = CoroutineScope(
             SupervisorJob(serviceScope.coroutineContext[kotlinx.coroutines.Job]) +
                 Dispatchers.IO,
@@ -256,8 +250,12 @@ class DesktopTerminalService(
             removeSession(sessionId)
         } else {
             runCatching { state.ptyProcess.destroy() }  // sends SIGTERM
-            // Grace period: wait 2 seconds, then SIGKILL if still alive
-            serviceScope.launch(Dispatchers.IO) {
+            // Grace period: wait 2 seconds, then SIGKILL if still alive.
+            // Launched in a *standalone* scope (not serviceScope) so that
+            // dispose() cancelling serviceScope doesn't prevent the final kill
+            // from reaching the process — the scope completes on its own after
+            // the 2-second delay and is not held by any external reference.
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                 kotlinx.coroutines.delay(2_000)
                 if (state.ptyProcess.isAlive) {
                     runCatching { state.ptyProcess.destroyForcibly() }
@@ -319,7 +317,7 @@ class DesktopTerminalService(
         apiKeyValue: String?,
     ): Result<TerminalSession> {
         return runCatching {
-            // Remove lingering exited agent sessions before launching a new one
+            // Remove lingering exited agent sessions before launching a new one.
             val exitedAgentIds = _sessions.value.entries
                 .filter { (_, s) ->
                     s.session.projectId == projectId &&
@@ -329,64 +327,28 @@ class DesktopTerminalService(
                 .map { it.key }
             exitedAgentIds.forEach { removeSession(it) }
 
-            // Check per-project session limit
+            // Check per-project session limit.
             val existingCount = _sessions.value.values.count { it.session.projectId == projectId }
             if (existingCount >= maxSessionsPerProject) {
                 error("Session limit reached for project $projectId (max $maxSessionsPerProject)")
             }
 
-            val size = TerminalSize(columns = 220, rows = 50)
-
-            // Build agent-specific env with allowlist — API key injected here,
-            // not echoed as a visible shell command.
-            val agentEnv = buildAgentEnv(agent, apiKeyValue)
-
-            val shellPath = resolveDefaultShell()
-            val command: Array<String> = arrayOf(shellPath, "-l")
-
-            val ptyProcess = PtyProcessBuilder(command)
-                .setEnvironment(agentEnv)
-                .setDirectory(workingDirectory)
-                .setInitialColumns(size.columns)
-                .setInitialRows(size.rows)
-                .setConsole(false)
-                .setUseWinConPty(isWindows)
-                .start()
-
-            val session = TerminalSession(
+            // Delegate PTY creation + env building to AgentSessionFactory.
+            val (ptyState, effectiveLaunchCommand) = agentSessionFactory.startAgentSession(
+                agent = agent,
                 projectId = projectId,
-                title = agent.displayName,
-                state = TerminalSessionState.Running,
-                isAgentSession = true,
+                workingDirectory = workingDirectory,
+                apiKeyValue = apiKeyValue,
             )
 
-            val outputFlow = MutableSharedFlow<String>(replay = 8, extraBufferCapacity = 512)
-            val scrollback = StringBuilder()
-            val sessionScope = CoroutineScope(
-                SupervisorJob(serviceScope.coroutineContext[kotlinx.coroutines.Job]) +
-                    Dispatchers.IO,
-            )
-            val inputWriter = BufferedWriter(OutputStreamWriter(ptyProcess.outputStream, Charsets.UTF_8))
-
-            val ptyState = PtySessionState(
-                session = session,
-                ptyProcess = ptyProcess,
-                inputWriter = inputWriter,
-                outputFlow = outputFlow,
-                scrollback = scrollback,
-                scope = sessionScope,
-            )
-
+            val session = ptyState.session
             _sessions.update { it + (session.id to ptyState) }
             rebuildProjectSessions()
 
-            // Watch for process exit (includes 10-second visibility window for agents)
-            sessionScope.launch { watchProcessExit(session.id, projectId, ptyState) }
+            // Watch for process exit (includes 10-second visibility window for agents).
+            ptyState.scope.launch { watchProcessExit(session.id, projectId, ptyState) }
 
             // Send launch command — API key is already in the env, no export needed.
-            // For Claude, append --dangerously-skip-permissions when the preference is set.
-            val effectiveLaunchCommand = buildEffectiveLaunchCommand(agent)
-            commandSink?.invoke(effectiveLaunchCommand)
             sendInput(effectiveLaunchCommand, session.id)
 
             session
@@ -443,7 +405,7 @@ class DesktopTerminalService(
      */
     override fun scrollbackContent(sessionId: Uuid): String? {
         val state = _sessions.value[sessionId] ?: return null
-        return synchronized(state.scrollback) { state.scrollback.toString() }
+        return state.scrollback.content()
     }
 
     // ── Output flow access ──────────────────────────────────────────────────
@@ -503,12 +465,7 @@ class DesktopTerminalService(
     internal fun receiveOutput(sessionId: Uuid, chunk: String) {
         val state = _sessions.value[sessionId] ?: return
         state.outputFlow.tryEmit(chunk)
-        synchronized(state.scrollback) {
-            state.scrollback.append(chunk)
-            if (state.scrollback.length > 100_000) {
-                state.scrollback.delete(0, state.scrollback.length - 80_000)
-            }
-        }
+        state.scrollback.append(chunk)
         markSessionActivity(sessionId, state.session.projectId)
     }
 
@@ -622,23 +579,12 @@ class DesktopTerminalService(
     }
 
     /**
-     * Pure helper: computes the effective agent launch command.
-     *
-     * Extracted so that the flag-injection logic can be unit-tested without
-     * spawning a real PTY process.
-     */
-    internal fun buildEffectiveLaunchCommand(agent: AIAgent): String =
-        if (agent.id == "claude" && generalPreferences?.claudeSkipPermissions == true) {
-            agent.launchCommand.trimEnd('\n') + " --dangerously-skip-permissions\n"
-        } else {
-            agent.launchCommand
-        }
-
-    /**
-     * Builds the environment map for the new PTY process.
+     * Builds the environment map for regular (non-agent) PTY sessions.
      *
      * Inherits the current process environment, then ensures `TERM` is set
      * to `xterm-256color` so that colour-capable shells render correctly.
+     *
+     * Agent sessions use [AgentSessionFactory.buildAgentEnv] instead.
      */
     private fun buildEnv(): Map<String, String> {
         return System.getenv().toMutableMap().apply {
@@ -650,25 +596,12 @@ class DesktopTerminalService(
     }
 
     /**
-     * Builds a minimal, allowlist-based environment for agent PTY sessions.
+     * Delegates to [AgentSessionFactory.buildEffectiveLaunchCommand].
      *
-     * Delegates to [AgentEnvironmentBuilder] (shared) — single source of truth
-     * for the allowlist and trusted binary directories. Platform-specific
-     * concerns (reading [System.getenv] / [System.getProperty]) are resolved
-     * here before the call so that shared code remains platform-agnostic.
-     *
-     * @param agent       The AI assistant whose API key variable should be set.
-     * @param apiKeyValue The resolved secret value, or `null` if unavailable.
+     * Kept as an `internal` shim so existing tests that call
+     * `service.buildEffectiveLaunchCommand(agent)` continue to compile without
+     * modification.
      */
-    private fun buildAgentEnv(agent: AIAgent, apiKeyValue: String?): Map<String, String> {
-        // Provide HOME via system property fallback so the builder always has it.
-        val processEnv = System.getenv().toMutableMap()
-        processEnv.putIfAbsent("HOME", System.getProperty("user.home", "/"))
-
-        return AgentEnvironmentBuilder.build(
-            agent = agent,
-            apiKeyValue = apiKeyValue,
-            currentEnv = processEnv,
-        )
-    }
+    internal fun buildEffectiveLaunchCommand(agent: AIAgent): String =
+        agentSessionFactory.buildEffectiveLaunchCommand(agent)
 }

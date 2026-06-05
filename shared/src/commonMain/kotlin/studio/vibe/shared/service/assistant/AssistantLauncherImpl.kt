@@ -41,7 +41,7 @@ class AssistantLauncherImpl(
     private val apiKeyResolving: APIKeyResolving,
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
     /** Optional override for env-var resolution (e.g. from process environment on JVM). */
-    var onResolveEnvVar: ((String) -> String?)? = null,
+    override var onResolveEnvVar: ((String) -> String?)? = null,
 ) : AssistantLauncher {
 
     // ── State ──────────────────────────────────────────────────────────────────
@@ -130,29 +130,35 @@ class AssistantLauncherImpl(
      * Returns the session ID for a running agent, or null if not running.
      * Used by [ToolbarViewModel.rebuildState] to populate [ToolbarState.activeAgentSessionId].
      */
-    fun sessionIdFor(projectId: Uuid, agentId: String): Uuid? =
+    override fun sessionIdFor(projectId: Uuid, agentId: String): Uuid? =
         _sessionIds.value[projectId]?.get(agentId)
 
     /**
      * Called when a PTY process-exit event is received so the launcher stays
      * consistent with actual process state.
+     *
+     * The two StateFlow mutations are made atomic with respect to each other by
+     * computing the post-removal agent key set inside the first [update] lambda
+     * and reusing that snapshot in the second — eliminating the TOCTOU window
+     * that existed when the second lambda read [_sessionIds.value] independently.
      */
-    fun notifySessionExited(projectId: Uuid, sessionId: Uuid) {
+    override fun notifySessionExited(projectId: Uuid, sessionId: Uuid) {
+        var stillRunningSnapshot: Set<String> = emptySet()
         _sessionIds.update { current ->
             val forProject = current[projectId] ?: return@update current
             val filtered = forProject.filterValues { it != sessionId }
+            stillRunningSnapshot = filtered.keys
             if (filtered.isEmpty()) current - projectId
             else current + (projectId to filtered)
         }
         _runningByProject.update { current ->
-            val stillRunning = _sessionIds.value[projectId]?.keys ?: emptySet()
-            if (stillRunning.isEmpty()) current - projectId
-            else current + (projectId to stillRunning)
+            if (stillRunningSnapshot.isEmpty()) current - projectId
+            else current + (projectId to stillRunningSnapshot)
         }
     }
 
     /** Clean up all state for a removed project. */
-    fun removeProject(projectId: Uuid) {
+    override fun removeProject(projectId: Uuid) {
         _sessionIds.update { it - projectId }
         _runningByProject.update { it - projectId }
     }

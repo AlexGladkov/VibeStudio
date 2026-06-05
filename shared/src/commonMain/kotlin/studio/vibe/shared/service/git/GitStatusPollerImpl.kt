@@ -94,7 +94,10 @@ class GitStatusPollerImpl(
         consecutiveErrors = 0
 
         pollingJob = scope.launch {
-            while (isActive) {
+            // Use currentCoroutineContext().isActive to avoid shadowing by the
+            // `isActive: Boolean` parameter — the old `while (isActive)` always
+            // evaluated the parameter, not the coroutine cancellation flag.
+            while (currentCoroutineContext().isActive) {
                 poll()
                 val interval = effectiveInterval(currentIsActive)
                 delay(interval)
