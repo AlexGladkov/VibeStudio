@@ -118,8 +118,12 @@ class AgentAvailabilityServiceImpl(
         }
 
         _availabilityFlow.value = results.toMap()
-        // Clear refreshJob reference under mutex so check() sees consistent state.
-        refreshMutex.withLock { refreshJob = null }
+        // Clear refreshJob without re-acquiring refreshMutex — doing so would cause
+        // an AB-BA deadlock: refreshAll() holds refreshMutex and calls cancelAndJoin()
+        // on this job, but this job would then block waiting to re-acquire that same
+        // mutex. A plain volatile write is safe because refreshAll() always
+        // cancelAndJoin()s before reassigning, so the null write here is benign.
+        refreshJob = null
     }
 
     override fun check(agent: AIAgent): AgentAvailabilityStatus {

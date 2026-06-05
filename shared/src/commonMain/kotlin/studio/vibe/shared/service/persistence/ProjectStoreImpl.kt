@@ -173,8 +173,16 @@ class ProjectStoreImpl(
             }
             val updated = current.toMutableList()
             updated[index] = mutate(current[index])
-            rebuildIndex(updated)
-            _projects.value = updated
+            // Rebuild index INSIDE the update lambda so the new index is visible
+            // before _projects publishes the new list to observers. Previously,
+            // rebuildIndex(updated) ran before _projects.value = updated, but
+            // rebuildIndex calls refreshRecentProjects which reads _projects.value —
+            // still the old list at that point. Moving both into update() fixes the
+            // window where index is new but recentProjects is stale.
+            _projects.update { _ ->
+                rebuildIndex(updated)
+                updated
+            }
             scheduleSaveProjects()
         }
     }
@@ -190,8 +198,12 @@ class ProjectStoreImpl(
                 .coerceIn(0, current.size)
 
             current.addAll(insertAt, moving)
-            rebuildIndex(current)
-            _projects.value = current
+            // Rebuild index inside update lambda for the same reason as updateProject:
+            // refreshRecentProjects() reads _projects.value, so both must happen atomically.
+            _projects.update { _ ->
+                rebuildIndex(current)
+                current
+            }
             scheduleSaveProjects()
         }
     }
@@ -255,8 +267,12 @@ class ProjectStoreImpl(
             val bytes = persistence.readFile(projectsFile) ?: return
             val text = bytes.decodeToString()
             val loaded: List<Project> = json.decodeFromString(text)
-            rebuildIndex(loaded)
-            _projects.value = loaded
+            // Rebuild index inside update lambda so refreshRecentProjects() sees
+            // the new list rather than the still-empty _projects.value.
+            _projects.update { _ ->
+                rebuildIndex(loaded)
+                loaded
+            }
         } catch (e: Exception) {
             // Migration from Swift format may cause parse errors on first load.
             // Start fresh; the projects.json will be overwritten with Kotlin format on next save.

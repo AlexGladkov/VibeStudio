@@ -196,24 +196,36 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         log.info("NgrokTunnelService: started, tunneling port $httpPort")
 
         // Watch for unexpected exit.
+        // All state mutations are wrapped in lifecycleMutex to prevent races with
+        // a concurrent stop() that writes the same fields (process, _isRunning, _error).
         scope.launch(Dispatchers.IO) {
             val exitCode = proc.waitFor()
-            if (!stopRequested) {
-                // Unexpected exit (not triggered by stop()).
-                process = null
-                _isRunning.value = false
-                pollJob?.cancel()
-                pollJob = null
-                if (exitCode != 0 && _error.value == null) {
-                    val stderr = runCatching {
-                        proc.errorStream.bufferedReader().readText().trim()
-                    }.getOrDefault("")
-                    _error.value = if (stderr.isNotBlank()) "ngrok: $stderr"
-                    else "ngrok exited with code $exitCode"
+            lifecycleMutex.withLock {
+                // If stop() already nulled out `process` and set stopRequested, this
+                // watcher should not overwrite state that stop() has already cleaned up.
+                // The `process !== proc` guard handles the case where stop()+start()
+                // launched a new process — we must not clobber the new process state.
+                if (process !== proc && stopRequested) {
+                    log.info("NgrokTunnelService: process exited after stop(), code=$exitCode")
+                    return@withLock
                 }
-                log.info("NgrokTunnelService: process exited unexpectedly, code=$exitCode")
-            } else {
-                log.info("NgrokTunnelService: process exited after stop(), code=$exitCode")
+                if (!stopRequested) {
+                    // Unexpected exit (not triggered by stop()).
+                    process = null
+                    _isRunning.value = false
+                    pollJob?.cancel()
+                    pollJob = null
+                    if (exitCode != 0 && _error.value == null) {
+                        val stderr = runCatching {
+                            proc.errorStream.bufferedReader().readText().trim()
+                        }.getOrDefault("")
+                        _error.value = if (stderr.isNotBlank()) "ngrok: $stderr"
+                        else "ngrok exited with code $exitCode"
+                    }
+                    log.info("NgrokTunnelService: process exited unexpectedly, code=$exitCode")
+                } else {
+                    log.info("NgrokTunnelService: process exited after stop(), code=$exitCode")
+                }
             }
         }
 
