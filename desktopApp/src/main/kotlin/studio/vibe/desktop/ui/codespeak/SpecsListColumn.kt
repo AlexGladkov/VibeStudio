@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
@@ -71,17 +72,31 @@ internal fun SpecsListColumn(
     projectStore: ProjectManaging,
     coroutineScope: CoroutineScope,
     specs: List<SpecFile>,
+    generatedFiles: List<studio.vibe.shared.model.GeneratedFile>,
     selectedSpecId: Uuid?,
+    selectedGeneratedFilePath: String?,
     isLoading: Boolean,
+    showFailingOnly: Boolean,
     activeProjectId: Uuid?,
     onSelectSpec: (SpecFile) -> Unit,
+    onSelectGeneratedFile: (studio.vibe.shared.model.GeneratedFile) -> Unit,
     onRefresh: () -> Unit,
     onSpecsChanged: () -> Unit,
     navigationCoordinator: AppNavigationCoordinator? = null,
     modifier: Modifier = Modifier,
 ) {
     var sectionExpanded by remember { mutableStateOf(true) }
+    var generatedExpanded by remember { mutableStateOf(true) }
     var activeDialog by remember { mutableStateOf<SpecsPanelDialog>(SpecsPanelDialog.None) }
+
+    val visibleSpecs = remember(specs, showFailingOnly) {
+        if (showFailingOnly) {
+            val failing = specs.filter { it.status == studio.vibe.shared.model.SpecStatus.FAILING }
+            failing.ifEmpty { specs }
+        } else {
+            specs
+        }
+    }
 
     Column(
         modifier = modifier
@@ -115,7 +130,7 @@ internal fun SpecsListColumn(
                     }
                 }
 
-                sectionExpanded && specs.isEmpty() -> {
+                sectionExpanded && visibleSpecs.isEmpty() -> {
                     Text(
                         text = "No specs found",
                         style = DSFont.sidebarItemSmall,
@@ -130,7 +145,7 @@ internal fun SpecsListColumn(
                 sectionExpanded -> {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(
-                            items = specs,
+                            items = visibleSpecs,
                             key = { _, spec -> spec.id.toString() },
                         ) { _, spec ->
                             SpecListRow(
@@ -141,6 +156,31 @@ internal fun SpecsListColumn(
                                     activeDialog = SpecsPanelDialog.Editor(spec)
                                 },
                             )
+                        }
+
+                        if (generatedFiles.isNotEmpty()) {
+                            item(key = "generated-header") {
+                                HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
+                                GeneratedSectionHeader(
+                                    count = generatedFiles.size,
+                                    isExpanded = generatedExpanded,
+                                    onToggleExpand = { generatedExpanded = !generatedExpanded },
+                                    onRefresh = onRefresh,
+                                )
+                            }
+                        }
+
+                        if (generatedFiles.isNotEmpty() && generatedExpanded) {
+                            itemsIndexed(
+                                items = generatedFiles,
+                                key = { _, f -> "gen:${f.path.path}" },
+                            ) { _, file ->
+                                GeneratedFileRow(
+                                    file = file,
+                                    isSelected = file.path.path == selectedGeneratedFilePath,
+                                    onClick = { onSelectGeneratedFile(file) },
+                                )
+                            }
                         }
                     }
                 }
@@ -312,6 +352,96 @@ private fun SpecListRow(
             SpecStatus.UNKNOWN -> Unit
         }
         Spacer(Modifier.width(DSSpacing.xs))
+    }
+}
+
+@Composable
+private fun GeneratedSectionHeader(
+    count: Int,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.gitSectionHeaderHeight)
+            .clickable { onToggleExpand() }
+            .padding(start = DSSpacing.sm, end = DSSpacing.md),
+    ) {
+        Icon(
+            imageVector = if (isExpanded) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowRight,
+            contentDescription = if (isExpanded) "Collapse generated" else "Expand generated",
+            tint = LocalDSColors.current.textMuted,
+            modifier = Modifier.size(DSLayout.chevronFrameWidth),
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text(
+            text = "GENERATED",
+            style = DSFont.sidebarSection,
+            color = LocalDSColors.current.textSecondary,
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text(
+            text = "$count",
+            style = DSFont.sidebarItemSmall,
+            color = LocalDSColors.current.textMuted,
+        )
+        Spacer(Modifier.weight(1f))
+        IconButton(
+            onClick = onRefresh,
+            modifier = Modifier.size(DSLayout.gitSectionHeaderHeight),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = "Refresh generated files",
+                tint = LocalDSColors.current.textMuted,
+                modifier = Modifier.size(11.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GeneratedFileRow(
+    file: studio.vibe.shared.model.GeneratedFile,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected) LocalDSColors.current.accentPrimary.copy(alpha = 0.12f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 120),
+        label = "generatedRowBg",
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.gitFileRowHeight)
+            .padding(horizontal = DSSpacing.sm)
+            .clip(RoundedCornerShape(DSRadius.sm))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = DSSpacing.xs),
+    ) {
+        Spacer(Modifier.width(DSLayout.chevronFrameWidth))
+        Spacer(Modifier.width(DSSpacing.xs))
+        Icon(
+            imageVector = Icons.Filled.Description,
+            contentDescription = null,
+            tint = LocalDSColors.current.textMuted,
+            modifier = Modifier.size(10.dp),
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text(
+            text = file.name,
+            style = DSFont.sidebarItem,
+            color = if (isSelected) LocalDSColors.current.textPrimary else LocalDSColors.current.textSecondary,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

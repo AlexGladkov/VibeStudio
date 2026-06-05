@@ -139,6 +139,19 @@ class CodeSpeakModeViewModel(
         }
     }
 
+    fun loadGeneratedFileContent(file: GeneratedFile) {
+        scope.launch {
+            _state.update { it.copy(isLoading = true, selectedSpec = null) }
+            runCatching {
+                val bytes = persistenceStore.readFile(file.path)
+                val content = bytes?.decodeToString() ?: ""
+                _state.update { it.copy(editorContent = content, isEditorDirty = false, isLoading = false) }
+            }.onFailure { e ->
+                _state.update { it.copy(isLoading = false, errorMessage = e.message) }
+            }
+        }
+    }
+
     fun clearError() {
         _state.update { it.copy(errorMessage = null) }
     }

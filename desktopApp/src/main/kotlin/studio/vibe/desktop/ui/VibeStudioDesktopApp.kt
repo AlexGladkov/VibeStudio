@@ -152,6 +152,7 @@ fun VibeStudioDesktopApp(
                         projectStore = container.projectStore,
                         processRunner = container.processRunner,
                         coroutineScope = container.scope,
+                        codeSpeakPreferences = container.codeSpeakPreferences,
                         navigationCoordinator = container.navigationCoordinator,
                         modifier = Modifier.weight(1f),
                     )

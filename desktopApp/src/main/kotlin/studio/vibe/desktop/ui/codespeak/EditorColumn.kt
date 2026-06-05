@@ -15,7 +15,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,13 +36,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
+import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
+import studio.vibe.shared.model.GeneratedFile
 import studio.vibe.shared.model.SpecFile
 
 @Composable
 internal fun EditorColumn(
     selectedSpec: SpecFile?,
+    selectedGeneratedFile: GeneratedFile?,
     editorContent: String,
     isEditorDirty: Boolean,
     onContentChange: (String) -> Unit,
@@ -47,33 +53,112 @@ internal fun EditorColumn(
 ) {
     val colors = LocalDSColors.current
     Column(modifier = modifier.background(colors.surfaceBase)) {
-        if (selectedSpec != null) {
-            EditorBreadcrumb(spec = selectedSpec, isEditorDirty = isEditorDirty)
-            HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
+        when {
+            selectedGeneratedFile != null -> {
+                // State 3: generated file selected — read-only
+                GeneratedFileHeader(file = selectedGeneratedFile)
+                HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
 
-            val scrollState = rememberScrollState()
-            BasicTextField(
-                value = editorContent,
-                onValueChange = onContentChange,
-                textStyle = TextStyle(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = LocalDSColors.current.textPrimary,
-                    lineHeight = 18.sp,
-                ),
-                cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
-                visualTransformation = { text ->
-                    val annotated = highlightCodeSpeak(text.text, colors)
-                    TransformedText(annotated, OffsetMapping.Identity)
-                },
+                val scrollState = rememberScrollState()
+                BasicTextField(
+                    value = editorContent,
+                    onValueChange = {},
+                    readOnly = true,
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = LocalDSColors.current.textSecondary,
+                        lineHeight = 18.sp,
+                    ),
+                    cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
+                )
+            }
+
+            selectedSpec != null -> {
+                // State 2: spec selected — editable
+                EditorBreadcrumb(spec = selectedSpec, isEditorDirty = isEditorDirty)
+                HorizontalDivider(color = LocalDSColors.current.borderSubtle, thickness = 1.dp)
+
+                val scrollState = rememberScrollState()
+                BasicTextField(
+                    value = editorContent,
+                    onValueChange = onContentChange,
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = LocalDSColors.current.textPrimary,
+                        lineHeight = 18.sp,
+                    ),
+                    cursorBrush = SolidColor(LocalDSColors.current.accentPrimary),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
+                    visualTransformation = { text ->
+                        val annotated = highlightCodeSpeak(text.text, colors)
+                        TransformedText(annotated, OffsetMapping.Identity)
+                    },
+                )
+            }
+
+            else -> {
+                // State 1: nothing selected
+                EditorEmptyState()
+            }
+        }
+    }
+}
+
+@Composable
+private fun GeneratedFileHeader(file: GeneratedFile) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.gitSectionHeaderHeight)
+            .padding(horizontal = DSSpacing.md),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Description,
+            contentDescription = null,
+            tint = LocalDSColors.current.textMuted,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Text(
+            text = file.name,
+            style = DSFont.sidebarItemSmall,
+            color = LocalDSColors.current.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(DSSpacing.xs))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = androidx.compose.ui.Modifier
+                .background(
+                    LocalDSColors.current.surfaceOverlay,
+                    RoundedCornerShape(DSRadius.sm),
+                )
+                .padding(horizontal = DSSpacing.xs, vertical = 2.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = "Read-only",
+                tint = LocalDSColors.current.textMuted,
+                modifier = Modifier.size(9.dp),
             )
-        } else {
-            EditorEmptyState()
+            Spacer(Modifier.width(2.dp))
+            Text(
+                text = "read-only",
+                style = DSFont.badgeSmall,
+                color = LocalDSColors.current.textMuted,
+            )
         }
     }
 }
@@ -128,7 +213,7 @@ private fun EditorEmptyState() {
             )
             Spacer(Modifier.height(DSSpacing.sm))
             Text(
-                text = "Select a spec to view",
+                text = "Select a spec to edit",
                 style = DSFont.sidebarItem,
                 color = LocalDSColors.current.textMuted,
             )

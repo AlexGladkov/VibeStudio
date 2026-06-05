@@ -35,6 +35,8 @@ import studio.vibe.desktop.ui.codespeak.EditorColumn
 import studio.vibe.desktop.ui.codespeak.SpecsListColumn
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
+import studio.vibe.shared.model.GeneratedFile
+import studio.vibe.shared.preferences.CodeSpeakPreferencesReading
 import studio.vibe.shared.viewmodel.CodeSpeakModeViewModel
 import studio.vibe.shared.viewmodel.SpecBuildPanelViewModel
 
@@ -68,6 +70,7 @@ public fun CodeSpeakModeView(
     projectStore: ProjectManaging,
     processRunner: ProcessRunner,
     coroutineScope: CoroutineScope,
+    codeSpeakPreferences: CodeSpeakPreferencesReading? = null,
     navigationCoordinator: AppNavigationCoordinator? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -111,6 +114,9 @@ public fun CodeSpeakModeView(
     var buildWidth by remember { mutableStateOf(280.dp) }
     val density = LocalDensity.current
 
+    var selectedGeneratedFile by remember { mutableStateOf<GeneratedFile?>(null) }
+    val showFailingOnly = codeSpeakPreferences?.showFailingOnly ?: false
+
     Row(
         modifier = modifier
             .fillMaxSize()
@@ -136,11 +142,25 @@ public fun CodeSpeakModeView(
             projectStore = projectStore,
             coroutineScope = coroutineScope,
             specs = modeState.specs,
+            generatedFiles = modeState.generatedFiles,
             selectedSpecId = modeState.selectedSpec?.id,
+            selectedGeneratedFilePath = selectedGeneratedFile?.path?.path,
             isLoading = modeState.isLoading,
+            showFailingOnly = showFailingOnly,
             activeProjectId = activeProjectId,
-            onSelectSpec = { modeVm.selectSpec(it) },
-            onRefresh = { activeProjectId?.let { modeVm.loadSpecs(it) } },
+            onSelectSpec = {
+                selectedGeneratedFile = null
+                modeVm.selectSpec(it)
+            },
+            onSelectGeneratedFile = { file ->
+                selectedGeneratedFile = file
+                // Load generated file content into editor
+                modeVm.loadGeneratedFileContent(file)
+            },
+            onRefresh = {
+                activeProjectId?.let { modeVm.loadSpecs(it) }
+                activeProjectId?.let { modeVm.scanGeneratedFiles(it) }
+            },
             onSpecsChanged = { activeProjectId?.let { modeVm.loadSpecs(it) } },
             navigationCoordinator = navigationCoordinator,
             modifier = Modifier
@@ -156,7 +176,8 @@ public fun CodeSpeakModeView(
         )
 
         EditorColumn(
-            selectedSpec = modeState.selectedSpec,
+            selectedSpec = if (selectedGeneratedFile == null) modeState.selectedSpec else null,
+            selectedGeneratedFile = selectedGeneratedFile,
             editorContent = modeState.editorContent,
             isEditorDirty = modeState.isEditorDirty,
             onContentChange = { modeVm.updateEditorContent(it) },

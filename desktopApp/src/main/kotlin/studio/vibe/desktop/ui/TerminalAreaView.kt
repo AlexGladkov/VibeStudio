@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.terminal.DesktopTerminalService
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.model.TerminalSize
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.desktop.terminal.LocalTerminalRenderer
 import studio.vibe.desktop.terminal.TerminalView
@@ -75,40 +77,79 @@ fun TerminalAreaView(
     Column(modifier = modifier.background(LocalDSColors.current.surfaceBase)) {
         if (activeProjectId != null) {
             val project = projects.find { it.id == activeProjectId }
-            val shellName = shellDisplayName(project?.shellPath)
+            val sessions = terminalService.sessions(activeProjectId!!)
 
-            TerminalTitleBar(
-                sessionLabel = shellName,
-                onClear = {
-                    val sessions = terminalService.sessions(activeProjectId!!)
-                    sessions.firstOrNull()?.id?.let { id ->
-                        terminalService.sendInput("clear\n", id)
-                    }
-                },
-                onNewSession = {
-                    // No-op placeholder: split support requires additional ViewModel wiring
-                    // Wire to terminalService.split() when multi-session UI is added
-                },
-            )
+            if (sessions.isEmpty()) {
+                // Swift parity: emptyTerminalView — "New Terminal" centered button
+                TerminalEmptyState(
+                    onNewTerminal = {
+                        terminalService.createSession(
+                            projectId = activeProjectId!!,
+                            shell = project?.shellPath,
+                            workingDirectory = project?.path,
+                            size = TerminalSize(columns = 220, rows = 50),
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                val shellName = shellDisplayName(project?.shellPath)
 
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(LocalDSColors.current.borderDefault),
-            )
+                TerminalTitleBar(
+                    sessionLabel = shellName,
+                    onClear = {
+                        sessions.firstOrNull()?.id?.let { id ->
+                            terminalService.sendInput("clear\n", id)
+                        }
+                    },
+                    onNewSession = {
+                        // No-op placeholder: split support requires additional ViewModel wiring
+                        // Wire to terminalService.split() when multi-session UI is added
+                    },
+                )
 
-            val terminalFontSize by generalPreferences.terminalFontSizeFlow.collectAsState()
-            LocalTerminalRenderer.current.Render(
-                service = terminalService,
-                projectId = activeProjectId!!,
-                targetSessionId = null,
-                terminalFontSize = terminalFontSize.toFloat(),
-                workingDirectory = project?.path?.path,
-                modifier = Modifier.weight(1f),
-            )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(LocalDSColors.current.borderDefault),
+                )
+
+                val terminalFontSize by generalPreferences.terminalFontSizeFlow.collectAsState()
+                LocalTerminalRenderer.current.Render(
+                    service = terminalService,
+                    projectId = activeProjectId!!,
+                    targetSessionId = null,
+                    terminalFontSize = terminalFontSize.toFloat(),
+                    workingDirectory = project?.path?.path,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         } else {
             TerminalPlaceholder(modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+// ── Empty state (no sessions, project active) ─────────────────────────────────
+
+@Composable
+private fun TerminalEmptyState(
+    onNewTerminal: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(LocalDSColors.current.surfaceBase),
+        contentAlignment = Alignment.Center,
+    ) {
+        TextButton(onClick = onNewTerminal) {
+            Text(
+                text = "New Terminal",
+                style = DSFont.buttonLabel,
+                color = LocalDSColors.current.accentPrimary,
+            )
         }
     }
 }
