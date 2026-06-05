@@ -114,7 +114,9 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
      * Sends SIGTERM first, then SIGKILL after 5 seconds if still running.
      */
     fun stop() {
+        // 1. Signal exit-watcher coroutine first — it gates on stopRequested.
         stopRequested = true
+        // 2. Clear observable state so UI reacts immediately.
         _isRunning.value = false
 
         pollJob?.cancel()
@@ -122,7 +124,9 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
 
         val proc = process
         if (proc != null && proc.isAlive) {
-            proc.destroy()  // SIGTERM
+            // 3. Send SIGTERM synchronously.
+            proc.destroy()
+            // 4. Escalation coroutine runs after SIGTERM.
             scope.launch(Dispatchers.IO) {
                 delay(5_000)
                 if (proc.isAlive) {
@@ -132,6 +136,9 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
             }
         }
 
+        // 5. Null out process LAST — after destroy() returns synchronously.
+        //    Exit-watcher coroutine already sees stopRequested=true and will not
+        //    re-enter the unexpected-exit branch.
         process = null
 
         removePidFile()

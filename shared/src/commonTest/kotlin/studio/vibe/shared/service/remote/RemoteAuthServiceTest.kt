@@ -189,8 +189,11 @@ class RemoteAuthServiceTest {
     fun validatePin_globalLockout_emitsSecurityEvent() = runTest {
         val service = freshService()
         val events = mutableListOf<SecurityEvent>()
-        val collectJob = launch { service.securityEvents.collect { events.add(it) } }
+        val collectJob = launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+            service.securityEvents.collect { events.add(it) }
+        }
         repeat(10) { i -> service.validatePin("000000", "10.0.0.$i", "x") }
+        testScheduler.advanceUntilIdle()
         collectJob.cancel()
         assertTrue(events.any { it is SecurityEvent.GlobalLockout })
     }

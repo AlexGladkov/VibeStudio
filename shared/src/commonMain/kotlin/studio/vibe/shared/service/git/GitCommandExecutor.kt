@@ -39,7 +39,7 @@ class GitCommandExecutor(
 
     override suspend fun status(at: FilePath): GitStatus {
         val output = runGit(listOf("status", "--porcelain=v1", "--branch"), at)
-        return parseStatus(output)
+        return GitOutputParser.parseStatus(output)
     }
 
     override suspend fun diff(file: String, staged: Boolean, at: FilePath): List<GitDiffHunk> {
@@ -50,7 +50,7 @@ class GitCommandExecutor(
             add(file)
         }
         val output = runGit(args, at)
-        return parseDiff(output)
+        return GitOutputParser.parseDiff(output)
     }
 
     override suspend fun fullStagedDiff(at: FilePath): String =
@@ -69,7 +69,7 @@ class GitCommandExecutor(
         val result = mutableMapOf<String, Pair<Int, Int>>()
 
         fun merge(output: String) {
-            for ((path, stat) in parseNumstat(output)) {
+            for ((path, stat) in GitOutputParser.parseNumstat(output)) {
                 val existing = result[path]
                 result[path] = if (existing != null) {
                     Pair(existing.first + stat.added, existing.second + stat.deleted)
@@ -193,7 +193,7 @@ class GitCommandExecutor(
     // -------------------------------------------------------------------------
 
     override suspend fun push(remote: String, at: FilePath) {
-        validateBranchName(remote)
+        GitBranchParser.validateBranchName(remote)
         try {
             runGit(listOf("push", remote), at, timeout = networkTimeout)
         } catch (e: GitServiceError.CommandFailed) {
@@ -203,7 +203,7 @@ class GitCommandExecutor(
     }
 
     override suspend fun pull(remote: String, at: FilePath) {
-        validateBranchName(remote)
+        GitBranchParser.validateBranchName(remote)
         try {
             runGit(listOf("pull", remote), at, timeout = networkTimeout)
         } catch (e: GitServiceError.CommandFailed) {
@@ -216,13 +216,13 @@ class GitCommandExecutor(
     }
 
     override suspend fun fetch(remote: String, at: FilePath) {
-        validateBranchName(remote)
+        GitBranchParser.validateBranchName(remote)
         runGit(listOf("fetch", remote), at, timeout = networkTimeout)
     }
 
     override suspend fun pushBranch(branch: String, remote: String, at: FilePath) {
-        validateBranchName(branch)
-        validateBranchName(remote)
+        GitBranchParser.validateBranchName(branch)
+        GitBranchParser.validateBranchName(remote)
         try {
             runGit(
                 listOf("push", "--set-upstream", remote, branch),
@@ -237,8 +237,8 @@ class GitCommandExecutor(
     }
 
     override suspend fun pullBranch(branch: String, isCurrent: Boolean, remote: String, at: FilePath) {
-        validateBranchName(branch)
-        validateBranchName(remote)
+        GitBranchParser.validateBranchName(branch)
+        GitBranchParser.validateBranchName(remote)
         if (isCurrent) {
             try {
                 runGit(listOf("pull", remote), at, timeout = networkTimeout, suppressCredentials = false)
@@ -355,18 +355,18 @@ class GitCommandExecutor(
     }
 
     override suspend fun checkout(branch: String, at: FilePath) {
-        validateBranchName(branch)
+        GitBranchParser.validateBranchName(branch)
         runGit(listOf("switch", branch), at)
     }
 
     override suspend fun createBranch(name: String, from: String?, at: FilePath) {
-        validateBranchName(name)
+        GitBranchParser.validateBranchName(name)
         val args = buildList {
             add("switch")
             add("-c")
             add(name)
             if (from != null) {
-                validateBranchName(from)
+                GitBranchParser.validateBranchName(from)
                 add(from)
             }
         }
@@ -374,7 +374,7 @@ class GitCommandExecutor(
     }
 
     override suspend fun deleteBranch(name: String, force: Boolean, at: FilePath) {
-        validateBranchName(name)
+        GitBranchParser.validateBranchName(name)
         // -d = safe delete (refuses if unmerged); -D = force delete.
         val flag = if (force) "-D" else "-d"
         runGit(listOf("branch", flag, name), at)
@@ -466,16 +466,6 @@ class GitCommandExecutor(
     // -------------------------------------------------------------------------
     // Internal: Parsing
     // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // Delegated parse/validate helpers — logic lives in parser/ package
-    // -------------------------------------------------------------------------
-
-    internal fun parseStatus(output: String): GitStatus = GitOutputParser.parseStatus(output)
-    internal fun parseFileStatus(char: Char): GitFileStatus? = GitOutputParser.parseFileStatus(char)
-    internal fun parseDiff(output: String): List<GitDiffHunk> = GitOutputParser.parseDiff(output)
-    internal fun parseNumstat(output: String): Map<String, GitDiffStat> = GitOutputParser.parseNumstat(output)
-    internal fun validateBranchName(name: String) = GitBranchParser.validateBranchName(name)
 
     // -------------------------------------------------------------------------
     // Private: ISO 8601 date parsing (commonMain — no java.time / Foundation)

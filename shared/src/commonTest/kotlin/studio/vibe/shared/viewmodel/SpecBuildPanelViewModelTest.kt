@@ -55,9 +55,9 @@ class SpecBuildPanelViewModelTest {
     }
 
     @Test
-    fun cancelRun_stopsExecution() = runTest {
+    fun stopCommand_stopsExecution() = runTest {
         val (vm) = buildVm()
-        vm.cancelRun()
+        vm.stopCommand()
         assertFalse(vm.state.value.isRunning)
     }
 }

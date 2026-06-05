@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.PersistenceStore
 import studio.vibe.shared.contract.ProcessRunner
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.util.AtomicInt
 import studio.vibe.shared.model.CodeSpeakCommand
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.SpecFile
@@ -52,7 +53,8 @@ class SpecBuildPanelViewModel(
     // Each launched coroutine captures its own generation snapshot and bails out
     // if a newer run has started by the time a process output line is processed.
     // This matches the Swift CodeSpeakProcessRunner actor + generation guard pattern.
-    private var generation: Int = 0
+    // AtomicInt ensures visibility across threads without a full mutex on hot path.
+    private val generation = AtomicInt(0)
 
     // Tracks the project this panel currently belongs to. Switching tabs
     // must wipe the per-project transient state (output buffer, task name,
@@ -68,7 +70,7 @@ class SpecBuildPanelViewModel(
         if (currentProjectId == projectId) return
         runJob?.cancel()
         runJob = null
-        generation++
+        generation.incrementAndGet()
         _state.value = SpecBuildPanelState()
         currentProjectId = projectId
     }
@@ -100,7 +102,7 @@ class SpecBuildPanelViewModel(
 
         // Cancel any previous run before starting a new one (stop+start guard).
         runJob?.cancel()
-        val myGeneration = ++generation
+        val myGeneration = generation.incrementAndGet()
         runJob = scope.launch {
             runCatching {
                 processRunner.stream(
@@ -108,19 +110,19 @@ class SpecBuildPanelViewModel(
                     workDir = project.path,
                 ).collect { line ->
                     // Guard: discard output from a superseded run.
-                    if (generation != myGeneration) return@collect
+                    if (generation.value != myGeneration) return@collect
                     appendOutput(line)
                     if (command.supportsStatsParsing) {
                         tryParseStats(line)
                     }
                 }
             }.onFailure { e ->
-                if (generation != myGeneration) return@onFailure
+                if (generation.value != myGeneration) return@onFailure
                 _state.update { s ->
                     s.copy(errorMessage = e.message, output = s.output + "\nError: ${e.message}")
                 }
             }
-            if (generation == myGeneration) {
+            if (generation.value == myGeneration) {
                 _state.update { it.copy(isRunning = false, stopRequested = false) }
             }
         }
@@ -128,7 +130,7 @@ class SpecBuildPanelViewModel(
 
     fun stopCommand() {
         _state.update { it.copy(stopRequested = true) }
-        generation++ // invalidate any in-flight collect callbacks
+        generation.incrementAndGet() // invalidate any in-flight collect callbacks
         runJob?.cancel()
         runJob = null
         _state.update { it.copy(isRunning = false, stopRequested = false) }

@@ -145,23 +145,24 @@ class ProjectStoreImpl(
         }
     }
 
-    override fun updateProject(id: Uuid, mutate: (Project) -> Project) {
-        _projects.update { current ->
+    override suspend fun updateProject(id: Uuid, mutate: (Project) -> Project) {
+        saveMutex.withLock {
+            val current = _projects.value
             val index = current.indexOfFirst { it.id == id }
             if (index < 0) {
                 throw ProjectManagerError.NotFound(id)
             }
             val updated = current.toMutableList()
             updated[index] = mutate(current[index])
-            updated
+            _projects.value = updated
+            rebuildIndex()
+            scheduleSaveProjects()
         }
-        rebuildIndex()
-        scheduleSaveProjects()
     }
 
-    override fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {
-        _projects.update { snapshot ->
-            val current = snapshot.toMutableList()
+    override suspend fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {
+        saveMutex.withLock {
+            val current = _projects.value.toMutableList()
             val moving = fromIndices.sortedDescending().mapNotNull { idx ->
                 if (idx in current.indices) current.removeAt(idx) else null
             }.reversed()
@@ -170,10 +171,10 @@ class ProjectStoreImpl(
                 .coerceIn(0, current.size)
 
             current.addAll(insertAt, moving)
-            current
+            _projects.value = current
+            rebuildIndex()
+            scheduleSaveProjects()
         }
-        rebuildIndex()
-        scheduleSaveProjects()
     }
 
     override fun project(id: Uuid): Project? = indexById[id]

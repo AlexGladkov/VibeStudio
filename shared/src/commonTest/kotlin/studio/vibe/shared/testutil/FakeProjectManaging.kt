@@ -1,10 +1,15 @@
 package studio.vibe.shared.testutil
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.contract.ProjectsState
 import studio.vibe.shared.model.FilePath
@@ -24,6 +29,8 @@ import kotlin.uuid.Uuid
 class FakeProjectManaging(
     initialProjects: List<Project> = emptyList(),
     initialRecents: List<Project> = emptyList(),
+    /** Scope used for [projectsState] combine — default is suitable for tests. */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher()),
 ) : ProjectManaging {
 
     private val _projects = MutableStateFlow(initialProjects)
@@ -38,12 +45,20 @@ class FakeProjectManaging(
     private val _recentProjects = MutableStateFlow(initialRecents)
     override val recentProjects: StateFlow<List<Project>> = _recentProjects.asStateFlow()
 
-    // projectsState is derived synchronously via combine for test simplicity.
-    // Tests that need a StateFlow snapshot can use .value on the individual flows.
-    private val _projectsState = MutableStateFlow(
-        ProjectsState(initialProjects, null, initialRecents, initialRecents)
+    override val projectsState: StateFlow<ProjectsState> = combine(
+        _projects, _activeProjectId, _recentHistory, _recentProjects,
+    ) { projs, activeId, history, recents ->
+        ProjectsState(
+            projects = projs,
+            activeProjectId = activeId,
+            recentHistory = history,
+            recentProjects = recents,
+        )
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = ProjectsState(initialProjects, null, initialRecents, initialRecents),
     )
-    override val projectsState: StateFlow<ProjectsState> = _projectsState.asStateFlow()
 
     /** When non-null, [addProject] throws this exception instead of registering the project. */
     var addProjectError: ProjectManagerError? = null
@@ -73,11 +88,11 @@ class FakeProjectManaging(
         }
     }
 
-    override fun updateProject(id: Uuid, mutate: (Project) -> Project) {
+    override suspend fun updateProject(id: Uuid, mutate: (Project) -> Project) {
         _projects.update { it.map { p -> if (p.id == id) mutate(p) else p } }
     }
 
-    override fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {
+    override suspend fun moveProjects(fromIndices: Set<Int>, toDestination: Int) {
         // Not exercised by VM tests yet — implement on demand.
     }
 

@@ -20,6 +20,7 @@
 		0949051096B3C303EA507C4B /* FileViewerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A9861565F03EEC5D3DEC79 /* FileViewerViewModel.swift */; };
 		0A160645EB1BD86223BD5554 /* SettingsEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A123D08B1D9CA2F62BB5C1B2 /* SettingsEmptyState.swift */; };
 		0A1A345EC0C7E50B1C425F47 /* AICommitServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3344185FCE91D8FB33DBA35 /* AICommitServicing.swift */; };
+		0BAB80E5236949E4DF98BE30 /* NIOWebSocket in Frameworks */ = {isa = PBXBuildFile; productRef = 57202B109140153FE750E5BA /* NIOWebSocket */; };
 		0D0F5AFF5FA85A6C3C60D6CA /* SyntaxParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86760BC15DB6C19079392073 /* SyntaxParsing.swift */; };
 		0D56EE200F9B900BFFB5D795 /* SessionLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C0FEFA964F39D9F3698F963 /* SessionLifecycleCoordinator.swift */; };
 		0F1A279285482807B678E0D1 /* CodeSpeakPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E37CDC9F2B4A5A3E85280C /* CodeSpeakPreferences.swift */; };
@@ -33,6 +34,7 @@
 		17E624C98EB5391A1936842F /* PathConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8769B91730D0EC85A71CC240 /* PathConstants.swift */; };
 		19DB055CA651DE3DE5DA9F40 /* SpecsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BACD8DB07884C4BACBCEDF5 /* SpecsPanelView.swift */; };
 		1C9A2486B6860A10E85F22B3 /* CodeSpeakParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDFE45A1A341D6F6F3A3E348 /* CodeSpeakParser.swift */; };
+		1CB6CB2A7531785D62666234 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = F264F82799BA61196736E65C /* NIOPosix */; };
 		1E0D6366A3F11D0829760CEB /* ProjectStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98F1A4F002CE285CEA0E38E /* ProjectStoreTests.swift */; };
 		1EACA66A4E31BDFEC03C1D2D /* SpecEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABDC2BC698BEE18F83E4532 /* SpecEditorViewModel.swift */; };
 		1EDDB24FB283C91215EA55BB /* CodeSpeakModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5643EBE9DEF46B1640D2696 /* CodeSpeakModeView.swift */; };
@@ -80,6 +82,7 @@
 		5306BC60493E06F371CCEF9E /* GitRemoteOperating.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098363B9EF1CB619C89F8F19 /* GitRemoteOperating.swift */; };
 		55B2C20D10E118D5EF4F4AA2 /* TraceabilityPanelViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3D056A68AD93C20A822127 /* TraceabilityPanelViewModel.swift */; };
 		564B800F091D902DA8A8114B /* NgrokTunnelService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F869C0B42D7A487F6715E132 /* NgrokTunnelService.swift */; };
+		5766A6F789ECBAE8A54394A6 /* NIOHTTP1 in Frameworks */ = {isa = PBXBuildFile; productRef = CB54DD42DC34B8B72DCA4AE8 /* NIOHTTP1 */; };
 		580AA666F21E61B92114E461 /* TerminalInputSending.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241AF3EF47162218F10F879B /* TerminalInputSending.swift */; };
 		5859F3D936AB727CB4CAB1AD /* MockAgentAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA2CEB280F51FF8C5FBE6D1 /* MockAgentAvailability.swift */; };
 		58CDB1D7E51D8382425D1540 /* TabItemViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E072146A96FB60E0D4D765 /* TabItemViewModel.swift */; };
@@ -93,6 +96,7 @@
 		6178EBD948943A7551803121 /* SpecStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39ED2B20858970168A6BA6FD /* SpecStats.swift */; };
 		617B2CD6E64310AFE87CAF28 /* DisclosureChevron.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AA5CAFFBEAB587D7AAC0C9 /* DisclosureChevron.swift */; };
 		61A122C92EF368533E65B9EC /* TLSCertificateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 338D729EBA3B4AD56B86728A /* TLSCertificateManager.swift */; };
+		633868AC7FF0BBBAB0997349 /* NIOSSL in Frameworks */ = {isa = PBXBuildFile; productRef = A9D87C8E6E28BFAF6B511787 /* NIOSSL */; };
 		65AD7A249FD9A71E5A4A2647 /* RemoteAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A01720F03A3D92DEF96560 /* RemoteAuthService.swift */; };
 		6626A5E3BD36C21FE2026683 /* ProjectManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E82ECC14367AF605FBD8DC0 /* ProjectManaging.swift */; };
 		66DAE73C0C890A849A233ABA /* CodeContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62489FC7B041175BDFBB2179 /* CodeContentView.swift */; };
@@ -182,6 +186,7 @@
 		DAE882752156324BB158C0D8 /* ClaudeSettingsPaneViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FFE360B8A493CC3B7FA4BDF /* ClaudeSettingsPaneViewModel.swift */; };
 		DD39569B80F337B1BB2FABEE /* ToolbarIconButtonModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4768876E4C8F1D377A0D788F /* ToolbarIconButtonModifier.swift */; };
 		DE5730F01E08EE877B1BE35E /* BranchListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C285049312BEE8B9F29A7BC8 /* BranchListView.swift */; };
+		DEF83AC16CB1790855B72144 /* WebSocketKit in Frameworks */ = {isa = PBXBuildFile; productRef = D9221D48D1F190315D2E52E4 /* WebSocketKit */; };
 		DF5AE98412584FA7CA8142F2 /* GeneralSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE17C585B5800BE32F71A70 /* GeneralSettingsPane.swift */; };
 		E02F4D88B327E5B9C3976A78 /* AppNavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F5EDDA260D3D2E53BCBF86 /* AppNavigationCoordinator.swift */; };
 		E069BD69A1F4951BF9FFA746 /* ContinuationHolder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDAA7773FB14FCE4F533334E /* ContinuationHolder.swift */; };
@@ -196,6 +201,7 @@
 		E7CCDA55F5082053449191D1 /* SidebarSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A9D55643999F7F492E427BC /* SidebarSection.swift */; };
 		EB2A6716D93140A143EEAB97 /* StyledInputModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4F30680A4E8BBDC18E3F3AE /* StyledInputModifier.swift */; };
 		EC7CE8794E2407764D82F56E /* SaveSessionUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D48FE54C5E787C7021F99B6 /* SaveSessionUseCase.swift */; };
+		ED19A16A49DE932285A3DAA7 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 31CC0516372A905B3EFAA472 /* NIOCore */; };
 		EE0FCF981C021B6E56399FED /* TerminalSessionCreating.swift in Sources */ = {isa = PBXBuildFile; fileRef = 434897A2D38B91A85D935AFC /* TerminalSessionCreating.swift */; };
 		EF81C380593C7F133077D6B4 /* SettingsItemRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 305A21E2EC3D2EE0486B829E /* SettingsItemRow.swift */; };
 		EFFDAA39A44385D49698EE89 /* AgentAvailabilityChecking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EAB10D339D6539A44834 /* AgentAvailabilityChecking.swift */; };
@@ -215,6 +221,7 @@
 		FB253C0D4564A83AE279DDA7 /* CodeSpeakModeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FB03DD2E97E2EBBF6D2CB57 /* CodeSpeakModeViewModel.swift */; };
 		FBBE31101B7ADEC84575D6A3 /* AICommitServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0427328956283D7DF356A83 /* AICommitServiceTests.swift */; };
 		FBE5CA6F77B1C851F7D80726 /* TerminalAppearanceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCCD8956CD865E5ED975BDE /* TerminalAppearanceManager.swift */; };
+		FBF7B085C39C1877EA2E115C /* X509 in Frameworks */ = {isa = PBXBuildFile; productRef = 927DA81F61AC33DC3D421CB5 /* X509 */; };
 		FE8D0738C71FBBBAA0C651A0 /* HTTPRequestRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A77F941CADEFBEFB7A16F5 /* HTTPRequestRouter.swift */; };
 		FF4B310BBBD98EDDFE4E1434 /* WindowToolbarRemover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98C4F5A58562BFC11ABF51F /* WindowToolbarRemover.swift */; };
 		FF954AE43ADA18597C77920A /* GitBranching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34012FF65A96F2F6727ECF1A /* GitBranching.swift */; };
@@ -453,6 +460,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				F2DE64D9DA8486DB084197E2 /* SwiftTerm in Frameworks */,
+				ED19A16A49DE932285A3DAA7 /* NIOCore in Frameworks */,
+				1CB6CB2A7531785D62666234 /* NIOPosix in Frameworks */,
+				5766A6F789ECBAE8A54394A6 /* NIOHTTP1 in Frameworks */,
+				0BAB80E5236949E4DF98BE30 /* NIOWebSocket in Frameworks */,
+				633868AC7FF0BBBAB0997349 /* NIOSSL in Frameworks */,
+				FBF7B085C39C1877EA2E115C /* X509 in Frameworks */,
+				DEF83AC16CB1790855B72144 /* WebSocketKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1331,6 +1345,13 @@
 			name = VibeStudio;
 			packageProductDependencies = (
 				3615091EFEA07EF308A8AE98 /* SwiftTerm */,
+				31CC0516372A905B3EFAA472 /* NIOCore */,
+				F264F82799BA61196736E65C /* NIOPosix */,
+				CB54DD42DC34B8B72DCA4AE8 /* NIOHTTP1 */,
+				57202B109140153FE750E5BA /* NIOWebSocket */,
+				A9D87C8E6E28BFAF6B511787 /* NIOSSL */,
+				927DA81F61AC33DC3D421CB5 /* X509 */,
+				D9221D48D1F190315D2E52E4 /* WebSocketKit */,
 			);
 			productName = VibeStudio;
 			productReference = BA12055B013FFBC787CC7C71 /* VibeStudio.app */;
@@ -1357,6 +1378,10 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				2180EC66AD1DDE3658FF3B35 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				2D57E491EA20E67DB3C84D95 /* XCRemoteSwiftPackageReference "swift-certificates" */,
+				8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */,
+				F44D39B15296495892D34DD6 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */,
+				818FFB61FDB17C3E8990E074 /* XCRemoteSwiftPackageReference "websocket-kit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -1897,13 +1922,80 @@
 				minimumVersion = 1.12.0;
 			};
 		};
+		2D57E491EA20E67DB3C84D95 /* XCRemoteSwiftPackageReference "swift-certificates" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-certificates.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.0;
+			};
+		};
+		818FFB61FDB17C3E8990E074 /* XCRemoteSwiftPackageReference "websocket-kit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/vapor/websocket-kit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.15.0;
+			};
+		};
+		8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.76.0;
+			};
+		};
+		F44D39B15296495892D34DD6 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssl.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.29.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		31CC0516372A905B3EFAA472 /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
 		3615091EFEA07EF308A8AE98 /* SwiftTerm */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 2180EC66AD1DDE3658FF3B35 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
 			productName = SwiftTerm;
+		};
+		57202B109140153FE750E5BA /* NIOWebSocket */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOWebSocket;
+		};
+		927DA81F61AC33DC3D421CB5 /* X509 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2D57E491EA20E67DB3C84D95 /* XCRemoteSwiftPackageReference "swift-certificates" */;
+			productName = X509;
+		};
+		A9D87C8E6E28BFAF6B511787 /* NIOSSL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F44D39B15296495892D34DD6 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */;
+			productName = NIOSSL;
+		};
+		CB54DD42DC34B8B72DCA4AE8 /* NIOHTTP1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOHTTP1;
+		};
+		D9221D48D1F190315D2E52E4 /* WebSocketKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 818FFB61FDB17C3E8990E074 /* XCRemoteSwiftPackageReference "websocket-kit" */;
+			productName = WebSocketKit;
+		};
+		F264F82799BA61196736E65C /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOPosix;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

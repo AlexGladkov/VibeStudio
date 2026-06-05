@@ -6,6 +6,7 @@
 import AppKit
 import OSLog
 import SwiftUI
+import VibeStudioShared
 
 /// Application delegate serving as the Composition Root.
 ///

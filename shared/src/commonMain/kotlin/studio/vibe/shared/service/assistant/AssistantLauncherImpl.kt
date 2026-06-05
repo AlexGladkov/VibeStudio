@@ -155,10 +155,10 @@ class AssistantLauncherImpl(
         val sessionId = _state.value.sessionIds[projectId]?.get(agentId)
             ?: return Result.success(Unit) // already stopped — idempotent
 
-        // Optimistic state removal before sending exit signal
-        _state.update { it.withoutSession(projectId, agentId) }
-
-        return runCatching {
+        // Send exit signal FIRST — if sendInput throws, the OS process is orphaned
+        // but we still clean up state so the UI is consistent (zombie OS process is
+        // acceptable at exit; dangling state that blocks re-launch is not).
+        val sendResult = runCatching {
             when (val exitSeq = agent.exitSequence) {
                 is AgentExitSequence.CtrlC -> {
                     terminalSessionManaging.sendInput("", sessionId)
@@ -170,6 +170,15 @@ class AssistantLauncherImpl(
                 }
             }
         }
+
+        if (sendResult.isFailure) {
+            println("AssistantLauncherImpl: sendInput failed (session may already be dead): ${sendResult.exceptionOrNull()?.message}")
+        }
+
+        // Remove from state AFTER send attempt — always, regardless of sendInput outcome.
+        _state.update { it.withoutSession(projectId, agentId) }
+
+        return sendResult
     }
 
     // ── Helpers for ToolbarViewModel / session lifecycle ──────────────────────

@@ -172,7 +172,8 @@ class GitSidebarViewModel(
     }
 
     fun performCommit(projectId: Uuid, path: FilePath) {
-        val summary = _state.value.commitSummaries[projectId].orEmpty()
+        val snapshot = _state.value
+        val summary = snapshot.commitSummaries[projectId].orEmpty()
         if (summary.isBlank()) return
 
         scope.launch {
@@ -180,11 +181,11 @@ class GitSidebarViewModel(
                 s.copy(committingProjects = s.committingProjects + projectId)
             }
             runCatching {
-                val description = _state.value.commitDescriptions[projectId].orEmpty()
+                val description = snapshot.commitDescriptions[projectId].orEmpty()
                 val message = if (description.isBlank()) summary
                     else "$summary\n\n$description"
 
-                val status = _state.value.projectGitStatuses[projectId]
+                val status = snapshot.projectGitStatuses[projectId]
                 if (status != null && status.stagedFiles.isEmpty()) {
                     val allFiles = (status.unstagedFiles + status.untrackedFiles).map { it.path }
                     if (allFiles.isNotEmpty()) {
@@ -329,7 +330,8 @@ class GitSidebarViewModel(
      * On failure, [GitSidebarState.deleteErrorMessage] is set with the error detail.
      */
     fun confirmDeleteBranch(projectId: Uuid, path: FilePath, force: Boolean = false) {
-        val branchName = _state.value.pendingDeleteBranch[projectId] ?: return
+        val snapshot = _state.value
+        val branchName = snapshot.pendingDeleteBranch[projectId] ?: return
         scope.launch {
             runCatching {
                 gitService.deleteBranch(name = branchName, force = force, at = path)

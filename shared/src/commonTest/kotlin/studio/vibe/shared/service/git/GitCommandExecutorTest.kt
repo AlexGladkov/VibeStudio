@@ -2,6 +2,8 @@ package studio.vibe.shared.service.git
 
 import kotlinx.coroutines.test.runTest
 import studio.vibe.shared.model.*
+import studio.vibe.shared.service.git.parser.GitBranchParser
+import studio.vibe.shared.service.git.parser.GitOutputParser
 import studio.vibe.shared.testutil.FakeProcessRunner
 import kotlin.test.*
 
@@ -10,11 +12,11 @@ import kotlin.test.*
  *
  * All subprocess execution is stubbed via [FakeProcessRunner].
  * Tests cover:
- * - parseStatus (internal)
- * - parseFileStatus (internal)
- * - parseDiff (internal)
- * - parseNumstat (internal)
- * - validateBranchName (internal)
+ * - GitOutputParser.parseStatus
+ * - GitOutputParser.parseFileStatus
+ * - GitOutputParser.parseDiff
+ * - GitOutputParser.parseNumstat
+ * - GitBranchParser.validateBranchName
  * - addRemote URL validation
  * - commit message validation
  */
@@ -43,7 +45,7 @@ class GitCommandExecutorTest {
         val output = "## main...origin/main\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals("main", status.branch)
@@ -61,7 +63,7 @@ class GitCommandExecutorTest {
         val output = "## feature/foo...origin/feature/foo [ahead 3, behind 1]\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals("feature/foo", status.branch)
@@ -75,7 +77,7 @@ class GitCommandExecutorTest {
         val output = "## main...origin/main [ahead 2]\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals(2, status.aheadCount)
@@ -88,7 +90,7 @@ class GitCommandExecutorTest {
         val output = "## main...origin/main [behind 5]\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals(0, status.aheadCount)
@@ -101,7 +103,7 @@ class GitCommandExecutorTest {
         val output = "## main\nM  src/Foo.kt\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals(1, status.stagedFiles.size)
@@ -116,7 +118,7 @@ class GitCommandExecutorTest {
         val output = "## main\n M src/Bar.kt\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals(1, status.unstagedFiles.size)
@@ -131,7 +133,7 @@ class GitCommandExecutorTest {
         val output = "## main\n?? new_file.kt\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals(1, status.untrackedFiles.size)
@@ -151,7 +153,7 @@ class GitCommandExecutorTest {
         }
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         val stagedStatuses = status.stagedFiles.map { it.status }
@@ -167,7 +169,7 @@ class GitCommandExecutorTest {
         val output = "## main\nMM src/Mixed.kt\n"
 
         // Act
-        val status = executor.parseStatus(output)
+        val status = GitOutputParser.parseStatus(output)
 
         // Assert
         assertEquals(1, status.stagedFiles.size)
@@ -179,7 +181,7 @@ class GitCommandExecutorTest {
     @Test
     fun parseStatus_emptyOutput_returnsEmptyStatus() {
         // Arrange + Act
-        val status = executor.parseStatus("")
+        val status = GitOutputParser.parseStatus("")
 
         // Assert
         assertEquals("", status.branch)
@@ -190,18 +192,18 @@ class GitCommandExecutorTest {
 
     @Test
     fun parseFileStatus_knownCharacters_returnCorrectStatuses() {
-        assertEquals(GitFileStatus.MODIFIED, executor.parseFileStatus('M'))
-        assertEquals(GitFileStatus.ADDED, executor.parseFileStatus('A'))
-        assertEquals(GitFileStatus.DELETED, executor.parseFileStatus('D'))
-        assertEquals(GitFileStatus.RENAMED, executor.parseFileStatus('R'))
-        assertEquals(GitFileStatus.COPIED, executor.parseFileStatus('C'))
+        assertEquals(GitFileStatus.MODIFIED, GitOutputParser.parseFileStatus('M'))
+        assertEquals(GitFileStatus.ADDED, GitOutputParser.parseFileStatus('A'))
+        assertEquals(GitFileStatus.DELETED, GitOutputParser.parseFileStatus('D'))
+        assertEquals(GitFileStatus.RENAMED, GitOutputParser.parseFileStatus('R'))
+        assertEquals(GitFileStatus.COPIED, GitOutputParser.parseFileStatus('C'))
     }
 
     @Test
     fun parseFileStatus_unknownCharacter_returnsNull() {
-        assertNull(executor.parseFileStatus('X'))
-        assertNull(executor.parseFileStatus('?'))
-        assertNull(executor.parseFileStatus(' '))
+        assertNull(GitOutputParser.parseFileStatus('X'))
+        assertNull(GitOutputParser.parseFileStatus('?'))
+        assertNull(GitOutputParser.parseFileStatus(' '))
     }
 
     // ── parseDiff ─────────────────────────────────────────────────────────────
@@ -209,7 +211,7 @@ class GitCommandExecutorTest {
     @Test
     fun parseDiff_emptyOutput_returnsEmptyList() {
         // Arrange + Act
-        val hunks = executor.parseDiff("")
+        val hunks = GitOutputParser.parseDiff("")
 
         // Assert
         assertTrue(hunks.isEmpty())
@@ -227,7 +229,7 @@ class GitCommandExecutorTest {
         """.trimIndent()
 
         // Act
-        val hunks = executor.parseDiff(output)
+        val hunks = GitOutputParser.parseDiff(output)
 
         // Assert
         assertEquals(1, hunks.size)
@@ -246,7 +248,7 @@ class GitCommandExecutorTest {
         """.trimIndent()
 
         // Act
-        val hunks = executor.parseDiff(output)
+        val hunks = GitOutputParser.parseDiff(output)
         val lines = hunks[0].lines
 
         // Assert
@@ -271,7 +273,7 @@ class GitCommandExecutorTest {
         }
 
         // Act
-        val hunks = executor.parseDiff(output)
+        val hunks = GitOutputParser.parseDiff(output)
 
         // Assert
         assertEquals(2, hunks.size)
@@ -283,7 +285,7 @@ class GitCommandExecutorTest {
         val output = "@@ -5,1 +5,2 @@\n+new line\n"
 
         // Act
-        val hunk = executor.parseDiff(output)[0]
+        val hunk = GitOutputParser.parseDiff(output)[0]
         val addedLine = hunk.lines.first { it.type == DiffLineType.ADDITION }
 
         // Assert
@@ -297,7 +299,7 @@ class GitCommandExecutorTest {
         val output = "@@ -3,1 +3,0 @@\n-removed line\n"
 
         // Act
-        val hunk = executor.parseDiff(output)[0]
+        val hunk = GitOutputParser.parseDiff(output)[0]
         val deletedLine = hunk.lines.first { it.type == DiffLineType.DELETION }
 
         // Assert
@@ -311,7 +313,7 @@ class GitCommandExecutorTest {
         val output = "@@ -1,1 +1,1 @@\n+hello world\n"
 
         // Act
-        val line = executor.parseDiff(output)[0].lines.first()
+        val line = GitOutputParser.parseDiff(output)[0].lines.first()
 
         // Assert — the leading '+' is stripped from content
         assertEquals("hello world", line.content)
@@ -325,7 +327,7 @@ class GitCommandExecutorTest {
         val output = "5\t3\tsrc/Main.kt\n10\t0\tsrc/New.kt\n"
 
         // Act
-        val stats = executor.parseNumstat(output)
+        val stats = GitOutputParser.parseNumstat(output)
 
         // Assert
         assertEquals(2, stats.size)
@@ -339,7 +341,7 @@ class GitCommandExecutorTest {
         val output = "-\t-\tbinary.png\n2\t1\ttext.kt\n"
 
         // Act
-        val stats = executor.parseNumstat(output)
+        val stats = GitOutputParser.parseNumstat(output)
 
         // Assert
         assertNull(stats["binary.png"])
@@ -348,7 +350,7 @@ class GitCommandExecutorTest {
 
     @Test
     fun parseNumstat_emptyOutput_returnsEmpty() {
-        assertEquals(emptyMap(), executor.parseNumstat(""))
+        assertEquals(emptyMap(), GitOutputParser.parseNumstat(""))
     }
 
     // ── validateBranchName ────────────────────────────────────────────────────
@@ -356,65 +358,65 @@ class GitCommandExecutorTest {
     @Test
     fun validateBranchName_validName_doesNotThrow() {
         // Arrange + Act + Assert — no exception
-        executor.validateBranchName("main")
-        executor.validateBranchName("feature/my-feature")
-        executor.validateBranchName("release-1.0")
-        executor.validateBranchName("v2.0.0")
+        GitBranchParser.validateBranchName("main")
+        GitBranchParser.validateBranchName("feature/my-feature")
+        GitBranchParser.validateBranchName("release-1.0")
+        GitBranchParser.validateBranchName("v2.0.0")
     }
 
     @Test
     fun validateBranchName_emptyName_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("")
+            GitBranchParser.validateBranchName("")
         }
     }
 
     @Test
     fun validateBranchName_leadingDash_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("-bad-name")
+            GitBranchParser.validateBranchName("-bad-name")
         }
     }
 
     @Test
     fun validateBranchName_doubleDots_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("branch..name")
+            GitBranchParser.validateBranchName("branch..name")
         }
     }
 
     @Test
     fun validateBranchName_containsSpace_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("branch name")
+            GitBranchParser.validateBranchName("branch name")
         }
     }
 
     @Test
     fun validateBranchName_containsTilde_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("branch~1")
+            GitBranchParser.validateBranchName("branch~1")
         }
     }
 
     @Test
     fun validateBranchName_containsCaret_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("branch^HEAD")
+            GitBranchParser.validateBranchName("branch^HEAD")
         }
     }
 
     @Test
     fun validateBranchName_containsColon_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("origin:main")
+            GitBranchParser.validateBranchName("origin:main")
         }
     }
 
     @Test
     fun validateBranchName_shellInjectionAttempt_throws() {
         assertFailsWith<GitServiceError.CommandFailed> {
-            executor.validateBranchName("main; rm -rf /")
+            GitBranchParser.validateBranchName("main; rm -rf /")
         }
     }
 

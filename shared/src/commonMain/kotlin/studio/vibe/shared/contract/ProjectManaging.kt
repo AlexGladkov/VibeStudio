@@ -52,8 +52,12 @@ interface ProjectManaging {
 
     @Throws(ProjectManagerError::class, CancellationException::class)
     suspend fun removeProject(id: Uuid)
-    fun updateProject(id: Uuid, mutate: (Project) -> Project)
-    fun moveProjects(fromIndices: Set<Int>, toDestination: Int)
+
+    @Throws(ProjectManagerError::class, CancellationException::class)
+    suspend fun updateProject(id: Uuid, mutate: (Project) -> Project)
+
+    @Throws(ProjectManagerError::class, CancellationException::class)
+    suspend fun moveProjects(fromIndices: Set<Int>, toDestination: Int)
     fun project(id: Uuid): Project?
     fun project(path: FilePath): Project?
 

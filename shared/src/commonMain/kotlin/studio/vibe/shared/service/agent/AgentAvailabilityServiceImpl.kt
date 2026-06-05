@@ -14,6 +14,7 @@ import studio.vibe.shared.contract.AgentAvailabilityChecking
 import studio.vibe.shared.contract.AgentAvailabilityStatus
 import studio.vibe.shared.contract.BinaryResolver
 import studio.vibe.shared.contract.CredentialStorage
+import kotlin.concurrent.Volatile
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -48,12 +49,12 @@ class AgentAvailabilityServiceImpl(
     override val availabilityFlow: StateFlow<Map<AIAgent, AgentAvailabilityStatus>> =
         _availabilityFlow.asStateFlow()
 
-    private var lastRefreshAt: Instant = Instant.DISTANT_PAST
+    @Volatile private var lastRefreshAt: Instant = Instant.DISTANT_PAST
 
     // "Latest wins" — cancel the previous refresh Job before launching a new one.
     // This prevents stale results from an older slow probe overwriting fresher data
     // when refreshAll() is called in rapid succession (e.g. project switches).
-    private var refreshJob: Job? = null
+    @Volatile private var refreshJob: Job? = null
 
     // Guards access to [lastRefreshAt] and [refreshJob] from multiple threads.
     private val refreshMutex = Mutex()

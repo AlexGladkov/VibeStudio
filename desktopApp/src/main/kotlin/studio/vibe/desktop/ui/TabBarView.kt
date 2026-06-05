@@ -153,17 +153,21 @@ fun TabBarView(
                         if (tabWidthPx > 0f) {
                             when {
                                 dragOffset > threshold && index < projects.lastIndex -> {
-                                    projectStore.moveProjects(
-                                        fromIndices = setOf(index),
-                                        toDestination = index + 1,
-                                    )
+                                    tabBarScope.launch {
+                                        projectStore.moveProjects(
+                                            fromIndices = setOf(index),
+                                            toDestination = index + 1,
+                                        )
+                                    }
                                     dragOffset -= tabWidthPx
                                 }
                                 dragOffset < -threshold && index > 0 -> {
-                                    projectStore.moveProjects(
-                                        fromIndices = setOf(index),
-                                        toDestination = index - 1,
-                                    )
+                                    tabBarScope.launch {
+                                        projectStore.moveProjects(
+                                            fromIndices = setOf(index),
+                                            toDestination = index - 1,
+                                        )
+                                    }
                                     dragOffset += tabWidthPx
                                 }
                             }

@@ -3,6 +3,7 @@ package studio.vibe.shared.service.git
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.*
+import studio.vibe.shared.contract.AheadBehind
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitFile
 import studio.vibe.shared.model.GitFileStatus
@@ -346,7 +347,7 @@ class GitStatusPollerTest {
             unstagedFiles = emptyList(),
             untrackedFiles = emptyList(),
         )
-        fakeGitService.aheadBehindResult = Pair(2, 1)
+        fakeGitService.aheadBehindResult = AheadBehind(ahead = 2, behind = 1)
         val (poller, scope) = makePollerWithScope()
 
         // Act
@@ -371,7 +372,7 @@ class GitStatusPollerTest {
             unstagedFiles = emptyList(),
             untrackedFiles = emptyList(),
         )
-        fakeGitService.aheadBehindResult = Pair(99, 99)
+        fakeGitService.aheadBehindResult = AheadBehind(ahead = 99, behind = 99)
         val (poller, scope) = makePollerWithScope()
 
         // Act

@@ -238,13 +238,14 @@ class DesktopServiceContainer {
         // Final synchronous flush so unsaved in-memory edits hit disk before exit.
         runBlocking { projectStore.save() }
         gitStatusPoller.stopPolling()
-        // Dispose ViewModels — cancels their child scopes and cleans up resources before
-        // the parent scope is cancelled. fileTreeViewModel is always initialized (eager).
+        // Dispose ViewModels — use disposeAndJoin() so each child scope is fully cancelled
+        // and all in-flight coroutines have completed before the parent scope is cancelled.
+        // fileTreeViewModel is always initialized (eager).
         // The lazy VMs are safe to access here: if never initialized the lazy block runs
         // but scope.cancel() follows immediately, so no work is started.
-        fileTreeViewModel.dispose()
-        toolbarViewModel.dispose()
-        gitSidebarViewModel.dispose()
+        runBlocking { fileTreeViewModel.disposeAndJoin() }
+        runBlocking { toolbarViewModel.disposeAndJoin() }
+        runBlocking { gitSidebarViewModel.disposeAndJoin() }
         fileSystemWatchingService.unwatchAll()
         // Stop Remote Control server before terminal service so bridges can detach cleanly.
         // runBlocking ensures stopAsync() completes (Ktor engines stopped, ngrok killed, ports

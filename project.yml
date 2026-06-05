@@ -17,6 +17,18 @@ packages:
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm.git
     from: "1.12.0"
+  swift-nio:
+    url: https://github.com/apple/swift-nio.git
+    from: "2.76.0"
+  swift-nio-ssl:
+    url: https://github.com/apple/swift-nio-ssl.git
+    from: "2.29.0"
+  swift-certificates:
+    url: https://github.com/apple/swift-certificates.git
+    from: "1.7.0"
+  websocket-kit:
+    url: https://github.com/vapor/websocket-kit.git
+    from: "2.15.0"
 
 targets:
   VibeStudio:
@@ -53,6 +65,20 @@ targets:
         # SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     dependencies:
       - package: SwiftTerm
+      - package: swift-nio
+        product: NIOCore
+      - package: swift-nio
+        product: NIOPosix
+      - package: swift-nio
+        product: NIOHTTP1
+      - package: swift-nio
+        product: NIOWebSocket
+      - package: swift-nio-ssl
+        product: NIOSSL
+      - package: swift-certificates
+        product: X509
+      - package: websocket-kit
+        product: WebSocketKit
     preBuildScripts:
       - name: Build KMP framework (VibeStudioShared)
         # Invokes Gradle's embedAndSignAppleFrameworkForXcode which builds the
