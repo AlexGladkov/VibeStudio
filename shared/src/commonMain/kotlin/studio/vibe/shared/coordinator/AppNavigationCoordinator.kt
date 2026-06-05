@@ -102,6 +102,20 @@ class AppNavigationCoordinator {
         _showingSidebar.update { !it }
     }
 
+    // MARK: - CodeSpeak Column Widths (toolbar three-section layout)
+
+    /**
+     * Width of the specs-list column in CodeSpeak mode, in pixels (not dp).
+     * Updated by [SpecsListColumn] via GeometryReader equivalent (onGloballyPositioned).
+     * Read by ToolbarView Box1 to align the breadcrumb to the centre column.
+     */
+    private val _specsColumnWidth = MutableStateFlow(220f)
+    val specsColumnWidth: StateFlow<Float> = _specsColumnWidth.asStateFlow()
+
+    fun setSpecsColumnWidth(widthPx: Float) {
+        if (widthPx > 0f) _specsColumnWidth.value = widthPx
+    }
+
     // MARK: - Mode Sync
 
     /**

@@ -44,6 +44,9 @@ dependencies {
     // JSON parsing for ngrok API response (no additional dep — org.json ships with Android/JVM)
     implementation("org.json:json:20240303")
 
+    // QR code generation for remote control popover
+    implementation("com.google.zxing:core:3.5.3")
+
     // Test dependencies
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")

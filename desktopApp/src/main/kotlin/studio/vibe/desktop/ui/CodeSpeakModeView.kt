@@ -34,6 +34,7 @@ import studio.vibe.desktop.ui.codespeak.CodeSpeakResizeHandle
 import studio.vibe.desktop.ui.codespeak.EditorColumn
 import studio.vibe.desktop.ui.codespeak.SpecsListColumn
 import studio.vibe.desktop.ui.theme.LocalDSColors
+import studio.vibe.shared.coordinator.AppNavigationCoordinator
 import studio.vibe.shared.viewmodel.CodeSpeakModeViewModel
 import studio.vibe.shared.viewmodel.SpecBuildPanelViewModel
 
@@ -67,6 +68,7 @@ public fun CodeSpeakModeView(
     projectStore: ProjectManaging,
     processRunner: ProcessRunner,
     coroutineScope: CoroutineScope,
+    navigationCoordinator: AppNavigationCoordinator? = null,
     modifier: Modifier = Modifier,
 ) {
     val modeVm = remember {
@@ -140,6 +142,7 @@ public fun CodeSpeakModeView(
             onSelectSpec = { modeVm.selectSpec(it) },
             onRefresh = { activeProjectId?.let { modeVm.loadSpecs(it) } },
             onSpecsChanged = { activeProjectId?.let { modeVm.loadSpecs(it) } },
+            navigationCoordinator = navigationCoordinator,
             modifier = Modifier
                 .width(specsWidth)
                 .fillMaxHeight(),

@@ -137,9 +137,13 @@ fun VibeStudioDesktopApp(
                 ToolbarView(
                     toolbarViewModel = container.toolbarViewModel,
                     remoteControlServer = container.remoteControlServer,
+                    projectStore = container.projectStore,
+                    navigationCoordinator = container.navigationCoordinator,
                     isCodeSpeakMode = isCodeSpeakMode,
                     onOpenSettings = { onToggleSettings(true) },
                     onToggleCodeSpeakMode = onToggleCodeSpeakMode,
+                    onToggleChangesPanel = onToggleGitPanel,
+                    showingChangesPanel = showGitPanel,
                     onInstallAgent = { container.navigationCoordinator.setAgentToInstall(it) },
                 )
                 if (isCodeSpeakMode) {
@@ -148,6 +152,7 @@ fun VibeStudioDesktopApp(
                         projectStore = container.projectStore,
                         processRunner = container.processRunner,
                         coroutineScope = container.scope,
+                        navigationCoordinator = container.navigationCoordinator,
                         modifier = Modifier.weight(1f),
                     )
                 } else {

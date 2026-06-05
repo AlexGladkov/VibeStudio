@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
@@ -54,6 +55,7 @@ import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
+import studio.vibe.shared.coordinator.AppNavigationCoordinator
 import studio.vibe.shared.model.SpecFile
 import studio.vibe.shared.model.SpecStatus
 
@@ -75,12 +77,19 @@ internal fun SpecsListColumn(
     onSelectSpec: (SpecFile) -> Unit,
     onRefresh: () -> Unit,
     onSpecsChanged: () -> Unit,
+    navigationCoordinator: AppNavigationCoordinator? = null,
     modifier: Modifier = Modifier,
 ) {
     var sectionExpanded by remember { mutableStateOf(true) }
     var activeDialog by remember { mutableStateOf<SpecsPanelDialog>(SpecsPanelDialog.None) }
 
-    Column(modifier = modifier.background(LocalDSColors.current.surfaceRaised)) {
+    Column(
+        modifier = modifier
+            .background(LocalDSColors.current.surfaceRaised)
+            .onGloballyPositioned { coords ->
+                navigationCoordinator?.setSpecsColumnWidth(coords.size.width.toFloat())
+            },
+    ) {
 
         SpecsSectionHeader(
             specs = specs,

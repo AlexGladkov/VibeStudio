@@ -305,6 +305,8 @@ public object DSLayout {
     val toolbarHeight           = 26.dp
     val toolbarButtonHeight     = 22.dp
     val toolbarIconButtonWidth  = 26.dp
+    /** Width of macOS traffic lights (close/minimize/zoom) — standard Sonoma/Sequoia value. */
+    val trafficLightsEnd        = 84.dp
 
     // Tab bar
     val tabBarHeight            = 36.dp

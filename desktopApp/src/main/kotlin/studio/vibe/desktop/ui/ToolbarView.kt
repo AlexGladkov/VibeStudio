@@ -2,13 +2,11 @@
 
 package studio.vibe.desktop.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,17 +18,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.automirrored.filled.ViewSidebar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -42,38 +48,107 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.qrcode.QRCodeWriter
 import studio.vibe.desktop.remote.RemoteControlServer
+import studio.vibe.shared.contract.AgentAvailabilityStatus
+import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.coordinator.AppNavigationCoordinator
+import studio.vibe.shared.model.CodeSpeakCommand
 import studio.vibe.shared.viewmodel.ToolbarViewModel
-import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
-import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.contract.AgentAvailabilityStatus
-import studio.vibe.shared.contract.AIAgent
+import studio.vibe.desktop.ui.theme.LocalDSColors
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import java.awt.image.BufferedImage
+import java.net.InetAddress
+import java.net.URI
 
 // ── ToolbarView ───────────────────────────────────────────────────────────────
 
 /**
- * Android Studio-style run-configuration toolbar.
- *
- * Layout (trailing-aligned):
- * `Spacer  [AgentPicker ▼]  [▶/■]  [CS toggle]  [⚙️]  [error?]`
+ * Main toolbar. Branches on [isCodeSpeakMode]:
+ *  - Regular mode: Spacer → agentPicker → play/stop → openInBrowser → remoteQR
+ *    → remoteIndicator → settings → changesToggle
+ *  - CodeSpeak mode: three-section layout mirroring Swift's
+ *    `codeSpeakThreeSectionToolbar()`.
  */
 @Composable
 fun ToolbarView(
     toolbarViewModel: ToolbarViewModel,
     remoteControlServer: RemoteControlServer,
+    projectStore: ProjectManaging? = null,
+    navigationCoordinator: AppNavigationCoordinator? = null,
     isCodeSpeakMode: Boolean = false,
+    showingChangesPanel: Boolean = false,
     onOpenSettings: () -> Unit = {},
     onToggleCodeSpeakMode: () -> Unit = {},
+    onToggleChangesPanel: () -> Unit = {},
     onInstallAgent: (AIAgent) -> Unit = {},
 ) {
     val toolbarState by toolbarViewModel.state.collectAsState()
+    val activeProjectId by (projectStore?.activeProjectId?.collectAsState()
+        ?: remember { androidx.compose.runtime.mutableStateOf(null) })
+    val projects by (projectStore?.projects?.collectAsState()
+        ?: remember { androidx.compose.runtime.mutableStateOf(emptyList()) })
+    val activeProject = remember(activeProjectId, projects) {
+        activeProjectId?.let { id -> projects.find { it.id == id } }
+    }
 
+    if (isCodeSpeakMode && navigationCoordinator != null) {
+        CodeSpeakThreeSectionToolbar(
+            toolbarViewModel = toolbarViewModel,
+            remoteControlServer = remoteControlServer,
+            navigationCoordinator = navigationCoordinator,
+            onOpenSettings = onOpenSettings,
+        )
+    } else {
+        RegularToolbar(
+            toolbarState = toolbarState,
+            remoteControlServer = remoteControlServer,
+            activeProductionURL = activeProject?.productionURL,
+            showingChangesPanel = showingChangesPanel,
+            onSelectAgent = { toolbarViewModel.selectAgent(it) },
+            onPlay = { toolbarViewModel.launchAgent() },
+            onStop = { toolbarViewModel.stopAgent() },
+            onToggleChangesPanel = onToggleChangesPanel,
+            onOpenSettings = onOpenSettings,
+            onInstallAgent = onInstallAgent,
+        )
+    }
+}
+
+// ── Regular Mode Toolbar ──────────────────────────────────────────────────────
+
+@Composable
+private fun RegularToolbar(
+    toolbarState: studio.vibe.shared.viewmodel.ToolbarState,
+    remoteControlServer: RemoteControlServer,
+    activeProductionURL: String?,
+    showingChangesPanel: Boolean,
+    onSelectAgent: (AIAgent) -> Unit,
+    onPlay: () -> Unit,
+    onStop: () -> Unit,
+    onToggleChangesPanel: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onInstallAgent: (AIAgent) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -84,34 +159,43 @@ fun ToolbarView(
     ) {
         Spacer(Modifier.weight(1f))
 
-        // Agent picker with availability status
         AgentPickerButton(
             selectedAgent = toolbarState.selectedAgent,
             availabilityMap = toolbarState.agentAvailability,
             isRunning = toolbarState.isAgentRunning,
-            onSelectAgent = { toolbarViewModel.selectAgent(it) },
+            onSelectAgent = onSelectAgent,
             onInstallAgent = onInstallAgent,
         )
 
         Spacer(Modifier.width(DSSpacing.sm))
 
-        // Play / Stop
         PlayStopButton(
             isRunning = toolbarState.isAgentRunning,
-            onPlay = { toolbarViewModel.launchAgent() },
-            onStop = { toolbarViewModel.stopAgent() },
+            onPlay = onPlay,
+            onStop = onStop,
         )
 
         Spacer(Modifier.width(DSSpacing.sm))
 
-        // Remote control status badge — shown only when the server is running.
-        RemoteControlBadge(server = remoteControlServer)
+        // openInBrowser — globe button
+        OpenInBrowserButton(productionURL = activeProductionURL)
+
+        Spacer(Modifier.width(DSSpacing.sm))
+
+        // remoteQRButton + remoteIndicator (only when server running)
+        RemoteQRButton(server = remoteControlServer)
+        RemoteIndicatorButton(server = remoteControlServer)
 
         // Settings gear
-        // CodeSpeak mode toggle intentionally not rendered here — the macOS
-        // Swift toolbar does not expose it either; the mode is reachable via
-        // ⌘⇧C and the View menu instead.
         SettingsButton(onClick = onOpenSettings)
+
+        Spacer(Modifier.width(DSSpacing.sm))
+
+        // changesToggle — View Sidebar icon, highlighted when panel open
+        ChangesPanelToggleButton(
+            isActive = showingChangesPanel,
+            onClick = onToggleChangesPanel,
+        )
 
         // Inline error message (trailing)
         toolbarState.errorMessage?.let { msg ->
@@ -125,18 +209,609 @@ fun ToolbarView(
     }
 }
 
-// ── Agent Picker ──────────────────────────────────────────────────────────────
+// ── CodeSpeak Three-Section Toolbar ──────────────────────────────────────────
 
 /**
- * Dropdown button showing the selected agent with its availability dot.
+ * Mirrors Swift's `codeSpeakThreeSectionToolbar()`:
  *
- * The dropdown splits agents into two groups separated by a divider:
- * 1. Available agents (canLaunch = true)
- * 2. Unavailable / not-installed agents
+ * [Box1: invisible spacer (specsColumnWidth - trafficLightsEnd)]
+ * [Box2: breadcrumb + stats badge]
+ * [Spacer]
+ * [Box3: runBar + remoteQR + remoteIndicator + settings]
  *
- * Not-installed agents show "Click to install" hint and trigger [onInstallAgent]
- * instead of selecting.
+ * No changesToggle in CodeSpeak mode (matches Swift behaviour).
  */
+@Composable
+private fun CodeSpeakThreeSectionToolbar(
+    toolbarViewModel: ToolbarViewModel,
+    remoteControlServer: RemoteControlServer,
+    navigationCoordinator: AppNavigationCoordinator,
+    onOpenSettings: () -> Unit,
+) {
+    val runBarState by navigationCoordinator.runBar.collectAsState()
+    val specsColumnWidthPx by navigationCoordinator.specsColumnWidth.collectAsState()
+    val density = LocalDensity.current
+    val specsColumnWidthDp = with(density) { specsColumnWidthPx.toDp() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(DSLayout.toolbarHeight)
+            .background(LocalDSColors.current.surfaceToolbar)
+            .padding(horizontal = DSSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Box1: invisible spacer to push breadcrumb to start of center column
+        val spacerWidth = (specsColumnWidthDp - DSLayout.trafficLightsEnd)
+            .coerceAtLeast(0.dp)
+        Spacer(Modifier.width(spacerWidth))
+
+        // Box2: breadcrumb + stats badge
+        CodeSpeakBreadcrumb(
+            runBarState = runBarState,
+            onProjectsClick = { /* deactivate project — omitted: no direct API here */ },
+        )
+
+        Spacer(Modifier.weight(1f))
+
+        // Box3: runBar + remote + settings
+        CodeSpeakRunBarControls(
+            runBarState = runBarState,
+            onSelectCommand = { cmd ->
+                navigationCoordinator.updateRunBar { it.copy(command = cmd) }
+            },
+            onUpdateTaskName = { name ->
+                navigationCoordinator.updateRunBar { it.copy(taskName = name) }
+            },
+            onUpdateChangeMessage = { msg ->
+                navigationCoordinator.updateRunBar { it.copy(changeMessage = msg) }
+            },
+            onRun = { toolbarViewModel.launchAgent() },
+            onStop = { toolbarViewModel.stopAgent() },
+            isRunning = runBarState.isRunning,
+        )
+
+        RemoteQRButton(server = remoteControlServer)
+        RemoteIndicatorButton(server = remoteControlServer)
+
+        SettingsButton(onClick = onOpenSettings)
+    }
+}
+
+// ── CodeSpeak Breadcrumb ──────────────────────────────────────────────────────
+
+@Composable
+private fun CodeSpeakBreadcrumb(
+    runBarState: studio.vibe.shared.model.CodeSpeakRunBarState,
+    onProjectsClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = DSSpacing.sm),
+    ) {
+        Text(
+            text = "Projects",
+            style = DSFont.tabTitle,
+            color = LocalDSColors.current.accentPrimary,
+            modifier = Modifier.clickable(onClick = onProjectsClick),
+        )
+        Text(
+            text = " › ",
+            style = DSFont.tabTitle,
+            color = LocalDSColors.current.textMuted,
+        )
+        if (runBarState.currentSpecName.isNotEmpty()) {
+            Text(
+                text = runBarState.currentSpecName,
+                style = DSFont.tabTitle,
+                color = LocalDSColors.current.textPrimary,
+            )
+            if (runBarState.isEditorDirty) {
+                Spacer(Modifier.width(DSSpacing.xs))
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .background(LocalDSColors.current.gitModified, CircleShape),
+                )
+            }
+        } else {
+            Text(
+                text = "—",
+                style = DSFont.tabTitle,
+                color = LocalDSColors.current.textMuted,
+            )
+        }
+    }
+}
+
+// ── CodeSpeak Run Bar Controls ────────────────────────────────────────────────
+
+@Composable
+private fun CodeSpeakRunBarControls(
+    runBarState: studio.vibe.shared.model.CodeSpeakRunBarState,
+    onSelectCommand: (CodeSpeakCommand) -> Unit,
+    onUpdateTaskName: (String) -> Unit,
+    onUpdateChangeMessage: (String) -> Unit,
+    onRun: () -> Unit,
+    onStop: () -> Unit,
+    isRunning: Boolean,
+) {
+    val colors = LocalDSColors.current
+    var commandMenuExpanded by remember { mutableStateOf(false) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .height(DSLayout.toolbarButtonHeight)
+            .clip(RoundedCornerShape(DSRadius.md))
+            .background(colors.toolbarControlBg)
+            .border(1.dp, colors.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
+            .padding(horizontal = DSSpacing.xs),
+    ) {
+        // CodeSpeak agent colour dot
+        Box(
+            modifier = Modifier
+                .size(DSFont.iconBase.value.dp)
+                .clip(CircleShape)
+                .background(colors.agentCodeSpeak),
+        )
+        Spacer(Modifier.width(DSSpacing.xxs))
+
+        // Command dropdown
+        Box {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable(enabled = !isRunning) { commandMenuExpanded = true }
+                    .padding(horizontal = DSSpacing.xxs),
+            ) {
+                Text(
+                    text = runBarState.command.displayName,
+                    style = DSFont.tabTitle,
+                    color = if (isRunning) colors.textMuted else colors.textPrimary,
+                )
+                Spacer(Modifier.width(DSSpacing.xxs))
+                Icon(
+                    Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Select CodeSpeak command",
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(DSFont.iconSM.value.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = commandMenuExpanded,
+                onDismissRequest = { commandMenuExpanded = false },
+            ) {
+                CodeSpeakCommand.entries.forEach { cmd ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = cmd.displayName,
+                                style = DSFont.sidebarItem,
+                                color = if (cmd == runBarState.command) colors.accentPrimary else colors.textPrimary,
+                            )
+                        },
+                        onClick = {
+                            onSelectCommand(cmd)
+                            commandMenuExpanded = false
+                        },
+                    )
+                }
+            }
+        }
+
+        // Inline input field for task / change commands
+        if (runBarState.command.requiresInput) {
+            Spacer(Modifier.width(DSSpacing.xs))
+            val value = if (runBarState.command == CodeSpeakCommand.TASK)
+                runBarState.taskName else runBarState.changeMessage
+            val onValueChange: (String) -> Unit =
+                if (runBarState.command == CodeSpeakCommand.TASK) onUpdateTaskName
+                else onUpdateChangeMessage
+
+            BasicTextField(
+                value = value,
+                onValueChange = { if (!isRunning) onValueChange(it) },
+                enabled = !isRunning,
+                textStyle = DSFont.tabTitle.copy(color = colors.textPrimary),
+                cursorBrush = SolidColor(colors.accentPrimary),
+                singleLine = true,
+                modifier = Modifier
+                    .width(120.dp)
+                    .padding(horizontal = DSSpacing.xxs),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = runBarState.command.inputPlaceholder,
+                                style = DSFont.tabTitle,
+                                color = colors.textMuted,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+        }
+
+        Spacer(Modifier.width(DSSpacing.xs))
+
+        // Play / Stop
+        Box(
+            modifier = Modifier
+                .size(DSLayout.toolbarButtonHeight)
+                .clickable { if (isRunning) onStop() else onRun() },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isRunning) {
+                Icon(
+                    Icons.Default.Stop,
+                    contentDescription = "Stop",
+                    tint = colors.actionStop,
+                    modifier = Modifier.size(11.dp),
+                )
+            } else {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "Run CodeSpeak",
+                    tint = colors.actionRun,
+                    modifier = Modifier.size(11.dp),
+                )
+            }
+        }
+    }
+}
+
+// ── Open In Browser Button ────────────────────────────────────────────────────
+
+@Composable
+private fun OpenInBrowserButton(productionURL: String?) {
+    val enabled = productionURL != null
+    val colors = LocalDSColors.current
+    Box(
+        modifier = Modifier
+            .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+            .clickable(enabled = enabled) {
+                if (productionURL != null) {
+                    runCatching {
+                        java.awt.Desktop.getDesktop().browse(URI(productionURL))
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Default.Language,
+            contentDescription = if (productionURL != null)
+                "Открыть в браузере: $productionURL"
+            else
+                "Production URL не задан",
+            tint = if (enabled) colors.textSecondary else colors.textDisabled,
+            modifier = Modifier.size(DSFont.iconBase.value.dp),
+        )
+    }
+}
+
+// ── Remote QR Button ─────────────────────────────────────────────────────────
+
+/**
+ * Shows a QR code popup with the remote server URL.
+ * Visible only when the server is running.
+ */
+@Composable
+private fun RemoteQRButton(server: RemoteControlServer) {
+    val isRunning by server.isRunning.collectAsState()
+    if (!isRunning) return
+
+    val colors = LocalDSColors.current
+    var showPopup by remember { mutableStateOf(false) }
+
+    Box {
+        Box(
+            modifier = Modifier
+                .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+                .clickable { showPopup = true },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.QrCode2,
+                contentDescription = "Показать QR-код удалённого подключения",
+                tint = colors.gitAdded,
+                modifier = Modifier.size(DSFont.iconBase.value.dp),
+            )
+        }
+
+        if (showPopup) {
+            val pin = server.currentPin
+            val lanIP = remember {
+                runCatching { InetAddress.getLocalHost().hostAddress }.getOrDefault("127.0.0.1")
+            }
+            val lanUrl = "http://$lanIP:${server.port + 1}/?pin=$pin"
+            val ngrokUrl = server.ngrokTunnelURL
+            val primaryUrl = if (ngrokUrl != null) "$ngrokUrl/?pin=$pin" else lanUrl
+
+            Popup(
+                onDismissRequest = { showPopup = false },
+                properties = PopupProperties(focusable = true),
+                alignment = Alignment.TopEnd,
+                offset = IntOffset(0, DSLayout.toolbarHeight.value.toInt() + 4),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(DSRadius.md),
+                    color = colors.surfaceOverlay,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, colors.borderDefault),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .width(260.dp)
+                            .padding(DSSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        // QR image
+                        val qrBitmap = remember(primaryUrl) { generateQrBitmap(primaryUrl, 200) }
+                        if (qrBitmap != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = qrBitmap,
+                                contentDescription = "QR-код",
+                                modifier = Modifier.size(200.dp),
+                            )
+                        }
+
+                        // URL (selectable)
+                        SelectionContainer {
+                            Text(
+                                text = primaryUrl,
+                                style = DSFont.monoSmall,
+                                color = colors.accentPrimary,
+                            )
+                        }
+
+                        Text(
+                            text = "Отсканируйте камерой телефона",
+                            style = DSFont.sidebarItemSmall,
+                            color = colors.textMuted,
+                        )
+
+                        // Copy URL button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(DSRadius.sm))
+                                .background(colors.buttonPrimaryBg)
+                                .clickable {
+                                    copyToClipboard(primaryUrl)
+                                    showPopup = false
+                                }
+                                .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = null,
+                                tint = colors.buttonPrimaryText,
+                                modifier = Modifier.size(DSFont.iconBase.value.dp),
+                            )
+                            Spacer(Modifier.width(DSSpacing.xs))
+                            Text(
+                                text = "Скопировать URL",
+                                style = DSFont.smallButtonLabel,
+                                color = colors.buttonPrimaryText,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Remote Indicator Button ───────────────────────────────────────────────────
+
+/**
+ * Shows connected device count badge. Visible only when devices > 0.
+ * Popup: PIN, device list with disconnect, server status.
+ */
+@Composable
+private fun RemoteIndicatorButton(server: RemoteControlServer) {
+    val devices by server.authService.connectedDevices.collectAsState()
+    if (devices.isEmpty()) return
+
+    val isRunning by server.isRunning.collectAsState()
+    val colors = LocalDSColors.current
+    var showPopup by remember { mutableStateOf(false) }
+    val pin by server.authService.currentPin.collectAsState()
+
+    Box {
+        Row(
+            modifier = Modifier
+                .height(DSLayout.toolbarButtonHeight)
+                .clip(RoundedCornerShape(DSRadius.md))
+                .background(colors.toolbarControlBg)
+                .border(1.dp, colors.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
+                .clickable { showPopup = true }
+                .padding(horizontal = DSSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.PhoneIphone,
+                contentDescription = "Подключённые устройства: ${devices.size}",
+                tint = colors.indicatorRunning,
+                modifier = Modifier.size(DSFont.iconLG.value.dp),
+            )
+            Spacer(Modifier.width(DSSpacing.xxs))
+            Text(
+                text = devices.size.toString(),
+                style = DSFont.statusBadge,
+                color = colors.textPrimary,
+            )
+        }
+
+        if (showPopup) {
+            Popup(
+                onDismissRequest = { showPopup = false },
+                properties = PopupProperties(focusable = true),
+                alignment = Alignment.TopEnd,
+                offset = IntOffset(0, DSLayout.toolbarHeight.value.toInt() + 4),
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(DSRadius.md),
+                    color = colors.surfaceOverlay,
+                    shadowElevation = 8.dp,
+                    border = BorderStroke(1.dp, colors.borderDefault),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .width(280.dp)
+                            .padding(DSSpacing.md),
+                        verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
+                    ) {
+                        // PIN row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = pin,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = colors.textPrimary,
+                                ),
+                                modifier = Modifier.weight(1f),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+                                    .clickable { server.regeneratePin() },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Default.Refresh,
+                                    contentDescription = "Сгенерировать новый PIN",
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(DSFont.iconBase.value.dp),
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = colors.borderSubtle, thickness = 1.dp)
+
+                        // Device list
+                        devices.forEach { device ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(
+                                    Icons.Default.PhoneIphone,
+                                    contentDescription = null,
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(DSFont.iconLG.value.dp),
+                                )
+                                Spacer(Modifier.width(DSSpacing.xs))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = device.displayName,
+                                        style = DSFont.sidebarItem,
+                                        color = colors.textPrimary,
+                                        maxLines = 1,
+                                    )
+                                    Text(
+                                        text = device.ipAddress,
+                                        style = DSFont.sidebarItemSmall,
+                                        color = colors.textMuted,
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+                                        .clickable { server.disconnect(device.id) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Default.Cancel,
+                                        contentDescription = "Отключить ${device.displayName}",
+                                        tint = colors.gitDeleted,
+                                        modifier = Modifier.size(DSFont.iconBase.value.dp),
+                                    )
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = colors.borderSubtle, thickness = 1.dp)
+
+                        // Server status row
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Порт ${server.port}",
+                                style = DSFont.monoSmall,
+                                color = colors.textSecondary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        if (isRunning) colors.indicatorRunning else colors.indicatorError,
+                                        CircleShape,
+                                    ),
+                            )
+                            Spacer(Modifier.width(DSSpacing.xs))
+                            Text(
+                                text = if (isRunning) "Активен" else "Остановлен",
+                                style = DSFont.sidebarItemSmall,
+                                color = if (isRunning) colors.indicatorRunning else colors.indicatorError,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.width(DSSpacing.sm))
+}
+
+// ── Changes Panel Toggle Button ───────────────────────────────────────────────
+
+@Composable
+private fun ChangesPanelToggleButton(
+    isActive: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(DSLayout.toolbarIconButtonWidth, DSLayout.toolbarButtonHeight)
+            .clip(RoundedCornerShape(DSRadius.md))
+            .background(
+                if (isActive) LocalDSColors.current.accentPrimary.copy(alpha = 0.18f)
+                else Color.Transparent,
+            )
+            .border(
+                width = 1.dp,
+                color = if (isActive) LocalDSColors.current.accentPrimary.copy(alpha = 0.5f)
+                else Color.Transparent,
+                shape = RoundedCornerShape(DSRadius.md),
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.ViewSidebar,
+            contentDescription = if (isActive) "Скрыть панель изменений" else "Показать панель изменений",
+            tint = if (isActive) LocalDSColors.current.accentPrimary else LocalDSColors.current.textSecondary,
+            modifier = Modifier.size(DSFont.iconBase.value.dp),
+        )
+    }
+}
+
+// ── Agent Picker ──────────────────────────────────────────────────────────────
+
 @Composable
 private fun AgentPickerButton(
     selectedAgent: AIAgent?,
@@ -157,7 +832,6 @@ private fun AgentPickerButton(
     }
 
     Box {
-        // Trigger button
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(DSRadius.md))
@@ -167,7 +841,6 @@ private fun AgentPickerButton(
                 .padding(horizontal = DSSpacing.sm, vertical = DSSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Agent color square
             Box(
                 Modifier
                     .size(DSFont.iconLG.value.dp)
@@ -194,15 +867,11 @@ private fun AgentPickerButton(
             onDismissRequest = { expanded = false },
         ) {
             available.forEach { agent ->
-                val status = availabilityMap[agent]
                 AgentDropdownItem(
                     agent = agent,
-                    status = status,
+                    status = availabilityMap[agent],
                     isSelected = agent == selectedAgent,
-                    onClick = {
-                        onSelectAgent(agent)
-                        expanded = false
-                    },
+                    onClick = { onSelectAgent(agent); expanded = false },
                     onInstall = null,
                 )
             }
@@ -229,10 +898,7 @@ private fun AgentPickerButton(
                         }
                     },
                     onInstall = if (isNotInstalled) {
-                        {
-                            expanded = false
-                            onInstallAgent(agent)
-                        }
+                        { expanded = false; onInstallAgent(agent) }
                     } else null,
                 )
             }
@@ -264,7 +930,6 @@ private fun AgentDropdownItem(
     DropdownMenuItem(
         text = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Availability dot
                 Box(
                     Modifier
                         .size(8.dp)
@@ -272,10 +937,8 @@ private fun AgentDropdownItem(
                         .background(dotColor),
                 )
                 Spacer(Modifier.width(DSSpacing.sm))
-
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Agent color square
                         Box(
                             Modifier
                                 .size(12.dp)
@@ -289,8 +952,6 @@ private fun AgentDropdownItem(
                             color = if (isNotInstalled) LocalDSColors.current.textSecondary else LocalDSColors.current.textPrimary,
                         )
                     }
-
-                    // Sub-label: install hint or api key warning
                     when {
                         isNotInstalled -> Text(
                             text = "Click to install",
@@ -304,10 +965,7 @@ private fun AgentDropdownItem(
                         )
                     }
                 }
-
                 Spacer(Modifier.width(DSSpacing.sm))
-
-                // Trailing indicator
                 when {
                     isSelected && !isNotInstalled -> Text(
                         text = "✓",
@@ -315,7 +973,7 @@ private fun AgentDropdownItem(
                         color = LocalDSColors.current.accentPrimary,
                     )
                     isNotInstalled -> Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown, // placeholder — no download icon in M3 default set
+                        imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Not installed",
                         tint = LocalDSColors.current.accentPrimary,
                         modifier = Modifier.size(DSFont.iconMD.value.dp),
@@ -359,40 +1017,6 @@ private fun PlayStopButton(
     }
 }
 
-// ── CodeSpeak Toggle ──────────────────────────────────────────────────────────
-
-/**
- * Toggle button that switches the app between Regular and CodeSpeak modes.
- * Active state: [LocalDSColors.current.accentPrimary] background pill.
- */
-@Composable
-private fun CodeSpeakToggleButton(
-    isActive: Boolean,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .height(DSLayout.toolbarButtonHeight)
-            .clip(RoundedCornerShape(DSRadius.md))
-            .background(if (isActive) LocalDSColors.current.accentPrimary.copy(alpha = 0.18f) else Color.Transparent)
-            .border(
-                width = 1.dp,
-                color = if (isActive) LocalDSColors.current.accentPrimary.copy(alpha = 0.5f) else Color.Transparent,
-                shape = RoundedCornerShape(DSRadius.md),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = DSSpacing.xs),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            Icons.Default.Code,
-            contentDescription = if (isActive) "Exit CodeSpeak mode" else "Enter CodeSpeak mode",
-            tint = if (isActive) LocalDSColors.current.accentPrimary else LocalDSColors.current.textSecondary,
-            modifier = Modifier.size(DSFont.iconBase.value.dp),
-        )
-    }
-}
-
 // ── Settings Button ───────────────────────────────────────────────────────────
 
 @Composable
@@ -412,127 +1036,10 @@ private fun SettingsButton(onClick: () -> Unit) {
     }
 }
 
-// ── Remote Control Badge ──────────────────────────────────────────────────────
-
-/**
- * Compact remote-control status surface for the toolbar.
- *
- * Visible only while [studio.vibe.desktop.remote.RemoteControlServer.isRunning]
- * emits `true`. Shows a Wi-Fi icon decorated with a small device-count badge
- * (when at least one mobile client is paired) and opens a popover with the
- * current PIN, the LAN URL, the optional ngrok URL, and a Copy action — a
- * functional subset of the macOS Swift toolbar's QR popover. Generating the
- * QR image itself requires a Compose-Desktop friendly QR library; for now
- * the user can copy the URL and scan via any QR generator if needed.
- */
-@Composable
-private fun RemoteControlBadge(server: RemoteControlServer) {
-    val isRunning by server.isRunning.collectAsState()
-    if (!isRunning) return
-
-    val devices by server.authService.connectedDevices.collectAsState()
-    var showPopover by remember { mutableStateOf(false) }
-    val colors = LocalDSColors.current
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-
-    Box {
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(DSRadius.md))
-                .background(colors.toolbarControlBg)
-                .border(1.dp, colors.toolbarControlBorder, RoundedCornerShape(DSRadius.md))
-                .clickable { showPopover = true }
-                .padding(horizontal = DSSpacing.xs, vertical = DSSpacing.xxs),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = androidx.compose.material.icons.Icons.Default.Wifi,
-                contentDescription = "Remote control",
-                tint = colors.gitAdded,
-                modifier = Modifier.size(DSFont.iconLG.value.dp),
-            )
-            if (devices.isNotEmpty()) {
-                Spacer(Modifier.width(DSSpacing.xxs))
-                Text(
-                    text = devices.size.toString(),
-                    style = DSFont.statusBadge,
-                    color = colors.textPrimary,
-                )
-            }
-        }
-
-        if (showPopover) {
-            val lanIP = java.net.InetAddress.getLocalHost().hostAddress
-            val pin = server.currentPin
-            val ngrok = server.ngrokTunnelURL
-            val lanUrl = "http://$lanIP:${server.port + 1}/?pin=$pin"
-            val primaryUrl = ngrok?.let { "$it/?pin=$pin" } ?: lanUrl
-
-            androidx.compose.ui.window.Popup(
-                onDismissRequest = { showPopover = false },
-                properties = androidx.compose.ui.window.PopupProperties(focusable = true),
-                alignment = Alignment.TopEnd,
-                offset = androidx.compose.ui.unit.IntOffset(0, DSLayout.toolbarHeight.value.toInt() + 4),
-            ) {
-                androidx.compose.material3.Surface(
-                    shape = RoundedCornerShape(DSRadius.md),
-                    color = colors.surfaceOverlay,
-                    shadowElevation = 8.dp,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.borderDefault),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(320.dp)
-                            .padding(DSSpacing.md),
-                        verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
-                    ) {
-                        Text(text = "Remote Control", style = DSFont.gitBranch, color = colors.textPrimary)
-                        Text(text = "PIN: $pin", style = DSFont.monoPath, color = colors.textSecondary)
-                        Text(text = primaryUrl, style = DSFont.monoSmall, color = colors.accentPrimary, maxLines = 2)
-                        if (devices.isEmpty()) {
-                            Text(
-                                text = "No devices connected",
-                                style = DSFont.sidebarItemSmall,
-                                color = colors.textMuted,
-                            )
-                        } else {
-                            Text(
-                                text = "${devices.size} device${if (devices.size == 1) "" else "s"} connected",
-                                style = DSFont.sidebarItemSmall,
-                                color = colors.gitAdded,
-                            )
-                        }
-                        Row(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(DSRadius.sm))
-                                .background(colors.buttonPrimaryBg)
-                                .clickable {
-                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(primaryUrl))
-                                }
-                                .padding(horizontal = DSSpacing.md, vertical = DSSpacing.xs),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            Text(
-                                text = "Copy URL",
-                                style = DSFont.smallButtonLabel,
-                                color = colors.buttonPrimaryText,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Spacer(Modifier.width(DSSpacing.sm))
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Visual brand colour for an agent.  Built-in agents have a dedicated palette;
- * plugin agents fall back to [DSColors.textSecondary] so they still render
- * without crashing.  Adding a new built-in colour means extending this map only.
+ * Visual brand colour for an agent.
  */
 internal fun agentColor(agent: AIAgent?, colors: DSColors): Color {
     if (agent == null) return colors.textSecondary
@@ -547,3 +1054,31 @@ internal fun agentColor(agent: AIAgent?, colors: DSColors): Color {
     }
 }
 
+/**
+ * Generate a QR code bitmap for [url] at [sizePx]×[sizePx].
+ * Returns null if the ZXing writer fails for any reason.
+ */
+private fun generateQrBitmap(
+    url: String,
+    sizePx: Int,
+): androidx.compose.ui.graphics.ImageBitmap? = runCatching {
+    val writer = QRCodeWriter()
+    val hints = mapOf(EncodeHintType.MARGIN to 1)
+    val bitMatrix = writer.encode(url, BarcodeFormat.QR_CODE, sizePx, sizePx, hints)
+    val buffered = BufferedImage(sizePx, sizePx, BufferedImage.TYPE_INT_RGB)
+    for (x in 0 until sizePx) {
+        for (y in 0 until sizePx) {
+            buffered.setRGB(
+                x, y,
+                if (bitMatrix.get(x, y)) 0xFF000000.toInt() else 0xFFFFFFFF.toInt(),
+            )
+        }
+    }
+    buffered.toComposeImageBitmap()
+}.getOrNull()
+
+private fun copyToClipboard(text: String) {
+    runCatching {
+        Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+    }
+}

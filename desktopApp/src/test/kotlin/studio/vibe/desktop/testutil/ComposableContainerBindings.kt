@@ -52,16 +52,22 @@ fun WelcomeView(
 fun ToolbarView(
     container: DesktopServiceContainer,
     isCodeSpeakMode: Boolean = false,
+    showingChangesPanel: Boolean = false,
     onOpenSettings: () -> Unit = {},
     onToggleCodeSpeakMode: () -> Unit = {},
+    onToggleChangesPanel: () -> Unit = {},
     onInstallAgent: (AIAgent) -> Unit = {},
 ) {
     ToolbarView(
         toolbarViewModel = container.toolbarViewModel,
         remoteControlServer = container.remoteControlServer,
+        projectStore = container.projectStore,
+        navigationCoordinator = container.navigationCoordinator,
         isCodeSpeakMode = isCodeSpeakMode,
+        showingChangesPanel = showingChangesPanel,
         onOpenSettings = onOpenSettings,
         onToggleCodeSpeakMode = onToggleCodeSpeakMode,
+        onToggleChangesPanel = onToggleChangesPanel,
         onInstallAgent = onInstallAgent,
     )
 }
