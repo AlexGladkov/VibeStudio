@@ -14,6 +14,9 @@ import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.GitBranch
 import studio.vibe.shared.model.GitStatus
 import studio.vibe.shared.service.git.GitURLConverter
+import studio.vibe.shared.viewmodel.git.BranchActionsHandler
+import studio.vibe.shared.viewmodel.git.CommitActionsHandler
+import studio.vibe.shared.viewmodel.git.RemoteActionsHandler
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -39,21 +42,51 @@ data class GitSidebarState(
     val deleteErrorMessage: String? = null,
 )
 
+/**
+ * Thin orchestrator: owns [GitSidebarState] and delegates all actions to focused handlers.
+ *
+ * Public API is identical to the previous monolithic implementation — all callers
+ * (UI, DI, tests) are unaffected.
+ */
 @OptIn(ExperimentalUuidApi::class)
 class GitSidebarViewModel(
     private val gitService: GitServicing,
     private val aiCommitService: AICommitServicing,
     parentScope: CoroutineScope,
-    /**
-     * Platform implementation for opening URLs in the default browser.
-     * JVM: [java.awt.Desktop.browse]. macOS/Native: NSWorkspace.open.
-     * When `null`, [openInRemote] is a no-op.
-     */
     private val urlOpening: UrlOpening? = null,
     private val urlConverter: UrlConverting = GitURLConverter,
 ) : BaseViewModel(parentScope) {
+
     private val _state = MutableStateFlow(GitSidebarState())
     val state: StateFlow<GitSidebarState> = _state.asStateFlow()
+
+    // ── Action handlers ────────────────────────────────────────────────────────
+
+    private val branchActions = BranchActionsHandler(
+        gitService = gitService,
+        scope = scope,
+        state = _state,
+        loadGitInfo = ::loadGitInfo,
+    )
+
+    private val commitActions = CommitActionsHandler(
+        gitService = gitService,
+        aiCommitService = aiCommitService,
+        scope = scope,
+        state = _state,
+        loadGitInfo = ::loadGitInfo,
+    )
+
+    private val remoteActions = RemoteActionsHandler(
+        gitService = gitService,
+        scope = scope,
+        state = _state,
+        loadGitInfo = ::loadGitInfo,
+        urlOpening = urlOpening,
+        urlConverter = urlConverter,
+    )
+
+    // ── State helpers ──────────────────────────────────────────────────────────
 
     fun toggleExpanded(projectId: Uuid) {
         _state.update { s ->
@@ -100,7 +133,7 @@ class GitSidebarViewModel(
                         }
                     }
                 }
-            }.onFailure { e ->
+            }.onFailure {
                 _state.update { s ->
                     s.copy(nonGitProjects = s.nonGitProjects + projectId)
                 }
@@ -110,145 +143,6 @@ class GitSidebarViewModel(
 
     fun refreshAllGitInfo(projects: List<Pair<Uuid, FilePath>>) {
         projects.forEach { (id, path) -> loadGitInfo(id, path) }
-    }
-
-    fun checkout(projectId: Uuid, branch: String, path: FilePath) {
-        scope.launch {
-            runCatching {
-                gitService.checkout(branch = branch, at = path)
-                loadGitInfo(projectId, path)
-                _state.update { s -> s.copy(checkoutErrorMessage = null) }
-            }.onFailure { e ->
-                _state.update { s -> s.copy(checkoutErrorMessage = e.message) }
-            }
-        }
-    }
-
-    fun gitBranchPull(projectId: Uuid, branch: String, isCurrent: Boolean, path: FilePath) {
-        scope.launch {
-            runCatching {
-                val remote = gitService.defaultRemote(forBranch = branch, at = path)
-                gitService.pullBranch(branch = branch, isCurrent = isCurrent, remote = remote, at = path)
-                loadGitInfo(projectId, path)
-            }.onFailure { e ->
-                _state.update { s ->
-                    s.copy(
-                        commitPanelErrors = s.commitPanelErrors + (projectId to (e.message ?: "Pull failed"))
-                    )
-                }
-            }
-        }
-    }
-
-    fun gitBranchPush(projectId: Uuid, branch: String, path: FilePath) {
-        scope.launch {
-            runCatching {
-                val remote = gitService.defaultRemote(forBranch = branch, at = path)
-                gitService.pushBranch(branch = branch, remote = remote, at = path)
-                loadGitInfo(projectId, path)
-            }.onFailure { e ->
-                _state.update { s ->
-                    s.copy(
-                        commitPanelErrors = s.commitPanelErrors + (projectId to (e.message ?: "Push failed"))
-                    )
-                }
-            }
-        }
-    }
-
-    fun initRepository(projectId: Uuid, path: FilePath) {
-        scope.launch {
-            runCatching {
-                gitService.initRepository(at = path)
-                loadGitInfo(projectId, path)
-            }.onFailure { e ->
-                _state.update { s ->
-                    s.copy(
-                        commitPanelErrors = s.commitPanelErrors + (projectId to (e.message ?: "Init failed"))
-                    )
-                }
-            }
-        }
-    }
-
-    fun performCommit(projectId: Uuid, path: FilePath) {
-        val snapshot = _state.value
-        val summary = snapshot.commitSummaries[projectId].orEmpty()
-        if (summary.isBlank()) return
-
-        scope.launch {
-            _state.update { s ->
-                s.copy(committingProjects = s.committingProjects + projectId)
-            }
-            runCatching {
-                val description = snapshot.commitDescriptions[projectId].orEmpty()
-                val message = if (description.isBlank()) summary
-                    else "$summary\n\n$description"
-
-                val status = snapshot.projectGitStatuses[projectId]
-                if (status != null && status.stagedFiles.isEmpty()) {
-                    val allFiles = (status.unstagedFiles + status.untrackedFiles).map { it.path }
-                    if (allFiles.isNotEmpty()) {
-                        gitService.stage(files = allFiles, at = path)
-                    }
-                }
-                gitService.commit(message = message, at = path)
-                _state.update { s ->
-                    s.copy(
-                        commitSummaries = s.commitSummaries - projectId,
-                        commitDescriptions = s.commitDescriptions - projectId,
-                        commitPanelErrors = s.commitPanelErrors - projectId,
-                    )
-                }
-                loadGitInfo(projectId, path)
-            }.onFailure { e ->
-                _state.update { s ->
-                    s.copy(
-                        commitPanelErrors = s.commitPanelErrors + (projectId to (e.message ?: "Commit failed"))
-                    )
-                }
-            }
-            _state.update { s ->
-                s.copy(committingProjects = s.committingProjects - projectId)
-            }
-        }
-    }
-
-    fun generateAICommitMessage(projectId: Uuid, path: FilePath) {
-        scope.launch {
-            _state.update { s ->
-                s.copy(generatingAIProjects = s.generatingAIProjects + projectId)
-            }
-            runCatching {
-                val diff = gitService.fullStagedDiff(at = path)
-                    .ifBlank { gitService.headDiff(at = path) }
-                val message = aiCommitService.generateCommitMessage(diff = diff)
-                val lines = message.lines()
-                val summary = lines.firstOrNull().orEmpty()
-                val description = lines.drop(2).joinToString("\n").trimEnd()
-                _state.update { s ->
-                    s.copy(
-                        commitSummaries = s.commitSummaries + (projectId to summary),
-                        commitDescriptions = if (description.isNotBlank())
-                            s.commitDescriptions + (projectId to description)
-                        else s.commitDescriptions,
-                    )
-                }
-            }.onFailure { e ->
-                _state.update { s ->
-                    s.copy(
-                        commitPanelErrors = s.commitPanelErrors + (projectId to (e.message ?: "AI generation failed"))
-                    )
-                }
-            }
-            _state.update { s ->
-                s.copy(generatingAIProjects = s.generatingAIProjects - projectId)
-            }
-        }
-    }
-
-    fun sendAIDiff(projectId: Uuid, path: FilePath) {
-        generateAICommitMessage(projectId, path)
     }
 
     fun cleanupProject(projectId: Uuid) {
@@ -269,108 +163,69 @@ class GitSidebarViewModel(
         }
     }
 
-    fun updateCommitSummary(projectId: Uuid, value: String) {
-        _state.update { s ->
-            s.copy(commitSummaries = s.commitSummaries + (projectId to value))
-        }
-    }
+    // ── Branch delegation ──────────────────────────────────────────────────────
 
-    fun updateCommitDescription(projectId: Uuid, value: String) {
-        _state.update { s ->
-            s.copy(commitDescriptions = s.commitDescriptions + (projectId to value))
-        }
-    }
+    fun checkout(projectId: Uuid, branch: String, path: FilePath) =
+        branchActions.checkout(projectId, branch, path)
 
-    fun clearCheckoutError() {
-        _state.update { s -> s.copy(checkoutErrorMessage = null) }
-    }
+    fun checkoutBranch(projectId: Uuid, branchName: String, path: FilePath) =
+        branchActions.checkout(projectId, branchName, path)
 
-    /**
-     * Checkout an existing local or remote branch.
-     *
-     * This is the primary branch-switch entry point for the Git panel.
-     * On success, git info for the project is refreshed automatically.
-     * Any checkout error is surfaced via [GitSidebarState.checkoutErrorMessage].
-     */
-    fun checkoutBranch(projectId: Uuid, branchName: String, path: FilePath) {
-        checkout(projectId, branchName, path)
-    }
+    fun requestDeleteBranch(projectId: Uuid, branchName: String) =
+        branchActions.requestDeleteBranch(projectId, branchName)
 
-    /**
-     * Request deletion of a local branch — first step of a two-step confirm flow.
-     *
-     * Calling this method sets [GitSidebarState.pendingDeleteBranch] for the project,
-     * which the UI should react to by showing a confirmation dialog.
-     * Call [confirmDeleteBranch] to execute the deletion or [cancelDeleteBranch] to abort.
-     */
-    fun requestDeleteBranch(projectId: Uuid, branchName: String) {
-        _state.update { s ->
-            s.copy(pendingDeleteBranch = s.pendingDeleteBranch + (projectId to branchName))
-        }
-    }
+    fun cancelDeleteBranch(projectId: Uuid) =
+        branchActions.cancelDeleteBranch(projectId)
 
-    /**
-     * Cancel a pending branch deletion initiated by [requestDeleteBranch].
-     */
-    fun cancelDeleteBranch(projectId: Uuid) {
-        _state.update { s ->
-            s.copy(
-                pendingDeleteBranch = s.pendingDeleteBranch - projectId,
-                deleteErrorMessage = null,
-            )
-        }
-    }
+    fun confirmDeleteBranch(projectId: Uuid, path: FilePath, force: Boolean = false) =
+        branchActions.confirmDeleteBranch(projectId, path, force)
 
-    /**
-     * Execute the branch deletion that was queued by [requestDeleteBranch].
-     *
-     * Uses safe-delete (`git branch -d`) by default; pass [force] = true to
-     * force-delete an unmerged branch (`git branch -D`).
-     * On success, [GitSidebarState.pendingDeleteBranch] is cleared and git info refreshed.
-     * On failure, [GitSidebarState.deleteErrorMessage] is set with the error detail.
-     */
-    fun confirmDeleteBranch(projectId: Uuid, path: FilePath, force: Boolean = false) {
-        val snapshot = _state.value
-        val branchName = snapshot.pendingDeleteBranch[projectId] ?: return
+    fun clearCheckoutError() =
+        branchActions.clearCheckoutError()
+
+    fun clearDeleteError() =
+        branchActions.clearDeleteError()
+
+    // ── Commit delegation ──────────────────────────────────────────────────────
+
+    fun performCommit(projectId: Uuid, path: FilePath) =
+        commitActions.performCommit(projectId, path)
+
+    fun generateAICommitMessage(projectId: Uuid, path: FilePath) =
+        commitActions.generateAICommitMessage(projectId, path)
+
+    fun sendAIDiff(projectId: Uuid, path: FilePath) =
+        commitActions.generateAICommitMessage(projectId, path)
+
+    fun updateCommitSummary(projectId: Uuid, value: String) =
+        commitActions.updateCommitSummary(projectId, value)
+
+    fun updateCommitDescription(projectId: Uuid, value: String) =
+        commitActions.updateCommitDescription(projectId, value)
+
+    // ── Remote delegation ──────────────────────────────────────────────────────
+
+    fun gitBranchPull(projectId: Uuid, branch: String, isCurrent: Boolean, path: FilePath) =
+        remoteActions.gitBranchPull(projectId, branch, isCurrent, path)
+
+    fun gitBranchPush(projectId: Uuid, branch: String, path: FilePath) =
+        remoteActions.gitBranchPush(projectId, branch, path)
+
+    fun openInRemote(projectId: Uuid, path: FilePath) =
+        remoteActions.openInRemote(projectId, path)
+
+    // ── Repository init ────────────────────────────────────────────────────────
+
+    fun initRepository(projectId: Uuid, path: FilePath) {
         scope.launch {
             runCatching {
-                gitService.deleteBranch(name = branchName, force = force, at = path)
-                _state.update { s ->
-                    s.copy(
-                        pendingDeleteBranch = s.pendingDeleteBranch - projectId,
-                        deleteErrorMessage = null,
-                    )
-                }
+                gitService.initRepository(at = path)
                 loadGitInfo(projectId, path)
             }.onFailure { e ->
                 _state.update { s ->
-                    s.copy(deleteErrorMessage = e.message)
-                }
-            }
-        }
-    }
-
-    fun clearDeleteError() {
-        _state.update { s -> s.copy(deleteErrorMessage = null) }
-    }
-
-    /**
-     * Open the project's git remote URL in the default browser.
-     *
-     * Fetches the raw remote URL from git, converts it to a browser-accessible
-     * HTTPS URL via [UrlConverting] (handles SSH/SCP/git:// schemes),
-     * then invokes [onOpenURL]. Does nothing if the remote is unavailable or
-     * the URL cannot be converted to a valid HTTPS address.
-     */
-    fun openInRemote(projectId: Uuid, path: FilePath) {
-        scope.launch {
-            runCatching {
-                val rawUrl = gitService.remoteURL(name = "origin", at = path)
-                if (rawUrl != null) {
-                    val browserUrl = urlConverter.browserURL(rawUrl)
-                    if (browserUrl != null) {
-                        urlOpening?.openUrl(browserUrl)
-                    }
+                    s.copy(
+                        commitPanelErrors = s.commitPanelErrors + (projectId to (e.message ?: "Init failed"))
+                    )
                 }
             }
         }

@@ -11,48 +11,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONObject
+import studio.vibe.desktop.remote.ngrok.NgrokProcessLauncher
+import studio.vibe.desktop.remote.ngrok.NgrokUrlPoller
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.logging.Logger
 
 /**
  * Manages an ngrok tunnel subprocess to expose the local Remote Control HTTP
  * server to the internet.
  *
- * Matches the behavior of Swift `NgrokTunnelService` exactly:
- * - Resolves the `ngrok` binary from trusted directories.
- * - Launches `ngrok http https://localhost:<port> --verify-upstream-tls=false`.
- * - Passes the authtoken via env var (not CLI args) to keep it out of `ps aux`.
- * - Tracks our own PID in `/tmp/vibestudio-ngrok.pid` and kills it on next start.
- * - Polls `http://localhost:4040/api/tunnels` for the public URL.
- * - Sends SIGTERM on stop, escalates to SIGKILL after 5 seconds.
+ * Lifecycle and state flow orchestration lives here. Subprocess construction is
+ * delegated to [NgrokProcessLauncher]; URL discovery to [NgrokUrlPoller].
  *
- * All state mutations happen on the coroutine scope's dispatcher.
- * Thread-safe: only [_isRunning], [_tunnelURL], [_error] are accessed from
- * the calling scope; the process handle is confined to [scope].
+ * Thread-safe: all state mutations happen under [lifecycleMutex] on [Dispatchers.IO].
+ * The [_isRunning], [_tunnelURL], and [_error] flows are safe to observe from any thread.
  */
 class NgrokTunnelService(private val scope: CoroutineScope) {
 
     companion object {
         private val log = Logger.getLogger("NgrokTunnelService")
         private val PID_FILE = File("/tmp/vibestudio-ngrok.pid")
-
-        private val TRUSTED_DIRS = listOf(
-            "/opt/homebrew/bin",
-            "/opt/homebrew/sbin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-        )
-
-        private val ALLOWED_ENV_KEYS = setOf(
-            "HOME", "USER", "LOGNAME",
-            "LANG", "LC_ALL", "LC_CTYPE",
-            "TERM", "PATH", "TMPDIR",
-            "NGROK_AUTHTOKEN",
-        )
     }
 
     // ── Observable state ──────────────────────────────────────────────────────
@@ -66,15 +44,18 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // ── Private helpers ────────────────────────────────────────────────────────
+
+    private val launcher = NgrokProcessLauncher()
+    private val urlPoller = NgrokUrlPoller()
+
     // ── Private process state (confined to scope) ──────────────────────────────
 
     @Volatile private var process: Process? = null
     @Volatile private var pollJob: Job? = null
     @Volatile private var stopRequested = false
 
-    // Guards the start/stop prelude so the two operations are mutually exclusive.
-    // Without this lock, stop() can set stopRequested=true between start()'s
-    // _isRunning.value check and the stopRequested=false reset (TOCTOU).
+    // Guards start/stop prelude so the two operations are mutually exclusive (TOCTOU fix).
     private val lifecycleMutex = Mutex()
 
     // ── Start ──────────────────────────────────────────────────────────────────
@@ -82,25 +63,19 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
     /**
      * Start the ngrok tunnel for [httpPort].
      *
-     * The _isRunning check and stopRequested reset are performed inside
-     * [lifecycleMutex] so a concurrent [stop] cannot slip in between the two
-     * writes (TOCTOU fix).
-     *
      * @param httpPort  Local port to tunnel (e.g. 7842).
      * @param authtoken ngrok authtoken. Pass empty string to use system config.
      */
     fun start(httpPort: Int, authtoken: String = "") {
         scope.launch(Dispatchers.IO) {
             val ngrokPath = lifecycleMutex.withLock {
-                // Re-check under lock: stop() might have run between the caller's
-                // decision to call start() and our acquiring the lock.
                 if (_isRunning.value) return@launch
 
                 stopRequested = false
                 _error.value = null
                 _tunnelURL.value = null
 
-                resolveNgrok() ?: run {
+                launcher.resolveNgrok() ?: run {
                     _error.value = "ngrok not found. Install: brew install ngrok"
                     log.warning("NgrokTunnelService: ngrok binary not found in trusted directories")
                     return@launch
@@ -111,12 +86,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
             killPreviousOwnedProcess()
             delay(500)
 
-            // Build minimal environment — authtoken via env var, not CLI.
-            val env = buildEnvironment()
-            if (authtoken.isNotBlank()) {
-                env["NGROK_AUTHTOKEN"] = authtoken
-            }
-
+            val env = launcher.buildEnvironment(authtoken)
             launchNgrok(ngrokPath, httpPort, env)
         }
     }
@@ -126,37 +96,27 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
     /**
      * Stop the ngrok tunnel and terminate the subprocess.
      *
-     * The stopRequested flag and _isRunning reset are performed inside
-     * [lifecycleMutex] so a concurrent [start] cannot slip in and clear
-     * stopRequested after we set it (TOCTOU fix).
-     *
      * Sends SIGTERM first, then SIGKILL after 5 seconds if still running.
      */
     fun stop() {
         scope.launch(Dispatchers.IO) {
             val proc = lifecycleMutex.withLock {
-                // 1. Signal exit-watcher coroutine first — it gates on stopRequested.
                 stopRequested = true
-                // 2. Clear observable state so UI reacts immediately.
                 _isRunning.value = false
 
                 pollJob?.cancel()
                 pollJob = null
 
-                // 3. Capture and null out process under lock so start() cannot
-                //    observe a partially-stopped state.
                 val captured = process
                 process = null
                 captured
             }
 
             if (proc != null && proc.isAlive) {
-                // 4. Send SIGTERM.
                 proc.destroy()
-                // 5. Escalation after SIGTERM.
                 delay(5_000)
                 if (proc.isAlive) {
-                    proc.destroyForcibly()  // SIGKILL
+                    proc.destroyForcibly()
                     log.warning("NgrokTunnelService: escalated to SIGKILL")
                 }
             }
@@ -168,33 +128,16 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         }
     }
 
-    // ── Private: launch ────────────────────────────────────────────────────────
+    // ── Private: launch orchestration ─────────────────────────────────────────
 
     private suspend fun launchNgrok(path: String, httpPort: Int, env: MutableMap<String, String>) {
-        val cmd = listOf(
-            path,
-            "http",
-            "https://localhost:$httpPort",
-            "--verify-upstream-tls=false",
-        )
-
-        val pb = ProcessBuilder(cmd).apply {
-            environment().clear()
-            environment().putAll(env)
-            redirectErrorStream(false)
-        }
-
         // Spawn the OS process OUTSIDE the mutex — ProcessBuilder.start() can block.
-        val proc = runCatching { pb.start() }.getOrElse { e ->
-            _error.value = "Failed to launch ngrok: ${e.message}"
-            log.severe("NgrokTunnelService: failed to launch: ${e.message}")
+        val proc = launcher.launch(path, httpPort, env) ?: run {
+            _error.value = "Failed to launch ngrok"
             return
         }
 
-        // Gate all state writes inside the mutex.  A concurrent stop() may have
-        // set stopRequested=true while we were waiting for pb.start() to return.
-        // In that case destroy the freshly-spawned process and exit without
-        // publishing any "running" state.
+        // Gate all state writes inside the mutex.
         val launched = lifecycleMutex.withLock {
             if (stopRequested) {
                 proc.destroyForcibly()
@@ -211,21 +154,14 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
         if (!launched) return
 
         // Watch for unexpected exit.
-        // All state mutations are wrapped in lifecycleMutex to prevent races with
-        // a concurrent stop() that writes the same fields (process, _isRunning, _error).
         scope.launch(Dispatchers.IO) {
             val exitCode = proc.waitFor()
             lifecycleMutex.withLock {
-                // If stop() already nulled out `process` and set stopRequested, this
-                // watcher should not overwrite state that stop() has already cleaned up.
-                // The `process !== proc` guard handles the case where stop()+start()
-                // launched a new process — we must not clobber the new process state.
                 if (process !== proc && stopRequested) {
                     log.info("NgrokTunnelService: process exited after stop(), code=$exitCode")
                     return@withLock
                 }
                 if (!stopRequested) {
-                    // Unexpected exit (not triggered by stop()).
                     process = null
                     _isRunning.value = false
                     pollJob?.cancel()
@@ -259,7 +195,7 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
                 if (!_isRunning.value) return@launch
 
                 val url = runCatching {
-                    fetchTunnelUrl("http://localhost:4040/api/tunnels")
+                    urlPoller.fetchTunnelUrl()
                 }.getOrNull()
 
                 if (url != null) {
@@ -276,60 +212,6 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
                 log.warning("NgrokTunnelService: failed to obtain tunnel URL after $maxAttempts attempts")
             }
         }
-    }
-
-    private fun fetchTunnelUrl(apiUrl: String): String? {
-        val conn = URL(apiUrl).openConnection() as HttpURLConnection
-        conn.connectTimeout = 1_500
-        conn.readTimeout = 1_500
-        return try {
-            val body = conn.inputStream.bufferedReader().readText()
-            val root = JSONObject(body)
-            val tunnels = root.optJSONArray("tunnels") ?: return null
-            if (tunnels.length() == 0) return null
-            val first = tunnels.getJSONObject(0)
-            first.optString("public_url").takeIf { it.isNotBlank() }
-        } catch (_: Exception) {
-            null
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    // ── Private: binary resolution ─────────────────────────────────────────────
-
-    private fun resolveNgrok(): String? {
-        for (dir in TRUSTED_DIRS) {
-            val f = File(dir, "ngrok")
-            if (f.canExecute()) return f.absolutePath
-        }
-        // Also check the system PATH.
-        val pathDirs = System.getenv("PATH")?.split(":") ?: emptyList()
-        for (dir in pathDirs) {
-            val f = File(dir, "ngrok")
-            if (f.canExecute()) return f.absolutePath
-        }
-        return null
-    }
-
-    // ── Private: environment ───────────────────────────────────────────────────
-
-    private fun buildEnvironment(): MutableMap<String, String> {
-        val result = mutableMapOf<String, String>()
-        val processEnv = System.getenv()
-        for (key in ALLOWED_ENV_KEYS) {
-            processEnv[key]?.let { result[key] = it }
-        }
-
-        // Ensure trusted dirs are in PATH so ngrok can find its dependencies.
-        val currentPath = result["PATH"] ?: "/usr/bin:/bin:/usr/sbin:/sbin"
-        val existingParts = currentPath.split(":")
-        val missing = TRUSTED_DIRS.filter { it !in existingParts }
-        if (missing.isNotEmpty()) {
-            result["PATH"] = (missing + existingParts).joinToString(":")
-        }
-
-        return result
     }
 
     // ── Private: PID file ──────────────────────────────────────────────────────
@@ -353,13 +235,11 @@ class NgrokTunnelService(private val scope: CoroutineScope) {
             return
         }
 
-        // SIGTERM
         runIgnoringExceptions {
             ProcessBuilder("kill", "-TERM", pid.toString()).start().waitFor()
         }
         log.info("NgrokTunnelService: sent SIGTERM to previous owned ngrok pid=$pid")
 
-        // Wait up to 1s for process to exit.
         repeat(10) {
             delay(100)
             if (!isProcessAlive(pid)) return@repeat

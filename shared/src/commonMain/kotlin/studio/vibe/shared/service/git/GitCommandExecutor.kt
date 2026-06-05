@@ -4,14 +4,16 @@ import studio.vibe.shared.contract.AheadBehind
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.ProcessRunner
 import studio.vibe.shared.model.*
-import studio.vibe.shared.service.git.parser.GitBranchParser
-import studio.vibe.shared.service.git.parser.GitOutputParser
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
+import studio.vibe.shared.service.git.executor.GitBranchExecutor
+import studio.vibe.shared.service.git.executor.GitCommitExecutor
+import studio.vibe.shared.service.git.executor.GitInspectExecutor
+import studio.vibe.shared.service.git.executor.GitProcessRunner
+import studio.vibe.shared.service.git.executor.GitRemoteExecutor
+import studio.vibe.shared.service.git.executor.GitStagingExecutor
+import studio.vibe.shared.service.git.executor.GitStatusExecutor
 
 /**
- * Stateless git CLI wrapper that delegates subprocess execution to [ProcessRunner].
+ * Thin facade implementing [GitServicing] by delegating to six focused executors.
  *
  * All git commands are executed via argument arrays — never shell string interpolation —
  * preventing command injection. Branch names are validated before use. File paths are
@@ -21,477 +23,103 @@ import kotlin.time.Instant
  * @param gitPath Path to the git binary (default: "git", resolved from PATH).
  */
 class GitCommandExecutor(
-    private val processRunner: ProcessRunner,
-    private val gitPath: String = "git",
+    processRunner: ProcessRunner,
+    gitPath: String = "git",
 ) : GitServicing {
 
-    // -------------------------------------------------------------------------
-    // Constants
-    // -------------------------------------------------------------------------
+    private val runner = GitProcessRunner(processRunner, gitPath)
 
-    private val defaultTimeout: Duration = 30.seconds
-    private val networkTimeout: Duration = 120.seconds
+    private val statusExecutor = GitStatusExecutor(runner)
+    private val stagingExecutor = GitStagingExecutor(runner)
+    private val commitExecutor = GitCommitExecutor(runner)
+    private val remoteExecutor = GitRemoteExecutor(runner)
+    private val branchExecutor = GitBranchExecutor(runner)
+    private val inspectExecutor = GitInspectExecutor(runner)
 
+    // ── GitStatusQuerying ──────────────────────────────────────────────────────
 
-    // -------------------------------------------------------------------------
-    // GitStatusQuerying
-    // -------------------------------------------------------------------------
+    override suspend fun status(at: FilePath): GitStatus =
+        statusExecutor.status(at)
 
-    override suspend fun status(at: FilePath): GitStatus {
-        val output = runGit(listOf("status", "--porcelain=v1", "--branch"), at)
-        return GitOutputParser.parseStatus(output)
-    }
-
-    override suspend fun diff(file: String, staged: Boolean, at: FilePath): List<GitDiffHunk> {
-        val args = buildList {
-            add("diff")
-            if (staged) add("--cached")
-            add("--")
-            add(file)
-        }
-        val output = runGit(args, at)
-        return GitOutputParser.parseDiff(output)
-    }
+    override suspend fun diff(file: String, staged: Boolean, at: FilePath): List<GitDiffHunk> =
+        statusExecutor.diff(file, staged, at)
 
     override suspend fun fullStagedDiff(at: FilePath): String =
-        runGit(listOf("diff", "--staged"), at)
+        statusExecutor.fullStagedDiff(at)
 
-    override suspend fun headDiff(at: FilePath): String {
-        return try {
-            runGit(listOf("diff", "HEAD"), at)
-        } catch (e: GitServiceError.CommandFailed) {
-            // No commits yet — return staged diff only.
-            runGit(listOf("diff", "--staged"), at)
-        }
-    }
+    override suspend fun headDiff(at: FilePath): String =
+        statusExecutor.headDiff(at)
 
-    override suspend fun diffStats(at: FilePath): Map<String, GitDiffStat> {
-        val result = mutableMapOf<String, Pair<Int, Int>>()
+    override suspend fun diffStats(at: FilePath): Map<String, GitDiffStat> =
+        statusExecutor.diffStats(at)
 
-        fun merge(output: String) {
-            for ((path, stat) in GitOutputParser.parseNumstat(output)) {
-                val existing = result[path]
-                result[path] = if (existing != null) {
-                    Pair(existing.first + stat.added, existing.second + stat.deleted)
-                } else {
-                    Pair(stat.added, stat.deleted)
-                }
-            }
-        }
+    override suspend fun log(limit: Int, at: FilePath): List<GitCommitInfo> =
+        statusExecutor.log(limit, at)
 
-        // Unstaged diff (vs index)
-        try {
-            merge(runGit(listOf("diff", "--numstat"), at))
-        } catch (_: Exception) { /* Ignore — repo may have no unstaged changes */ }
+    override suspend fun aheadBehind(at: FilePath): AheadBehind =
+        statusExecutor.aheadBehind(at)
 
-        // Staged diff (index vs HEAD, with fallback for empty repos)
-        val staged = try {
-            runGit(listOf("diff", "--cached", "--numstat"), at)
-        } catch (_: Exception) {
-            try {
-                runGit(listOf("diff", "--numstat"), at)
-            } catch (_: Exception) {
-                ""
-            }
-        }
-        merge(staged)
+    // ── GitStaging ─────────────────────────────────────────────────────────────
 
-        return result.mapValues { (_, v) -> GitDiffStat(added = v.first, deleted = v.second) }
-    }
+    override suspend fun stage(files: List<String>, at: FilePath) =
+        stagingExecutor.stage(files, at)
 
-    override suspend fun log(limit: Int, at: FilePath): List<GitCommitInfo> {
-        val output = runGit(
-            listOf("log", "--format=%H\t%h\t%s\t%an\t%aI", "-n", "$limit"),
-            at,
-        )
-        return output.split("\n")
-            .filter { it.isNotEmpty() }
-            .mapNotNull { line ->
-                val parts = line.split("\t")
-                if (parts.size < 5) return@mapNotNull null
-                val date = parseIso8601(parts[4]) ?: return@mapNotNull null
-                GitCommitInfo(
-                    hash = parts[0],
-                    shortHash = parts[1],
-                    message = parts[2],
-                    author = parts[3],
-                    date = date,
-                )
-            }
-    }
+    override suspend fun unstage(files: List<String>, at: FilePath) =
+        stagingExecutor.unstage(files, at)
 
-    override suspend fun aheadBehind(at: FilePath): AheadBehind {
-        return try {
-            val output = runGit(
-                listOf("rev-list", "--left-right", "--count", "HEAD...@{upstream}"),
-                at,
-            )
-            val parts = output.trim().split("\t")
-            if (parts.size == 2) {
-                val ahead = parts[0].trim().toIntOrNull() ?: 0
-                val behind = parts[1].trim().toIntOrNull() ?: 0
-                AheadBehind(ahead, behind)
-            } else {
-                AheadBehind(0, 0)
-            }
-        } catch (_: Exception) {
-            AheadBehind(0, 0)
-        }
-    }
+    // ── GitCommitting ──────────────────────────────────────────────────────────
 
-    // -------------------------------------------------------------------------
-    // GitStaging
-    // -------------------------------------------------------------------------
+    override suspend fun commit(message: String, at: FilePath): String =
+        commitExecutor.commit(message, at)
 
-    override suspend fun stage(files: List<String>, at: FilePath) {
-        if (files.isEmpty()) {
-            runGit(listOf("add", "-A"), at)
-        } else {
-            val args = buildList {
-                add("add")
-                add("--")
-                addAll(files)
-            }
-            runGit(args, at)
-        }
-    }
+    // ── GitRemoteOperating ─────────────────────────────────────────────────────
 
-    override suspend fun unstage(files: List<String>, at: FilePath) {
-        if (files.isEmpty()) {
-            runGit(listOf("restore", "--staged", "."), at)
-        } else {
-            val args = buildList {
-                add("restore")
-                add("--staged")
-                add("--")
-                addAll(files)
-            }
-            runGit(args, at)
-        }
-    }
+    override suspend fun push(remote: String, at: FilePath) =
+        remoteExecutor.push(remote, at)
 
-    // -------------------------------------------------------------------------
-    // GitCommitting
-    // -------------------------------------------------------------------------
+    override suspend fun pull(remote: String, at: FilePath) =
+        remoteExecutor.pull(remote, at)
 
-    override suspend fun commit(message: String, at: FilePath): String {
-        if (message.trim().isEmpty()) {
-            throw GitServiceError.CommandFailed(
-                command = "commit",
-                exitCode = 1,
-                stderr = "Commit message cannot be empty",
-            )
-        }
-        val output = runGit(listOf("commit", "-m", message), at)
-        // Extract commit hash from output (first 7–40 hex chars).
-        val match = Regex("[0-9a-f]{7,40}").find(output)
-        return match?.value ?: output
-    }
+    override suspend fun fetch(remote: String, at: FilePath) =
+        remoteExecutor.fetch(remote, at)
 
-    // -------------------------------------------------------------------------
-    // GitRemoteOperating
-    // -------------------------------------------------------------------------
+    override suspend fun pushBranch(branch: String, remote: String, at: FilePath) =
+        remoteExecutor.pushBranch(branch, remote, at)
 
-    override suspend fun push(remote: String, at: FilePath) {
-        GitBranchParser.validateBranchName(remote)
-        try {
-            runGit(listOf("push", remote), at, timeout = networkTimeout)
-        } catch (e: GitServiceError.CommandFailed) {
-            if (e.stderr.contains("rejected")) throw GitServiceError.PushRejected(reason = e.stderr)
-            throw e
-        }
-    }
+    override suspend fun pullBranch(branch: String, isCurrent: Boolean, remote: String, at: FilePath) =
+        remoteExecutor.pullBranch(branch, isCurrent, remote, at)
 
-    override suspend fun pull(remote: String, at: FilePath) {
-        GitBranchParser.validateBranchName(remote)
-        try {
-            runGit(listOf("pull", remote), at, timeout = networkTimeout)
-        } catch (e: GitServiceError.CommandFailed) {
-            if (e.stderr.contains("CONFLICT")) {
-                val files = e.stderr.split("\n").filter { it.contains("CONFLICT") }
-                throw GitServiceError.MergeConflict(files = files)
-            }
-            throw e
-        }
-    }
+    override suspend fun addRemote(name: String, url: String, at: FilePath) =
+        remoteExecutor.addRemote(name, url, at)
 
-    override suspend fun fetch(remote: String, at: FilePath) {
-        GitBranchParser.validateBranchName(remote)
-        runGit(listOf("fetch", remote), at, timeout = networkTimeout)
-    }
+    override suspend fun remoteURL(name: String, at: FilePath): String? =
+        remoteExecutor.remoteURL(name, at)
 
-    override suspend fun pushBranch(branch: String, remote: String, at: FilePath) {
-        GitBranchParser.validateBranchName(branch)
-        GitBranchParser.validateBranchName(remote)
-        try {
-            runGit(
-                listOf("push", "--set-upstream", remote, branch),
-                at,
-                timeout = networkTimeout,
-                suppressCredentials = false,
-            )
-        } catch (e: GitServiceError.CommandFailed) {
-            if (e.stderr.contains("rejected")) throw GitServiceError.PushRejected(reason = e.stderr)
-            throw e
-        }
-    }
+    override suspend fun defaultRemote(forBranch: String?, at: FilePath): String =
+        remoteExecutor.defaultRemote(forBranch, at)
 
-    override suspend fun pullBranch(branch: String, isCurrent: Boolean, remote: String, at: FilePath) {
-        GitBranchParser.validateBranchName(branch)
-        GitBranchParser.validateBranchName(remote)
-        if (isCurrent) {
-            try {
-                runGit(listOf("pull", remote), at, timeout = networkTimeout, suppressCredentials = false)
-            } catch (e: GitServiceError.CommandFailed) {
-                if (e.stderr.contains("CONFLICT")) {
-                    val files = e.stderr.split("\n").filter { it.contains("CONFLICT") }
-                    throw GitServiceError.MergeConflict(files = files)
-                }
-                throw e
-            }
-        } else {
-            runGit(
-                listOf("fetch", remote, "$branch:$branch"),
-                at,
-                timeout = networkTimeout,
-                suppressCredentials = false,
-            )
-        }
-    }
+    // ── GitBranching ───────────────────────────────────────────────────────────
 
-    override suspend fun addRemote(name: String, url: String, at: FilePath) {
-        if (name.isEmpty() || name.startsWith("-") || name.contains(" ") || name.contains("..")) {
-            throw GitServiceError.CommandFailed(
-                command = "remote",
-                exitCode = 1,
-                stderr = "Invalid remote name: $name",
-            )
-        }
-        if (url.isEmpty() || url.startsWith("-")) {
-            throw GitServiceError.CommandFailed(
-                command = "remote",
-                exitCode = 1,
-                stderr = "Invalid remote URL",
-            )
-        }
-        // Prevent dangerous git transport protocols (ext:: allows arbitrary command execution).
-        val forbiddenPrefixes = listOf("ext::", "fd::")
-        if (forbiddenPrefixes.any { url.lowercase().startsWith(it) }) {
-            throw GitServiceError.CommandFailed(
-                command = "remote",
-                exitCode = 1,
-                stderr = "Unsupported remote URL scheme: only https://, http://, git://, ssh://, git@, and local paths are allowed",
-            )
-        }
-        runGit(listOf("remote", "add", name, url), at)
-    }
+    override suspend fun branches(at: FilePath): List<GitBranch> =
+        branchExecutor.branches(at)
 
-    override suspend fun remoteURL(name: String, at: FilePath): String? {
-        return try {
-            val output = runGit(listOf("remote", "get-url", name), at)
-            output.trim().ifEmpty { null }
-        } catch (_: Exception) {
-            null
-        }
-    }
+    override suspend fun checkout(branch: String, at: FilePath) =
+        branchExecutor.checkout(branch, at)
 
-    override suspend fun defaultRemote(forBranch: String?, at: FilePath): String {
-        // 1. Branch-specific remote from git config.
-        if (forBranch != null) {
-            try {
-                val r = runGit(listOf("config", "--get", "branch.$forBranch.remote"), at)
-                val trimmed = r.trim()
-                if (trimmed.isNotEmpty()) return trimmed
-            } catch (_: Exception) { /* Fall through */ }
-        }
-        // 2. First remote listed in the repo.
-        try {
-            val remotes = runGit(listOf("remote"), at)
-            val first = remotes.split("\n").firstOrNull { it.trim().isNotEmpty() }
-            if (first != null) return first.trim()
-        } catch (_: Exception) { /* Fall through */ }
-        return "origin"
-    }
+    override suspend fun createBranch(name: String, from: String?, at: FilePath) =
+        branchExecutor.createBranch(name, from, at)
 
-    // -------------------------------------------------------------------------
-    // GitBranching
-    // -------------------------------------------------------------------------
+    override suspend fun deleteBranch(name: String, force: Boolean, at: FilePath) =
+        branchExecutor.deleteBranch(name, force, at)
 
-    override suspend fun branches(at: FilePath): List<GitBranch> {
-        // Step 1: local branches.
-        val localOutput = runGit(
-            listOf("branch", "--list", "--format=%(refname:short)\t%(HEAD)"),
-            at,
-        )
-        val result = mutableListOf<GitBranch>()
-        result += localOutput.split("\n")
-            .filter { it.isNotEmpty() }
-            .mapNotNull { line ->
-                val parts = line.split("\t")
-                val name = parts.firstOrNull()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val isCurrent = parts.size >= 2 && parts[1] == "*"
-                GitBranch(name = name, isRemote = false, isCurrent = isCurrent)
-            }
+    // ── GitRepositoryInspection ────────────────────────────────────────────────
 
-        // Step 2: remote tracking branches (local cache — no network call).
-        try {
-            val remoteOutput = runGit(
-                listOf("branch", "-r", "--list", "--format=%(refname:short)"),
-                at,
-            )
-            result += remoteOutput.split("\n")
-                .filter { it.isNotEmpty() }
-                .mapNotNull { line ->
-                    val name = line.trim()
-                    // Skip remote HEAD aliases like origin/HEAD.
-                    if (name.isEmpty() || name.endsWith("/HEAD")) return@mapNotNull null
-                    GitBranch(name = name, isRemote = true, isCurrent = false)
-                }
-        } catch (_: Exception) {
-            // Remote refs unavailable — return local branches only.
-        }
+    override suspend fun isRepository(at: FilePath): Boolean =
+        inspectExecutor.isRepository(at)
 
-        return result
-    }
+    override suspend fun repositoryRoot(forPath: FilePath): FilePath =
+        inspectExecutor.repositoryRoot(forPath)
 
-    override suspend fun checkout(branch: String, at: FilePath) {
-        GitBranchParser.validateBranchName(branch)
-        runGit(listOf("switch", branch), at)
-    }
-
-    override suspend fun createBranch(name: String, from: String?, at: FilePath) {
-        GitBranchParser.validateBranchName(name)
-        val args = buildList {
-            add("switch")
-            add("-c")
-            add(name)
-            if (from != null) {
-                GitBranchParser.validateBranchName(from)
-                add(from)
-            }
-        }
-        runGit(args, at)
-    }
-
-    override suspend fun deleteBranch(name: String, force: Boolean, at: FilePath) {
-        GitBranchParser.validateBranchName(name)
-        // -d = safe delete (refuses if unmerged); -D = force delete.
-        val flag = if (force) "-D" else "-d"
-        runGit(listOf("branch", flag, name), at)
-    }
-
-    // -------------------------------------------------------------------------
-    // GitRepositoryInspection
-    // -------------------------------------------------------------------------
-
-    override suspend fun isRepository(at: FilePath): Boolean {
-        return try {
-            runGit(listOf("rev-parse", "--is-inside-work-tree"), at)
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    override suspend fun repositoryRoot(forPath: FilePath): FilePath {
-        val output = runGit(listOf("rev-parse", "--show-toplevel"), forPath)
-        return FilePath(output.trim())
-    }
-
-    override suspend fun initRepository(at: FilePath) {
-        runGit(listOf("init"), at)
-    }
-
-    // -------------------------------------------------------------------------
-    // Private: subprocess execution
-    // -------------------------------------------------------------------------
-
-    /**
-     * Execute a git command as a subprocess via [processRunner].
-     *
-     * Security: never uses a shell. Arguments are passed directly to the git
-     * binary, preventing shell injection. The working directory is the repository
-     * root — identical to using `git -C <dir>` semantics.
-     *
-     * @param args Git subcommand and arguments (e.g. ["status", "--porcelain=v1"]).
-     * @param dir Working directory for the command.
-     * @param timeout Maximum execution time (defaults to [defaultTimeout]).
-     * @param suppressCredentials When true, sets GIT_TERMINAL_PROMPT=0 and
-     *   GIT_ASKPASS=/usr/bin/true to prevent interactive credential prompts.
-     * @return Standard output as a string.
-     * @throws GitServiceError on failure or timeout.
-     */
-    private suspend fun runGit(
-        args: List<String>,
-        dir: FilePath,
-        timeout: Duration = defaultTimeout,
-        suppressCredentials: Boolean = true,
-    ): String {
-        val command = buildList {
-            add(gitPath)
-            addAll(args)
-        }
-
-        val env = buildMap<String, String> {
-            if (suppressCredentials) {
-                put("GIT_TERMINAL_PROMPT", "0")
-                put("GIT_ASKPASS", "/usr/bin/true")
-            }
-        }
-
-        val commandDesc = args.firstOrNull() ?: "git"
-        val result = try {
-            processRunner.run(
-                command = command,
-                workDir = dir,
-                env = env,
-                timeout = timeout,
-            )
-        } catch (e: Exception) {
-            throw GitServiceError.GitNotFound
-        }
-
-        return when {
-            result.exitCode == 0 -> result.stdout
-            result.stderr.contains("not a git repository") ->
-                throw GitServiceError.NotARepository(path = dir)
-            else -> throw GitServiceError.CommandFailed(
-                command = commandDesc,
-                exitCode = result.exitCode,
-                stderr = result.stderr,
-            )
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Internal: Parsing
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // Private: ISO 8601 date parsing (commonMain — no java.time / Foundation)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Parse an ISO 8601 date string into [Instant].
-     *
-     * Accepts the `%aI` git log format, which produces strings like:
-     * `2024-01-15T10:30:00+02:00` or `2024-01-15T10:30:00Z`.
-     *
-     * Uses [Instant.parse] from kotlin.time which supports a strict ISO 8601
-     * subset (RFC 3339). Offset-qualified timestamps are normalized to UTC
-     * by re-encoding as UTC before parsing.
-     */
-    private fun parseIso8601(value: String): Instant? {
-        val s = value.trim()
-        if (s.isEmpty()) return null
-        return try {
-            // kotlin.time.Instant.parse accepts ISO-8601 / RFC-3339 strings.
-            Instant.parse(s)
-        } catch (_: Exception) {
-            // Try normalizing +HH:MM offset to Z by stripping and adjusting.
-            // e.g. 2024-01-15T10:30:00+02:00 → parse as-is via Instant.parse
-            // (already handled above, this is a fallback for malformed dates).
-            null
-        }
-    }
+    override suspend fun initRepository(at: FilePath) =
+        inspectExecutor.initRepository(at)
 }
