@@ -146,7 +146,7 @@ class ProjectActivationTest {
         val project2 = runBlocking { container.projectStore.addProject(FilePath(dir2.absolutePath)) }
         container.projectStore.setActiveProjectId(project1.id)
 
-        container.projectStore.removeProject(project1.id)
+        runBlocking { container.projectStore.removeProject(project1.id) }
 
         assertEquals(project2.id, container.projectStore.activeProjectId.value)
     }
@@ -158,7 +158,7 @@ class ProjectActivationTest {
         val project = runBlocking { container.projectStore.addProject(FilePath(tempDir.absolutePath)) }
         container.projectStore.setActiveProjectId(project.id)
 
-        container.projectStore.removeProject(project.id)
+        runBlocking { container.projectStore.removeProject(project.id) }
 
         assertNull(container.projectStore.activeProjectId.value)
     }
@@ -172,7 +172,7 @@ class ProjectActivationTest {
         val project2 = runBlocking { container.projectStore.addProject(FilePath(dir2.absolutePath)) }
         container.projectStore.setActiveProjectId(project1.id)
 
-        container.projectStore.removeProject(project2.id)
+        runBlocking { container.projectStore.removeProject(project2.id) }
 
         assertEquals(project1.id, container.projectStore.activeProjectId.value)
     }

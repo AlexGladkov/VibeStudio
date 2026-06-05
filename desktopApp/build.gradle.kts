@@ -2,6 +2,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
     kotlin("jvm")
+    kotlin("plugin.serialization")
     id("org.jetbrains.compose")
     id("org.jetbrains.kotlin.plugin.compose")
 }
@@ -47,6 +48,11 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation(compose.desktop.uiTestJUnit4)
+    testImplementation("io.mockk:mockk:1.14.2")
+    testImplementation("io.ktor:ktor-server-test-host:3.5.0")
+    testImplementation("io.ktor:ktor-server-content-negotiation:3.5.0")
+    testImplementation("io.ktor:ktor-client-content-negotiation:3.5.0")
+    testImplementation("io.ktor:ktor-server-status-pages:3.5.0")
 }
 
 val appVersion = project.findProperty("app.version")?.toString() ?: "1.0.0"

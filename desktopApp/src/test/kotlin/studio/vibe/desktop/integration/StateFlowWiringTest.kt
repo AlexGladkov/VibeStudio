@@ -93,7 +93,7 @@ class StateFlowWiringTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText(tempDir.name).assertExists()
 
-        container.projectStore.removeProject(project.id)
+        runBlocking { container.projectStore.removeProject(project.id) }
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText(tempDir.name).assertDoesNotExist()
@@ -203,7 +203,7 @@ class StateFlowWiringTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Open a folder to get started").assertDoesNotExist()
 
-        container.projectStore.removeProject(project.id)
+        runBlocking { container.projectStore.removeProject(project.id) }
         composeTestRule.waitForIdle()
 
         composeTestRule.onNodeWithText("VibeStudio").assertExists()
@@ -244,7 +244,7 @@ class StateFlowWiringTest {
 
         assertEquals(project.id, container.projectStore.activeProjectId.value)
 
-        container.projectStore.removeProject(project.id)
+        runBlocking { container.projectStore.removeProject(project.id) }
 
         assertNull(container.projectStore.activeProjectId.value)
         assertEquals(0, container.projectStore.projects.value.size)

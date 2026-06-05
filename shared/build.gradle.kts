@@ -33,6 +33,9 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+            implementation("io.ktor:ktor-client-mock:3.5.0")
+            implementation("io.ktor:ktor-client-content-negotiation:3.5.0")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
         }
 
         jvmMain.dependencies {

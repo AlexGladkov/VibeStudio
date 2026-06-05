@@ -24,7 +24,8 @@ class FakePersistenceStore(
         files[path.path] = data
     }
 
-    override suspend fun fileExists(path: FilePath): Boolean = files.containsKey(path.path)
+    override suspend fun fileExists(path: FilePath): Boolean =
+        files.containsKey(path.path) || directories.contains(path.path)
 
     override suspend fun isDirectory(path: FilePath): Boolean = directories.contains(path.path)
 
