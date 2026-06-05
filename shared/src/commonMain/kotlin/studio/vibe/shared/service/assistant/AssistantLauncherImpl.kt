@@ -3,12 +3,14 @@
 package studio.vibe.shared.service.assistant
 
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import studio.vibe.shared.contract.AIAgentRegistry
@@ -80,6 +82,12 @@ class AssistantLauncherImpl(
     private val blockingDispatcher: CoroutineDispatcher = Dispatchers.Default,
     /** Optional override for env-var resolution (e.g. from process environment on JVM). */
     override var onResolveEnvVar: ((String) -> String?)? = null,
+    /**
+     * Coroutine scope used to share derived [StateFlow]s via [stateIn].
+     * Defaults to a standalone scope with [SupervisorJob] — suitable for production.
+     * Inject a [TestScope] (or [backgroundScope] from [runTest]) in tests.
+     */
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) : AssistantLauncher {
 
     // ── State ──────────────────────────────────────────────────────────────────
@@ -92,28 +100,18 @@ class AssistantLauncherImpl(
 
     /**
      * StateFlow view of [LauncherState.runningByProject].
-     * Implemented as a delegating StateFlow so callers see it as [StateFlow].
+     *
+     * Implemented via [stateIn] so the flow is properly collectable —
+     * avoiding the fragile anonymous-class pattern with [error]("unreachable").
      */
     override val runningByProject: StateFlow<Map<Uuid, Set<String>>> =
-        object : StateFlow<Map<Uuid, Set<String>>> {
-            override val value: Map<Uuid, Set<String>> get() = _state.value.runningByProject
-            override val replayCache: List<Map<Uuid, Set<String>>> get() = listOf(value)
-            override suspend fun collect(collector: FlowCollector<Map<Uuid, Set<String>>>): Nothing {
-                _state.map { it.runningByProject }.collect(collector)
-                error("unreachable")
-            }
-        }
+        _state.map { it.runningByProject }
+            .stateIn(scope, SharingStarted.Eagerly, _state.value.runningByProject)
 
     /** Live snapshot of project → agent → sessionId mappings. */
     val agentSessionIds: StateFlow<Map<Uuid, Map<String, Uuid>>> =
-        object : StateFlow<Map<Uuid, Map<String, Uuid>>> {
-            override val value: Map<Uuid, Map<String, Uuid>> get() = _state.value.sessionIds
-            override val replayCache: List<Map<Uuid, Map<String, Uuid>>> get() = listOf(value)
-            override suspend fun collect(collector: FlowCollector<Map<Uuid, Map<String, Uuid>>>): Nothing {
-                _state.map { it.sessionIds }.collect(collector)
-                error("unreachable")
-            }
-        }
+        _state.map { it.sessionIds }
+            .stateIn(scope, SharingStarted.Eagerly, _state.value.sessionIds)
 
     // ── AssistantLauncher ─────────────────────────────────────────────────────
 

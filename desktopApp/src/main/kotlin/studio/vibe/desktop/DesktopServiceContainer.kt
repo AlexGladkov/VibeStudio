@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
 import studio.vibe.shared.contract.AIAgent
@@ -93,7 +94,16 @@ class DesktopServiceContainer {
     ).also { store ->
         // JVM-only: blocking load during DI startup is acceptable here — we are
         // not on the EDT yet.  Kotlin/Native containers must use suspend init.
-        runBlocking { store.load() }
+        // 10-second timeout guards against indefinite hang on NFS/network mounts.
+        // On timeout we log and continue with an empty store — better than freezing
+        // the UI forever.
+        runBlocking {
+            try {
+                withTimeout(10_000) { store.load() }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                System.err.println("DesktopServiceContainer: projectStore.load() timed out after 10 s — continuing with empty store")
+            }
+        }
     }
 
     val agentRegistry: AIAgentRegistry = DefaultAIAgentRegistry()

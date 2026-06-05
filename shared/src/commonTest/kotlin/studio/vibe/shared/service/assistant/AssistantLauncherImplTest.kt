@@ -2,6 +2,7 @@
 
 package studio.vibe.shared.service.assistant
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import studio.vibe.shared.contract.AgentAvailabilityStatus
@@ -30,6 +31,7 @@ class AssistantLauncherImplTest {
         availability: FakeAgentAvailabilityChecking = FakeAgentAvailabilityChecking(),
         registry: DefaultAIAgentRegistry = DefaultAIAgentRegistry(),
         apiKeys: FakeAPIKeyResolving = FakeAPIKeyResolving(),
+        scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
     ) = AssistantLauncherImpl(
         projectManaging = projects,
         terminalSessionManaging = terminal,
@@ -37,6 +39,7 @@ class AssistantLauncherImplTest {
         agentAvailabilityChecking = availability,
         apiKeyResolving = apiKeys,
         blockingDispatcher = UnconfinedTestDispatcher(),
+        scope = scope,
     )
 
     @Test
