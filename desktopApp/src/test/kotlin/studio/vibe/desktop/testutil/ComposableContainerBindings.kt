@@ -81,6 +81,8 @@ fun TabBarView(
         projectStore = container.projectStore,
         terminalService = container.terminalService,
         toolbarViewModel = container.toolbarViewModel,
+        freeTabStore = container.freeTabStore,
+        generalPreferences = container.generalPreferences,
         onOpenProject = onOpenProject,
     )
 }
@@ -208,6 +210,7 @@ fun RootView(
         gitService = container.gitService,
         toolbarViewModel = container.toolbarViewModel,
         terminalService = container.terminalService,
+        freeTabStore = container.freeTabStore,
         generalPreferences = container.generalPreferences,
         coroutineScope = container.scope,
         onOpenProject = onOpenProject,

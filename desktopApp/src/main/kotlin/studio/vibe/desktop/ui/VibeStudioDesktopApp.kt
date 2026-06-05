@@ -165,6 +165,7 @@ fun VibeStudioDesktopApp(
                         gitService = container.gitService,
                         toolbarViewModel = container.toolbarViewModel,
                         terminalService = container.terminalService,
+                        freeTabStore = container.freeTabStore,
                         generalPreferences = container.generalPreferences,
                         coroutineScope = container.scope,
                         onOpenProject = openFolderPicker,

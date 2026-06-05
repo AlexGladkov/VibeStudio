@@ -62,7 +62,9 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.shared.contract.FreeTabManaging
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.preferences.GeneralPreferencesReading
 import studio.vibe.shared.viewmodel.ToolbarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
@@ -72,41 +74,50 @@ import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import studio.vibe.shared.model.FreeTab
 import studio.vibe.shared.model.TabActivityState
 
 /**
- * Horizontal tab bar displaying one tab per open project.
+ * Horizontal tab bar displaying one tab per open project, followed by free terminal tabs.
  *
- * Enhancements over the initial implementation:
- * - Horizontal scroll when tabs overflow the available width.
- * - Per-tab activity dot driven by [TabActivityState] from the terminal service.
- *   idle → no dot / grey, running → green pulsing, waiting → yellow, error → red.
- * - Close button (×) that appears on hover or when the tab is active.
- * - Close confirmation dialog when a tab has an active terminal session.
- * - "+" button at the far right opens the project picker.
- * - Drag-to-reorder: drag a tab horizontally; positions are swapped live on drop.
+ * Project tabs and free tabs are in separate drag groups — drag-reorder is only
+ * possible within each group, not across the boundary.
+ *
+ * Per-tab activity dot:
+ *   idle → hidden, running → green pulse, waitingForInput → yellow pulse+scale, error → red glow.
+ *
+ * Close confirmation dialog obeys [generalPreferences.confirmTabClose].
+ *
+ * "+" button at the far right creates a new free terminal tab.
  */
 @Composable
 fun TabBarView(
     projectStore: ProjectManaging,
     terminalService: DesktopTerminalService,
     toolbarViewModel: ToolbarViewModel,
+    freeTabStore: FreeTabManaging,
+    generalPreferences: GeneralPreferencesReading,
     onOpenProject: () -> Unit,
 ) {
     val projects by projectStore.projects.collectAsState()
     val activeProjectId by projectStore.activeProjectId.collectAsState()
     val activityStates by terminalService.projectActivityStates.collectAsState()
+    val confirmClose by generalPreferences.confirmTabCloseFlow.collectAsState()
+    val freeTabs by freeTabStore.freeTabsFlow.collectAsState()
 
     val scrollState: ScrollState = rememberScrollState()
     val tabBarScope = rememberCoroutineScope()
 
-    // ── Drag state shared across all tabs ─────────────────────────────────────
-    // draggedId: which tab is being dragged right now.
-    // dragOffset: cumulative horizontal drag in pixels for the dragged tab.
-    // tabWidthPx: measured width of a single tab cell (set on first layout).
-    var draggedId by remember { mutableStateOf<Uuid?>(null) }
-    var dragOffset by remember { mutableStateOf(0f) }
-    var tabWidthPx by remember { mutableStateOf(0f) }
+    // ── Drag state — project tabs ─────────────────────────────────────────────
+    var draggedProjectId by remember { mutableStateOf<Uuid?>(null) }
+    var dragProjectOffset by remember { mutableStateOf(0f) }
+    var projectTabWidthPx by remember { mutableStateOf(0f) }
+
+    // ── Drag state — free tabs ────────────────────────────────────────────────
+    var draggedFreeTabId by remember { mutableStateOf<Uuid?>(null) }
+    var dragFreeTabOffset by remember { mutableStateOf(0f) }
+    var freeTabWidthPx by remember { mutableStateOf(0f) }
+
     var showAddPopover by remember { mutableStateOf(false) }
 
     Row(
@@ -115,7 +126,7 @@ fun TabBarView(
             .background(LocalDSColors.current.surfaceTabBar),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Scrollable tab strip
+        // ── Scrollable tab strip ──────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -124,17 +135,22 @@ fun TabBarView(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DSLayout.tabGap),
         ) {
+            // ── Project tabs ──────────────────────────────────────────────────
             projects.forEachIndexed { index, project ->
                 val activity = activityStates[project.id] ?: TabActivityState.IDLE
-                val isDragging = draggedId == project.id
+                val isDragging = draggedProjectId == project.id
+                val needsConfirm = confirmClose &&
+                    activity != TabActivityState.IDLE &&
+                    activity != TabActivityState.HIDDEN
 
                 TabItem(
                     name = project.name,
                     isActive = project.id == activeProjectId,
                     activityState = activity,
                     isDragging = isDragging,
-                    dragOffsetX = if (isDragging) dragOffset else 0f,
-                    anyDragActive = draggedId != null,
+                    dragOffsetX = if (isDragging) dragProjectOffset else 0f,
+                    anyDragActive = draggedProjectId != null,
+                    requiresCloseConfirmation = needsConfirm,
                     onClick = { projectStore.setActiveProjectId(project.id) },
                     onClose = {
                         terminalService.killAllSessions(project.id)
@@ -142,48 +158,106 @@ fun TabBarView(
                         tabBarScope.launch { projectStore.removeProject(project.id) }
                     },
                     onDragStart = {
-                        draggedId = project.id
-                        dragOffset = 0f
+                        draggedProjectId = project.id
+                        dragProjectOffset = 0f
                     },
                     onDrag = { delta ->
-                        dragOffset += delta
-
-                        // Swap when drag exceeds half a tab width in either direction
-                        val threshold = tabWidthPx * 0.5f
-                        if (tabWidthPx > 0f) {
+                        dragProjectOffset += delta
+                        val threshold = projectTabWidthPx * 0.5f
+                        if (projectTabWidthPx > 0f) {
                             when {
-                                dragOffset > threshold && index < projects.lastIndex -> {
+                                dragProjectOffset > threshold && index < projects.lastIndex -> {
                                     tabBarScope.launch {
                                         projectStore.moveProjects(
                                             fromIndices = setOf(index),
                                             toDestination = index + 1,
                                         )
                                     }
-                                    dragOffset -= tabWidthPx
+                                    dragProjectOffset -= projectTabWidthPx
                                 }
-                                dragOffset < -threshold && index > 0 -> {
+                                dragProjectOffset < -threshold && index > 0 -> {
                                     tabBarScope.launch {
                                         projectStore.moveProjects(
                                             fromIndices = setOf(index),
                                             toDestination = index - 1,
                                         )
                                     }
-                                    dragOffset += tabWidthPx
+                                    dragProjectOffset += projectTabWidthPx
                                 }
                             }
                         }
                     },
                     onDragEnd = {
-                        draggedId = null
-                        dragOffset = 0f
+                        draggedProjectId = null
+                        dragProjectOffset = 0f
                     },
-                    onWidthMeasured = { px -> if (tabWidthPx == 0f) tabWidthPx = px },
+                    onWidthMeasured = { px -> if (projectTabWidthPx == 0f) projectTabWidthPx = px },
+                )
+            }
+
+            // ── Free tabs (separate group) ────────────────────────────────────
+            if (freeTabs.isNotEmpty()) {
+                // Thin separator between project and free tab groups
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(DSLayout.tabHeight * 0.6f)
+                        .background(LocalDSColors.current.borderDefault),
+                )
+                Spacer(Modifier.width(DSLayout.tabGap))
+            }
+
+            freeTabs.forEachIndexed { index, freeTab ->
+                val isDragging = draggedFreeTabId == freeTab.id
+                FreeTabItemView(
+                    title = freeTab.title,
+                    isActive = freeTab.id == activeProjectId,
+                    isDragging = isDragging,
+                    dragOffsetX = if (isDragging) dragFreeTabOffset else 0f,
+                    requiresCloseConfirmation = confirmClose,
+                    onClick = { projectStore.setActiveProjectId(freeTab.id) },
+                    onClose = { freeTabStore.removeFreeTab(freeTab.id) },
+                    onRename = { newTitle ->
+                        // FreeTab rename is in-memory only via store mutation
+                        // FreeTabStoreImpl doesn't expose rename; done client-side via recreate
+                        // For now: no-op (title stored in FreeTab is immutable in current model)
+                    },
+                    onDragStart = {
+                        draggedFreeTabId = freeTab.id
+                        dragFreeTabOffset = 0f
+                    },
+                    onDrag = { delta ->
+                        dragFreeTabOffset += delta
+                        val threshold = freeTabWidthPx * 0.5f
+                        if (freeTabWidthPx > 0f) {
+                            when {
+                                dragFreeTabOffset > threshold && index < freeTabs.lastIndex -> {
+                                    freeTabStore.moveFreeTabs(
+                                        fromIndices = setOf(index),
+                                        toDestination = index + 1,
+                                    )
+                                    dragFreeTabOffset -= freeTabWidthPx
+                                }
+                                dragFreeTabOffset < -threshold && index > 0 -> {
+                                    freeTabStore.moveFreeTabs(
+                                        fromIndices = setOf(index),
+                                        toDestination = index - 1,
+                                    )
+                                    dragFreeTabOffset += freeTabWidthPx
+                                }
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        draggedFreeTabId = null
+                        dragFreeTabOffset = 0f
+                    },
+                    onWidthMeasured = { px -> if (freeTabWidthPx == 0f) freeTabWidthPx = px },
                 )
             }
         }
 
-        // Add / open project button — always visible at the right edge.
-        // Clicking opens the Recents popover via Material3 DropdownMenu.
+        // ── Add project / new terminal buttons ────────────────────────────────
         Box {
             Box(
                 modifier = Modifier
@@ -215,6 +289,22 @@ fun TabBarView(
             }
         }
 
+        // "New Terminal" — creates a free tab
+        Box(
+            modifier = Modifier
+                .size(DSLayout.tabAddButtonSize)
+                .clip(RoundedCornerShape(DSRadius.md))
+                .clickable { freeTabStore.createFreeTab() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "New terminal",
+                tint = LocalDSColors.current.textMuted,
+                modifier = Modifier.size(DSFont.tabTitle.fontSize.value.dp),
+            )
+        }
+
         Spacer(Modifier.width(DSSpacing.xs))
     }
 }
@@ -229,6 +319,7 @@ private fun TabItem(
     isDragging: Boolean,
     dragOffsetX: Float,
     anyDragActive: Boolean,
+    requiresCloseConfirmation: Boolean = false,
     onClick: () -> Unit,
     onClose: () -> Unit,
     onDragStart: () -> Unit,
@@ -239,7 +330,7 @@ private fun TabItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
-    // Close confirmation dialog: shown when the tab has an active session.
+    // Close confirmation dialog: shown when the tab has an active session and pref enabled.
     var showCloseConfirm by remember { mutableStateOf(false) }
 
     val bgColor = when {
@@ -309,9 +400,7 @@ private fun TabItem(
                 Spacer(Modifier.width(DSSpacing.xxs))
                 CloseButton(
                     onClick = {
-                        val needsConfirmation = activityState != TabActivityState.IDLE &&
-                            activityState != TabActivityState.HIDDEN
-                        if (needsConfirmation) {
+                        if (requiresCloseConfirmation) {
                             showCloseConfirm = true
                         } else {
                             onClose()
@@ -336,16 +425,16 @@ private fun TabItem(
     // ── Close confirmation dialog ─────────────────────────────────────────────
     if (showCloseConfirm) {
         val activityLabel = when (activityState) {
-            TabActivityState.RUNNING             -> "a running terminal session"
-            TabActivityState.WAITING_FOR_INPUT   -> "a session waiting for input"
-            TabActivityState.ERROR               -> "a session in an error state"
-            else                                 -> "an active session"
+            TabActivityState.RUNNING             -> "запущенный терминальный сеанс"
+            TabActivityState.WAITING_FOR_INPUT   -> "сеанс, ожидающий ввода"
+            TabActivityState.ERROR               -> "сеанс в состоянии ошибки"
+            else                                 -> "активный сеанс"
         }
         AlertDialog(
             onDismissRequest = { showCloseConfirm = false },
-            title = { Text("Close \"$name\"?") },
+            title = { Text("Закрыть вкладку?") },
             text = {
-                Text("This project has $activityLabel. Closing it will terminate all terminal processes.")
+                Text("Проект «$name» имеет $activityLabel. Закрытие завершит все терминальные процессы.")
             },
             confirmButton = {
                 TextButton(
@@ -354,12 +443,12 @@ private fun TabItem(
                         onClose()
                     },
                 ) {
-                    Text("Close Anyway")
+                    Text("Закрыть")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCloseConfirm = false }) {
-                    Text("Cancel")
+                    Text("Отмена")
                 }
             },
         )
@@ -370,47 +459,47 @@ private fun TabItem(
 
 @Composable
 private fun ActivityDot(state: TabActivityState) {
-    val dotColor: Color
-    val shouldPulse: Boolean
-
-    when (state) {
-        TabActivityState.IDLE, TabActivityState.HIDDEN -> {
-            dotColor = LocalDSColors.current.indicatorIdle
-            shouldPulse = false
-        }
-        TabActivityState.RUNNING -> {
-            dotColor = LocalDSColors.current.indicatorRunning
-            shouldPulse = true
-        }
-        TabActivityState.WAITING_FOR_INPUT -> {
-            dotColor = LocalDSColors.current.indicatorWaiting
-            shouldPulse = false
-        }
-        TabActivityState.ERROR -> {
-            dotColor = LocalDSColors.current.indicatorError
-            shouldPulse = false
-        }
+    // idle / hidden: dot invisible
+    if (state == TabActivityState.IDLE || state == TabActivityState.HIDDEN) {
+        Box(Modifier.size(DSLayout.indicatorSize))
+        return
     }
 
-    val alpha = if (shouldPulse) {
-        val infiniteTransition = rememberInfiniteTransition(label = "activity-pulse")
-        val pulseAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.4f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 800),
-                repeatMode = RepeatMode.Reverse,
-            ),
-            label = "pulse-alpha",
-        )
-        pulseAlpha
-    } else {
-        if (state == TabActivityState.IDLE || state == TabActivityState.HIDDEN) 0f else 1f
+    val dotColor = when (state) {
+        TabActivityState.RUNNING           -> LocalDSColors.current.indicatorRunning
+        TabActivityState.WAITING_FOR_INPUT -> LocalDSColors.current.indicatorWaiting
+        TabActivityState.ERROR             -> LocalDSColors.current.indicatorError
+        else                               -> LocalDSColors.current.indicatorIdle
     }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "activity-dot")
+
+    // RUNNING: alpha pulse (0.4 → 1.0)
+    // WAITING_FOR_INPUT: alpha pulse + scale pulse
+    // ERROR: static red, 2s glow via shadow-like alpha
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = if (state == TabActivityState.ERROR) 1f else 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (state == TabActivityState.ERROR) 2000 else 800),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dot-alpha",
+    )
+
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (state == TabActivityState.WAITING_FOR_INPUT) 1.4f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dot-scale",
+    )
 
     Box(
         modifier = Modifier
-            .size(DSLayout.indicatorSize)
+            .size(DSLayout.indicatorSize * scale)
             .clip(CircleShape)
             .background(dotColor.copy(alpha = alpha)),
     )

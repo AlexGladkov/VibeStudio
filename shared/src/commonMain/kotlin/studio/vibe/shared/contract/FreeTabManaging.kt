@@ -1,5 +1,6 @@
 package studio.vibe.shared.contract
 
+import kotlinx.coroutines.flow.StateFlow
 import studio.vibe.shared.model.FreeTab
 import studio.vibe.shared.model.Project
 import kotlin.uuid.ExperimentalUuidApi
@@ -7,6 +8,7 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalUuidApi::class)
 interface FreeTabManaging {
+    val freeTabsFlow: StateFlow<List<FreeTab>>
     val freeTabs: List<FreeTab>
     fun createFreeTab(): FreeTab
     fun removeFreeTab(id: Uuid)

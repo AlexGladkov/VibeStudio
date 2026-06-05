@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.service.filetree.FileTreeBuilder
@@ -118,6 +120,8 @@ internal fun MultiProjectFileTree(
                     },
                     onOpenSettings = { activeDialog = FileTreeDialog.ProjectSettings(project) },
                     onOpenGitRemote = { activeDialog = FileTreeDialog.GitRemoteSetup(project) },
+                    onRevealInFinder = { revealInFinder(project.path.path) },
+                    onRemove = { coroutineScope.launch { projectStore.removeProject(project.id) } },
                 )
             }
 
@@ -196,6 +200,8 @@ private fun ProjectHeaderRow(
     onToggleExpand: () -> Unit,
     onOpenSettings: () -> Unit = {},
     onOpenGitRemote: () -> Unit = {},
+    onRevealInFinder: () -> Unit = {},
+    onRemove: () -> Unit = {},
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -207,6 +213,8 @@ private fun ProjectHeaderRow(
     val menuItems = listOf(
         ContextMenuItem("Project Settings") { onOpenSettings() },
         ContextMenuItem("Configure Git Remote") { onOpenGitRemote() },
+        ContextMenuItem("Reveal in Finder") { onRevealInFinder() },
+        ContextMenuItem("Remove") { onRemove() },
     )
 
     ContextMenuArea(items = { menuItems }) {
@@ -217,7 +225,7 @@ private fun ProjectHeaderRow(
                 .hoverable(interactionSource)
                 .clickable(onClick = onClick)
                 .background(if (isHovered) LocalDSColors.current.hoverOverlay else Color.Transparent)
-                .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+                .padding(start = DSLayout.sidebarHorizontalPadding, end = DSSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -252,8 +260,29 @@ private fun ProjectHeaderRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+
+            // Gear settings button — visible on hover
+            if (isHovered) {
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.size(DSLayout.sidebarActionButtonSize),
+                ) {
+                    Icon(
+                        Icons.Default.Settings,
+                        contentDescription = "Project settings",
+                        tint = LocalDSColors.current.textMuted,
+                        modifier = Modifier.size(DSFont.iconBase.value.dp),
+                    )
+                }
+            }
         }
     }
+}
+
+private fun revealInFinder(path: String) {
+    try {
+        Runtime.getRuntime().exec(arrayOf("open", "-R", path))
+    } catch (_: Exception) { }
 }
 
 @Composable

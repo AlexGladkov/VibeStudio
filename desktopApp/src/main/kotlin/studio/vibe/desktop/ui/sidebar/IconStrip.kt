@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,7 +72,7 @@ internal fun IconStrip(
             onClick = { onTabSelected(SidebarTab.GIT) },
         )
         IconStripButton(
-            icon = Icons.Default.Search,
+            icon = Icons.AutoMirrored.Filled.ManageSearch,
             contentDescription = "Specs",
             isActive = activeTab == SidebarTab.SPECS,
             onClick = { onTabSelected(SidebarTab.SPECS) },

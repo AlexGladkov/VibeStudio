@@ -25,7 +25,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,10 +87,30 @@ internal fun GitBranchSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(DSLayout.gitSectionHeaderHeight)
-                .padding(horizontal = DSLayout.sidebarHorizontalPadding),
+                .padding(start = DSLayout.sidebarHorizontalPadding, end = DSSpacing.xxs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("GIT", style = DSFont.sidebarSection, color = LocalDSColors.current.textSecondary)
+            Text(
+                "GIT",
+                style = DSFont.sidebarSection,
+                color = LocalDSColors.current.textSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = {
+                    if (activeProject != null && activeProjectId != null) {
+                        gitSidebarViewModel.loadGitInfo(activeProjectId!!, activeProject.path)
+                    }
+                },
+                modifier = Modifier.size(DSLayout.sidebarActionButtonSize),
+            ) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = "Refresh git",
+                    tint = LocalDSColors.current.textMuted,
+                    modifier = Modifier.size(DSFont.iconBase.value.dp),
+                )
+            }
         }
 
         Box(Modifier.fillMaxWidth().height(1.dp).background(LocalDSColors.current.borderDefault))

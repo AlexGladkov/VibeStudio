@@ -1,6 +1,8 @@
 package studio.vibe.shared.service.freetab
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import studio.vibe.shared.contract.FreeTabManaging
 import studio.vibe.shared.model.FreeTab
@@ -12,6 +14,8 @@ import kotlin.uuid.Uuid
 class FreeTabStoreImpl : FreeTabManaging {
 
     private val _freeTabs = MutableStateFlow<List<FreeTab>>(emptyList())
+
+    override val freeTabsFlow: StateFlow<List<FreeTab>> = _freeTabs.asStateFlow()
 
     override val freeTabs: List<FreeTab>
         get() = _freeTabs.value

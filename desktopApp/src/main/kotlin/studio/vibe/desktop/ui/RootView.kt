@@ -36,6 +36,7 @@ import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.shared.contract.GitServicing
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.contract.FreeTabManaging
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitStatusPollerImpl
@@ -63,6 +64,7 @@ fun RootView(
     gitService: GitServicing,
     toolbarViewModel: ToolbarViewModel,
     terminalService: DesktopTerminalService,
+    freeTabStore: FreeTabManaging,
     generalPreferences: GeneralPreferences,
     coroutineScope: CoroutineScope,
     onOpenProject: () -> Unit,
@@ -134,6 +136,8 @@ fun RootView(
                 projectStore = projectStore,
                 terminalService = terminalService,
                 toolbarViewModel = toolbarViewModel,
+                freeTabStore = freeTabStore,
+                generalPreferences = generalPreferences,
                 onOpenProject = onOpenProject,
             )
 

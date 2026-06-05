@@ -46,7 +46,9 @@ import studio.vibe.shared.platform.JvmSettingsStorage
 import studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl
 import studio.vibe.shared.service.ai.AICommitServiceImpl
 import studio.vibe.shared.contract.CodeSpeakServicing
+import studio.vibe.shared.contract.FreeTabManaging
 import studio.vibe.shared.service.codespeak.CodeSpeakServiceImpl
+import studio.vibe.shared.service.freetab.FreeTabStoreImpl
 import studio.vibe.shared.service.filetree.FileTreeBuilder
 import studio.vibe.shared.service.git.GitCommandExecutor
 import studio.vibe.shared.service.git.GitStatusPollerImpl
@@ -180,6 +182,8 @@ class DesktopServiceContainer {
     val codeSpeakService: CodeSpeakServicing = CodeSpeakServiceImpl(
         persistence = persistenceStore,
     )
+
+    val freeTabStore: FreeTabManaging = FreeTabStoreImpl()
 
     val navigationCoordinator: AppNavigationCoordinator = AppNavigationCoordinator()
 
