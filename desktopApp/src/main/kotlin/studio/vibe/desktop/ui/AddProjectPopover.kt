@@ -48,6 +48,9 @@ import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
 import studio.vibe.shared.viewmodel.AddProjectViewModel
+import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.desktop.ui.components.ResolvedSessionRow
+import studio.vibe.desktop.ui.components.RecentSessionsSection
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlin.time.Clock
@@ -78,6 +81,8 @@ public fun AddProjectPopover(
     onOpenFolder: () -> Unit,
     onCreateNew: (() -> Unit)? = null,
     onDismiss: () -> Unit,
+    recentSessions: List<ResolvedSessionRow> = emptyList(),
+    onResumeSession: (AgentSessionRecord) -> Unit = {},
 ) {
     val coroutineScope = rememberCoroutineScope()
     val vm = remember {
@@ -130,6 +135,23 @@ public fun AddProjectPopover(
                     modifier = Modifier.padding(top = DSSpacing.xs),
                 )
             }
+            HorizontalDivider(
+                color = LocalDSColors.current.borderSubtle,
+                thickness = 1.dp,
+                modifier = Modifier.padding(vertical = DSSpacing.xs),
+            )
+        }
+
+        // ── Recent sessions ───────────────────────────────────────────────
+        if (recentSessions.isNotEmpty()) {
+            RecentSessionsSection(
+                sessions = recentSessions,
+                onResume = { record ->
+                    onResumeSession(record)
+                    onDismiss()
+                },
+                headerTopSpacing = DSSpacing.xs,
+            )
             HorizontalDivider(
                 color = LocalDSColors.current.borderSubtle,
                 thickness = 1.dp,

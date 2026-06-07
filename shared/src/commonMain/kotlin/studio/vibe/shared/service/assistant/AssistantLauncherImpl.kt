@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import studio.vibe.shared.contract.AgentSessionLog
+import studio.vibe.shared.contract.AgentSessionRecord
 import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.APIKeyResolving
 import studio.vibe.shared.contract.AgentAvailabilityChecking
@@ -22,6 +24,9 @@ import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.model.AgentExitSequence
 import studio.vibe.shared.model.TerminalSession
 import studio.vibe.shared.usecase.AssistantLauncher
+import studio.vibe.shared.usecase.ResumeRequest
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlin.uuid.Uuid
 
 /**
@@ -73,6 +78,7 @@ private data class LauncherState(
  * @param blockingDispatcher Dispatcher for PTY process start (blocking I/O).
  *   Defaults to [Dispatchers.Default]; inject [UnconfinedTestDispatcher] in tests.
  */
+@OptIn(ExperimentalTime::class)
 class AssistantLauncherImpl(
     private val projectManaging: ProjectManaging,
     private val terminalSessionManaging: TerminalSessionManaging,
@@ -88,6 +94,11 @@ class AssistantLauncherImpl(
      * Inject a [TestScope] (or [backgroundScope] from [runTest]) in tests.
      */
     scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    /**
+     * Optional session log for persisting agent session records.
+     * When null, no session metadata is written (backward-compatible default).
+     */
+    private val agentSessionLog: AgentSessionLog? = null,
 ) : AssistantLauncher {
 
     // ── State ──────────────────────────────────────────────────────────────────
@@ -115,7 +126,11 @@ class AssistantLauncherImpl(
 
     // ── AssistantLauncher ─────────────────────────────────────────────────────
 
-    override suspend fun start(projectId: Uuid, agentId: String): Result<TerminalSession> {
+    override suspend fun start(
+        projectId: Uuid,
+        agentId: String,
+        resume: ResumeRequest?,
+    ): Result<TerminalSession> {
         val project = projectManaging.projects.value.firstOrNull { it.id == projectId }
             ?: return Result.failure(IllegalArgumentException("Project not found: $projectId"))
 
@@ -130,9 +145,18 @@ class AssistantLauncherImpl(
         val apiKeyValue = resolveApiKey(agentId)
         val workingDirectory = project.path.path
 
+        // Build the effective agent: if resume is requested and the agent supports it,
+        // wrap it to inject resume arguments into the launch command.
+        val effectiveAgent = if (resume != null) {
+            val resumeArgs = agent.resumeArgsFor(resume.nativeSessionId)
+            if (resumeArgs != null) ResumeWrappedAgent(agent, resumeArgs) else agent
+        } else {
+            agent
+        }
+
         val result = withContext(blockingDispatcher) {
             terminalSessionManaging.startAgentSession(
-                agent = agent,
+                agent = effectiveAgent,
                 projectId = projectId,
                 workingDirectory = workingDirectory,
                 apiKeyValue = apiKeyValue,
@@ -141,6 +165,22 @@ class AssistantLauncherImpl(
 
         result.onSuccess { session ->
             _state.update { it.withSession(projectId, agentId, session.id) }
+
+            // Persist the session record asynchronously — failures must not block the caller.
+            agentSessionLog?.let { log ->
+                try {
+                    log.append(
+                        AgentSessionRecord(
+                            sessionId = session.id.toString(),
+                            projectId = projectId.toString(),
+                            agentId = agentId,
+                            startedAt = Clock.System.now().toEpochMilliseconds(),
+                        )
+                    )
+                } catch (e: Exception) {
+                    println("AssistantLauncherImpl: failed to log session start: ${e.message}")
+                }
+            }
         }
 
         return result
@@ -218,4 +258,20 @@ class AssistantLauncherImpl(
         val envVar = agent.apiKeyEnvironmentVariable ?: return null
         return onResolveEnvVar?.invoke(envVar) ?: apiKeyResolving.resolve(envVar)
     }
+}
+
+// ── ResumeWrappedAgent ────────────────────────────────────────────────────────
+
+/**
+ * Transparent [AIAgent] wrapper that appends [resumeArgs] to [launchArguments].
+ *
+ * All other properties are forwarded unchanged to [delegate].  This keeps the
+ * core agent objects immutable while allowing per-launch customisation.
+ */
+private class ResumeWrappedAgent(
+    private val delegate: studio.vibe.shared.contract.AIAgent,
+    private val resumeArgs: List<String>,
+) : studio.vibe.shared.contract.AIAgent by delegate {
+    override val launchArguments: List<String>
+        get() = delegate.launchArguments + resumeArgs
 }

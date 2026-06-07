@@ -21,10 +21,19 @@ import kotlin.uuid.Uuid
  * Extracted from [DesktopTerminalService] to keep a single responsibility: reacting
  * to bytes flowing out of a PTY process and coordinating lifecycle transitions.
  *
- * @param registry The session registry — used to update session state on exit and
+ * @param registry            The session registry — used to update session state on exit and
  *   to call [PtySessionRegistry.unregister] after natural process completion.
+ * @param onScrollbackDirty   Optional callback invoked with [sessionId] whenever a chunk is
+ *   appended to the scrollback buffer.  The caller is responsible for debouncing before
+ *   persisting — this is called on every chunk, which can be hundreds per second.
+ * @param onOutputLine        Optional callback invoked with [sessionId] and each full text
+ *   chunk received from the PTY.  Used by the session-ID capture use case.
  */
-internal class PtyOutputWatcher(private val registry: PtySessionRegistry) {
+internal class PtyOutputWatcher(
+    private val registry: PtySessionRegistry,
+    private val onScrollbackDirty: ((sessionId: Uuid) -> Unit)? = null,
+    private val onOutputLine: ((sessionId: Uuid, chunk: String) -> Unit)? = null,
+) {
 
     private val _projectActivityStates =
         MutableStateFlow<Map<Uuid, TabActivityState>>(emptyMap())
@@ -50,6 +59,8 @@ internal class PtyOutputWatcher(private val registry: PtySessionRegistry) {
         state.outputFlow.tryEmit(chunk)
         state.scrollback.append(chunk)
         markActivity(sessionId, state.session.projectId)
+        onScrollbackDirty?.invoke(sessionId)
+        onOutputLine?.invoke(sessionId, chunk)
     }
 
     /**

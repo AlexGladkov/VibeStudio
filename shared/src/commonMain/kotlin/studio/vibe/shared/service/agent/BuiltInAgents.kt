@@ -18,6 +18,12 @@ object ClaudeAgent : AIAgent {
     override val prerequisiteCheckCommand: String? = "node --version"
     override val setupInstructions: String? =
         "After installation, run `claude login` to authenticate with your Anthropic account."
+
+    override fun resumeArgsFor(nativeSessionId: String): List<String> =
+        listOf("--resume", nativeSessionId)
+
+    override val supportsJsonStreamOutput: Boolean = true
+    override val jsonStreamOutputArgs: List<String> = listOf("--output-format", "stream-json")
 }
 
 object OpenCodeAgent : AIAgent {
@@ -33,6 +39,9 @@ object OpenCodeAgent : AIAgent {
     override val prerequisite: String? = "Go 1.22+"
     override val prerequisiteCheckCommand: String? = "go version"
     override val setupInstructions: String? = null
+
+    // opencode does not expose a --resume flag
+    override fun resumeArgsFor(nativeSessionId: String): List<String>? = null
 }
 
 object CodexAgent : AIAgent {
@@ -48,6 +57,13 @@ object CodexAgent : AIAgent {
     override val prerequisiteCheckCommand: String? = "node --version"
     override val setupInstructions: String? =
         "Set your OpenAI API key:\nexport OPENAI_API_KEY=your-key-here\n\nGet a key at: platform.openai.com → API Keys"
+
+    // Codex uses a subcommand form: codex resume <id>
+    override fun resumeArgsFor(nativeSessionId: String): List<String> =
+        listOf("resume", nativeSessionId)
+
+    override val supportsJsonStreamOutput: Boolean = true
+    override val jsonStreamOutputArgs: List<String> = listOf("--output-format", "stream-json")
 }
 
 object GeminiAgent : AIAgent {
@@ -63,6 +79,9 @@ object GeminiAgent : AIAgent {
     override val prerequisiteCheckCommand: String? = "node --version"
     override val setupInstructions: String? =
         "Set your Gemini API key:\nexport GEMINI_API_KEY=your-key-here\n\nGet a key at: aistudio.google.com → API Keys"
+
+    override fun resumeArgsFor(nativeSessionId: String): List<String> =
+        listOf("--resume", nativeSessionId)
 }
 
 object QwenCodeAgent : AIAgent {
@@ -78,6 +97,9 @@ object QwenCodeAgent : AIAgent {
     override val prerequisiteCheckCommand: String? = "node --version"
     override val setupInstructions: String? =
         "Set your DashScope API key:\nexport DASHSCOPE_API_KEY=your-key-here\n\nGet a key at: dashscope.console.aliyun.com"
+
+    override fun resumeArgsFor(nativeSessionId: String): List<String> =
+        listOf("--resume", nativeSessionId)
 }
 
 object CodeSpeakAgent : AIAgent {

@@ -53,6 +53,9 @@ class FakeTerminalSessionManaging : TerminalSessionManaging {
     val startAgentCalls: MutableList<Triple<AIAgent, Uuid, String>> = mutableListOf()
     val killCalls: MutableList<Pair<Uuid, Boolean>> = mutableListOf()
 
+    /** The [AIAgent] passed to the most recent [startAgentSession] call, or null if never called. */
+    val lastStartedAgent: AIAgent? get() = startAgentCalls.lastOrNull()?.first
+
     fun emitEvent(event: TerminalSessionEvent) {
         _sessionEvents.tryEmit(event)
     }

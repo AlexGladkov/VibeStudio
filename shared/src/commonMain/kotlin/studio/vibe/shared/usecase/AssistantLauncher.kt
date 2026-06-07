@@ -7,6 +7,14 @@ import studio.vibe.shared.model.TerminalSession
 import kotlin.uuid.Uuid
 
 /**
+ * Encapsulates the information required to resume an existing native agent session.
+ *
+ * @param nativeSessionId The agent-assigned session UUID (e.g. Claude's session_id
+ *   extracted from `{"type":"system","subtype":"init","session_id":"..."}` output).
+ */
+data class ResumeRequest(val nativeSessionId: String)
+
+/**
  * Domain interface for starting and stopping AI agents.
  *
  * Extracted from [ToolbarViewModel] so that [RemoteControlServer] can trigger
@@ -26,10 +34,18 @@ interface AssistantLauncher {
     /**
      * Start the agent identified by [agentId] in the project [projectId].
      *
+     * When [resume] is non-null and the agent supports session resumption, the
+     * native agent is launched with the resume arguments appended so it continues
+     * the previous conversation.
+     *
      * @return [Result.success] with the created [TerminalSession] on success,
      *         or [Result.failure] with a descriptive exception on error.
      */
-    suspend fun start(projectId: Uuid, agentId: String): Result<TerminalSession>
+    suspend fun start(
+        projectId: Uuid,
+        agentId: String,
+        resume: ResumeRequest? = null,
+    ): Result<TerminalSession>
 
     /**
      * Stop the running agent identified by [agentId] in the project [projectId].

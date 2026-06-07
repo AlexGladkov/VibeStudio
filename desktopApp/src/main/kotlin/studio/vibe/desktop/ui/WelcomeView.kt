@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,10 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
+import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.desktop.ui.components.ResolvedSessionRow
+import studio.vibe.desktop.ui.components.RecentSessionsSection
+import studio.vibe.desktop.ui.components.recentSessionsSection
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.Project
 
@@ -62,6 +67,8 @@ fun WelcomeView(
     onOpenProject: () -> Unit,
     onCreateNew: () -> Unit = {},
     projectStore: ProjectManaging? = null,
+    recentSessions: List<ResolvedSessionRow> = emptyList(),
+    onResumeSession: (AgentSessionRecord) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val recentProjects = projectStore?.recentProjects?.let {
@@ -215,6 +222,15 @@ fun WelcomeView(
                         )
                     }
                 }
+            }
+
+            // ПОСЛЕДНИЕ СЕССИИ section — recent agent sessions for the active project
+            if (recentSessions.isNotEmpty()) {
+                RecentSessionsSection(
+                    sessions = recentSessions,
+                    onResume = onResumeSession,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
             }
 
             // RECENT section — history of previously opened projects

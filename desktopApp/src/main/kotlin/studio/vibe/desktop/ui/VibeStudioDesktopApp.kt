@@ -1,4 +1,4 @@
-@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
 package studio.vibe.desktop.ui
 
@@ -11,6 +11,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -26,7 +28,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.DesktopServiceContainer
+import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.desktop.ui.components.ResolvedSessionRow
+import studio.vibe.desktop.ui.components.agentBrandColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
+import studio.vibe.shared.usecase.ResumeRequest
+import kotlin.uuid.Uuid
 import studio.vibe.shared.model.FilePath
 import studio.vibe.shared.model.ProjectManagerError
 import studio.vibe.shared.preferences.AppTheme
@@ -67,7 +74,45 @@ fun VibeStudioDesktopApp(
     onOpenFolder: () -> Unit = {},
 ) {
     val projects by container.projectStore.projects.collectAsState()
+    val activeProjectId by container.projectStore.activeProjectId.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // Collect recent sessions for the active project (top 5).
+    // flatMapLatest switches to the new project's flow whenever activeProjectId changes.
+    val recentSessionRecords by remember(container) {
+        container.projectStore.activeProjectId
+            .flatMapLatest { projectId ->
+                if (projectId == null) flowOf(emptyList())
+                else container.agentSessionDataSource.recentSessionsFor(projectId, limit = 5)
+            }
+    }.collectAsState(initial = emptyList())
+
+    // Resolve agent display name + brand color (requires LocalDSColors — composable context).
+    val dsColors = LocalDSColors.current
+    val recentSessions: List<ResolvedSessionRow> = recentSessionRecords.map { record ->
+        val agent = container.agentRegistry.byId(record.agentId)
+        ResolvedSessionRow(
+            record = record,
+            agentDisplayName = agent?.displayName ?: record.agentId,
+            agentColor = agentBrandColor(record.agentId, dsColors),
+        )
+    }
+
+    // Most-recent resumable session for the terminal banner (within last 24h, must have native id).
+    val resumableSession: ResolvedSessionRow? = recentSessions.firstOrNull {
+        it.record.agentNativeSessionId != null
+    }
+
+    val handleResumeSession: (AgentSessionRecord) -> Unit = { record ->
+        scope.launch {
+            val resumeRequest = record.agentNativeSessionId?.let { ResumeRequest(it) }
+            container.assistantLauncher.start(
+                projectId = Uuid.parse(record.projectId),
+                agentId = record.agentId,
+                resume = resumeRequest,
+            )
+        }
+    }
 
     val agentToInstall by container.navigationCoordinator.agentToInstall.collectAsState()
 
@@ -131,6 +176,8 @@ fun VibeStudioDesktopApp(
                     onOpenProject = openFolderPicker,
                     onCreateNew = openFolderPicker,
                     projectStore = container.projectStore,
+                    recentSessions = recentSessions,
+                    onResumeSession = handleResumeSession,
                     modifier = Modifier.weight(1f),
                 )
             } else {
@@ -173,6 +220,8 @@ fun VibeStudioDesktopApp(
                         showGitPanel = showGitPanel,
                         showSidebar = showSidebar,
                         onToggleGitPanel = onToggleGitPanel,
+                        resumableSession = resumableSession,
+                        onResumeSession = handleResumeSession,
                         modifier = Modifier.weight(1f),
                     )
                 }

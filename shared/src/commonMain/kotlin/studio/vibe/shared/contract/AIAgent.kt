@@ -41,4 +41,35 @@ interface AIAgent {
     val prerequisite: String?
     val prerequisiteCheckCommand: String?
     val setupInstructions: String?
+
+    // ── Resume support ────────────────────────────────────────────────────────
+
+    /**
+     * Arguments to append to the launch command to resume a native session.
+     *
+     * Returns `null` when the agent does not support session resumption.
+     *
+     * Example (Claude): `listOf("--resume", nativeSessionId)`
+     * Example (Codex): `listOf("resume", nativeSessionId)`
+     */
+    fun resumeArgsFor(nativeSessionId: String): List<String>? = null
+
+    // ── JSON stream output ────────────────────────────────────────────────────
+
+    /**
+     * `true` when the agent can emit structured JSON on stdout, allowing
+     * the desktop layer to extract the native session UUID automatically.
+     *
+     * Currently `true` for Claude and Codex.
+     */
+    val supportsJsonStreamOutput: Boolean get() = false
+
+    /**
+     * Arguments to append to the launch command to enable JSON stream output.
+     * Meaningful only when [supportsJsonStreamOutput] is `true`.
+     *
+     * Claude:  `listOf("--output-format", "stream-json")`
+     * Codex:   `listOf("--output-format", "stream-json")`
+     */
+    val jsonStreamOutputArgs: List<String>? get() = null
 }

@@ -44,6 +44,9 @@ fun main() = application {
             remoteControlPreferences = serviceContainer.remoteControlPreferences,
             remoteControlServer = serviceContainer.remoteControlServer,
             scope = startupScope,
+            sessionAutosaveCoordinator = serviceContainer.sessionAutosaveCoordinator,
+            sessionPersistence = serviceContainer.sessionStore,
+            terminalSessionManaging = serviceContainer.terminalService,
         ).onStartup()
         true // remember requires a non-Unit return value
     }

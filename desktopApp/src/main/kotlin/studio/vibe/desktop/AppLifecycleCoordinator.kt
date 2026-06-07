@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import studio.vibe.shared.contract.CodeSpeakServicing
 import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.contract.SessionPersisting
+import studio.vibe.shared.contract.TerminalSessionManaging
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
 import studio.vibe.shared.preferences.RemoteControlPreferences
 import studio.vibe.shared.usecase.RestoreSessionUseCase
@@ -36,6 +38,9 @@ class AppLifecycleCoordinator(
     private val remoteControlPreferences: RemoteControlPreferences,
     private val remoteControlServer: RemoteControlServer,
     private val scope: CoroutineScope,
+    private val sessionAutosaveCoordinator: SessionAutosaveCoordinator? = null,
+    private val sessionPersistence: SessionPersisting? = null,
+    private val terminalSessionManaging: TerminalSessionManaging? = null,
 ) {
 
     /**
@@ -62,6 +67,27 @@ class AppLifecycleCoordinator(
             if (remoteControlPreferences.remoteControlEnabled) {
                 remoteControlServer.startAsync()
             }
+
+            // Phase 1c: purge orphaned scrollback files from previous sessions.
+            // Active sessions are not known yet at this point, so we use the
+            // snapshot's session IDs as the active set.
+            sessionPersistence?.let { persistence ->
+                try {
+                    val activeIds = terminalSessionManaging
+                        ?.sessionsByProject?.value
+                        ?.values
+                        ?.flatten()
+                        ?.map { it.id }
+                        ?.toSet()
+                        ?: emptySet()
+                    persistence.pruneOrphanedScrollbacks(activeIds)
+                } catch (e: Exception) {
+                    println("AppLifecycleCoordinator: pruneOrphanedScrollbacks failed: ${e.message}")
+                }
+            }
+
+            // Phase 1d: start autosave background collectors.
+            sessionAutosaveCoordinator?.start()
 
             // Phase 2: keep AppMode in sync with the active project's CS config.
             projectManaging.activeProjectId.collectLatest { activeId ->

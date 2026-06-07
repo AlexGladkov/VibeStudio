@@ -11,11 +11,15 @@ import studio.vibe.shared.model.TerminalSession
 import studio.vibe.shared.model.TerminalSessionState
 import studio.vibe.shared.service.agent.ClaudeAgent
 import studio.vibe.shared.service.agent.CodexAgent
+import studio.vibe.shared.service.agent.GeminiAgent
+import studio.vibe.shared.service.agent.OpenCodeAgent
 import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
 import studio.vibe.shared.testutil.FakeAPIKeyResolving
 import studio.vibe.shared.testutil.FakeAgentAvailabilityChecking
+import studio.vibe.shared.testutil.FakeAgentSessionLog
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
+import studio.vibe.shared.usecase.ResumeRequest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -32,6 +36,7 @@ class AssistantLauncherImplTest {
         registry: DefaultAIAgentRegistry = DefaultAIAgentRegistry(),
         apiKeys: FakeAPIKeyResolving = FakeAPIKeyResolving(),
         scope: CoroutineScope = CoroutineScope(UnconfinedTestDispatcher()),
+        agentSessionLog: FakeAgentSessionLog? = null,
     ) = AssistantLauncherImpl(
         projectManaging = projects,
         terminalSessionManaging = terminal,
@@ -40,6 +45,7 @@ class AssistantLauncherImplTest {
         apiKeyResolving = apiKeys,
         blockingDispatcher = UnconfinedTestDispatcher(),
         scope = scope,
+        agentSessionLog = agentSessionLog,
     )
 
     @Test
@@ -235,6 +241,135 @@ class AssistantLauncherImplTest {
         assertNotNull(agentSet)
         assertEquals(1, agentSet.size, "Each (projectId, agentId) pair must have exactly one entry")
         assertTrue(ClaudeAgent.id in agentSet)
+    }
+
+    // ── Resume request ────────────────────────────────────────────────────────
+
+    @Test
+    fun start_withResumeRequest_claudeAppendsResumeArgs() = runTest {
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val terminal = FakeTerminalSessionManaging()
+        val launcher = build(projects = projects, availability = availability, terminal = terminal)
+
+        val nativeId = "aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb"
+        launcher.start(project.id, ClaudeAgent.id, resume = ResumeRequest(nativeId))
+
+        // FakeTerminalSessionManaging records the agent passed to startAgentSession.
+        // The effective agent must have --resume <nativeId> appended.
+        val launchedArgs = terminal.lastStartedAgent?.launchArguments ?: emptyList()
+        assertTrue(
+            launchedArgs.containsAll(listOf("--resume", nativeId)),
+            "Expected --resume <nativeId> in launch args, got: $launchedArgs"
+        )
+    }
+
+    @Test
+    fun start_withResumeRequest_codexAppendsResumeArgs() = runTest {
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(CodexAgent))
+        val terminal = FakeTerminalSessionManaging()
+        val launcher = build(projects = projects, availability = availability, terminal = terminal)
+
+        val nativeId = "12345678-1234-1234-1234-123456789abc"
+        launcher.start(project.id, CodexAgent.id, resume = ResumeRequest(nativeId))
+
+        val launchedArgs = terminal.lastStartedAgent?.launchArguments ?: emptyList()
+        assertTrue(
+            launchedArgs.containsAll(listOf("resume", nativeId)),
+            "Expected 'resume <nativeId>' in Codex launch args, got: $launchedArgs"
+        )
+    }
+
+    @Test
+    fun start_withResumeRequest_openCodeNoResumeArgs() = runTest {
+        // OpenCodeAgent returns null from resumeArgsFor — no resume args should be injected.
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(OpenCodeAgent))
+        val terminal = FakeTerminalSessionManaging()
+        val launcher = build(projects = projects, availability = availability, terminal = terminal)
+
+        val nativeId = "12345678-1234-1234-1234-123456789abc"
+        launcher.start(project.id, OpenCodeAgent.id, resume = ResumeRequest(nativeId))
+
+        val launchedArgs = terminal.lastStartedAgent?.launchArguments ?: emptyList()
+        assertFalse(
+            launchedArgs.contains("--resume"),
+            "OpenCode must not receive --resume arg, got: $launchedArgs"
+        )
+        assertFalse(
+            launchedArgs.contains(nativeId),
+            "OpenCode must not receive nativeId arg, got: $launchedArgs"
+        )
+    }
+
+    @Test
+    fun start_withoutResumeRequest_noResumeArgsInjected() = runTest {
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val terminal = FakeTerminalSessionManaging()
+        val launcher = build(projects = projects, availability = availability, terminal = terminal)
+
+        launcher.start(project.id, ClaudeAgent.id, resume = null)
+
+        val launchedArgs = terminal.lastStartedAgent?.launchArguments ?: emptyList()
+        assertFalse(launchedArgs.contains("--resume"), "No --resume expected when resume=null")
+    }
+
+    // ── Session logging ───────────────────────────────────────────────────────
+
+    @Test
+    fun start_success_appendsSessionRecord() = runTest {
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val sessionLog = FakeAgentSessionLog()
+        val launcher = build(projects = projects, availability = availability, agentSessionLog = sessionLog)
+
+        launcher.start(project.id, ClaudeAgent.id)
+
+        assertEquals(1, sessionLog.appendCalls.size)
+        val rec = sessionLog.appendCalls[0]
+        assertEquals(project.id.toString(), rec.projectId)
+        assertEquals(ClaudeAgent.id, rec.agentId)
+        assertNull(rec.endedAt)
+    }
+
+    @Test
+    fun start_withoutSessionLog_succeedsWithoutThrow() = runTest {
+        // agentSessionLog = null (default) — must not throw
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val launcher = build(projects = projects, availability = availability, agentSessionLog = null)
+
+        val result = launcher.start(project.id, ClaudeAgent.id)
+        assertTrue(result.isSuccess)
+    }
+
+    @Test
+    fun start_failure_doesNotAppendToSessionLog() = runTest {
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        // Agent NOT marked available — start will fail
+        availability.setAvailability(ClaudeAgent, AgentAvailabilityStatus.NotInstalled("install hint"))
+        val sessionLog = FakeAgentSessionLog()
+        val launcher = build(projects = projects, availability = availability, agentSessionLog = sessionLog)
+
+        launcher.start(project.id, ClaudeAgent.id)
+
+        assertTrue(sessionLog.appendCalls.isEmpty(), "No record must be appended on start failure")
     }
 
     // ── P1: notifySessionExited unknown sessionId ──────────────────────────────

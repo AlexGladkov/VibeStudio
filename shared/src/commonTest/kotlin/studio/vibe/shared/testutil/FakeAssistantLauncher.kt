@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import studio.vibe.shared.model.TerminalSession
 import studio.vibe.shared.model.TerminalSessionState
 import studio.vibe.shared.usecase.AssistantLauncher
+import studio.vibe.shared.usecase.ResumeRequest
 import kotlin.uuid.Uuid
 
 /**
@@ -23,6 +24,9 @@ class FakeAssistantLauncher : AssistantLauncher {
 
     /** Override to make [start] return a failure. Default: success with a fake session. */
     var startResult: ((projectId: Uuid, agentId: String) -> Result<TerminalSession>)? = null
+
+    /** Records the last resume request passed to [start]. */
+    var lastResumeRequest: ResumeRequest? = null
 
     /** Override to make [stop] return a failure. Default: success. */
     var stopResult: Result<Unit> = Result.success(Unit)
@@ -46,8 +50,13 @@ class FakeAssistantLauncher : AssistantLauncher {
 
     // ── AssistantLauncher ─────────────────────────────────────────────────────
 
-    override suspend fun start(projectId: Uuid, agentId: String): Result<TerminalSession> {
+    override suspend fun start(
+        projectId: Uuid,
+        agentId: String,
+        resume: ResumeRequest?,
+    ): Result<TerminalSession> {
         startCalls.add(projectId to agentId)
+        lastResumeRequest = resume
 
         val result = startResult?.invoke(projectId, agentId) ?: run {
             val session = TerminalSession(

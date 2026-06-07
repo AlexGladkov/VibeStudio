@@ -14,12 +14,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
 import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.contract.AgentSessionLog
 import studio.vibe.shared.contract.AIAgentRegistry
 import studio.vibe.shared.contract.AICommitServicing
 import studio.vibe.shared.contract.APIKeyResolving
@@ -54,11 +56,15 @@ import studio.vibe.shared.service.git.GitStatusPollerImpl
 import studio.vibe.shared.preferences.CodeSpeakPreferences
 import studio.vibe.shared.preferences.GeneralPreferences
 import studio.vibe.shared.preferences.RemoteControlPreferences
+import studio.vibe.shared.service.persistence.AgentSessionLogImpl
 import studio.vibe.shared.service.persistence.ProjectStoreImpl
 import studio.vibe.shared.service.persistence.SessionStoreImpl
+import studio.vibe.shared.usecase.CaptureAgentSessionIdUseCase
+import studio.vibe.shared.usecase.ListRecentAgentSessionsUseCase
 import studio.vibe.shared.usecase.RestoreSessionUseCase
 import studio.vibe.desktop.remote.RemoteControlServer
 import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.desktop.terminal.ScrollbackPersistCoordinator
 import studio.vibe.shared.service.assistant.AssistantLauncherImpl
 import studio.vibe.shared.contract.EnvVarResolving
 import studio.vibe.shared.contract.PathResolving
@@ -66,6 +72,8 @@ import studio.vibe.shared.contract.UrlOpening
 import studio.vibe.shared.viewmodel.FileTreeViewModel
 import studio.vibe.shared.viewmodel.GitSidebarViewModel
 import studio.vibe.shared.viewmodel.ToolbarViewModel
+import studio.vibe.desktop.session.AgentSessionDataSource
+import studio.vibe.desktop.session.KmpAgentSessionDataSource
 
 /**
  * Manual DI container for the Desktop application.
@@ -161,15 +169,56 @@ class DesktopServiceContainer {
         scope = scope,
     )
 
+    val sessionStore: SessionPersisting = SessionStoreImpl(
+        persistence = persistenceStore,
+        json = json,
+    )
+
+    // ── Agent session log (created before terminalService; used by callbacks) ─
+
+    /**
+     * KMP-backed agent session log.
+     *
+     * Persists [studio.vibe.shared.contract.AgentSessionRecord]s to
+     * `agent-sessions.jsonl` in the app-support directory.
+     */
+    val agentSessionLog: AgentSessionLog = AgentSessionLogImpl(
+        persistence = persistenceStore,
+    )
+
+    /**
+     * Extracts native session UUIDs from Claude stream-json output lines.
+     * Called from [terminalService] on each output chunk via [onOutputChunk].
+     */
+    val captureAgentSessionIdUseCase: CaptureAgentSessionIdUseCase =
+        CaptureAgentSessionIdUseCase(agentSessionLog)
+
+    /**
+     * Queries recent sessions for a project (UI-layer convenience).
+     */
+    val listRecentAgentSessionsUseCase: ListRecentAgentSessionsUseCase =
+        ListRecentAgentSessionsUseCase(agentSessionLog)
+
+    /**
+     * Data source for recent agent session records, bridging the KMP
+     * [AgentSessionLog] to the desktop UI's [AgentSessionDataSource] contract.
+     */
+    val agentSessionDataSource: AgentSessionDataSource = KmpAgentSessionDataSource(
+        agentSessionLog = agentSessionLog,
+    )
+
+    // ── Terminal service (wired with session-capture + scrollback callbacks) ──
+
     /** Real pty4j-backed terminal service.  Replaces [StubTerminalSessionManaging]. */
     val terminalService: DesktopTerminalService = DesktopTerminalService(
         parentScope = scope,
         generalPreferences = generalPreferences,
-    )
-
-    val sessionStore: SessionPersisting = SessionStoreImpl(
-        persistence = persistenceStore,
-        json = json,
+        onOutputChunk = { sessionId, chunk ->
+            // Non-blocking fire-and-forget — must not block the PTY hot path.
+            scope.launch(Dispatchers.IO) {
+                captureAgentSessionIdUseCase.execute(sessionId, chunk)
+            }
+        },
     )
 
     val restoreSessionUseCase: RestoreSessionUseCase = RestoreSessionUseCase(
@@ -185,6 +234,20 @@ class DesktopServiceContainer {
     val freeTabStore: FreeTabManaging = FreeTabStoreImpl()
 
     val navigationCoordinator: AppNavigationCoordinator = AppNavigationCoordinator()
+
+    // ── Scrollback persistence (Phase 2) ──────────────────────────────────────
+
+    /**
+     * Debounces scrollback dirty signals and persists scrollback content.
+     * Started lazily — available for the terminal service after construction.
+     */
+    val scrollbackPersistCoordinator: ScrollbackPersistCoordinator = ScrollbackPersistCoordinator(
+        sessionPersistence = sessionStore,
+        terminalService = terminalService,
+        scope = scope,
+    )
+
+    // ── Agent launcher ────────────────────────────────────────────────────────
 
     /**
      * Shared AI-agent start/stop domain service.
@@ -202,6 +265,22 @@ class DesktopServiceContainer {
         apiKeyResolving = apiKeyResolving,
         blockingDispatcher = Dispatchers.IO,
         onResolveEnvVar = { name -> System.getenv(name) },
+        agentSessionLog = agentSessionLog,
+    )
+
+    // ── Session autosave (Phase 2) ────────────────────────────────────────────
+
+    /**
+     * Drives periodic and event-triggered autosave of the session snapshot.
+     * Started by [AppLifecycleCoordinator.onStartup], stopped by [dispose].
+     */
+    val sessionAutosaveCoordinator: SessionAutosaveCoordinator = SessionAutosaveCoordinator(
+        projectManaging = projectStore,
+        terminalManager = terminalService,
+        sessionPersistence = sessionStore,
+        freeTabManaging = freeTabStore,
+        assistantLauncher = assistantLauncher,
+        scope = scope,
     )
 
     /**
@@ -250,6 +329,9 @@ class DesktopServiceContainer {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun dispose() {
+        // Stop autosave background jobs before cancelling scope.
+        sessionAutosaveCoordinator.stop()
+
         // Final synchronous flush so unsaved in-memory edits hit disk before exit.
         runBlocking(Dispatchers.IO) { projectStore.save() }
 

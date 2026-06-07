@@ -81,6 +81,16 @@ class DesktopTerminalService(
     private val generalPreferences: GeneralPreferencesReading? = null,
     /** Test-only seam: receives the effective launch command instead of (or before) PTY sendInput. */
     internal val commandSink: ((String) -> Unit)? = null,
+    /**
+     * Optional callback invoked (with sessionId) whenever scrollback content changes.
+     * The caller is responsible for debouncing before persisting — this fires on every chunk.
+     */
+    private val onScrollbackDirty: ((Uuid) -> Unit)? = null,
+    /**
+     * Optional callback invoked with each raw PTY output chunk.
+     * Used to capture the native agent session UUID from Claude stream-json lines.
+     */
+    private val onOutputChunk: ((sessionId: Uuid, chunk: String) -> Unit)? = null,
 ) : TerminalSessionManaging, studio.vibe.shared.contract.TerminalRemoteHost {
 
     /**
@@ -96,7 +106,11 @@ class DesktopTerminalService(
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private val registry = PtySessionRegistry(serviceScope)
-    private val outputWatcher = PtyOutputWatcher(registry)
+    private val outputWatcher = PtyOutputWatcher(
+        registry = registry,
+        onScrollbackDirty = onScrollbackDirty,
+        onOutputLine = onOutputChunk,
+    )
     private val killStrategy = PtyKillStrategy(registry, serviceScope)
     private val agentSessionFactory = AgentSessionFactory(
         generalPreferences = generalPreferences,

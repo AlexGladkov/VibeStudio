@@ -28,16 +28,27 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.delay
+import studio.vibe.shared.contract.AgentSessionRecord
 import studio.vibe.desktop.terminal.DesktopTerminalService
+import studio.vibe.desktop.ui.components.ResolvedSessionRow
+import studio.vibe.desktop.ui.components.ResumeBanner
+import studio.vibe.desktop.ui.components.ResumedConfirmationBanner
+import studio.vibe.desktop.ui.components.toInstant
 import studio.vibe.shared.contract.ProjectManaging
 import studio.vibe.shared.model.TerminalSize
 import studio.vibe.shared.preferences.GeneralPreferences
@@ -64,22 +75,78 @@ import studio.vibe.desktop.ui.theme.DSSpacing
  * @param container   Desktop DI container.
  * @param modifier    Modifier applied to the outer column.
  */
+@OptIn(ExperimentalTime::class)
 @Composable
 fun TerminalAreaView(
     projectStore: ProjectManaging,
     terminalService: DesktopTerminalService,
     generalPreferences: GeneralPreferences,
+    /** Most-recent resumable session for the active project, or null if none. */
+    resumableSession: ResolvedSessionRow? = null,
+    /** Called when user clicks "Возобновить" in the inline banner or confirm banner. */
+    onResumeSession: (AgentSessionRecord) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val activeProjectId by projectStore.activeProjectId.collectAsState()
     val projects by projectStore.projects.collectAsState()
 
+    // In-memory dismiss state: banner is hidden until next app launch after user dismisses.
+    var bannerDismissed by remember { mutableStateOf(false) }
+
+    // Confirmation banner state: shown for 5 s after resume, then auto-dismissed.
+    var resumedRecord by remember { mutableStateOf<ResolvedSessionRow?>(null) }
+
+    // Auto-dismiss confirmation banner after 5 seconds.
+    LaunchedEffect(resumedRecord) {
+        if (resumedRecord != null) {
+            delay(5_000)
+            resumedRecord = null
+        }
+    }
+
+    // Determine whether to show the resume offer banner:
+    // Only when terminal area is empty (no active PTY) and session is within last 24h.
+    val showResumeBanner = resumableSession != null &&
+        !bannerDismissed &&
+        Clock.System.now().let { now ->
+            (now - resumableSession.record.startedAt.toInstant()).inWholeSeconds < 86_400
+        }
+
     Column(modifier = modifier.background(LocalDSColors.current.surfaceBase)) {
+        // Resumed confirmation banner — shown above terminal titlebar for 5 s after resume.
+        resumedRecord?.let { resolved ->
+            ResumedConfirmationBanner(
+                record = resolved.record,
+                agentDisplayName = resolved.agentDisplayName,
+                agentColor = resolved.agentColor,
+            )
+        }
+
         if (activeProjectId != null) {
             val project = projects.find { it.id == activeProjectId }
             val sessions = terminalService.sessions(activeProjectId!!)
 
             if (sessions.isEmpty()) {
+                // Offer resume banner above the empty state when applicable.
+                if (showResumeBanner && resumableSession != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = DSSpacing.md, vertical = DSSpacing.sm),
+                    ) {
+                        ResumeBanner(
+                            record = resumableSession.record,
+                            agentDisplayName = resumableSession.agentDisplayName,
+                            agentColor = resumableSession.agentColor,
+                            onResume = {
+                                resumedRecord = resumableSession
+                                onResumeSession(resumableSession.record)
+                            },
+                            onDismiss = { bannerDismissed = true },
+                        )
+                    }
+                }
+
                 // Swift parity: emptyTerminalView — "New Terminal" centered button
                 TerminalEmptyState(
                     onNewTerminal = {
