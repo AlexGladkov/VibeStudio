@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -59,6 +60,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.unit.DpSize
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -522,21 +527,24 @@ private fun RemoteQRButton(server: RemoteControlServer) {
         }
 
         if (showPopup) {
-            Popup(
-                onDismissRequest = { showPopup = false },
-                properties = PopupProperties(focusable = true),
-                alignment = Alignment.TopEnd,
-                offset = IntOffset(0, DSLayout.toolbarHeight.value.toInt() + 4),
+            val windowState = rememberWindowState(
+                size = DpSize(300.dp, if (isRunning) 360.dp else 200.dp),
+                position = WindowPosition(Alignment.Center),
+            )
+            Window(
+                onCloseRequest = { showPopup = false },
+                state = windowState,
+                title = "QR-код удалённого подключения",
+                resizable = false,
+                alwaysOnTop = true,
             ) {
                 Surface(
-                    shape = RoundedCornerShape(DSRadius.md),
+                    modifier = Modifier.fillMaxSize(),
                     color = colors.surfaceOverlay,
-                    shadowElevation = 8.dp,
-                    border = BorderStroke(1.dp, colors.borderDefault),
                 ) {
                     Column(
                         modifier = Modifier
-                            .width(260.dp)
+                            .fillMaxSize()
                             .padding(DSSpacing.md),
                         verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -668,21 +676,25 @@ private fun RemoteIndicatorButton(server: RemoteControlServer) {
         }
 
         if (showPopup) {
-            Popup(
-                onDismissRequest = { showPopup = false },
-                properties = PopupProperties(focusable = true),
-                alignment = Alignment.TopEnd,
-                offset = IntOffset(0, DSLayout.toolbarHeight.value.toInt() + 4),
+            val deviceListHeight = (devices.size * 56).coerceAtMost(200)
+            val windowState = rememberWindowState(
+                size = DpSize(320.dp, (160 + deviceListHeight).dp),
+                position = WindowPosition(Alignment.Center),
+            )
+            Window(
+                onCloseRequest = { showPopup = false },
+                state = windowState,
+                title = "Подключённые устройства",
+                resizable = false,
+                alwaysOnTop = true,
             ) {
                 Surface(
-                    shape = RoundedCornerShape(DSRadius.md),
+                    modifier = Modifier.fillMaxSize(),
                     color = colors.surfaceOverlay,
-                    shadowElevation = 8.dp,
-                    border = BorderStroke(1.dp, colors.borderDefault),
                 ) {
                     Column(
                         modifier = Modifier
-                            .width(280.dp)
+                            .fillMaxSize()
                             .padding(DSSpacing.md),
                         verticalArrangement = Arrangement.spacedBy(DSSpacing.sm),
                     ) {
