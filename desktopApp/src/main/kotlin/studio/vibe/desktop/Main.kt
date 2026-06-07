@@ -63,8 +63,7 @@ fun main() = application {
 
     Window(
         onCloseRequest = {
-            serviceContainer.dispose()
-            exitApplication()
+            shutdownApp(serviceContainer, ::exitApplication)
         },
         title = "VibeStudio",
         state = rememberWindowState(
@@ -179,4 +178,21 @@ private suspend fun pickFolder(): String? = withContext(Dispatchers.IO) {
     } finally {
         System.setProperty("apple.awt.fileDialogForDirectories", "false")
     }
+}
+
+/**
+ * Graceful shutdown with hard fallback.
+ *
+ * Compose Desktop's `exitApplication()` waits for non-daemon threads (Ktor Netty,
+ * pty4j watchers, ngrok process supervisors) — these can take 10–30 seconds or
+ * hang indefinitely. We schedule a hard `exitProcess(0)` 1.5 s after `dispose()`
+ * returns to guarantee the process exits promptly.
+ */
+private fun shutdownApp(serviceContainer: DesktopServiceContainer, exitApplication: () -> Unit) {
+    serviceContainer.dispose()
+    exitApplication()
+    Thread {
+        Thread.sleep(1_500)
+        kotlin.system.exitProcess(0)
+    }.apply { isDaemon = true }.start()
 }
