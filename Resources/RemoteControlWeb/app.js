@@ -1233,6 +1233,52 @@ const App = (function () {
       terminalMgr.fit();
       loadProjectsAndConnect();
     });
+
+    // Periodic session-list refresh — server doesn't push session create/exit
+    // events over the global socket, so poll every 3s to surface new agent
+    // sessions (e.g. Claude launched on the Mac) without manual reload.
+    if (window._sessionPollTimer) clearInterval(window._sessionPollTimer);
+    window._sessionPollTimer = setInterval(function () {
+      if (!client.getToken()) return;
+      refreshSessionListOnly();
+    }, 3000);
+  }
+
+  // Refresh ONLY the session picker for the currently-active project,
+  // without forcing a reconnect or repopulating the project picker.
+  async function refreshSessionListOnly() {
+    try {
+      const data = await client.getProjects();
+      projectsData = data;
+      const currentId = projectPicker.value;
+      const current = data.projects.find(function (p) { return p.id === currentId; });
+      if (current) {
+        const prevSelected = sessionPicker.value;
+        const prevCount = sessionPicker.options.length;
+        populateSessionPickerNoConnect(current.sessions, prevSelected);
+        if (sessionPicker.options.length !== prevCount) {
+          // New or removed session — keep current connection if its session
+          // still exists, otherwise fall through to default selection.
+        }
+      }
+    } catch (_e) { /* non-critical */ }
+  }
+
+  function populateSessionPickerNoConnect(sessions, preferId) {
+    sessionPicker.innerHTML = '';
+    if (!sessions || sessions.length === 0) {
+      sessionPicker.innerHTML = '<option value="">No sessions</option>';
+      return;
+    }
+    sessions.forEach(function (s) {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = (s.is_agent ? '✨ ' : '') + (s.title || s.id.substring(0, 8));
+      sessionPicker.appendChild(opt);
+    });
+    if (preferId && sessions.some(function (s) { return s.id === preferId; })) {
+      sessionPicker.value = preferId;
+    }
   }
 
   // ------ PIN Handling ------
