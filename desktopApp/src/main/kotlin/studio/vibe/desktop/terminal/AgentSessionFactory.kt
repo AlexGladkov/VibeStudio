@@ -36,17 +36,32 @@ internal class AgentSessionFactory(
     /**
      * Builds the effective agent launch command.
      *
-     * For Claude agents with `claudeSkipPermissions` preference enabled, appends
-     * `--dangerously-skip-permissions` to the command.
+     * Appends extra flags before the terminating newline in the following order:
+     *  1. [AIAgent.jsonStreamOutputArgs] — when present, enables structured JSON output
+     *     so the desktop layer can extract the native session UUID (e.g. `--output-format stream-json`).
+     *  2. `--dangerously-skip-permissions` — for Claude when the user preference is enabled.
      *
      * Kept `internal` so it can be unit-tested without spawning a real PTY process.
      */
-    internal fun buildEffectiveLaunchCommand(agent: AIAgent): String =
-        if (agent.id == "claude" && generalPreferences?.claudeSkipPermissions == true) {
-            agent.launchCommand.trimEnd('\n') + " --dangerously-skip-permissions\n"
-        } else {
-            agent.launchCommand
+    internal fun buildEffectiveLaunchCommand(agent: AIAgent): String {
+        // Start from the base command, stripping any trailing newline so we can
+        // safely append flags before re-terminating.
+        var cmd = agent.launchCommand.trimEnd('\n')
+
+        // Always append JSON stream args when the agent declares them.
+        // This is safe on resume too — Claude/Codex accept the flag on every invocation.
+        val jsonArgs = agent.jsonStreamOutputArgs
+        if (jsonArgs != null) {
+            cmd += " " + jsonArgs.joinToString(" ")
         }
+
+        // Claude-specific: skip interactive permission prompts when user opts in.
+        if (agent.id == "claude" && generalPreferences?.claudeSkipPermissions == true) {
+            cmd += " --dangerously-skip-permissions"
+        }
+
+        return "$cmd\n"
+    }
 
     /**
      * Builds a minimal, allowlist-based environment for agent PTY sessions.

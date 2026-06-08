@@ -209,14 +209,49 @@ class DesktopServiceContainer {
 
     // ── Terminal service (wired with session-capture + scrollback callbacks) ──
 
+    /**
+     * Set of session UUIDs for which the native agent session ID has already been
+     * captured.  Once captured, we skip further scanning for that session to avoid
+     * redundant regex work on every PTY output chunk.
+     *
+     * Access is confined to the IO dispatcher via [scope.launch(Dispatchers.IO)] so
+     * a plain [java.util.concurrent.ConcurrentHashMap] keyset is sufficient.
+     */
+    private val capturedNativeIdSessions: MutableSet<Uuid> =
+        java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap())
+
     /** Real pty4j-backed terminal service.  Replaces [StubTerminalSessionManaging]. */
     val terminalService: DesktopTerminalService = DesktopTerminalService(
         parentScope = scope,
         generalPreferences = generalPreferences,
         onOutputChunk = { sessionId, chunk ->
+            // Fast path: skip sessions whose native ID has already been captured.
+            if (sessionId in capturedNativeIdSessions) return@DesktopTerminalService
+
+            // Only agent sessions emit the stream-json init line with "session_id".
+            // Avoid launching a coroutine for every chunk of regular terminal output.
+            if (terminalService.session(sessionId)?.isAgentSession != true) return@DesktopTerminalService
+
+            // The "session_id" field only appears in the first few JSON lines.
+            // Only scan chunks that contain the marker string — cheap string search
+            // before launching a coroutine and running the full regex.
+            if (!chunk.contains("session_id")) return@DesktopTerminalService
+
             // Non-blocking fire-and-forget — must not block the PTY hot path.
             scope.launch(Dispatchers.IO) {
                 captureAgentSessionIdUseCase.execute(sessionId, chunk)
+                // Mark as captured so subsequent chunks skip this session entirely.
+                capturedNativeIdSessions.add(sessionId)
+            }
+        },
+        onFirstAgentInput = { sessionId, input ->
+            // Non-blocking fire-and-forget — must not block the sendInput call path.
+            scope.launch(Dispatchers.IO) {
+                try {
+                    agentSessionLog.updateFirstPrompt(sessionId.toString(), input.take(200))
+                } catch (e: Exception) {
+                    System.err.println("DesktopServiceContainer: failed to persist firstPrompt: ${e.message}")
+                }
             }
         },
     )

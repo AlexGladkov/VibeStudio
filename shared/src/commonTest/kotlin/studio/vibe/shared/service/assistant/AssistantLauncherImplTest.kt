@@ -324,6 +324,51 @@ class AssistantLauncherImplTest {
         assertFalse(launchedArgs.contains("--resume"), "No --resume expected when resume=null")
     }
 
+    @Test
+    fun start_freshSession_agentPreservesJsonStreamOutputArgs() = runTest {
+        // For a fresh (non-resume) session, the agent passed to startAgentSession must
+        // be the unmodified ClaudeAgent (no ResumeWrappedAgent wrapper), so that
+        // AgentSessionFactory can read jsonStreamOutputArgs and append them to the command.
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val terminal = FakeTerminalSessionManaging()
+        val launcher = build(projects = projects, availability = availability, terminal = terminal)
+
+        launcher.start(project.id, ClaudeAgent.id, resume = null)
+
+        val agent = terminal.lastStartedAgent
+        assertNotNull(agent, "startAgentSession must have been called")
+        assertNotNull(
+            agent.jsonStreamOutputArgs,
+            "Fresh-session agent must retain jsonStreamOutputArgs so the factory can append them",
+        )
+    }
+
+    @Test
+    fun start_withResumeRequest_resumeWrappedAgentRetainsJsonStreamOutputArgs() = runTest {
+        // ResumeWrappedAgent appends resume args but delegates all other properties —
+        // including jsonStreamOutputArgs — to the underlying agent unchanged.
+        val projects = FakeProjectManaging()
+        val project = projects.addProject(FilePath("/tmp/p"))
+        val availability = FakeAgentAvailabilityChecking()
+        availability.setAllAvailable(listOf(ClaudeAgent))
+        val terminal = FakeTerminalSessionManaging()
+        val launcher = build(projects = projects, availability = availability, terminal = terminal)
+
+        val nativeId = "aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb"
+        launcher.start(project.id, ClaudeAgent.id, resume = ResumeRequest(nativeId))
+
+        val agent = terminal.lastStartedAgent
+        assertNotNull(agent)
+        // The wrapper must still expose jsonStreamOutputArgs from the delegate.
+        assertNotNull(
+            agent.jsonStreamOutputArgs,
+            "ResumeWrappedAgent must delegate jsonStreamOutputArgs to the underlying agent",
+        )
+    }
+
     // ── Session logging ───────────────────────────────────────────────────────
 
     @Test

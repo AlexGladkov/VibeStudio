@@ -58,6 +58,7 @@ class AgentSessionFactoryTest {
         id: String = "test-agent",
         launchCommand: String = "$id\n",
         apiKeyEnvVar: String? = "TEST_API_KEY",
+        jsonStreamArgs: List<String>? = null,
     ): AIAgent = object : AIAgent {
         override val id = id
         override val displayName = id
@@ -70,6 +71,8 @@ class AgentSessionFactoryTest {
         override val prerequisiteCheckCommand = null
         override val setupInstructions = null
         override val exitSequence = AgentExitSequence.CtrlC
+        override val supportsJsonStreamOutput: Boolean = jsonStreamArgs != null
+        override val jsonStreamOutputArgs: List<String>? = jsonStreamArgs
     }
 
     private fun stubClaude(launchCommand: String = "claude\n"): AIAgent =
@@ -195,5 +198,78 @@ class AgentSessionFactoryTest {
         val env = factory.buildAgentEnv(agent, apiKeyValue = null)
 
         assertNotNull(env["HOME"], "HOME must be present in agent env for shell initialisation")
+    }
+
+    // ── 7. jsonStreamOutputArgs appended when present ─────────────────────────
+
+    @Test
+    fun `buildEffectiveLaunchCommand appends jsonStreamOutputArgs when agent declares them`() {
+        val factory = makeFactory()
+        val agent = stubAgent(
+            id = "claude",
+            launchCommand = "claude\n",
+            jsonStreamArgs = listOf("--output-format", "stream-json"),
+        )
+
+        val cmd = factory.buildEffectiveLaunchCommand(agent)
+
+        assertTrue(
+            cmd.contains("--output-format stream-json"),
+            "jsonStreamOutputArgs must be appended to the launch command: $cmd",
+        )
+        assertTrue(cmd.endsWith("\n"), "Command must end with newline: $cmd")
+    }
+
+    @Test
+    fun `buildEffectiveLaunchCommand does not add json args when agent has none`() {
+        val factory = makeFactory()
+        val agent = stubAgent(id = "opencode", launchCommand = "opencode\n", jsonStreamArgs = null)
+
+        val cmd = factory.buildEffectiveLaunchCommand(agent)
+
+        assertFalse(
+            cmd.contains("--output-format"),
+            "No JSON stream args should appear when agent.jsonStreamOutputArgs is null: $cmd",
+        )
+        assertEquals("opencode\n", cmd)
+    }
+
+    @Test
+    fun `buildEffectiveLaunchCommand appends both jsonStreamArgs and skipPermissions for claude`() {
+        val factory = makeFactory(claudeSkipPermissions = true)
+        val agent = stubAgent(
+            id = "claude",
+            launchCommand = "claude\n",
+            jsonStreamArgs = listOf("--output-format", "stream-json"),
+        )
+
+        val cmd = factory.buildEffectiveLaunchCommand(agent)
+
+        assertTrue(
+            cmd.contains("--output-format stream-json"),
+            "JSON stream args must be present: $cmd",
+        )
+        assertTrue(
+            cmd.contains("--dangerously-skip-permissions"),
+            "Skip-permissions flag must also be present for Claude when pref is on: $cmd",
+        )
+        assertTrue(cmd.endsWith("\n"), "Command must end with newline: $cmd")
+    }
+
+    @Test
+    fun `buildEffectiveLaunchCommand uses ClaudeAgent jsonStreamOutputArgs correctly`() {
+        // Verify against the real built-in agent definition, not a stub.
+        val factory = makeFactory(claudeSkipPermissions = false)
+        val cmd = factory.buildEffectiveLaunchCommand(studio.vibe.shared.service.agent.ClaudeAgent)
+
+        assertTrue(
+            cmd.contains("--output-format stream-json"),
+            "ClaudeAgent launch command must include JSON stream args: $cmd",
+        )
+        assertFalse(
+            cmd.contains("--dangerously-skip-permissions"),
+            "Skip-permissions must NOT appear when pref is off: $cmd",
+        )
+        assertTrue(cmd.endsWith("\n"), "Command must end with newline: $cmd")
     }
 }

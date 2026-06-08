@@ -48,6 +48,21 @@ internal class PtySessionState(
     val scope: CoroutineScope,
     /** Job for the 2-second graceful-kill timer. Cancelled in removeSession to prevent double-execution. */
     @Volatile var graceKillJob: kotlinx.coroutines.Job? = null,
+    /**
+     * Tracks whether the initial launch command has already been sent to the PTY.
+     * For agent sessions, the first `sendInput` after launch sends the agent launch command itself
+     * (e.g. `"claude --output-format stream-json\n"`), which is NOT a user prompt.
+     * Subsequent `sendInput` calls originate from the user and may be captured as [firstPrompt].
+     *
+     * `false` until [DesktopTerminalService.startAgentSession] sends the launch command;
+     * `true` thereafter so the next user input can be detected.
+     */
+    @Volatile var launchCommandSent: Boolean = false,
+    /**
+     * `true` once the first user prompt has been captured for this session.
+     * Prevents repeated calls to [onFirstAgentInput] for the same session.
+     */
+    @Volatile var firstPromptCaptured: Boolean = false,
 )
 
 // ── DesktopTerminalService ────────────────────────────────────────────────────
@@ -91,6 +106,13 @@ class DesktopTerminalService(
      * Used to capture the native agent session UUID from Claude stream-json lines.
      */
     private val onOutputChunk: ((sessionId: Uuid, chunk: String) -> Unit)? = null,
+    /**
+     * Optional callback invoked with the first user input sent to an agent session.
+     * Parameters: (sessionId, inputText).  Called at most once per session — the caller
+     * is responsible for tracking which sessions have already been recorded.
+     * Used to populate [AgentSessionRecord.firstPrompt] in the session log.
+     */
+    private val onFirstAgentInput: ((sessionId: Uuid, input: String) -> Unit)? = null,
 ) : TerminalSessionManaging, studio.vibe.shared.contract.TerminalRemoteHost {
 
     /**
@@ -307,6 +329,9 @@ class DesktopTerminalService(
             ptyState.scope.launch { outputWatcher.watchProcessExit(session.id, projectId, ptyState) }
 
             sendInput(effectiveLaunchCommand, session.id)
+            // Mark that the launch command has been sent so the next sendInput call
+            // is treated as the first user-typed prompt.
+            ptyState.launchCommandSent = true
 
             session
         }
@@ -332,9 +357,26 @@ class DesktopTerminalService(
      * Sends a raw text string to the PTY process stdin.
      *
      * The text is written as UTF-8; the caller must append `\n` for Enter.
+     *
+     * For agent sessions: after the initial launch command has been sent, the first
+     * subsequent call is treated as the user's first prompt and forwarded to
+     * [onFirstAgentInput] (if set) exactly once per session.
      */
     override fun sendInput(text: String, sessionId: Uuid) {
         val state = registry[sessionId] ?: return
+
+        // Capture first user prompt for agent sessions — once only, after launch command.
+        if (
+            onFirstAgentInput != null &&
+            state.session.isAgentSession &&
+            state.launchCommandSent &&
+            !state.firstPromptCaptured &&
+            text.isNotBlank()
+        ) {
+            state.firstPromptCaptured = true
+            onFirstAgentInput.invoke(sessionId, text)
+        }
+
         serviceScope.launch(Dispatchers.IO) {
             runCatching {
                 state.inputWriter.write(text)

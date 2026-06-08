@@ -254,7 +254,13 @@ class DesktopTerminalServiceTest {
             cmd.contains("--dangerously-skip-permissions"),
             "Flag must NOT appear when claudeSkipPermissions=false, got: $cmd",
         )
-        assertEquals(ClaudeAgent.launchCommand, cmd)
+        // ClaudeAgent declares jsonStreamOutputArgs, so the command will now include
+        // "--output-format stream-json" even without the skip-permissions flag.
+        assertTrue(
+            cmd.contains("--output-format stream-json"),
+            "Claude command must include JSON stream args regardless of skip-permissions, got: $cmd",
+        )
+        assertTrue(cmd.endsWith("\n"), "Command must end with newline, got: $cmd")
     }
 
     @Test
@@ -268,7 +274,12 @@ class DesktopTerminalServiceTest {
             cmd.contains("--dangerously-skip-permissions"),
             "Flag must NOT appear for non-Claude agent, got: $cmd",
         )
-        assertEquals(CodexAgent.launchCommand, cmd)
+        // CodexAgent also declares jsonStreamOutputArgs — verify it is included.
+        assertTrue(
+            cmd.contains("--output-format stream-json"),
+            "Codex command must include JSON stream args, got: $cmd",
+        )
+        assertTrue(cmd.endsWith("\n"), "Command must end with newline, got: $cmd")
     }
 
     @Test
@@ -289,5 +300,62 @@ class DesktopTerminalServiceTest {
             serviceWithPrefs.dispose()
             scopeWithPrefs.cancel()
         }
+    }
+
+    // ── onFirstAgentInput callback ────────────────────────────────────────────
+
+    @Test
+    fun sendInput_unknownSession_onFirstAgentInputCallbackNotFired() {
+        // sendInput on an unknown session id must be a safe no-op — the callback
+        // must never fire when the session is not in the registry.
+        val capturedInputs = mutableListOf<Pair<kotlin.uuid.Uuid, String>>()
+        val testScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val svc = DesktopTerminalService(
+            parentScope = testScope,
+            onFirstAgentInput = { id, input -> capturedInputs.add(id to input) },
+        )
+
+        svc.sendInput("any input\n", kotlin.uuid.Uuid.random())
+
+        assertTrue(
+            capturedInputs.isEmpty(),
+            "onFirstAgentInput must NOT fire when session is not registered",
+        )
+        svc.dispose()
+        testScope.cancel()
+    }
+
+    @Test
+    fun ptySessionState_launchCommandSentAndFirstPromptCaptured_defaultValues() {
+        // Verify the new fields on PtySessionState have the correct defaults so
+        // the flag-gate logic in sendInput works as designed.
+        val ptyProcess = io.mockk.mockk<com.pty4j.PtyProcess>(relaxed = true) {
+            io.mockk.every { outputStream } returns java.io.ByteArrayOutputStream()
+        }
+        val state = PtySessionState(
+            session = studio.vibe.shared.model.TerminalSession(
+                projectId = kotlin.uuid.Uuid.random(),
+                title = "claude",
+                state = studio.vibe.shared.model.TerminalSessionState.Running,
+                isAgentSession = true,
+            ),
+            ptyProcess = ptyProcess,
+            inputWriter = java.io.BufferedWriter(
+                java.io.OutputStreamWriter(java.io.ByteArrayOutputStream(), Charsets.UTF_8)
+            ),
+            outputFlow = kotlinx.coroutines.flow.MutableSharedFlow(replay = 0),
+            scrollback = ScrollbackBuffer(),
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        )
+
+        assertFalse(
+            state.launchCommandSent,
+            "launchCommandSent must default to false so the gate blocks early sendInput calls",
+        )
+        assertFalse(
+            state.firstPromptCaptured,
+            "firstPromptCaptured must default to false so the first user prompt is captured",
+        )
+        state.scope.cancel()
     }
 }
