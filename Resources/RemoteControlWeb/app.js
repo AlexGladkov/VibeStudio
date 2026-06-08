@@ -1233,52 +1233,6 @@ const App = (function () {
       terminalMgr.fit();
       loadProjectsAndConnect();
     });
-
-    // Periodic session-list refresh — server doesn't push session create/exit
-    // events over the global socket, so poll every 3s to surface new agent
-    // sessions (e.g. Claude launched on the Mac) without manual reload.
-    if (window._sessionPollTimer) clearInterval(window._sessionPollTimer);
-    window._sessionPollTimer = setInterval(function () {
-      if (!client.getToken()) return;
-      refreshSessionListOnly();
-    }, 3000);
-  }
-
-  // Refresh ONLY the session picker for the currently-active project,
-  // without forcing a reconnect or repopulating the project picker.
-  async function refreshSessionListOnly() {
-    try {
-      const data = await client.getProjects();
-      projectsData = data;
-      const currentId = projectPicker.value;
-      const current = data.projects.find(function (p) { return p.id === currentId; });
-      if (current) {
-        const prevSelected = sessionPicker.value;
-        const prevCount = sessionPicker.options.length;
-        populateSessionPickerNoConnect(current.sessions, prevSelected);
-        if (sessionPicker.options.length !== prevCount) {
-          // New or removed session — keep current connection if its session
-          // still exists, otherwise fall through to default selection.
-        }
-      }
-    } catch (_e) { /* non-critical */ }
-  }
-
-  function populateSessionPickerNoConnect(sessions, preferId) {
-    sessionPicker.innerHTML = '';
-    if (!sessions || sessions.length === 0) {
-      sessionPicker.innerHTML = '<option value="">No sessions</option>';
-      return;
-    }
-    sessions.forEach(function (s) {
-      const opt = document.createElement('option');
-      opt.value = s.id;
-      opt.textContent = (s.is_agent ? '✨ ' : '') + (s.title || s.id.substring(0, 8));
-      sessionPicker.appendChild(opt);
-    });
-    if (preferId && sessions.some(function (s) { return s.id === preferId; })) {
-      sessionPicker.value = preferId;
-    }
   }
 
   // ------ PIN Handling ------
@@ -1397,7 +1351,7 @@ const App = (function () {
     populateSessionPicker(project.sessions);
   }
 
-  function populateSessionPicker(sessions) {
+  function populateSessionPicker(sessions, preferId) {
     sessionPicker.innerHTML = '';
 
     if (!sessions || sessions.length === 0) {
@@ -1409,15 +1363,22 @@ const App = (function () {
       const opt = document.createElement('option');
       opt.value = s.id;
       let label = s.title || 'Session';
-      if (s.is_agent) label += ' [agent]';
+      if (s.is_agent) label = '✨ ' + label + ' [agent]';
       if (s.state === 'exited') label += ' (exited)';
       opt.textContent = label;
       sessionPicker.appendChild(opt);
     });
 
-    // Auto-select first session and connect
-    sessionPicker.value = sessions[0].id;
-    connectToSession(sessions[0].id);
+    // Keep current selection if still present; otherwise pick first.
+    const targetId = (preferId && sessions.some(function (s) { return s.id === preferId; }))
+      ? preferId
+      : sessions[0].id;
+    sessionPicker.value = targetId;
+    // Only (re)connect when target differs from current — prevents flicker
+    // on every sessions_changed broadcast.
+    if (currentSessionId !== targetId) {
+      connectToSession(targetId);
+    }
   }
 
   async function connectToSession(sessionId) {
@@ -1519,15 +1480,9 @@ const App = (function () {
 
       case 'sessions_changed':
         if (msg.project_id === currentProjectId) {
-          // Update session picker without losing current selection
-          const prevSession = currentSessionId;
-          populateSessionPicker(msg.sessions);
-          // Re-select if still available
-          const still = msg.sessions.find(function (s) { return s.id === prevSession; });
-          if (still) {
-            sessionPicker.value = prevSession;
-            currentSessionId = prevSession;
-          }
+          // Pass current session as preferId — picker keeps selection if still
+          // available, only switches to first when current session is gone.
+          populateSessionPicker(msg.sessions, currentSessionId);
         }
         break;
 
