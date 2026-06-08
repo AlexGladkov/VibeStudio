@@ -328,7 +328,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         // is one-shot and removes itself after the first non-upgrade request, breaking
         // HTTP/1.1 keep-alive connections where the WS upgrade comes after page load.
         // Browser WebSocket API doesn't support custom headers, so the token is in query params.
-        if method == .GET && path.hasPrefix("/api/v1/terminal/") &&
+        if method == .GET &&
+           (path.hasPrefix("/ws/terminal/") || path.hasPrefix("/api/v1/terminal/")) &&
            head.headers["Upgrade"].first?.caseInsensitiveCompare("websocket") == .orderedSame {
             handleWebSocketUpgrade(head: head, path: path, channel: channel)
             return
@@ -568,7 +569,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         // Terminal WS endpoints are handled before auth in routeRequest
         // (handleWebSocketUpgrade). If we reach here, the request is missing
         // the Upgrade header.
-        if method == .GET && path.hasPrefix("/api/v1/terminal/") {
+        if method == .GET && (path.hasPrefix("/api/v1/terminal/") || path.hasPrefix("/ws/terminal/")) {
             sendErrorJSON(
                 status: .badRequest,
                 code: "INVALID_REQUEST",
@@ -1081,8 +1082,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     /// the upgrader is gone, and the WS upgrade request falls through to the router
     /// as a plain GET. This method handles the upgrade directly.
     private func handleWebSocketUpgrade(head: HTTPRequestHead, path: String, channel: Channel) {
-        // Extract session ID.
-        let sessionIdStr = String(path.dropFirst("/api/v1/terminal/".count))
+        // Extract session ID. Both /ws/terminal/{id} (mobile client) and
+        // legacy /api/v1/terminal/{id} are accepted.
+        let prefix = path.hasPrefix("/ws/terminal/") ? "/ws/terminal/" : "/api/v1/terminal/"
+        let sessionIdStr = String(path.dropFirst(prefix.count))
         guard let sessionId = UUID(uuidString: sessionIdStr) else {
             sendErrorJSON(status: .badRequest, code: "INVALID_SESSION",
                           message: "Invalid session ID.", channel: channel)
