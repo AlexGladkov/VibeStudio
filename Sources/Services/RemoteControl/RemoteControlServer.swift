@@ -49,6 +49,9 @@ final class RemoteControlServer {
     /// Number of devices with active WebSocket connections.
     private(set) var connectedDeviceCount: Int = 0
 
+    /// Last startup failure message, surfaced in UI. Cleared on successful start.
+    private(set) var startupError: String?
+
     /// The current 6-digit PIN for device authentication.
     var currentPin: String { authService.currentPin }
 
@@ -200,6 +203,7 @@ final class RemoteControlServer {
         let idleTimeout = self.preferences.idleTimeoutMinutes
 
         isTransitioning = true
+        startupError = nil
         weak var weakSelf = self
 
         // Pre-load all static files from the bundle on MainActor (safe to access
@@ -324,8 +328,18 @@ final class RemoteControlServer {
                 Logger.remoteControl.error(
                     "RemoteControlServer failed to start: \(error.localizedDescription, privacy: .public)"
                 )
+                let raw = error.localizedDescription
+                let friendly: String
+                if raw.contains("Address already in use") || raw.contains("bind") {
+                    friendly = "Порт \(bindPort) уже занят. Закрой другую копию VibeStudio или поменяй порт в настройках."
+                } else if raw.contains("Permission denied") {
+                    friendly = "Нет доступа к порту \(bindPort). Используй порт > 1024."
+                } else {
+                    friendly = "Не удалось запустить Remote Control: \(raw)"
+                }
                 await MainActor.run {
                     weakSelf?.isTransitioning = false
+                    weakSelf?.startupError = friendly
                 }
             }
         }

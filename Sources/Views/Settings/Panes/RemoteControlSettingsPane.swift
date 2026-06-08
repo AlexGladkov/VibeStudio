@@ -303,6 +303,21 @@ struct RemoteControlSettingsPane: View {
                 Spacer()
             }
 
+            if let err = remoteServer.startupError {
+                HStack(alignment: .top, spacing: DSSpacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DSColor.actionStop)
+                        .font(.system(size: 12))
+                    Text(err)
+                        .font(DSFont.sidebarItemSmall)
+                        .foregroundStyle(DSColor.actionStop)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(DSSpacing.sm)
+                .background(DSColor.actionStop.opacity(0.1))
+                .cornerRadius(DSRadius.sm)
+            }
+
             // Connected devices list
             if !remoteServer.connectedDevices.isEmpty {
                 VStack(alignment: .leading, spacing: DSSpacing.sm) {
