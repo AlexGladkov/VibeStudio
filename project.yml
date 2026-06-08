@@ -36,9 +36,11 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+      - path: Resources/RemoteControlWeb
+        type: folder
+        buildPhase: resources
     resources:
       - path: Sources/Assets.xcassets
-      - path: Resources/RemoteControlWeb
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio

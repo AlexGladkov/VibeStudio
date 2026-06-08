@@ -101,6 +101,7 @@
 		58CDB1D7E51D8382425D1540 /* TabItemViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E072146A96FB60E0D4D765 /* TabItemViewModel.swift */; };
 		58FD1FBD320D472385E79ED2 /* AppLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84D9134D54BC73E235230876 /* AppLifecycleCoordinator.swift */; };
 		59C2BDFBFE7FBAA6498CC3F4 /* SettingsSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A0C50E3E396630FD25AA8D3 /* SettingsSectionHeader.swift */; };
+		5AE4B38BD93D6257FD733B1F /* RemoteControlWeb in Resources */ = {isa = PBXBuildFile; fileRef = 66FADF502039E1EBCE92BCA9 /* RemoteControlWeb */; };
 		5B400261B779FF5839BE33FE /* SyntaxHighlightTextStorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 382D835067A83C25A19CDC33 /* SyntaxHighlightTextStorageTests.swift */; };
 		5B4D8439463D08D8EBA9BEB4 /* StatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A641F0DC5264769FF7A80408 /* StatusBadgeView.swift */; };
 		5BAE73F58BE07B419A82F830 /* DSTerminalColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5ED417B514D8FEBAE8FDE51 /* DSTerminalColors.swift */; };
@@ -398,6 +399,7 @@
 		628EFF1392BE0ADA0B2C8C9B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		6460BA9DC11F2F09E3E394D8 /* TerminalActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalActivityTracker.swift; sourceTree = "<group>"; };
 		6467043C956DBA857830F129 /* GitProjectSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitProjectSectionView.swift; sourceTree = "<group>"; };
+		66FADF502039E1EBCE92BCA9 /* RemoteControlWeb */ = {isa = PBXFileReference; lastKnownFileType = folder; name = RemoteControlWeb; path = Resources/RemoteControlWeb; sourceTree = SOURCE_ROOT; };
 		67DC954E40D71183D92671CB /* STATEFLOW_BRIDGE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = STATEFLOW_BRIDGE.md; sourceTree = "<group>"; };
 		68B14F9BF7BEA113450292B1 /* FileViewerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileViewerSheet.swift; sourceTree = "<group>"; };
 		68D587D18071ED2AECFB4424 /* ThemeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeServiceTests.swift; sourceTree = "<group>"; };
@@ -1155,6 +1157,7 @@
 		9AC14D3B9800BE3817CF5CFD = {
 			isa = PBXGroup;
 			children = (
+				E4746324E5AEC619F688DC2C /* Resources */,
 				20ADDE6DC690CBDA02EDD8FA /* Sources */,
 				B7EA324F74FDD2BC4D74EE14 /* Tests */,
 				BB3E2CAC2D248DDBF94D3EC4 /* Products */,
@@ -1453,6 +1456,14 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		E4746324E5AEC619F688DC2C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				66FADF502039E1EBCE92BCA9 /* RemoteControlWeb */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		E618304DEC64F456162F9E18 /* Mocks */ = {
 			isa = PBXGroup;
 			children = (
@@ -1664,6 +1675,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				207388C9857537C56E0A7320 /* Assets.xcassets in Resources */,
+				5AE4B38BD93D6257FD733B1F /* RemoteControlWeb in Resources */,
 				51B7C50E820E31C5D2E9A465 /* STATEFLOW_BRIDGE.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
