@@ -38,6 +38,7 @@ targets:
       - path: Sources
     resources:
       - path: Sources/Assets.xcassets
+      - path: Resources/RemoteControlWeb
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio
