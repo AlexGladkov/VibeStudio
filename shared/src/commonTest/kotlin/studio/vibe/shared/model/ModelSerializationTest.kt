@@ -3,9 +3,16 @@
     kotlin.time.ExperimentalTime::class,
 )
 
-package studio.vibe.shared.model
+package studio.vibe.shared.feature.project.domain.model
 
 import kotlinx.serialization.json.Json
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.HexColor
+import studio.vibe.shared.feature.git.domain.model.GitBranch
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.core.common.git.GitStatus
+import studio.vibe.shared.core.common.terminal.SplitDirection
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

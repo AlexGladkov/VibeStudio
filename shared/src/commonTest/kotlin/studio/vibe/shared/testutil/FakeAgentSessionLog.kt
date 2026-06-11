@@ -1,7 +1,7 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.contract.AgentSessionLog
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionLog
+import studio.vibe.shared.core.common.AgentSessionRecord
 
 /**
  * In-memory [AgentSessionLog] test double.

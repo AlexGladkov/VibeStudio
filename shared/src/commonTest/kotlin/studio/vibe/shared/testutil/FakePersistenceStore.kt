@@ -1,7 +1,7 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.FilePath
 
 /**
  * In-memory [PersistenceStore] test double.

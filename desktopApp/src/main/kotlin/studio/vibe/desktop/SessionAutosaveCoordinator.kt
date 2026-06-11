@@ -9,12 +9,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.FreeTabManaging
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.SessionPersisting
-import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.usecase.AssistantLauncher
-import studio.vibe.shared.usecase.SaveSessionUseCase
+import studio.vibe.shared.feature.tabbar.presentation.FreeTabManaging
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.session.domain.contract.SessionPersisting
+import studio.vibe.shared.core.common.terminal.TerminalSessionManaging
+import studio.vibe.shared.feature.assistant.domain.usecase.AssistantLauncher
+import studio.vibe.shared.feature.session.domain.usecase.SaveSessionUseCase
 
 /**
  * Drives periodic and event-triggered session autosave.
@@ -104,9 +104,7 @@ class SessionAutosaveCoordinator(
     }
 
     private suspend fun save(reason: String) {
-        try {
-            saveUseCase.execute()
-        } catch (e: Exception) {
+        saveUseCase().onFailure { e ->
             println("SessionAutosaveCoordinator: save failed ($reason): ${e.message}")
         }
     }

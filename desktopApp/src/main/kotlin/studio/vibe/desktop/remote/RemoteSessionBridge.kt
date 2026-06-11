@@ -13,8 +13,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.core.common.terminal.TerminalSize
 import java.util.UUID
 import java.util.logging.Logger
 import kotlin.uuid.Uuid

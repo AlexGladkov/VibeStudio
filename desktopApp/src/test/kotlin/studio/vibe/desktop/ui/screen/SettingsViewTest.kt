@@ -11,9 +11,9 @@ import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.SettingsItem
-import studio.vibe.shared.model.SettingsSectionGroup
-import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
+import studio.vibe.shared.feature.settings.domain.model.SettingsItem
+import studio.vibe.shared.feature.settings.domain.model.SettingsSectionGroup
+import studio.vibe.shared.core.common.DefaultAIAgentRegistry
 import java.io.File
 
 /**

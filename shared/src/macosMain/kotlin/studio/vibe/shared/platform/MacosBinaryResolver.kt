@@ -6,8 +6,8 @@ import platform.posix.X_OK
 import platform.posix.access
 import platform.posix.getenv
 import studio.vibe.shared.constants.SecurityConstants
-import studio.vibe.shared.contract.BinaryResolver
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.BinaryResolver
+import studio.vibe.shared.core.common.FilePath
 
 @OptIn(ExperimentalForeignApi::class)
 class MacosBinaryResolver : BinaryResolver {

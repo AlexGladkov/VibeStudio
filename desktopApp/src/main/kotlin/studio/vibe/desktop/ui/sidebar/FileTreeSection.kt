@@ -50,9 +50,9 @@ import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.GitServicing
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.service.filetree.FileTreeBuilder
+import studio.vibe.shared.feature.git.domain.contract.GitServicing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.filetree.data.FileTreeBuilder
 import studio.vibe.desktop.ui.GitRemoteSetupSheet
 import studio.vibe.desktop.ui.ProjectSettingsSheet
 import studio.vibe.desktop.ui.theme.DSColors
@@ -60,11 +60,11 @@ import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.model.DirectoryEntry
-import studio.vibe.shared.model.FileEntry
-import studio.vibe.shared.model.FileTreeNode
-import studio.vibe.shared.model.GitFileStatus
-import studio.vibe.shared.model.Project
+import studio.vibe.shared.feature.filetree.domain.DirectoryEntry
+import studio.vibe.shared.feature.filetree.domain.FileEntry
+import studio.vibe.shared.feature.filetree.domain.FileTreeNode
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.core.common.project.Project
 
 private sealed class FileTreeDialog {
     data class ProjectSettings(val project: Project) : FileTreeDialog()

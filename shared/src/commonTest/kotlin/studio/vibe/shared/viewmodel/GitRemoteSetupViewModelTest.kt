@@ -1,13 +1,13 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.git.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.GitRemoteOperating
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.GitServiceError
+import studio.vibe.shared.feature.git.domain.contract.GitRemoteOperating
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.git.domain.model.GitServiceError
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test

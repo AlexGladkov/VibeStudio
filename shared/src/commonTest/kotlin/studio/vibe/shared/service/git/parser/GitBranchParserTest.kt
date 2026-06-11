@@ -1,6 +1,6 @@
-package studio.vibe.shared.service.git.parser
+package studio.vibe.shared.feature.git.data.parser
 
-import studio.vibe.shared.model.GitServiceError
+import studio.vibe.shared.feature.git.domain.model.GitServiceError
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

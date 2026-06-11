@@ -26,19 +26,19 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.contract.ProcessRunner
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.codespeak.domain.usecase.RunSpecBuildUseCase
 import studio.vibe.desktop.ui.codespeak.BuildOutputColumn
 import studio.vibe.desktop.ui.codespeak.CodeSpeakResizeHandle
 import studio.vibe.desktop.ui.codespeak.EditorColumn
 import studio.vibe.desktop.ui.codespeak.SpecsListColumn
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
-import studio.vibe.shared.model.GeneratedFile
-import studio.vibe.shared.preferences.CodeSpeakPreferencesReading
-import studio.vibe.shared.viewmodel.CodeSpeakModeViewModel
-import studio.vibe.shared.viewmodel.SpecBuildPanelViewModel
+import studio.vibe.shared.feature.filetree.domain.GeneratedFile
+import studio.vibe.shared.feature.codespeak.domain.contract.CodeSpeakPreferencesReading
+import studio.vibe.shared.feature.codespeak.presentation.CodeSpeakModeViewModel
+import studio.vibe.shared.feature.codespeak.presentation.SpecBuildPanelViewModel
 
 // ── CodeSpeakModeView ────────────────────────────────────────────────────────
 //
@@ -58,17 +58,17 @@ import studio.vibe.shared.viewmodel.SpecBuildPanelViewModel
  * Sub-composables live in [studio.vibe.desktop.ui.codespeak] package:
  * [SpecsListColumn], [EditorColumn], [BuildOutputColumn], [CodeSpeakResizeHandle].
  *
- * @param persistenceStore Application-scoped persistence.
- * @param projectStore     Application-scoped project manager.
- * @param processRunner    Platform subprocess runner.
- * @param coroutineScope   Container-scoped coroutine scope.
- * @param modifier         Applied to the outermost [Row].
+ * @param persistenceStore    Application-scoped persistence.
+ * @param projectStore        Application-scoped project manager.
+ * @param runSpecBuildUseCase Use case that streams codespeak build output.
+ * @param coroutineScope      Container-scoped coroutine scope.
+ * @param modifier            Applied to the outermost [Row].
  */
 @Composable
 public fun CodeSpeakModeView(
     persistenceStore: PersistenceStore,
     projectStore: ProjectManaging,
-    processRunner: ProcessRunner,
+    runSpecBuildUseCase: RunSpecBuildUseCase,
     coroutineScope: CoroutineScope,
     codeSpeakPreferences: CodeSpeakPreferencesReading? = null,
     navigationCoordinator: AppNavigationCoordinator? = null,
@@ -85,7 +85,7 @@ public fun CodeSpeakModeView(
 
     val buildVm = remember {
         SpecBuildPanelViewModel(
-            processRunner = processRunner,
+            runSpecBuildUseCase = runSpecBuildUseCase,
             projectManaging = projectStore,
             parentScope = coroutineScope,
         )

@@ -13,10 +13,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.RemoteAuthorizing
-import studio.vibe.shared.model.RemoteAuthError
-import studio.vibe.shared.model.RemoteAuthResult
-import studio.vibe.shared.model.RemoteDevice
+import studio.vibe.shared.feature.remote.domain.contract.RemoteAuthorizing
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthError
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthResult
+import studio.vibe.shared.feature.remote.domain.model.RemoteDevice
 
 /**
  * Handles [/api/v1/auth] routes (token + validate).

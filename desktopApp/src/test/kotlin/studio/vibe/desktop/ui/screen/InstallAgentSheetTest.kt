@@ -2,11 +2,11 @@ package studio.vibe.desktop.ui.screen
 
 import org.junit.Ignore
 import org.junit.Test
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.service.agent.BuiltInAgents
-import studio.vibe.shared.service.agent.ClaudeAgent
-import studio.vibe.shared.service.agent.CodeSpeakAgent
-import studio.vibe.shared.service.agent.OpenCodeAgent
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.BuiltInAgents
+import studio.vibe.shared.core.common.ClaudeAgent
+import studio.vibe.shared.core.common.CodeSpeakAgent
+import studio.vibe.shared.core.common.OpenCodeAgent
 
 /**
  * Tests for [studio.vibe.desktop.ui.InstallAgentSheet].

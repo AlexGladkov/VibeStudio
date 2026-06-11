@@ -60,4 +60,13 @@ final class GeneralPreferences {
             ? 13
             : CGFloat(defaults.double(forKey: Keys.terminalFontSize))
     }
+
+    /// Preview / EnvironmentKey-default factory.
+    ///
+    /// Uses fixed in-memory defaults instead of reading `UserDefaults`. Writes
+    /// via the `didSet` observers still hit standard UserDefaults — callers must
+    /// treat the returned instance as read-only.
+    static func previewStub() -> GeneralPreferences {
+        GeneralPreferences()
+    }
 }

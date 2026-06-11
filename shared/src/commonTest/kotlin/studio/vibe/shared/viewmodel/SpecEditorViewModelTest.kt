@@ -1,12 +1,12 @@
 @file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.codespeak.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.FilePath
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

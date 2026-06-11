@@ -126,4 +126,13 @@ final class RemoteControlPreferences {
             ? 30
             : defaults.integer(forKey: Keys.idleTimeoutMinutes)
     }
+
+    /// Preview / EnvironmentKey-default factory.
+    ///
+    /// Currently delegates to the regular init (UserDefaults-backed read only).
+    /// Exposed as a distinct entry point so callers signal that the resulting
+    /// instance is preview-scoped and must not be mutated.
+    static func previewStub() -> RemoteControlPreferences {
+        RemoteControlPreferences()
+    }
 }

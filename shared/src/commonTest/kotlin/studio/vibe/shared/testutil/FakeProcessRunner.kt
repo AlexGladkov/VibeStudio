@@ -2,9 +2,9 @@ package studio.vibe.shared.testutil
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import studio.vibe.shared.contract.ProcessResult
-import studio.vibe.shared.contract.ProcessRunner
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.ProcessResult
+import studio.vibe.shared.core.common.ProcessRunner
+import studio.vibe.shared.core.common.FilePath
 import kotlin.time.Duration
 
 /**

@@ -15,9 +15,9 @@ import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.preferences.CodeSpeakPreferences
-import studio.vibe.shared.preferences.GeneralPreferences
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.feature.codespeak.data.CodeSpeakPreferences
+import studio.vibe.shared.feature.settings.data.GeneralPreferences
 
 /**
  * Dispatcher pane that routes to the correct per-agent settings pane.

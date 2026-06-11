@@ -55,12 +55,21 @@ final class SpecBuildPanelViewModel {
     private let processRunner = CodeSpeakProcessRunner()
     private let codeSpeak: CodeSpeakService
     private let projectManager: any ProjectManaging
+    /// Optional preferences service. When provided, the VM fires a user
+    /// notification on build completion (when `notifyOnComplete` is enabled).
+    /// Optional so previews / tests can omit it.
+    private let csPreferences: CodeSpeakPreferences?
 
     // MARK: - Init
 
-    init(codeSpeak: CodeSpeakService, projectManager: any ProjectManaging) {
+    init(
+        codeSpeak: CodeSpeakService,
+        projectManager: any ProjectManaging,
+        csPreferences: CodeSpeakPreferences? = nil
+    ) {
         self.codeSpeak = codeSpeak
         self.projectManager = projectManager
+        self.csPreferences = csPreferences
     }
 
     // MARK: - Run
@@ -110,6 +119,15 @@ final class SpecBuildPanelViewModel {
            let activeId = projectManager.activeProjectId {
             codeSpeak.updateStats(s, for: activeId)
         }
+
+        // Fire user notification on completion. View layer no longer owns this
+        // side-effect — the VM observes its own build-state transitions and
+        // delegates to the preferences service (which respects `notifyOnComplete`).
+        csPreferences?.sendCompletionNotification(
+            command: selectedCommand,
+            exitCode: exitCode,
+            wasCancelled: wasCancelled
+        )
     }
 
     // MARK: - Stop

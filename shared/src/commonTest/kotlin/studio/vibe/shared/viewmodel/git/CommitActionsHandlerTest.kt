@@ -1,18 +1,18 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel.git
+package studio.vibe.shared.feature.git.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AICommitServicing
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
-import studio.vibe.shared.model.GitStatus
+import studio.vibe.shared.core.common.AICommitServicing
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.core.common.git.GitStatus
 import studio.vibe.shared.testutil.FakeGitServicingBase
-import studio.vibe.shared.viewmodel.GitSidebarState
+import studio.vibe.shared.feature.git.presentation.GitSidebarState
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -23,7 +23,7 @@ import kotlin.uuid.Uuid
 class CommitActionsHandlerTest {
 
     private fun buildHandler(
-        git: studio.vibe.shared.contract.GitServicing = FakeGitServicingBase(),
+        git: studio.vibe.shared.feature.git.domain.contract.GitServicing = FakeGitServicingBase(),
         aiCommit: AICommitServicing = object : AICommitServicing {
             override suspend fun generateCommitMessage(diff: String) = "feat: auto message"
         },
@@ -142,7 +142,7 @@ class CommitActionsHandlerTest {
     fun generateAICommitMessage_aiThrows_setsCommitPanelError() = runTest {
         val ai = object : AICommitServicing {
             override suspend fun generateCommitMessage(diff: String): String =
-                throw studio.vibe.shared.model.AICommitServiceError.MissingAPIKey
+                throw studio.vibe.shared.core.common.AICommitServiceError.MissingAPIKey
         }
         val projectId = Uuid.random()
         val (handler, state) = buildHandler(aiCommit = ai)

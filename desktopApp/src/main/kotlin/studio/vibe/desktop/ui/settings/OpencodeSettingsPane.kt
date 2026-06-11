@@ -16,8 +16,8 @@ import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.service.agent.OpenCodeAgent
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.OpenCodeAgent
 import java.io.File
 
 /**

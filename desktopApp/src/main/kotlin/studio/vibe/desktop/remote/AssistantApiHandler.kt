@@ -10,7 +10,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.usecase.AssistantLauncher
+import studio.vibe.shared.feature.assistant.domain.usecase.AssistantLauncher
 import kotlin.uuid.Uuid
 
 /**

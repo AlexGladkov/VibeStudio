@@ -1,7 +1,8 @@
-package studio.vibe.shared.service.security
+package studio.vibe.shared.core.security
 
-import studio.vibe.shared.contract.BinaryResolver
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.BinaryResolver
+import studio.vibe.shared.core.common.CLIAgentPathResolverImpl
+import studio.vibe.shared.core.common.FilePath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

@@ -1,12 +1,12 @@
-package studio.vibe.shared.service.persistence
+package studio.vibe.shared.feature.project.data
 
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.ProjectManagerError
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.ProjectManagerError
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

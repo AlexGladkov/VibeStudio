@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.contract.AIAgent
+import studio.vibe.shared.core.common.AIAgent
 
 /**
  * Displays a branded icon for an AI agent.

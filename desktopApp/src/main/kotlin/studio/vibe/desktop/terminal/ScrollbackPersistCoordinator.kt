@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.SessionPersisting
+import studio.vibe.shared.feature.session.domain.contract.SessionPersisting
 import kotlin.uuid.Uuid
 
 /**

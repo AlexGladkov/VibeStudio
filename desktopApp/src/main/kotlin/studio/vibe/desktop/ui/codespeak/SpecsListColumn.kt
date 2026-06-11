@@ -46,8 +46,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.project.ProjectManaging
 import studio.vibe.desktop.ui.SpecEditorSheet
 import studio.vibe.desktop.ui.SpecWizardSheet
 import studio.vibe.desktop.ui.theme.DSColors
@@ -57,8 +57,9 @@ import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
-import studio.vibe.shared.model.SpecFile
-import studio.vibe.shared.model.SpecStatus
+import studio.vibe.shared.feature.codespeak.domain.model.GeneratedFile
+import studio.vibe.shared.feature.codespeak.domain.model.SpecFile
+import studio.vibe.shared.feature.codespeak.domain.model.SpecStatus
 
 private sealed class SpecsPanelDialog {
     data object None : SpecsPanelDialog()
@@ -72,14 +73,14 @@ internal fun SpecsListColumn(
     projectStore: ProjectManaging,
     coroutineScope: CoroutineScope,
     specs: List<SpecFile>,
-    generatedFiles: List<studio.vibe.shared.model.GeneratedFile>,
+    generatedFiles: List<GeneratedFile>,
     selectedSpecId: Uuid?,
     selectedGeneratedFilePath: String?,
     isLoading: Boolean,
     showFailingOnly: Boolean,
     activeProjectId: Uuid?,
     onSelectSpec: (SpecFile) -> Unit,
-    onSelectGeneratedFile: (studio.vibe.shared.model.GeneratedFile) -> Unit,
+    onSelectGeneratedFile: (GeneratedFile) -> Unit,
     onRefresh: () -> Unit,
     onSpecsChanged: () -> Unit,
     navigationCoordinator: AppNavigationCoordinator? = null,
@@ -91,7 +92,7 @@ internal fun SpecsListColumn(
 
     val visibleSpecs = remember(specs, showFailingOnly) {
         if (showFailingOnly) {
-            val failing = specs.filter { it.status == studio.vibe.shared.model.SpecStatus.FAILING }
+            val failing = specs.filter { it.status == studio.vibe.shared.feature.codespeak.domain.model.SpecStatus.FAILING }
             failing.ifEmpty { specs }
         } else {
             specs
@@ -405,7 +406,7 @@ private fun GeneratedSectionHeader(
 
 @Composable
 private fun GeneratedFileRow(
-    file: studio.vibe.shared.model.GeneratedFile,
+    file: GeneratedFile,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {

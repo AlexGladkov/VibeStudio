@@ -22,7 +22,7 @@ import com.jediterm.terminal.ui.settings.DefaultSettingsProvider
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.core.common.terminal.TerminalSize
 import java.awt.Font
 import java.nio.charset.Charset
 import javax.swing.JPanel
@@ -156,7 +156,7 @@ fun TerminalView(
     // Using a holder object ensures both effects see the same reference.
     class SessionHolder {
         var ownsSession: Boolean = false
-        var session: studio.vibe.shared.model.TerminalSession? = null
+        var session: studio.vibe.shared.feature.terminal.domain.model.TerminalSession? = null
     }
     val holder = remember { SessionHolder() }
     var widgetHolder by remember { mutableStateOf<JediTermWidget?>(null) }
@@ -181,14 +181,14 @@ fun TerminalView(
         // service AND its underlying OS process has not exited. Skipping stale
         // entries is what keeps the terminal from going blank after a tab
         // switch — `_sessions` may still hold a TerminalSession whose pty died.
-        fun isLive(s: studio.vibe.shared.model.TerminalSession?): Boolean {
+        fun isLive(s: studio.vibe.shared.feature.terminal.domain.model.TerminalSession?): Boolean {
             if (s == null) return false
             val pty = service.ptyProcessForSession(s.id) ?: return false
             return pty.isAlive
         }
 
         // 1. Resolve session: target → most recent live project session → create new
-        var session: studio.vibe.shared.model.TerminalSession? = null
+        var session: studio.vibe.shared.feature.terminal.domain.model.TerminalSession? = null
 
         if (targetSessionId != null) {
             val target = service.session(targetSessionId)
@@ -215,7 +215,7 @@ fun TerminalView(
                     projectId = projectId,
                     shell = initialShell,
                     workingDirectory = workingDirectory?.let {
-                        studio.vibe.shared.model.FilePath(it)
+                        studio.vibe.shared.core.common.FilePath(it)
                     },
                     size = initialSize,
                 )

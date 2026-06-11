@@ -1,12 +1,12 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.settings.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
 import studio.vibe.shared.testutil.FakeProjectManaging
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

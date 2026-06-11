@@ -1,9 +1,9 @@
-package studio.vibe.shared.service.freetab
+package studio.vibe.shared.feature.tabbar.data
 
-import studio.vibe.shared.model.FreeTab
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.service.freetab.FreeTabStoreImpl
+import studio.vibe.shared.feature.tabbar.presentation.FreeTab
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.feature.tabbar.data.FreeTabStoreImpl
 import kotlin.test.*
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid

@@ -1,18 +1,18 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.filetree.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.FileSystemWatchingService
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.contract.WatchInfo
-import studio.vibe.shared.contract.WatchOptions
-import studio.vibe.shared.contract.WatchToken
-import studio.vibe.shared.model.FileChangeEvent
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.feature.filetree.domain.FileSystemWatchingService
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.feature.filetree.domain.WatchInfo
+import studio.vibe.shared.feature.filetree.domain.WatchOptions
+import studio.vibe.shared.feature.filetree.domain.WatchToken
+import studio.vibe.shared.core.common.FileChangeEvent
+import studio.vibe.shared.core.common.FilePath
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.Test
 import kotlin.test.assertEquals

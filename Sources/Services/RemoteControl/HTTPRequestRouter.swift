@@ -1,25 +1,25 @@
 // MARK: - HTTPRequestRouter
-// NIO ChannelHandler that routes HTTP requests to API handlers and static files.
+// NIO ChannelHandler that routes HTTP requests to API endpoint groups and static files.
 // macOS 14+, Swift 5.10
 
-import CryptoKit
 import Foundation
 import NIOCore
 import NIOHTTP1
-import NIOWebSocket
 import OSLog
 
-/// NIO inbound channel handler that routes HTTP requests to the
-/// Remote Control REST API and static file server.
+/// NIO inbound channel handler that dispatches HTTP requests to the
+/// Remote Control REST API, the WebSocket upgrade flow, and the embedded
+/// static-file server.
 ///
 /// **Threading model:**
-/// This handler runs on a NIO `EventLoop` thread. Service reads that require
-/// `@MainActor` (e.g. project lists, scrollback content) use
-/// `Task { @MainActor in ... }` with fire-and-forget, then write the response
-/// back via `context.eventLoop.execute`.
+/// This handler runs on a NIO `EventLoop` thread. Endpoint groups that need
+/// `@MainActor` state (project lists, scrollback content, auth state) are
+/// invoked via `Task { @MainActor in ... }`, then the resulting
+/// `(HTTPResponseHead, ByteBuffer)` is written back through
+/// `channel.eventLoop.execute`.
 ///
-/// `ChannelHandlerContext` is NOT `Sendable` -- it must not be captured in
-/// `Task` closures. Instead, cache the `Channel` reference (which IS Sendable).
+/// `ChannelHandlerContext` is NOT `Sendable` — it must not be captured in
+/// `Task` closures. The cached `Channel` reference is used instead.
 final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
     typealias InboundIn = HTTPServerRequestPart
@@ -27,35 +27,24 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
     // MARK: - Dependencies (thread-safe references)
 
-    /// Auth service -- `@MainActor` but we access it via `Task { @MainActor in }`.
     private let authService: RemoteAuthService
-
-    /// Terminal service -- same pattern.
     private let terminalService: TerminalService
-
-    /// Project manager -- same pattern.
     private let projectManager: any ProjectManaging
-
-    /// Preferences -- same pattern.
     private let preferences: RemoteControlPreferences
-
-    /// Cached idle timeout (captured at init on MainActor) for use in
-    /// nonisolated NIO handler context (WebSocket upgrade).
+    /// Cached at init on MainActor — used by the nonisolated WS upgrade path.
     private let cachedIdleTimeoutMinutes: Int
-
-    /// Weak reference to the server for bridge registration.
     private weak var serverRef: RemoteControlServer?
+    private let claudePermissions: any ClaudePermissionsResolving
+    /// Upload store for remote chat attachments — passed to UploadEndpoints.
+    private let uploadStore: RemoteUploadStore
 
-    /// In-memory static file cache pre-loaded at server start.
-    /// Keys are relative paths like `"index.html"` or `"vendor/xterm.js"`.
-    /// Values are `(data, contentType)`. Empty when the bundle is missing
-    /// (falls back to disk reads in `serveStaticFile`).
-    private let staticFileCache: [String: (Data, String)]
+    // MARK: - Collaborators
 
-    /// Shared reference to the current ngrok tunnel hostname.
-    /// Updated by ``RemoteControlServer`` when the ngrok URL is resolved.
-    /// Read here to enforce exact-host CORS instead of a broad wildcard.
-    private let ngrokHostRef: NgrokHostRef
+    private let builder: HTTPResponseBuilder
+    private let corsPolicy: CORSPolicy
+    private let ipExtractor: ClientIPExtractor
+    private let staticFiles: StaticFileHandler
+    private let wsUpgrade: WebSocketUpgradeHandler
 
     // MARK: - Connection State
 
@@ -81,27 +70,24 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     }
     #endif
 
-    // MARK: - CORS State
-
-    /// Resolved CORS origin for the current request. Set at the top of
-    /// `routeRequest` and consumed by `sendRawJSON`, `sendEmptyResponse`,
-    /// and `sendCORSPreflight`. `nil` means no CORS header should be emitted.
-    private var corsOrigin: String?
-
     // MARK: - Request Accumulator
 
     private var requestHead: HTTPRequestHead?
     private var requestBody: ByteBuffer?
 
-    // MARK: - JSON Encoder/Decoder
+    // MARK: - JSON
 
-    private let encoder: JSONEncoder = {
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+
+    /// Build the JSON encoder used by all router-emitted responses.
+    /// Kept as a static factory so it can be referenced during `init` without
+    /// touching `self` before phase-1 completes.
+    private static func makeEncoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
         return e
-    }()
-
-    private let decoder = JSONDecoder()
+    }
 
     // MARK: - Init
 
@@ -113,7 +99,9 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         idleTimeoutMinutes: Int,
         serverRef: RemoteControlServer?,
         staticFileCache: [String: (Data, String)] = [:],
-        ngrokHostRef: NgrokHostRef = NgrokHostRef()
+        ngrokHostRef: NgrokHostRef = NgrokHostRef(),
+        claudePermissions: any ClaudePermissionsResolving,
+        uploadStore: RemoteUploadStore
     ) {
         self.authService = authService
         self.terminalService = terminalService
@@ -121,23 +109,26 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         self.preferences = preferences
         self.cachedIdleTimeoutMinutes = idleTimeoutMinutes
         self.serverRef = serverRef
-        self.staticFileCache = staticFileCache
-        self.ngrokHostRef = ngrokHostRef
+        self.claudePermissions = claudePermissions
+        self.uploadStore = uploadStore
+
+        let encoder = Self.makeEncoder()
+        self.encoder = encoder
+        self.decoder = JSONDecoder()
+        self.builder = HTTPResponseBuilder(encoder: encoder)
+        self.corsPolicy = CORSPolicy(ngrokHostRef: ngrokHostRef)
+        self.ipExtractor = ClientIPExtractor()
+        self.staticFiles = StaticFileHandler(
+            cache: staticFileCache,
+            bundleRoot: Bundle.main.url(forResource: "RemoteControlWeb", withExtension: nil)
+        )
+        self.wsUpgrade = WebSocketUpgradeHandler()
     }
 
     // MARK: - ChannelInboundHandler
 
     func channelActive(context: ChannelHandlerContext) {
-        if let remoteAddr = context.channel.remoteAddress {
-            switch remoteAddr {
-            case .v4(let addr):
-                remoteAddress = addr.host
-            case .v6(let addr):
-                remoteAddress = addr.host
-            default:
-                remoteAddress = "unknown"
-            }
-        }
+        remoteAddress = ipExtractor.clientIP(from: context.channel)
         context.fireChannelActive()
     }
 
@@ -150,26 +141,15 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             requestBody = context.channel.allocator.buffer(capacity: 0)
 
         case .body(var body):
-            // Reject oversized request bodies (64KB limit for API requests).
-            if (requestBody?.readableBytes ?? 0) + body.readableBytes > 65_536 {
-                // Send 413 Payload Too Large and close the channel so the
-                // connection does not hang waiting for a response.
+            // Reject oversized request bodies. JSON endpoints are tiny, but
+            // /api/v1/uploads/image needs up to UploadEndpoints.maxBytes.
+            // Pick the larger of the two so uploads have headroom.
+            let bodyLimit = max(65_536, UploadEndpoints.maxBytes)
+            if (requestBody?.readableBytes ?? 0) + body.readableBytes > bodyLimit {
                 requestHead = nil
                 requestBody = nil
                 let channel = context.channel
-                let json = #"{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body exceeds the 64 KB limit."}}"#
-                let data = Data(json.utf8)
-                var headers = HTTPHeaders()
-                headers.add(name: "Content-Type", value: "application/json; charset=utf-8")
-                headers.add(name: "Content-Length", value: "\(data.count)")
-                headers.add(name: "Connection", value: "close")
-                let head = HTTPResponseHead(
-                    version: .http1_1,
-                    status: .payloadTooLarge,
-                    headers: headers
-                )
-                var buffer = channel.allocator.buffer(capacity: data.count)
-                buffer.writeBytes(data)
+                let (head, buffer) = builder.payloadTooLargeResponse(allocator: channel.allocator)
                 channel.write(wrapOutboundOut(.head(head)), promise: nil)
                 channel.write(wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
                 channel.writeAndFlush(wrapOutboundOut(.end(nil))).whenComplete { _ in
@@ -208,1303 +188,346 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         }
         #endif
 
-        // WebSocket upgrade — handle before anything else.
-        // Resolve the safe CORS origin once per request.
-        corsOrigin = allowedOrigin(from: head)
+        // SECURITY: `corsOrigin` is a request-scoped local — never an instance var.
+        // Under HTTP keep-alive, a previous request's origin must not leak into a
+        // subsequent response.
+        let corsOrigin = corsPolicy.allowedOrigin(from: head)
 
         // CORS preflight.
         if method == .OPTIONS {
-            sendCORSPreflight(channel: channel)
+            let (h, b) = builder.corsPreflightResponse(corsOrigin: corsOrigin, allocator: channel.allocator)
+            write(head: h, body: b, to: channel)
             return
         }
 
         // Static files (no auth required).
-        if method == .GET {
-            switch path {
-            case "/":
-                serveStaticFile("index.html", contentType: "text/html", channel: channel)
-                return
-            case "/app.css":
-                serveStaticFile("app.css", contentType: "text/css", channel: channel)
-                return
-            case "/app.js":
-                serveStaticFile("app.js", contentType: "application/javascript", channel: channel)
-                return
-            case "/favicon.ico":
-                serveStaticFile("favicon.ico", contentType: "image/x-icon", channel: channel)
-                return
-            default:
-                if path.hasPrefix("/vendor/") {
-                    let fileName = String(path.dropFirst(1)) // "vendor/..."
-                    let ext = (fileName as NSString).pathExtension
-                    let mime = mimeType(for: ext)
-                    serveStaticFile(fileName, contentType: mime, channel: channel)
-                    return
-                }
-            }
+        if method == .GET, handleStatic(path: path, channel: channel) {
+            return
         }
 
         // Health check (no auth required).
         if method == .GET && path == "/api/v1/health" {
-            handleHealth(channel: channel)
+            dispatchMainActor(channel: channel) { [authService, builder] alloc in
+                DiagnosticsEndpoints(authService: authService, builder: builder)
+                    .handleHealth(serverRef: self.serverRef, corsOrigin: corsOrigin, allocator: alloc)
+            }
             return
         }
 
-        // Auth endpoints (no bearer token required).
+        // Auth (no bearer required).
         if method == .POST && path == "/api/v1/auth/token" {
-            handleAuthToken(head: head, body: body, channel: channel)
+            let clientIP = remoteAddress
+            let userAgent = head.headers["User-Agent"].first ?? ""
+            #if DEBUG
+            NSLog("[RC-AUTH] handleAuthToken: clientIP=\(clientIP) remoteAddr=\(remoteAddress)")
+            #endif
+            dispatchMainActor(channel: channel) { [authService, builder, decoder] alloc in
+                AuthEndpoints(authService: authService, builder: builder, decoder: decoder)
+                    .handlePinValidate(
+                        body: body, clientIP: clientIP, userAgent: userAgent,
+                        corsOrigin: corsOrigin, allocator: alloc
+                    )
+            }
             return
         }
 
         #if DEBUG
-        // Debug endpoints are gated behind an opt-in environment variable
-        // (VS_DEBUG_API=1) so they are never accidentally reachable in
-        // TestFlight / Ad-Hoc builds distributed to external testers.
-        // Set `VS_DEBUG_API=1` in the scheme's Run > Arguments > Environment
-        // Variables to enable these endpoints locally.
-        let debugAPIEnabled = ProcessInfo.processInfo.environment["VS_DEBUG_API"] != nil
-
-        // Debug-only: expose current PIN for automated testing.
-        if method == .GET && path == "/api/v1/debug/pin" {
-            guard debugAPIEnabled else {
-                sendErrorJSON(status: .notFound, code: "NOT_FOUND",
-                              message: "The requested resource was not found.", channel: channel)
-                return
-            }
-            let authSvc = authService
-            Task { @MainActor in
-                let pin = authSvc.currentPin
-                let json = "{\"pin\":\"\(pin)\"}"
-                channel.eventLoop.execute {
-                    self.sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
-                }
-            }
-            return
-        }
-        // Debug-only: show WS upgrade log.
-        if method == .GET && path == "/api/v1/debug/wslog" {
-            guard debugAPIEnabled else {
-                sendErrorJSON(status: .notFound, code: "NOT_FOUND",
-                              message: "The requested resource was not found.", channel: channel)
-                return
-            }
-            let log = HTTPRequestRouter.wsDebugLog
-            let json = "[" + log.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ",") + "]"
-            sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
-            return
-        }
-        // Debug-only: show connected devices, tokens, IPs, and caller IP.
-        if method == .GET && path == "/api/v1/debug/state" {
-            guard debugAPIEnabled else {
-                sendErrorJSON(status: .notFound, code: "NOT_FOUND",
-                              message: "The requested resource was not found.", channel: channel)
-                return
-            }
-            let authSvc = authService
-            let callerIP = remoteAddress
-            let serverRef = self.serverRef
-            Task { @MainActor in
-                let devices = authSvc.connectedDevices.map { d in
-                    "{\"id\":\"\(d.id)\",\"ip\":\"\(d.ipAddress)\"}"
-                }.joined(separator: ",")
-                let deviceCount = authSvc.connectedDevices.count
-                let ngrokURL = serverRef?.ngrokTunnelURL ?? "null"
-                let ngrokRunning = serverRef?.isNgrokRunning ?? false
-                let ngrokError = serverRef?.ngrokError ?? "null"
-                let json = """
-                {"caller_ip":"\(callerIP)","devices":[\(devices)],"device_count":\(deviceCount),\
-                "ngrok":{"running":\(ngrokRunning),"url":"\(ngrokURL)","error":"\(ngrokError)"}}
-                """
-                channel.eventLoop.execute {
-                    self.sendRawJSON(status: .ok, data: Data(json.utf8), channel: channel)
-                }
-            }
+        if method == .GET, path.hasPrefix("/api/v1/debug/") {
+            handleDebugRoute(path: path, channel: channel, corsOrigin: corsOrigin)
             return
         }
         #endif
 
         // WebSocket upgrade for terminal endpoints.
-        // Handled here (not via NIO's HTTPServerUpgradeHandler) because that handler
-        // is one-shot and removes itself after the first non-upgrade request, breaking
-        // HTTP/1.1 keep-alive connections where the WS upgrade comes after page load.
-        // Browser WebSocket API doesn't support custom headers, so the token is in query params.
         if method == .GET &&
            (path.hasPrefix("/ws/terminal/") || path.hasPrefix("/api/v1/terminal/")) &&
            head.headers["Upgrade"].first?.caseInsensitiveCompare("websocket") == .orderedSame {
-            handleWebSocketUpgrade(head: head, path: path, channel: channel)
+            handleWebSocketUpgrade(head: head, path: path, channel: channel, corsOrigin: corsOrigin)
             return
         }
 
         // All other /api/ endpoints require authentication.
         if path.hasPrefix("/api/") {
-            let clientIP = extractClientIP(from: head)
-            guard let token = extractBearerToken(from: head) else {
-                sendErrorJSON(
-                    status: .unauthorized,
-                    code: "AUTH_REQUIRED",
-                    message: "Authorization header with Bearer token is required.",
-                    channel: channel
-                )
-                return
-            }
-
-            // Validate token on MainActor, then continue routing.
-            let authSvc = authService
-            let termSvc = terminalService
-            let projMgr = projectManager
-            let prefs = preferences
-            let serverRef = self.serverRef
-            let enc = encoder
-
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                let result = authSvc.validateToken(token, clientIP: clientIP)
-                switch result {
-                case .failure(let error):
-                    let (status, code, message) = self.authErrorResponse(error)
-                    let respData = try? enc.encode(
-                        ErrorResponse(error: ErrorDetail(code: code, message: message))
-                    )
-                    channel.eventLoop.execute { [weak self] in
-                        self?.sendRawJSON(
-                            status: status,
-                            data: respData ?? Data(),
-                            channel: channel
-                        )
-                    }
-
-                case .success(let device):
-                    // Route authenticated request.
-                    self.routeAuthenticated(
-                        path: path,
-                        method: method,
-                        head: head,
-                        body: body,
-                        device: device,
-                        channel: channel,
-                        terminalService: termSvc,
-                        projectManager: projMgr,
-                        preferences: prefs,
-                        serverRef: serverRef,
-                        authService: authSvc,
-                        encoder: enc
-                    )
-                }
-            }
+            handleAuthenticated(
+                path: path, method: method, head: head, body: body,
+                channel: channel, corsOrigin: corsOrigin
+            )
             return
         }
 
         // Unknown path.
-        sendErrorJSON(
-            status: .notFound,
-            code: "NOT_FOUND",
+        let (h, b) = builder.errorJSONResponse(
+            status: .notFound, code: "NOT_FOUND",
             message: "The requested resource was not found.",
-            channel: channel
+            corsOrigin: corsOrigin, allocator: channel.allocator
         )
+        write(head: h, body: b, to: channel)
     }
 
-    // MARK: - Authenticated Route Dispatch
+    // MARK: - Static Files
 
-    /// Route an authenticated API request. Runs on MainActor.
-    @MainActor
-    private func routeAuthenticated(
+    /// Returns `true` when the request matched a static route (response sent).
+    private func handleStatic(path: String, channel: Channel) -> Bool {
+        let mapping: [String: String] = [
+            "/": "index.html",
+            "/app.css": "app.css",
+            "/app.js": "app.js",
+            "/sw.js": "sw.js",
+            "/favicon.ico": "favicon.ico"
+        ]
+        if let fileName = mapping[path] {
+            let defaultType = MIMETypeMap.forExtension((fileName as NSString).pathExtension)
+            serveStaticFile(fileName: fileName, defaultContentType: defaultType, channel: channel)
+            return true
+        }
+        if path.hasPrefix("/vendor/") {
+            let fileName = String(path.dropFirst(1)) // "vendor/..."
+            let ext = (fileName as NSString).pathExtension
+            serveStaticFile(fileName: fileName, defaultContentType: MIMETypeMap.forExtension(ext), channel: channel)
+            return true
+        }
+        return false
+    }
+
+    private func serveStaticFile(fileName: String, defaultContentType: String, channel: Channel) {
+        switch staticFiles.serve(fileName: fileName, defaultContentType: defaultContentType) {
+        case .found(let data, let contentType):
+            let (h, b) = builder.staticFileResponse(
+                data: data, contentType: contentType,
+                fileName: fileName, allocator: channel.allocator
+            )
+            write(head: h, body: b, to: channel)
+        case .forbidden:
+            let (h, b) = builder.errorJSONResponse(
+                status: .forbidden, code: "FORBIDDEN",
+                message: "Access denied.", corsOrigin: nil, allocator: channel.allocator
+            )
+            write(head: h, body: b, to: channel)
+        case .notFound:
+            let (h, b) = builder.errorJSONResponse(
+                status: .notFound, code: "NOT_FOUND",
+                message: "Static file not found.", corsOrigin: nil, allocator: channel.allocator
+            )
+            write(head: h, body: b, to: channel)
+        }
+    }
+
+    // MARK: - Authenticated Dispatch
+
+    private func handleAuthenticated(
         path: String,
         method: HTTPMethod,
         head: HTTPRequestHead,
         body: ByteBuffer?,
-        device: RemoteDevice,
         channel: Channel,
-        terminalService: TerminalService,
-        projectManager: any ProjectManaging,
-        preferences: RemoteControlPreferences,
-        serverRef: RemoteControlServer?,
-        authService: RemoteAuthService,
-        encoder: JSONEncoder
+        corsOrigin: String?
     ) {
-        // GET /api/v1/auth/validate
-        if method == .GET && path == "/api/v1/auth/validate" {
-            let resp = AuthValidateResponse(
-                valid: true,
-                deviceId: device.id.uuidString,
-                expiresAt: device.connectedAt.addingTimeInterval(4 * 60 * 60)
+        let clientIP = remoteAddress
+        guard let token = extractBearerToken(from: head) else {
+            let (h, b) = builder.errorJSONResponse(
+                status: .unauthorized, code: "AUTH_REQUIRED",
+                message: "Authorization header with Bearer token is required.",
+                corsOrigin: corsOrigin, allocator: channel.allocator
             )
-            sendEncodable(resp, channel: channel, encoder: encoder)
+            write(head: h, body: b, to: channel)
             return
         }
 
-        // GET /api/v1/projects
-        if method == .GET && path == "/api/v1/projects" {
-            handleListProjects(
-                projectManager: projectManager,
-                terminalService: terminalService,
-                serverRef: serverRef,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // GET /api/v1/projects/recent (must be before :id pattern)
-        if method == .GET && path == "/api/v1/projects/recent" {
-            handleListRecentProjects(
-                projectManager: projectManager,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // GET /api/v1/projects/:id
-        if method == .GET, let projectId = extractUUID(from: path, pattern: "/api/v1/projects/"),
-           !path.contains("/sessions/") {
-            handleGetProject(
-                projectId: projectId,
-                projectManager: projectManager,
-                terminalService: terminalService,
-                serverRef: serverRef,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // GET /api/v1/projects/:pid/sessions/:sid/scrollback
-        if method == .GET && path.hasSuffix("/scrollback"),
-           let (projectId, sessionId) = extractProjectSession(from: path) {
-            handleScrollback(
-                projectId: projectId,
-                sessionId: sessionId,
-                device: device,
-                serverRef: serverRef,
-                terminalService: terminalService,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // GET /api/v1/devices
-        if method == .GET && path == "/api/v1/devices" {
-            handleListDevices(
-                authService: authService,
-                device: device,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // DELETE /api/v1/devices/:id
-        if method == .DELETE,
-           let deviceId = extractUUID(from: path, pattern: "/api/v1/devices/") {
-            handleDisconnectDevice(
-                deviceId: deviceId,
-                requestingDevice: device,
-                serverRef: serverRef,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // GET /api/v1/status
-        if method == .GET && path == "/api/v1/status" {
-            handleStatus(
-                serverRef: serverRef,
-                preferences: preferences,
-                authService: authService,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // POST /api/v1/projects/:id/activate
-        if method == .POST,
-           let projectId = extractUUID(from: path, pattern: "/api/v1/projects/"),
-           path.hasSuffix("/activate") {
-            handleActivateProject(
-                projectId: projectId,
-                projectManager: projectManager,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // POST /api/v1/projects/open
-        if method == .POST && path == "/api/v1/projects/open" {
-            handleOpenProject(
-                body: body,
-                projectManager: projectManager,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // POST /api/v1/assistant/start
-        if method == .POST && path == "/api/v1/assistant/start" {
-            handleAssistantStart(
-                body: body,
-                projectManager: projectManager,
-                terminalService: terminalService,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // POST /api/v1/assistant/stop
-        if method == .POST && path == "/api/v1/assistant/stop" {
-            handleAssistantStop(
-                projectManager: projectManager,
-                terminalService: terminalService,
-                channel: channel,
-                encoder: encoder
-            )
-            return
-        }
-
-        // Terminal WS endpoints are handled before auth in routeRequest
-        // (handleWebSocketUpgrade). If we reach here, the request is missing
-        // the Upgrade header.
-        if method == .GET && (path.hasPrefix("/api/v1/terminal/") || path.hasPrefix("/ws/terminal/")) {
-            sendErrorJSON(
-                status: .badRequest,
-                code: "INVALID_REQUEST",
-                message: "WebSocket upgrade required for terminal endpoints.",
-                channel: channel
-            )
-            return
-        }
-
-        sendErrorJSON(
-            status: .notFound,
-            code: "NOT_FOUND",
-            message: "The requested resource was not found.",
-            channel: channel
-        )
-    }
-
-    // MARK: - Endpoint Handlers
-
-    private func handleHealth(channel: Channel) {
-        // Enrich the health response with runtime diagnostics so monitoring
-        // tools and the client UI can display uptime, capacity, and version
-        // without needing an authenticated /api/v1/status call.
         let authSvc = authService
-        let serverRefCopy = serverRef
-        let enc = encoder
-        Task { @MainActor in
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-            let uptimeSeconds = serverRefCopy?.uptimeSeconds ?? 0
-            let connectedDevices = authSvc.connectedDevices.count
-            let resp = HealthResponse(
-                status: "healthy",
-                version: version,
-                uptimeSeconds: uptimeSeconds,
-                connectedDevices: connectedDevices,
-                maxDevices: RemoteAuthService.maxDevices,
-                tls: "self-signed"
-            )
-            guard let data = try? enc.encode(resp) else { return }
-            channel.eventLoop.execute { [weak self] in
-                self?.sendRawJSON(status: .ok, data: data, channel: channel)
-            }
-        }
-    }
-
-    private func handleAuthToken(head: HTTPRequestHead, body: ByteBuffer?, channel: Channel) {
-        guard let body,
-              let bodyData = body.getBytes(at: body.readerIndex, length: body.readableBytes).map({ Data($0) }),
-              let request = try? decoder.decode(AuthTokenRequest.self, from: bodyData) else {
-            sendErrorJSON(
-                status: .badRequest,
-                code: "INVALID_REQUEST",
-                message: "Request body must be JSON with a 'pin' field.",
-                channel: channel
-            )
-            return
-        }
-
-        let clientIP = extractClientIP(from: head)
-        let userAgent = head.headers["User-Agent"].first ?? ""
-        let authSvc = authService
-        let enc = encoder
-        #if DEBUG
-        NSLog("[RC-AUTH] handleAuthToken: clientIP=\(clientIP) remoteAddr=\(remoteAddress)")
-        #endif
+        let builder = builder
+        let alloc = channel.allocator
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let result = authSvc.validatePin(request.pin, clientIP: clientIP, userAgent: userAgent)
-            RemoteAuditLog.authAttempt(ip: clientIP, success: result.isSuccess)
-            #if DEBUG
-            NSLog("[RC-AUTH] validatePin result: \(result.isSuccess ? "OK" : "FAIL") ip=\(clientIP)")
-            #endif
-
+            let result = authSvc.validateToken(token, clientIP: clientIP)
             switch result {
-            case .success(let tokenResponse):
-                #if DEBUG
-                NSLog("[RC-AUTH] issued token=\(String(tokenResponse.token.prefix(8)))...")
-                #endif
-                let resp = AuthTokenResponseDTO(
-                    token: tokenResponse.token,
-                    expiresAt: Date().addingTimeInterval(4 * 60 * 60),
-                    deviceId: tokenResponse.device.id.uuidString
+            case .failure(let error):
+                let (status, code, message) = AuthEndpoints.authErrorResponse(error)
+                let (h, b) = builder.errorJSONResponse(
+                    status: status, code: code, message: message,
+                    corsOrigin: corsOrigin, allocator: alloc
                 )
-                if let data = try? enc.encode(resp) {
-                    channel.eventLoop.execute { [weak self] in
-                        self?.sendRawJSON(status: .ok, data: data, channel: channel)
-                    }
+                channel.eventLoop.execute { [weak self] in
+                    self?.write(head: h, body: b, to: channel)
                 }
 
-            case .failure(let error):
-                let (status, code, message) = self.authErrorResponse(error)
-                let resp = ErrorResponse(error: ErrorDetail(code: code, message: message))
-                if let data = try? enc.encode(resp) {
-                    channel.eventLoop.execute { [weak self] in
-                        self?.sendRawJSON(status: status, data: data, channel: channel)
+            case .success(let device):
+                let registry = RouterRegistry(
+                    authService: self.authService,
+                    terminalService: self.terminalService,
+                    projectManager: self.projectManager,
+                    preferences: self.preferences,
+                    claudePermissions: self.claudePermissions,
+                    uploadStore: self.uploadStore,
+                    builder: builder,
+                    decoder: self.decoder
+                )
+                // Forward request Content-Type to the registry so binary
+                // uploads can be MIME-checked.
+                let contentType = head.headers["Content-Type"].first ?? ""
+                let response = registry.dispatch(
+                    path: path, method: method, body: body, device: device,
+                    token: token, clientIP: clientIP, contentType: contentType,
+                    serverRef: self.serverRef, corsOrigin: corsOrigin, allocator: alloc
+                )
+                channel.eventLoop.execute { [weak self] in
+                    if let (h, b) = response {
+                        self?.write(head: h, body: b, to: channel)
                     }
                 }
             }
         }
     }
 
-    @MainActor
-    private func handleListProjects(
-        projectManager: any ProjectManaging,
-        terminalService: TerminalService,
-        serverRef: RemoteControlServer?,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        let projectResponses = projectManager.projects.map { project in
-            buildProjectResponse(
-                project: project,
-                isActive: project.id == projectManager.activeProjectId,
-                terminalService: terminalService,
-                serverRef: serverRef
-            )
-        }
-        let resp = ProjectsListResponse(
-            projects: projectResponses,
-            activeProjectId: projectManager.activeProjectId?.uuidString
-        )
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
+    // MARK: - Debug Routes
 
-    @MainActor
-    private func handleGetProject(
-        projectId: UUID,
-        projectManager: any ProjectManaging,
-        terminalService: TerminalService,
-        serverRef: RemoteControlServer?,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        guard let project = projectManager.project(for: projectId) else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(code: "PROJECT_NOT_FOUND", message: "Unknown project ID.")
+    #if DEBUG
+    private func handleDebugRoute(path: String, channel: Channel, corsOrigin: String?) {
+        // Only the three known debug paths are dispatched here; anything else
+        // under `/api/v1/debug/` falls through to the standard 404 below.
+        let known: Set<String> = ["/api/v1/debug/pin", "/api/v1/debug/wslog", "/api/v1/debug/state"]
+        guard known.contains(path) else {
+            let (h, b) = builder.errorJSONResponse(
+                status: .notFound, code: "NOT_FOUND",
+                message: "The requested resource was not found.",
+                corsOrigin: corsOrigin, allocator: channel.allocator
             )
-            sendEncodableResponse(resp, status: .notFound, channel: channel, encoder: encoder)
+            write(head: h, body: b, to: channel)
             return
         }
-        let resp = buildProjectResponse(
-            project: project,
-            isActive: project.id == projectManager.activeProjectId,
-            terminalService: terminalService,
-            serverRef: serverRef
-        )
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    @MainActor
-    private func handleScrollback(
-        projectId: UUID,
-        sessionId: UUID,
-        device: RemoteDevice,
-        serverRef: RemoteControlServer?,
-        terminalService: TerminalService,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        // Allow scrollback access for any authenticated device (valid bearer token).
-        // Previously this required an active WS bridge (`isAttached`), which broke
-        // reconnect flows: the client needs scrollback to restore its view before
-        // the WS handshake completes. Authentication is sufficient authorization
-        // here — the session belongs to the local user who chose to share it.
-        // (No session ownership check is needed because all remote clients share
-        // the same local user context.)
-
-        let fullContent = terminalService.rawScrollbackContent(for: sessionId) ?? ""
-        let allLines = fullContent.components(separatedBy: "\n")
-        // Cap returned content to last 10000 lines to prevent excessive payloads.
-        let maxLines = 10_000
-        let returnedLines = allLines.suffix(maxLines)
-        let content = returnedLines.joined(separator: "\n")
-        let resp = ScrollbackResponse(
-            content: content,
-            totalLines: allLines.count,
-            returnedLines: returnedLines.count
-        )
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    @MainActor
-    private func handleListDevices(
-        authService: RemoteAuthService,
-        device: RemoteDevice,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        let deviceResponses = authService.connectedDevices.map { dev in
-            DeviceResponse(
-                deviceId: dev.id.uuidString,
-                ip: dev.ipAddress,
-                userAgent: dev.displayName,
-                connectedSince: dev.connectedAt,
-                lastActivity: dev.connectedAt,
-                attachedSessions: [],
-                isSelf: dev.id == device.id
-            )
-        }
-        let resp = DevicesListResponse(devices: deviceResponses, maxDevices: RemoteAuthService.maxDevices)
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    @MainActor
-    private func handleDisconnectDevice(
-        deviceId: UUID,
-        requestingDevice: RemoteDevice,
-        serverRef: RemoteControlServer?,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        // SECURITY: A device can only disconnect itself.
-        guard deviceId == requestingDevice.id else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(
-                    code: "FORBIDDEN",
-                    message: "You can only disconnect your own device."
+        let callerIP = remoteAddress
+        dispatchMainActor(channel: channel) { [authService, builder, weak self] alloc in
+            let debug = DebugEndpoints(authService: authService, builder: builder)
+            guard DebugEndpoints.isEnabled else {
+                return debug.handleDisabled(corsOrigin: corsOrigin, allocator: alloc)
+            }
+            switch path {
+            case "/api/v1/debug/pin":
+                return debug.handlePin(corsOrigin: corsOrigin, allocator: alloc)
+            case "/api/v1/debug/wslog":
+                return debug.handleWSLog(corsOrigin: corsOrigin, allocator: alloc)
+            case "/api/v1/debug/state":
+                return debug.handleState(
+                    callerIP: callerIP, serverRef: self?.serverRef,
+                    corsOrigin: corsOrigin, allocator: alloc
                 )
-            )
-            sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
-            return
-        }
-        serverRef?.disconnect(deviceId)
-        channel.eventLoop.execute { [weak self] in
-            self?.sendEmptyResponse(status: .noContent, channel: channel)
-        }
-    }
-
-    @MainActor
-    private func handleStatus(
-        serverRef: RemoteControlServer?,
-        preferences: RemoteControlPreferences,
-        authService: RemoteAuthService,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        let resp = StatusResponse(
-            server: .init(
-                version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
-                apiVersion: "1.0.0",
-                uptimeSeconds: serverRef?.uptimeSeconds ?? 0,
-                port: preferences.remoteControlPort,
-                tls: "self-signed",
-                bonjourPublished: preferences.bonjourEnabled
-            ),
-            connections: .init(
-                connectedDevices: authService.connectedDevices.count,
-                maxDevices: RemoteAuthService.maxDevices,
-                activeWebsockets: serverRef?.activeBridges.count ?? 0
-            ),
-            theme: .init(
-                appearance: "dark",
-                terminalColors: TerminalColorsResponse(
-                    foreground: "#D4D4D4",
-                    background: "#1E1E1E",
-                    cursor: "#AEAFAD",
-                    selection: "#264F78",
-                    ansi: [
-                        "#000000", "#CD3131", "#0DBC79", "#E5E510",
-                        "#2472C8", "#BC3FBC", "#11A8CD", "#E5E5E5",
-                        "#666666", "#F14C4C", "#23D18B", "#F5F543",
-                        "#3B8EEA", "#D670D6", "#29B8DB", "#FFFFFF"
-                    ]
-                )
-            )
-        )
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    // MARK: - Endpoint Handlers: Project Activate / Assistant Start / Stop
-
-    @MainActor
-    private func handleActivateProject(
-        projectId: UUID,
-        projectManager: any ProjectManaging,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        guard projectManager.project(for: projectId) != nil else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(code: "PROJECT_NOT_FOUND", message: "Unknown project ID.")
-            )
-            sendEncodableResponse(resp, status: .notFound, channel: channel, encoder: encoder)
-            return
-        }
-        projectManager.activeProjectId = projectId
-        let resp = OKResponse(ok: true)
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    @MainActor
-    private func handleListRecentProjects(
-        projectManager: any ProjectManaging,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        let isoFormatter = ISO8601DateFormatter()
-        let recentResponses = projectManager.recentProjects.map { project in
-            // SECURITY: Expose only the last path component (directory name), not
-            // the full filesystem path, to prevent information leakage to remote clients.
-            RecentProjectResponse(
-                name: project.name,
-                path: project.path.lastPathComponent,
-                lastOpened: isoFormatter.string(from: project.lastOpened)
-            )
-        }
-        let resp = RecentProjectsListResponse(projects: recentResponses)
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    @MainActor
-    private func handleOpenProject(
-        body: ByteBuffer?,
-        projectManager: any ProjectManaging,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        guard let body,
-              let bodyData = body.getBytes(at: body.readerIndex, length: body.readableBytes).map({ Data($0) }),
-              let request = try? decoder.decode(OpenProjectRequest.self, from: bodyData) else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(code: "INVALID_BODY", message: "Expected JSON with 'path' field.")
-            )
-            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
-            return
-        }
-
-        let pathURL = URL(fileURLWithPath: request.path).standardizedFileURL
-
-        // SECURITY: Reject paths outside user's home directory to prevent
-        // arbitrary filesystem traversal. Only allow opening projects within
-        // the user's home directory tree.
-        let homePath = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
-        guard pathURL.path.hasPrefix(homePath) else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(
-                    code: "PATH_FORBIDDEN",
-                    message: "Only paths within the user's home directory are allowed."
-                )
-            )
-            sendEncodableResponse(resp, status: .forbidden, channel: channel, encoder: encoder)
-            return
-        }
-
-        // If project already open — just activate it.
-        if let existing = projectManager.project(at: pathURL) {
-            projectManager.activeProjectId = existing.id
-            let resp = OpenProjectResponse(ok: true, projectId: existing.id.uuidString)
-            sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-            return
-        }
-
-        do {
-            let project = try projectManager.addProject(at: pathURL)
-            projectManager.activeProjectId = project.id
-            let resp = OpenProjectResponse(ok: true, projectId: project.id.uuidString)
-            sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
-        } catch {
-            let resp = ErrorResponse(
-                error: ErrorDetail(code: "OPEN_FAILED", message: error.localizedDescription)
-            )
-            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
-        }
-    }
-
-    @MainActor
-    private func handleAssistantStart(
-        body: ByteBuffer?,
-        projectManager: any ProjectManaging,
-        terminalService: TerminalService,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        // Resolve active project.
-        guard let projectId = projectManager.activeProjectId else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(code: "NO_ACTIVE_PROJECT", message: "No active project is set.")
-            )
-            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
-            return
-        }
-
-        // Parse optional request body for the `assistant` field.
-        let requestedAssistant: AIAssistant? = {
-            guard let buf = body,
-                  let bytes = buf.getBytes(at: buf.readerIndex, length: buf.readableBytes),
-                  let parsed = try? decoder.decode(AssistantStartRequest.self, from: Data(bytes)) else {
+            default:
                 return nil
             }
-            return AIAssistant(rawValue: parsed.assistant ?? "")
-        }()
-
-        // Default to .claude when absent or unrecognised.
-        let agent = requestedAssistant ?? .claude
-
-        // Find the first non-agent shell session for the project.
-        guard let shellSession = terminalService.sessions(for: projectId)
-                .first(where: { !$0.isAgentSession }) else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(
-                    code: "NO_SHELL_SESSION",
-                    message: "No shell session available for the active project."
-                )
-            )
-            sendEncodableResponse(resp, status: .serviceUnavailable, channel: channel, encoder: encoder)
-            return
         }
-
-        // Build launch command, appending --dangerously-skip-permissions for Claude when enabled.
-        var command = agent.launchCommand
-        if agent == .claude && UserDefaults.standard.bool(forKey: "vs_claude_skip_permissions") {
-            command = "claude --dangerously-skip-permissions\n"
-        }
-        terminalService.sendInput(command, to: shellSession.id)
-
-        let resp = AssistantStartResponse(
-            ok: true,
-            assistant: agent.rawValue,
-            sessionId: shellSession.id.uuidString
-        )
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
+    #endif
 
-    @MainActor
-    private func handleAssistantStop(
-        projectManager: any ProjectManaging,
-        terminalService: TerminalService,
+    // MARK: - WebSocket Upgrade
+
+    private func handleWebSocketUpgrade(
+        head: HTTPRequestHead,
+        path: String,
         channel: Channel,
-        encoder: JSONEncoder
+        corsOrigin: String?
     ) {
-        guard let projectId = projectManager.activeProjectId else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(code: "NO_ACTIVE_PROJECT", message: "No active project is set.")
+        switch wsUpgrade.parseSession(path: path, head: head) {
+        case .invalidSession:
+            let (h, b) = builder.errorJSONResponse(
+                status: .badRequest, code: "INVALID_SESSION",
+                message: "Invalid session ID.", corsOrigin: corsOrigin, allocator: channel.allocator
             )
-            sendEncodableResponse(resp, status: .badRequest, channel: channel, encoder: encoder)
-            return
-        }
+            write(head: h, body: b, to: channel)
 
-        let sessions = terminalService.sessions(for: projectId)
-
-        // Prefer the agent session; fall back to the first available session.
-        guard let targetSession = sessions.first(where: { $0.isAgentSession }) ?? sessions.first else {
-            let resp = ErrorResponse(
-                error: ErrorDetail(
-                    code: "NO_SESSION",
-                    message: "No terminal session found for the active project."
-                )
+        case .missingKey:
+            let (h, b) = builder.errorJSONResponse(
+                status: .badRequest, code: "INVALID_REQUEST",
+                message: "Missing Sec-WebSocket-Key.", corsOrigin: corsOrigin, allocator: channel.allocator
             )
-            sendEncodableResponse(resp, status: .serviceUnavailable, channel: channel, encoder: encoder)
-            return
+            write(head: h, body: b, to: channel)
+
+        case .ok(let sessionId):
+            performWebSocketUpgrade(head: head, sessionId: sessionId, channel: channel)
         }
-
-        // Determine exit sequence from the agent session title, defaulting to ctrlC.
-        // We cannot know which assistant is running server-side without additional
-        // state tracking, so we default to the universal Ctrl+C interrupt. Callers
-        // that need agent-specific exit (e.g. claude's /exit) should track assistant
-        // state themselves.
-        terminalService.sendInput("\u{03}", to: targetSession.id)
-
-        let resp = OKResponse(ok: true)
-        sendEncodableResponse(resp, status: .ok, channel: channel, encoder: encoder)
     }
 
-    // MARK: - WebSocket Upgrade
-
-    // MARK: - Helpers: Project Response Builder
-
-    @MainActor
-    private func buildProjectResponse(
-        project: Project,
-        isActive: Bool,
-        terminalService: TerminalService,
-        serverRef: RemoteControlServer?
-    ) -> ProjectResponse {
-        let sessions = terminalService.sessions(for: project.id).map { session in
-            SessionResponse(
-                id: session.id.uuidString,
-                title: session.title,
-                state: session.state.remoteAPIString,
-                isAgent: session.isAgentSession,
-                hasRemoteAttachment: serverRef?.activeBridges.values.contains {
-                    $0.sessionId == session.id
-                } ?? false,
-                attachedDeviceId: serverRef?.activeBridges.values.first {
-                    $0.sessionId == session.id
-                }?.deviceId.uuidString
-            )
-        }
-        // SECURITY: Only expose the last path component (directory name) instead
-        // of the full filesystem path, to prevent information leakage.
-        return ProjectResponse(
-            id: project.id.uuidString,
-            name: project.name,
-            path: project.path.lastPathComponent,
-            color: project.color?.value,
-            isActive: isActive,
-            git: nil,
-            sessions: sessions
+    private func performWebSocketUpgrade(
+        head: HTTPRequestHead,
+        sessionId: UUID,
+        channel: Channel
+    ) {
+        // wsKey existence is guaranteed by parseSession.
+        guard let wsKey = head.headers["Sec-WebSocket-Key"].first else { return }
+        let requestedProtocol = head.headers["Sec-WebSocket-Protocol"].first
+        let upgrade = wsUpgrade.buildUpgradeResponse(
+            secWebSocketKey: wsKey, requestedProtocol: requestedProtocol
         )
-    }
-
-    // MARK: - WebSocket Upgrade
-
-    /// Manually perform WebSocket upgrade (RFC 6455).
-    ///
-    /// NIO's `HTTPServerUpgradeHandler` is one-shot — it removes itself from the
-    /// pipeline after the first non-upgrade request. On HTTP/1.1 keep-alive
-    /// connections (Safari's default), the HTML/CSS/JS/REST requests arrive first,
-    /// the upgrader is gone, and the WS upgrade request falls through to the router
-    /// as a plain GET. This method handles the upgrade directly.
-    private func handleWebSocketUpgrade(head: HTTPRequestHead, path: String, channel: Channel) {
-        // Extract session ID. Both /ws/terminal/{id} (mobile client) and
-        // legacy /api/v1/terminal/{id} are accepted.
-        let prefix = path.hasPrefix("/ws/terminal/") ? "/ws/terminal/" : "/api/v1/terminal/"
-        let sessionIdStr = String(path.dropFirst(prefix.count))
-        guard let sessionId = UUID(uuidString: sessionIdStr) else {
-            sendErrorJSON(status: .badRequest, code: "INVALID_SESSION",
-                          message: "Invalid session ID.", channel: channel)
-            return
-        }
-
-        // SECURITY: Token is NOT passed in query params (would leak in logs/history).
-        // Instead, the client sends the token as the first WS text message after connect.
-        // Authentication is handled by RemoteWebSocketHandler.
-
-        guard let wsKey = head.headers["Sec-WebSocket-Key"].first else {
-            sendErrorJSON(status: .badRequest, code: "INVALID_REQUEST",
-                          message: "Missing Sec-WebSocket-Key.", channel: channel)
-            return
-        }
 
         let clientIP = remoteAddress
         let authSvc = authService
         let termSvc = terminalService
         let idleTimeout = cachedIdleTimeoutMinutes
-        let requestedProtocol = head.headers["Sec-WebSocket-Protocol"].first
         weak var server = serverRef
 
         #if DEBUG
         HTTPRequestRouter.wsLog("[WS] handleWebSocketUpgrade: session=\(sessionId) ip=\(clientIP)")
         #endif
 
-        // Upgrade immediately — auth happens on first WS message.
-        do {
-            // Sec-WebSocket-Accept per RFC 6455 §4.2.2.
-            let magicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-            let hash = Insecure.SHA1.hash(data: Data((wsKey + magicGUID).utf8))
-            let acceptValue = Data(hash).base64EncodedString()
-
-            // Create handler that expects auth as first message.
-            let wsHandler = RemoteWebSocketHandler(
-                sessionId: sessionId,
-                deviceInfo: nil, // authenticated on first message
-                serverRef: server,
-                terminalService: termSvc,
-                idleTimeoutMinutes: idleTimeout,
-                authService: authSvc,
-                clientIP: clientIP
-            )
-
-            channel.eventLoop.execute {
-                // Pause reads so incoming WS frames don't hit the HTTP decoder
-                // during the pipeline swap (race condition: Safari sends WS frame
-                // immediately after receiving 101).
-                channel.setOption(ChannelOptions.autoRead, value: false)
-                    .whenFailure { _ in }
-
-                // Send 101 Switching Protocols via the existing HTTP encoder.
-                var headers = HTTPHeaders()
-                headers.add(name: "Upgrade", value: "websocket")
-                headers.add(name: "Connection", value: "upgrade")
-                headers.add(name: "Sec-WebSocket-Accept", value: acceptValue)
-                // SECURITY: Only echo the subprotocol if the client requested
-                // exactly "vibestudio.v1". Echoing an arbitrary subprotocol back
-                // to the client would allow an attacker to spoof our WebSocket
-                // negotiation by claiming any protocol name.
-                if requestedProtocol == "vibestudio.v1" {
-                    headers.add(name: "Sec-WebSocket-Protocol", value: "vibestudio.v1")
-                }
-
-                let responseHead = HTTPResponseHead(
-                    version: .http1_1, status: .switchingProtocols, headers: headers
-                )
-                channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
-                channel.writeAndFlush(self.wrapOutboundOut(.end(nil))).whenSuccess {
-                    self.installWebSocketPipeline(channel: channel, handler: wsHandler)
-                }
-            }
-        }
-    }
-
-    /// Replace the HTTP pipeline with WebSocket frame codec + handler.
-    private func installWebSocketPipeline(channel: Channel, handler: RemoteWebSocketHandler) {
-        #if DEBUG
-        HTTPRequestRouter.wsLog("[WS] installWebSocketPipeline: starting pipeline swap")
-        #endif
-
-        let el = channel.eventLoop
-        let pipeline = channel.pipeline
-
-        // Helper: remove a handler by name, ignoring "not found" errors.
-        func removeByName(_ name: String) -> EventLoopFuture<Void> {
-            pipeline.removeHandler(name: name).flatMapError { _ in
-                el.makeSucceededVoidFuture()
-            }
-        }
-
-        // Remove all HTTP handlers by name (set in RemoteControlServer configureChildChannel),
-        // then install WebSocket handlers.
-        removeByName("http_router").flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step1: router removed")
-            #endif
-            return removeByName("http_error")
-        }.flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step2: error handler removed")
-            #endif
-            return removeByName("http_decoder")
-        }.flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step3: decoder removed")
-            #endif
-            return removeByName("http_encoder")
-        }.flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step4: encoder removed — adding WS handlers")
-            #endif
-            return pipeline.addHandler(WebSocketFrameEncoder())
-        }.flatMap { () -> EventLoopFuture<Void> in
-            pipeline.addHandler(ByteToMessageHandler(WebSocketFrameDecoder()))
-        }.flatMap { () -> EventLoopFuture<Void> in
-            pipeline.addHandler(handler)
-        }.whenComplete { result in
-            switch result {
-            case .success:
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] pipeline swap COMPLETE — handler installed")
-                #endif
-                // Resume reading: WS decoder now in place.
-                channel.setOption(ChannelOptions.autoRead, value: true).whenSuccess {
-                    channel.read()
-                }
-            case .failure(let error):
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] pipeline swap FAILED: \(error)")
-                #endif
-                channel.close(promise: nil)
-            }
-        }
-    }
-
-    // MARK: - Helpers: Response Writing
-
-    /// Append security headers common to all responses.
-    ///
-    /// - Parameters:
-    ///   - headers: The mutable header set to augment.
-    ///   - isHTML: When `true`, the `Content-Security-Policy` is tuned for
-    ///     the web UI (allows inline styles, WebSocket connections).
-    ///     When `false` (API JSON), a restrictive `default-src 'none'` policy
-    ///     is emitted.
-    private func addSecurityHeaders(to headers: inout HTTPHeaders, isHTML: Bool) {
-        headers.add(name: "X-Content-Type-Options", value: "nosniff")
-        headers.add(name: "X-Frame-Options", value: "DENY")
-        headers.add(name: "Referrer-Policy", value: "no-referrer")
-        if isHTML {
-            // Web UI CSP: allow same-origin resources, inline styles for
-            // xterm.js theming, and ws:/wss: for the terminal WebSocket.
-            headers.add(
-                name: "Content-Security-Policy",
-                value: "default-src 'self'; " +
-                       "script-src 'self'; " +
-                       "style-src 'self' 'unsafe-inline'; " +
-                       "connect-src 'self' wss: ws:"
-            )
-        } else {
-            // API JSON responses have no need to load any sub-resources.
-            headers.add(name: "Content-Security-Policy", value: "default-src 'none'")
-        }
-    }
-
-    private func sendRawJSON(status: HTTPResponseStatus, data: Data, channel: Channel) {
-        var headers = HTTPHeaders()
-        headers.add(name: "Content-Type", value: "application/json; charset=utf-8")
-        headers.add(name: "Content-Length", value: "\(data.count)")
-        headers.add(name: "API-Version", value: "1.0.0")
-        headers.add(name: "Cache-Control", value: "no-store")
-        addSecurityHeaders(to: &headers, isHTML: false)
-        if let origin = corsOrigin {
-            headers.add(name: "Access-Control-Allow-Origin", value: origin)
-            headers.add(name: "Vary", value: "Origin")
-            headers.add(name: "Access-Control-Allow-Headers", value: "Authorization, Content-Type")
-        }
-
-        let head = HTTPResponseHead(version: .http1_1, status: status, headers: headers)
-        var buffer = channel.allocator.buffer(capacity: data.count)
-        buffer.writeBytes(data)
-
-        channel.write(wrapOutboundOut(.head(head)), promise: nil)
-        channel.write(wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
-        channel.writeAndFlush(wrapOutboundOut(.end(nil)), promise: nil)
-    }
-
-    private func sendEncodable<T: Encodable>(_ value: T, channel: Channel, encoder: JSONEncoder) {
-        sendEncodableResponse(value, status: .ok, channel: channel, encoder: encoder)
-    }
-
-    /// Encode a value and send as JSON response via eventLoop.execute.
-    /// Consolidates the repeated encode → execute → sendRawJSON pattern.
-    private func sendEncodableResponse<T: Encodable>(
-        _ value: T,
-        status: HTTPResponseStatus,
-        channel: Channel,
-        encoder: JSONEncoder
-    ) {
-        guard let data = try? encoder.encode(value) else { return }
-        channel.eventLoop.execute { [weak self] in
-            self?.sendRawJSON(status: status, data: data, channel: channel)
-        }
-    }
-
-    private func sendErrorJSON(
-        status: HTTPResponseStatus,
-        code: String,
-        message: String,
-        channel: Channel
-    ) {
-        let resp = ErrorResponse(error: ErrorDetail(code: code, message: message))
-        guard let data = try? encoder.encode(resp) else { return }
-        sendRawJSON(status: status, data: data, channel: channel)
-    }
-
-    private func sendEmptyResponse(status: HTTPResponseStatus, channel: Channel) {
-        var headers = HTTPHeaders()
-        headers.add(name: "Content-Length", value: "0")
-
-        if let origin = corsOrigin {
-            headers.add(name: "Access-Control-Allow-Origin", value: origin)
-            headers.add(name: "Vary", value: "Origin")
-        }
-
-        let head = HTTPResponseHead(version: .http1_1, status: status, headers: headers)
-        channel.write(wrapOutboundOut(.head(head)), promise: nil)
-        channel.writeAndFlush(wrapOutboundOut(.end(nil)), promise: nil)
-    }
-
-    private func sendCORSPreflight(channel: Channel) {
-        var headers = HTTPHeaders()
-        if let origin = corsOrigin {
-            headers.add(name: "Access-Control-Allow-Origin", value: origin)
-            headers.add(name: "Vary", value: "Origin")
-            headers.add(name: "Access-Control-Allow-Methods", value: "GET, POST, DELETE, OPTIONS")
-            headers.add(name: "Access-Control-Allow-Headers", value: "Authorization, Content-Type, X-Request-Id")
-            headers.add(name: "Access-Control-Max-Age", value: "86400")
-        }
-        headers.add(name: "Content-Length", value: "0")
-
-
-        let head = HTTPResponseHead(version: .http1_1, status: .noContent, headers: headers)
-        channel.write(wrapOutboundOut(.head(head)), promise: nil)
-        channel.writeAndFlush(wrapOutboundOut(.end(nil)), promise: nil)
-    }
-
-    // MARK: - Helpers: Static Files
-
-    private func serveStaticFile(_ fileName: String, contentType: String, channel: Channel) {
-        // Fast path: serve from in-memory cache pre-loaded at server start.
-        if let (cachedData, cachedContentType) = staticFileCache[fileName] {
-            sendStaticFileData(
-                data: cachedData,
-                contentType: cachedContentType,
-                fileName: fileName,
-                channel: channel
-            )
-            return
-        }
-
-        // Fallback: read from disk (used when bundle was not found at startup,
-        // e.g. during unit tests or if the cache is empty).
-        guard let baseURL = Bundle.main.url(forResource: "RemoteControlWeb", withExtension: nil) else {
-            sendErrorJSON(status: .notFound, code: "NOT_FOUND", message: "Static file not found.", channel: channel)
-            return
-        }
-        let resolved = baseURL.appendingPathComponent(fileName).standardized
-        guard resolved.path.hasPrefix(baseURL.standardized.path) else {
-            sendErrorJSON(status: .forbidden, code: "FORBIDDEN", message: "Access denied.", channel: channel)
-            return
-        }
-        guard let data = try? Data(contentsOf: resolved) else {
-            sendErrorJSON(
-                status: .notFound,
-                code: "NOT_FOUND",
-                message: "Static file not found.",
-                channel: channel
-            )
-            return
-        }
-        sendStaticFileData(data: data, contentType: contentType, fileName: fileName, channel: channel)
-    }
-
-    private func sendStaticFileData(data: Data, contentType: String, fileName: String, channel: Channel) {
-        var headers = HTTPHeaders()
-        headers.add(name: "Content-Type", value: contentType)
-        headers.add(name: "Content-Length", value: "\(data.count)")
-        // Vendor files are immutable; app files get short cache for dev convenience.
-        let isVendor = fileName.hasPrefix("vendor/")
-        headers.add(name: "Cache-Control", value: isVendor
-            ? "public, max-age=31536000, immutable"
-            : "no-cache"
+        let wsHandler = RemoteWebSocketHandler(
+            sessionId: sessionId,
+            deviceInfo: nil, // authenticated on first message
+            serverRef: server,
+            terminalService: termSvc,
+            idleTimeoutMinutes: idleTimeout,
+            authService: authSvc,
+            clientIP: clientIP
         )
-        // HTML files get the web-UI CSP (allows inline styles + WebSocket).
-        // Everything else (JS, CSS, vendor assets) gets the restrictive API CSP.
-        let isHTML = contentType.hasPrefix("text/html")
-        addSecurityHeaders(to: &headers, isHTML: isHTML)
 
-        let head = HTTPResponseHead(version: .http1_1, status: .ok, headers: headers)
-        var buffer = channel.allocator.buffer(capacity: data.count)
-        buffer.writeBytes(data)
+        let wsUpgrade = self.wsUpgrade
+        channel.eventLoop.execute {
+            // Pause reads so incoming WS frames don't hit the HTTP decoder
+            // during the pipeline swap (Safari sends the first WS frame
+            // immediately after receiving 101).
+            channel.setOption(ChannelOptions.autoRead, value: false).whenFailure { _ in }
 
+            let responseHead = HTTPResponseHead(
+                version: .http1_1, status: .switchingProtocols, headers: upgrade.headers
+            )
+            channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
+            channel.writeAndFlush(self.wrapOutboundOut(.end(nil))).whenSuccess {
+                wsUpgrade.installWebSocketPipeline(channel: channel, handler: wsHandler)
+            }
+        }
+    }
+
+    // MARK: - Channel Write
+
+    /// Write a head + body pair to the channel and flush. Body of zero length
+    /// is sent as the head + empty end frame (no body part).
+    private func write(head: HTTPResponseHead, body: ByteBuffer, to channel: Channel) {
         channel.write(wrapOutboundOut(.head(head)), promise: nil)
-        channel.write(wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
+        if body.readableBytes > 0 {
+            channel.write(wrapOutboundOut(.body(.byteBuffer(body))), promise: nil)
+        }
         channel.writeAndFlush(wrapOutboundOut(.end(nil)), promise: nil)
     }
 
-    // MARK: - Helpers: Parsing
-
-    /// Build a safe CORS origin value. Only reflects the Origin header when it
-    /// matches `localhost`, `127.0.0.1`, or `[::1]` on any port (the server's
-    /// own Web UI), or the exact ngrok host currently stored in `ngrokHostRef`.
-    ///
-    /// The previous broad `*.ngrok-free.app` wildcard is replaced with an
-    /// exact-host match: only the specific subdomain obtained from the ngrok
-    /// local API is allowed. This prevents any other ngrok-free.app host from
-    /// being accepted as a CORS origin.
-    private func allowedOrigin(from head: HTTPRequestHead) -> String? {
-        guard let origin = head.headers["Origin"].first,
-              let url = URL(string: origin),
-              let host = url.host else {
-            // No Origin header — same-origin or non-browser request; no CORS header needed.
-            return nil
+    /// Run a MainActor builder closure, then dispatch the write back to the
+    /// channel's event loop. Used for non-authenticated routes that touch
+    /// MainActor state (health, auth/token, debug endpoints).
+    private func dispatchMainActor(
+        channel: Channel,
+        builder: @escaping @MainActor (ByteBufferAllocator) -> (HTTPResponseHead, ByteBuffer)?
+    ) {
+        let alloc = channel.allocator
+        Task { @MainActor [weak self] in
+            guard let response = builder(alloc) else { return }
+            channel.eventLoop.execute { [weak self] in
+                self?.write(head: response.0, body: response.1, to: channel)
+            }
         }
-        let allowedHosts: Set<String> = ["localhost", "127.0.0.1", "[::1]"]
-        if allowedHosts.contains(host) { return origin }
-
-        // Allow only the exact ngrok host currently active (not a wildcard).
-        if let ngrokHost = ngrokHostRef.host, host == ngrokHost {
-            return origin
-        }
-        return nil
     }
+
+    // MARK: - Parsing Helpers
 
     private func extractBearerToken(from head: HTTPRequestHead) -> String? {
         guard let auth = head.headers["Authorization"].first,
               auth.hasPrefix("Bearer ") else { return nil }
         return String(auth.dropFirst(7))
-    }
-
-    private func extractClientIP(from head: HTTPRequestHead) -> String {
-        // Return the real TCP-level address captured at connection time.
-        // X-Forwarded-For is intentionally ignored -- it is trivially spoofable
-        // and must never be trusted for rate limiting or token binding.
-        remoteAddress
-    }
-
-    private func extractUUID(from path: String, pattern: String) -> UUID? {
-        guard path.hasPrefix(pattern) else { return nil }
-        let remaining = String(path.dropFirst(pattern.count))
-        // Take until next "/" or end of string.
-        let idString = remaining.split(separator: "/").first.map(String.init) ?? remaining
-        return UUID(uuidString: idString)
-    }
-
-    /// Extract both project ID and session ID from a path like
-    /// `/api/v1/projects/{pid}/sessions/{sid}/scrollback`.
-    private func extractProjectSession(from path: String) -> (UUID, UUID)? {
-        let parts = path.split(separator: "/")
-        // Expected: ["api", "v1", "projects", "{pid}", "sessions", "{sid}", "scrollback"]
-        guard parts.count >= 7,
-              let pidIndex = parts.firstIndex(of: "projects"),
-              let sidIndex = parts.firstIndex(of: "sessions"),
-              pidIndex + 1 < parts.endIndex,
-              sidIndex + 1 < parts.endIndex,
-              let pid = UUID(uuidString: String(parts[pidIndex + 1])),
-              let sid = UUID(uuidString: String(parts[sidIndex + 1])) else {
-            return nil
-        }
-        return (pid, sid)
-    }
-
-    private func mimeType(for ext: String) -> String {
-        switch ext.lowercased() {
-        case "js": return "application/javascript"
-        case "css": return "text/css"
-        case "html": return "text/html"
-        case "json": return "application/json"
-        case "png": return "image/png"
-        case "svg": return "image/svg+xml"
-        case "ico": return "image/x-icon"
-        case "woff2": return "font/woff2"
-        case "woff": return "font/woff"
-        default: return "application/octet-stream"
-        }
-    }
-
-    private func authErrorResponse(_ error: AuthError) -> (HTTPResponseStatus, String, String) {
-        switch error {
-        case .invalidPin:
-            return (.unauthorized, "AUTH_PIN_INVALID", "Incorrect PIN.")
-        case .rateLimited(retryAfterSeconds: let seconds):
-            return (.tooManyRequests, "AUTH_LOCKOUT", "Too many failed attempts. Try again in \(seconds) seconds.")
-        case .globalLockout:
-            return (.tooManyRequests, "AUTH_LOCKOUT", "Server is locked due to excessive failed attempts.")
-        case .invalidToken:
-            return (.unauthorized, "AUTH_TOKEN_INVALID", "Invalid or expired token.")
-        case .tokenExpired:
-            return (.unauthorized, "AUTH_TOKEN_EXPIRED", "Token has expired. Please re-authenticate.")
-        case .ipMismatch:
-            return (.forbidden, "AUTH_IP_MISMATCH", "Token was issued to a different IP address.")
-        case .maxDevicesReached:
-            // 503 Service Unavailable: the server is at capacity, not that the
-            // client is forbidden. This lets the client distinguish "try later"
-            // (503) from "you are not allowed" (403).
-            return (.serviceUnavailable, "MAX_DEVICES_REACHED", "Maximum number of connected devices reached. Try again later.")
-        }
-    }
-}
-
-// MARK: - Result + isSuccess
-
-extension Result {
-    /// Convenience to check if the result is a success case.
-    var isSuccess: Bool {
-        if case .success = self { return true }
-        return false
     }
 }

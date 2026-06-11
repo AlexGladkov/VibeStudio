@@ -1,4 +1,4 @@
-package studio.vibe.shared.service.git
+package studio.vibe.shared.feature.git.data
 
 import kotlin.test.*
 

@@ -6,10 +6,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
-import studio.vibe.shared.usecase.AssistantLauncher
-import studio.vibe.shared.usecase.ResumeRequest
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
+import studio.vibe.shared.feature.assistant.domain.usecase.AssistantLauncher
+import studio.vibe.shared.core.common.assistant.ResumeRequest
 import kotlin.uuid.Uuid
 
 /**

@@ -13,7 +13,7 @@ import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.testutil.ToolbarView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.service.agent.ClaudeAgent
+import studio.vibe.shared.core.common.ClaudeAgent
 import java.io.File
 
 /**

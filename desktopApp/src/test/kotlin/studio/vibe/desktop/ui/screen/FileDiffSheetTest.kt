@@ -16,8 +16,8 @@ import studio.vibe.desktop.ui.FileDiffSheetContent
 import studio.vibe.desktop.ui.statusColorFor
 import studio.vibe.desktop.ui.statusLetterFor
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
 import java.io.File
 
 /**

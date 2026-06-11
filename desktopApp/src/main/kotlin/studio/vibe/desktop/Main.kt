@@ -21,9 +21,9 @@ import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.shared.coordinator.AppMode
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.ProjectManagerError
-import studio.vibe.shared.preferences.AppTheme
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.ProjectManagerError
+import studio.vibe.shared.feature.settings.data.AppTheme
 import java.awt.Dimension
 import java.awt.FileDialog
 import java.awt.Frame
@@ -36,6 +36,7 @@ fun main() = application {
     val startupScope = rememberCoroutineScope()
     val navigationCoordinator = serviceContainer.navigationCoordinator
     remember(serviceContainer) {
+        startupScope.launch { serviceContainer.bootstrap() }
         AppLifecycleCoordinator(
             projectManaging = serviceContainer.projectStore,
             codeSpeakService = serviceContainer.codeSpeakService,
@@ -66,7 +67,7 @@ fun main() = application {
 
     Window(
         onCloseRequest = {
-            shutdownApp(serviceContainer, ::exitApplication)
+            serviceContainer.scope.launch { shutdownApp(serviceContainer, ::exitApplication) }
         },
         title = "VibeStudio",
         state = rememberWindowState(
@@ -104,8 +105,7 @@ fun main() = application {
                     "Close Window",
                     shortcut = KeyShortcut(Key.W, meta = true),
                     onClick = {
-                        serviceContainer.dispose()
-                        exitApplication()
+                        serviceContainer.scope.launch { shutdownApp(serviceContainer, ::exitApplication) }
                     },
                 )
             }
@@ -188,11 +188,11 @@ private suspend fun pickFolder(): String? = withContext(Dispatchers.IO) {
  *
  * Compose Desktop's `exitApplication()` waits for non-daemon threads (Ktor Netty,
  * pty4j watchers, ngrok process supervisors) — these can take 10–30 seconds or
- * hang indefinitely. We schedule a hard `exitProcess(0)` 1.5 s after `dispose()`
+ * hang indefinitely. We schedule a hard `exitProcess(0)` 1.5 s after `shutdown()`
  * returns to guarantee the process exits promptly.
  */
-private fun shutdownApp(serviceContainer: DesktopServiceContainer, exitApplication: () -> Unit) {
-    serviceContainer.dispose()
+private suspend fun shutdownApp(serviceContainer: DesktopServiceContainer, exitApplication: () -> Unit) {
+    serviceContainer.shutdown()
     exitApplication()
     Thread {
         Thread.sleep(1_500)

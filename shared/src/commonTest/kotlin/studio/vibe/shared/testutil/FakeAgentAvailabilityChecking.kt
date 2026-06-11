@@ -4,9 +4,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.AgentAvailabilityChecking
-import studio.vibe.shared.contract.AgentAvailabilityStatus
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.AgentAvailabilityChecking
+import studio.vibe.shared.core.common.AgentAvailabilityStatus
 
 /**
  * In-memory [AgentAvailabilityChecking] for VM unit tests.

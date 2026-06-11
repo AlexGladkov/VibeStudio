@@ -4,16 +4,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.model.CodeSpeakRunBarState
-
-/**
- * Application mode — determines which UI layout is active.
- */
-enum class AppMode {
-    Regular,
-    CodeSpeak,
-}
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakRunBarState
 
 /**
  * Coordinates global navigation actions (install wizard, settings, panel visibility)

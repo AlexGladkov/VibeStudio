@@ -37,19 +37,19 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
-import studio.vibe.shared.contract.GitStatusQuerying
+import studio.vibe.shared.feature.git.domain.contract.GitStatusQuerying
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.DiffLineType
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
-import studio.vibe.shared.viewmodel.FileDiffState
-import studio.vibe.shared.viewmodel.FileDiffViewModel
+import studio.vibe.shared.feature.git.domain.model.DiffLineType
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.feature.git.presentation.FileDiffState
+import studio.vibe.shared.feature.git.presentation.FileDiffViewModel
 
 // ── Public composable ─────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 package studio.vibe.shared.platform
 
-import studio.vibe.shared.contract.SettingsStorage
+import studio.vibe.shared.core.common.SettingsStorage
 import java.util.prefs.Preferences
 
 class JvmSettingsStorage : SettingsStorage {

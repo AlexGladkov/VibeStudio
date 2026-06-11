@@ -198,27 +198,62 @@ class PinInput {
 class VibeStudioClient {
   constructor() {
     this._baseUrl = '';  // same origin
+    // Migrate any legacy sessionStorage tokens to localStorage so users
+    // already authenticated in the current tab don't get bounced to PIN.
+    this._migrateLegacyStorage();
+  }
+
+  /** @private */
+  _migrateLegacyStorage() {
+    const keys = ['vs_token', 'vs_device_id', 'vs_token_expires'];
+    keys.forEach((k) => {
+      const v = sessionStorage.getItem(k);
+      if (v && !localStorage.getItem(k)) {
+        localStorage.setItem(k, v);
+      }
+      sessionStorage.removeItem(k);
+    });
   }
 
   /** @returns {boolean} */
   hasToken() {
-    return !!sessionStorage.getItem('vs_token');
+    return !!localStorage.getItem('vs_token');
   }
 
   /** @returns {string|null} */
   getToken() {
-    return sessionStorage.getItem('vs_token');
+    return localStorage.getItem('vs_token');
   }
 
   /** @returns {string|null} */
   getDeviceId() {
-    return sessionStorage.getItem('vs_device_id');
+    return localStorage.getItem('vs_device_id');
+  }
+
+  /** @returns {Date|null} */
+  getTokenExpiry() {
+    const v = localStorage.getItem('vs_token_expires');
+    if (!v) return null;
+    const t = new Date(v);
+    return isNaN(t.getTime()) ? null : t;
+  }
+
+  /** @returns {boolean} */
+  isTokenExpired() {
+    const exp = this.getTokenExpiry();
+    return exp ? Date.now() >= exp.getTime() : false;
+  }
+
+  /** Seconds until expiry. -Infinity if no token. */
+  secondsUntilExpiry() {
+    const exp = this.getTokenExpiry();
+    return exp ? Math.floor((exp.getTime() - Date.now()) / 1000) : -Infinity;
   }
 
   clearToken() {
-    sessionStorage.removeItem('vs_token');
-    sessionStorage.removeItem('vs_device_id');
-    sessionStorage.removeItem('vs_token_expires');
+    localStorage.removeItem('vs_token');
+    localStorage.removeItem('vs_device_id');
+    localStorage.removeItem('vs_token_expires');
   }
 
   /**
@@ -236,13 +271,43 @@ class VibeStudioClient {
     const data = await resp.json();
 
     if (resp.ok) {
-      sessionStorage.setItem('vs_token', data.token);
-      sessionStorage.setItem('vs_device_id', data.device_id);
-      sessionStorage.setItem('vs_token_expires', data.expires_at);
+      this._storeAuth(data);
       return { ok: true, token: data.token };
     }
 
     return { ok: false, status: resp.status, error: data.error || data };
+  }
+
+  /** @private */
+  _storeAuth(data) {
+    if (data.token) localStorage.setItem('vs_token', data.token);
+    if (data.device_id) localStorage.setItem('vs_device_id', data.device_id);
+    if (data.expires_at) localStorage.setItem('vs_token_expires', data.expires_at);
+  }
+
+  /**
+   * Refresh the current bearer token in place. Returns new expiry on success.
+   * On failure (invalid/expired token, network error) returns null without
+   * clearing storage — caller decides whether to drop the user to PIN.
+   * @returns {Promise<{token: string, expires_at: string}|null>}
+   */
+  async refreshToken() {
+    if (!this.hasToken()) return null;
+    try {
+      const resp = await fetch(this._baseUrl + '/api/v1/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.getToken()
+        }
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      this._storeAuth(data);
+      return data;
+    } catch (_e) {
+      return null;
+    }
   }
 
   /**
@@ -343,6 +408,35 @@ class VibeStudioClient {
    */
   async stopAssistant() {
     return this._fetchJSON('POST', '/api/v1/assistant/stop');
+  }
+
+  /**
+   * Upload an image to the host. Returns the local filesystem path on success,
+   * or null on failure. The host writes the file to a temp directory and the
+   * path can then be pasted into the active terminal so Claude/etc. picks it up.
+   *
+   * @param {Blob} blob — raw image data (image/png, image/jpeg, etc.)
+   * @returns {Promise<string|null>}
+   */
+  async uploadImage(blob) {
+    const token = this.getToken();
+    if (!token) return null;
+    const ct = blob.type || 'application/octet-stream';
+    try {
+      const resp = await fetch(this._baseUrl + '/api/v1/uploads/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': ct
+        },
+        body: blob
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      return data.path || null;
+    } catch (_e) {
+      return null;
+    }
   }
 
   /** @private */
@@ -557,42 +651,60 @@ class TerminalManager {
   }
 
   /** Fit terminal ensuring minimum 80 columns for TUI compatibility.
-   *  If viewport is too narrow, reduces font size until 80 cols fit.
-   *  Horizontal scroll doesn't work on mobile (xterm.js captures touch
-   *  events for vertical scrollback), so shrinking the font is the only
-   *  reliable way to guarantee 80-col TUI rendering. */
+   *  Resolves the target font size ONCE (or reads user-saved override),
+   *  then calls fit() — does NOT re-measure on every fit because the
+   *  dynamic font recalculation caused visible "jitter" between cells
+   *  when switching projects.
+   */
   _fitWithMinCols() {
     const MIN_COLS = 80;
     const MIN_FONT = 6;
-    const xtermEl = this.container.querySelector('.xterm');
 
-    // Reset any forced width from previous attempts
-    if (xtermEl) xtermEl.style.width = '';
+    // Apply persistent font size if the user has set one in Settings,
+    // otherwise resolve once and freeze for the rest of the session.
+    if (this._resolvedFontSize == null) {
+      this._resolvedFontSize = this._resolveStableFontSize(MIN_COLS, MIN_FONT);
+      if (this._resolvedFontSize && this.term.options.fontSize !== this._resolvedFontSize) {
+        this.term.options.fontSize = this._resolvedFontSize;
+      }
+    }
 
-    // Fit to container at current font size
-    this.fitAddon.fit();
+    try {
+      this.fitAddon.fit();
+    } catch (_e) {
+      // fit() may throw on zero-size containers; harmless.
+    }
+  }
 
-    if (this.term.cols >= MIN_COLS) return;
+  /** Resolve a stable font size once: either the user's saved value, or one
+   *  derived from a single measurement so MIN_COLS columns fit. */
+  _resolveStableFontSize(MIN_COLS, MIN_FONT) {
+    const saved = parseInt(localStorage.getItem('vs_terminal_font_size'), 10);
+    if (saved && saved >= MIN_FONT && saved <= 48) return saved;
 
-    // Measure current cell width to calculate required font size.
-    // NOTE: Accesses xterm.js internal `_core._renderService` — no public API
-    // for cell dimensions exists. May break on xterm.js major version updates.
-    // Gracefully degrades: if internals change, columns stay at whatever fit() gives.
+    try {
+      this.fitAddon.fit();
+    } catch (_e) {
+      return this.term.options.fontSize;
+    }
+    if (this.term.cols >= MIN_COLS) return this.term.options.fontSize;
+
     const core = this.term._core;
-    if (!core || !core._renderService) return;
-
+    if (!core || !core._renderService) return this.term.options.fontSize;
     const cellWidth = core._renderService.dimensions.css.cell.width;
-    if (cellWidth <= 0) return;
+    if (cellWidth <= 0) return this.term.options.fontSize;
+    const neededCellWidth = this.container.clientWidth / MIN_COLS;
+    const scale = neededCellWidth / cellWidth;
+    return Math.max(MIN_FONT, Math.floor(this.term.options.fontSize * scale));
+  }
 
-    const containerWidth = this.container.clientWidth;
-    const neededCellWidth = containerWidth / MIN_COLS;
-    const scaleFactor = neededCellWidth / cellWidth;
-    let newFontSize = Math.floor(this.term.options.fontSize * scaleFactor);
-
-    if (newFontSize < MIN_FONT) newFontSize = MIN_FONT;
-
-    this.term.options.fontSize = newFontSize;
-    this.fitAddon.fit();
+  /** Public: user-driven font size override. */
+  setFontSize(px) {
+    if (typeof px !== 'number' || px < 6 || px > 48) return;
+    this._resolvedFontSize = px;
+    localStorage.setItem('vs_terminal_font_size', String(px));
+    this.term.options.fontSize = px;
+    try { this.fitAddon.fit(); } catch (_e) {}
   }
 
   /** Write scrollback content into the terminal. */
@@ -603,11 +715,20 @@ class TerminalManager {
   }
 
   /**
-   * Connect WebSocket to a terminal session.
+   * Connect WebSocket to a terminal session. The new WebSocket is opened
+   * BEFORE clearing the terminal. Live binary frames are buffered until the
+   * server sends `auth_ok`, at which point the caller is expected to call
+   * `applyScrollbackAndFlush()` to perform an atomic swap (clear + scrollback
+   * + buffered frames + start live writes). This eliminates the empty-screen
+   * gap that previously caused the visible "flicker" on project switch.
+   *
    * @param {string} sessionId
    * @param {string} token
+   * @param {(() => Promise<string>|string)} fetchScrollback
+   *   Callback returning the scrollback content (string of ANSI bytes). Invoked
+   *   after auth_ok so the HTTP fetch happens in parallel with WS handshake.
    */
-  connect(sessionId, token) {
+  connect(sessionId, token, fetchScrollback) {
     const self = this;
 
     // SECURITY: Token NOT in URL (prevents leakage in logs/history/Referer).
@@ -619,9 +740,18 @@ class TerminalManager {
       this.ws.close();
     }
 
+    // Reset transition state
+    this._authAcked = false;
+    this._pendingBinary = [];
+    this._currentSessionId = sessionId;
+    this._fetchScrollback = fetchScrollback || null;
+    this._inputBound = this._inputBound || false;
+
     this.ws = new ReconnectingWS(wsUrl, {
       protocols: ['vibestudio.v1'],
       onOpen: function () {
+        self._authAcked = false;
+        self._pendingBinary = [];
         // Send auth token as first message (not in URL query params).
         self.ws.send(JSON.stringify({ type: 'auth', token: token }));
         // Send initial resize after auth.
@@ -646,10 +776,71 @@ class TerminalManager {
 
     this.ws.connect();
 
-    // Forward terminal input to WS
-    this.term.onData(function (data) {
-      self.ws.send(JSON.stringify({ type: 'input', data: data }));
-    });
+    // Forward terminal input to WS (bound once for the lifetime of `this.term`)
+    if (!this._inputBound && this.term) {
+      this.term.onData(function (data) {
+        if (self.ws) {
+          self.ws.send(JSON.stringify({ type: 'input', data: data }));
+        }
+      });
+      this._inputBound = true;
+    }
+  }
+
+  /** Internal: called from _handleMessage when `auth_ok` arrives. Triggers
+   *  the atomic swap: clear → scrollback (chunked via rAF) → buffered
+   *  binary → live. Large scrollback is split into 64KB rAF-paced chunks
+   *  so the main thread is never blocked.
+   */
+  async _onAuthAck() {
+    const self = this;
+    let scrollback = '';
+    if (this._fetchScrollback) {
+      try {
+        const result = await this._fetchScrollback();
+        scrollback = (result || '');
+      } catch (_e) {
+        // Non-critical — terminal works without scrollback.
+      }
+    }
+
+    if (!this.term) return;
+    this.term.reset();
+
+    // Chunked scrollback write — 64KB per rAF tick. xterm.write() is async,
+    // so we use its completion callback to chain the next chunk on the
+    // next animation frame; this keeps the UI responsive on slow devices.
+    const CHUNK = 64 * 1024;
+    let offset = 0;
+
+    function writeChunk() {
+      if (!self.term) return;
+      if (offset >= scrollback.length) {
+        flushPendingAndGoLive();
+        return;
+      }
+      const slice = scrollback.slice(offset, offset + CHUNK);
+      offset += CHUNK;
+      self.term.write(slice, function () {
+        requestAnimationFrame(writeChunk);
+      });
+    }
+
+    function flushPendingAndGoLive() {
+      const pending = self._pendingBinary || [];
+      self._pendingBinary = null; // stop buffering — future frames go live
+      for (let i = 0; i < pending.length; i++) {
+        self.term.write(pending[i]);
+      }
+      self._authAcked = true;
+      if (self.onScrollbackReady) self.onScrollbackReady();
+    }
+
+    if (scrollback) {
+      requestAnimationFrame(writeChunk);
+    } else {
+      flushPendingAndGoLive();
+    }
   }
 
   /** Disconnect WebSocket. */
@@ -748,7 +939,12 @@ class TerminalManager {
   _handleMessage(evt) {
     // Binary frame = terminal output (raw PTY bytes with ANSI escapes)
     if (evt.data instanceof ArrayBuffer) {
-      this.term.write(new Uint8Array(evt.data));
+      const bytes = new Uint8Array(evt.data);
+      if (this._pendingBinary) {
+        this._pendingBinary.push(bytes);
+      } else if (this.term) {
+        this.term.write(bytes);
+      }
       return;
     }
 
@@ -756,7 +952,12 @@ class TerminalManager {
     if (evt.data instanceof Blob) {
       const self = this;
       evt.data.arrayBuffer().then(function (ab) {
-        self.term.write(new Uint8Array(ab));
+        const bytes = new Uint8Array(ab);
+        if (self._pendingBinary) {
+          self._pendingBinary.push(bytes);
+        } else if (self.term) {
+          self.term.write(bytes);
+        }
       });
       return;
     }
@@ -766,6 +967,12 @@ class TerminalManager {
     try {
       msg = JSON.parse(evt.data);
     } catch (_e) {
+      return;
+    }
+
+    // Intercept auth_ok internally — kicks off the atomic swap.
+    if (msg && msg.type === 'auth_ok') {
+      this._onAuthAck();
       return;
     }
 
@@ -1113,62 +1320,271 @@ const App = (function () {
     terminalMgr.onWsClose = handleWsClose;
     terminalMgr.onControlMessage = handleControlMessage;
     terminalMgr.onStatusChange = updateConnectionStatus;
+    terminalMgr.onScrollbackReady = hideTerminalOverlay;
 
     // Prompt input bar
     const promptInput = document.getElementById('prompt-input');
     const sendBtn = document.getElementById('input-send-btn');
 
-    function sendPromptInput() {
-      const text = promptInput.value;
+    // ── Prompt History (persisted) ─────────────────────────────────────────
+    const HISTORY_KEY = 'vs_prompt_history';
+    const HISTORY_MAX = 50;
+    let history = (function () {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (_e) { return []; }
+    })();
+    let historyIdx = history.length; // pointer (length = "after the end" = fresh)
+    let draftBeforeHistory = '';
+
+    function pushHistory(text) {
       if (!text) return;
-      // Blur keyboard proxy to prevent echo from virtual keyboard
-      keyboardProxy.blur();
-      // Send text and Enter separately — Claude Code TUI treats combined
-      // text+\r as a paste and doesn't submit. Splitting with a small
-      // delay ensures the TUI processes Enter as a keypress.
-      terminalMgr.sendInput(text);
-      setTimeout(function () {
-        terminalMgr.sendInput('\r');
-      }, 50);
-      promptInput.value = '';
+      // De-duplicate consecutive entries.
+      if (history.length && history[history.length - 1] === text) {
+        historyIdx = history.length;
+        return;
+      }
+      history.push(text);
+      while (history.length > HISTORY_MAX) history.shift();
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_e) {}
+      historyIdx = history.length;
     }
 
-    sendBtn.addEventListener('click', function () {
-      sendPromptInput();
-    });
+    // ── Auto-grow textarea ────────────────────────────────────────────────
+    function autoGrow() {
+      promptInput.style.height = 'auto';
+      const maxH = Math.floor(window.innerHeight * 0.3);
+      promptInput.style.height = Math.min(promptInput.scrollHeight, maxH) + 'px';
+    }
 
+    // ── Paste-chunking ────────────────────────────────────────────────────
+    // Large pastes are split into 512-byte chunks with a small delay so the
+    // server-side per-minute byte budget and the PTY's input buffer aren't
+    // overrun, and so the TUI processes them in order.
+    async function sendChunked(text) {
+      const CHUNK = 512;
+      for (let i = 0; i < text.length; i += CHUNK) {
+        terminalMgr.sendInput(text.slice(i, i + CHUNK));
+        if (text.length > CHUNK) {
+          await new Promise(function (r) { setTimeout(r, 8); });
+        }
+      }
+    }
+
+    async function sendPromptInput() {
+      const text = promptInput.value;
+      const readyPaths = attachments
+        .filter(function (a) { return a.status === 'ready' && a.path; })
+        .map(function (a) { return a.path; });
+
+      if (!text && readyPaths.length === 0) return;
+      keyboardProxy.blur();
+
+      // Compose payload: text + space-separated image paths so Claude Code /
+      // similar CLIs see them as drag-dropped file references.
+      let payload = text;
+      if (readyPaths.length) {
+        if (payload && !payload.endsWith(' ')) payload += ' ';
+        payload += readyPaths.join(' ');
+      }
+
+      await sendChunked(payload + '\r');
+      if (text) pushHistory(text);
+
+      // Clear UI: text, textarea height, attachment thumbnails (& blob URLs).
+      attachments.forEach(function (a) {
+        try { URL.revokeObjectURL(a.url); } catch (_e) {}
+      });
+      attachments = [];
+      renderAttachments();
+      promptInput.value = '';
+      autoGrow();
+    }
+
+    sendBtn.addEventListener('click', function () { sendPromptInput(); });
+
+    promptInput.addEventListener('input', autoGrow);
+
+    // Single-line "input"-like history & shortcuts on the textarea.
     promptInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
+      // Enter (no Shift, no Alt) = send. Shift+Enter = newline. Cmd/Ctrl+Enter also = send.
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         sendPromptInput();
+        return;
+      }
+      // Esc = clear input (don't propagate to xterm)
+      if (e.key === 'Escape') {
+        if (promptInput.value) {
+          e.preventDefault();
+          promptInput.value = '';
+          autoGrow();
+          historyIdx = history.length;
+        }
+        return;
+      }
+      // ↑ / ↓ history — only when the textarea is single-line (no newlines).
+      const isSingleLine = promptInput.value.indexOf('\n') === -1;
+      if (isSingleLine && e.key === 'ArrowUp' && history.length) {
+        e.preventDefault();
+        if (historyIdx === history.length) draftBeforeHistory = promptInput.value;
+        if (historyIdx > 0) historyIdx--;
+        promptInput.value = history[historyIdx];
+        autoGrow();
+        return;
+      }
+      if (isSingleLine && e.key === 'ArrowDown' && history.length) {
+        e.preventDefault();
+        if (historyIdx < history.length) historyIdx++;
+        promptInput.value = historyIdx === history.length
+          ? draftBeforeHistory
+          : history[historyIdx];
+        autoGrow();
+        return;
+      }
+      // Ctrl+C → send SIGINT (\x03) to PTY, do NOT clear input.
+      if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+        // Only intercept when no text is selected — otherwise let copy work.
+        if (promptInput.selectionStart === promptInput.selectionEnd) {
+          e.preventDefault();
+          terminalMgr.sendInput('\x03');
+        }
+        return;
       }
     });
 
-    // Agent play/stop buttons
+    // Paste handler — text + clipboard images.
+    promptInput.addEventListener('paste', function (e) {
+      const data = (e.clipboardData || window.clipboardData);
+      if (!data) return;
+      // Pasted images become attachments.
+      const items = Array.from(data.items || []);
+      const imageItems = items.filter(function (it) { return it.kind === 'file' && it.type.indexOf('image/') === 0; });
+      if (imageItems.length) {
+        e.preventDefault();
+        imageItems.forEach(function (it) {
+          const file = it.getAsFile();
+          if (file) addAttachmentFile(file);
+        });
+        return;
+      }
+      const txt = data.getData('text');
+      if (txt && txt.length > 4096) {
+        // For very large pastes, bypass the textarea: send directly to PTY
+        // in chunks so the UI doesn't lock up wrapping the text.
+        e.preventDefault();
+        sendChunked(txt);
+      }
+    });
+
+    // Agent pill (inline play/stop in composer)
     const agentPicker = document.getElementById('agent-picker');
     const agentPlayBtn = document.getElementById('agent-play-btn');
     const agentStopBtn = document.getElementById('agent-stop-btn');
+    const agentPill = document.getElementById('agent-pill');
     let agentRunning = false;
+
+    function setAgentRunning(running) {
+      agentRunning = running;
+      agentPlayBtn.hidden = running;
+      agentStopBtn.hidden = !running;
+      agentPicker.disabled = running;
+      agentPill.classList.toggle('is-running', running);
+    }
 
     agentPlayBtn.addEventListener('click', function () {
       const agent = agentPicker.value;
       client.startAssistant(agent).then(function (resp) {
-        if (resp.ok) {
-          agentRunning = true;
-          agentPlayBtn.hidden = true;
-          agentStopBtn.hidden = false;
-          agentPicker.disabled = true;
-        }
+        if (resp.ok) setAgentRunning(true);
       });
     });
 
     agentStopBtn.addEventListener('click', function () {
       client.stopAssistant().then(function (resp) {
-        if (resp.ok) {
-          agentRunning = false;
-          agentPlayBtn.hidden = false;
-          agentStopBtn.hidden = true;
-          agentPicker.disabled = false;
+        if (resp.ok) setAgentRunning(false);
+      });
+    });
+
+    // ── Attachments (images) ───────────────────────────────────────────────
+    const attachmentsEl = document.getElementById('attachments');
+    const attachBtn = document.getElementById('attach-btn');
+    const attachInput = document.getElementById('attach-input');
+    const composer = document.getElementById('composer');
+    /** @type {Array<{id: string, name: string, status: string, path: string|null, url: string}>} */
+    let attachments = [];
+
+    function newAttachmentId() {
+      return 'att-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function renderAttachments() {
+      attachmentsEl.innerHTML = '';
+      attachments.forEach(function (a) {
+        const tile = document.createElement('div');
+        tile.className = 'attachment' + (a.status === 'uploading' ? ' is-uploading' : '');
+        tile.dataset.id = a.id;
+        const img = document.createElement('img');
+        img.src = a.url;
+        img.alt = a.name;
+        tile.appendChild(img);
+        const rm = document.createElement('button');
+        rm.className = 'attachment-remove';
+        rm.type = 'button';
+        rm.setAttribute('aria-label', 'Remove attachment');
+        rm.textContent = '×';
+        rm.addEventListener('click', function () {
+          attachments = attachments.filter(function (x) { return x.id !== a.id; });
+          try { URL.revokeObjectURL(a.url); } catch (_e) {}
+          renderAttachments();
+        });
+        tile.appendChild(rm);
+        attachmentsEl.appendChild(tile);
+      });
+    }
+
+    async function addAttachmentFile(file) {
+      if (!file || !file.type || file.type.indexOf('image/') !== 0) return;
+      const id = newAttachmentId();
+      const url = URL.createObjectURL(file);
+      const entry = { id: id, name: file.name || 'image', status: 'uploading', path: null, url: url };
+      attachments.push(entry);
+      renderAttachments();
+
+      const path = await client.uploadImage(file);
+      const idx = attachments.findIndex(function (x) { return x.id === id; });
+      if (idx === -1) return; // user removed it during upload
+      if (path) {
+        attachments[idx].path = path;
+        attachments[idx].status = 'ready';
+      } else {
+        attachments.splice(idx, 1);
+      }
+      renderAttachments();
+    }
+
+    attachBtn.addEventListener('click', function () { attachInput.click(); });
+    attachInput.addEventListener('change', function () {
+      const files = Array.from(attachInput.files || []);
+      files.forEach(addAttachmentFile);
+      attachInput.value = '';
+    });
+
+    // Drag & drop onto composer
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      composer.addEventListener(ev, function (e) {
+        if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+        e.preventDefault();
+        composer.classList.add('is-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      composer.addEventListener(ev, function (e) {
+        composer.classList.remove('is-dragover');
+        if (ev === 'drop' && e.dataTransfer) {
+          e.preventDefault();
+          const files = Array.from(e.dataTransfer.files || []);
+          files.forEach(addAttachmentFile);
         }
       });
     });
@@ -1176,6 +1592,11 @@ const App = (function () {
     // Pickers
     projectPicker.addEventListener('change', handleProjectChange);
     sessionPicker.addEventListener('change', handleSessionChange);
+
+    // ── Swipe gestures on top-bar: ← / → switches sessions within the
+    // current project. Vertical swipes are ignored so terminal scroll keeps
+    // working. Threshold large enough to avoid accidental triggers.
+    setupSwipeNav(document.querySelector('.top-bar'));
 
     // Viewport resize (iOS keyboard)
     setupViewportHandling();
@@ -1191,6 +1612,27 @@ const App = (function () {
     // SECURITY: ?pin= auto-login removed (PIN leaked in server logs, proxy logs,
     // browser history despite replaceState). QR code should link to the app URL
     // without credentials; user enters PIN manually.
+
+    // Pre-emptive token refresh — every 5 minutes, refresh if <30 min remain.
+    setInterval(function () {
+      if (!client.hasToken()) return;
+      const remaining = client.secondsUntilExpiry();
+      if (remaining > 0 && remaining < 30 * 60) {
+        client.refreshToken();
+      }
+    }, 5 * 60 * 1000);
+
+    // Also refresh when the tab regains focus after being backgrounded —
+    // iOS Safari aggressively suspends, so a long idle window may have
+    // elapsed since the last interval tick.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && client.hasToken()) {
+        const remaining = client.secondsUntilExpiry();
+        if (remaining > 0 && remaining < 60 * 60) {
+          client.refreshToken();
+        }
+      }
+    });
 
     // Check existing token
     if (client.hasToken()) {
@@ -1384,30 +1826,77 @@ const App = (function () {
   async function connectToSession(sessionId) {
     if (currentSessionId === sessionId && terminalMgr.ws) return;
     currentSessionId = sessionId;
-
-    // Clear and load scrollback
-    terminalMgr.clear();
     updateConnectionStatus('connecting');
+    showTerminalOverlay('Loading session...');
 
-    try {
-      const scrollback = await client.getScrollback(currentProjectId, sessionId);
-      if (scrollback && scrollback.content) {
-        terminalMgr.writeScrollback(scrollback.content);
-      }
-    } catch (e) {
-      if (e.status === 401) {
-        client.clearToken();
-        showPinScreen();
-        return;
-      }
-      // Non-critical — terminal will work without scrollback
-    }
-
-    // Open WebSocket
     const token = client.getToken();
-    if (token) {
-      terminalMgr.connect(sessionId, token);
-    }
+    if (!token) return;
+
+    // Open WebSocket FIRST — binary frames are buffered by TerminalManager
+    // until auth_ok arrives. Scrollback is fetched in parallel and applied
+    // in a single rAF tick together with the buffered live data → no
+    // visible empty-screen gap on project switch.
+    const projectId = currentProjectId;
+    terminalMgr.connect(sessionId, token, async function () {
+      try {
+        const scrollback = await client.getScrollback(projectId, sessionId);
+        return (scrollback && scrollback.content) || '';
+      } catch (e) {
+        if (e.status === 401) {
+          client.clearToken();
+          showPinScreen();
+        }
+        return '';
+      }
+    });
+  }
+
+  function setupSwipeNav(el) {
+    if (!el) return;
+    const MIN_DX = 60;     // px horizontal travel
+    const MAX_DY = 40;     // tolerated vertical drift
+    const MAX_T = 600;     // ms — fast swipe only
+    let sx = 0, sy = 0, st = 0, active = false;
+
+    el.addEventListener('touchstart', function (e) {
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; st = Date.now(); active = true;
+    }, { passive: true });
+
+    el.addEventListener('touchend', function (e) {
+      if (!active) return;
+      active = false;
+      const t = (e.changedTouches && e.changedTouches[0]);
+      if (!t) return;
+      const dx = t.clientX - sx, dy = t.clientY - sy, dt = Date.now() - st;
+      if (dt > MAX_T) return;
+      if (Math.abs(dy) > MAX_DY) return;
+      if (Math.abs(dx) < MIN_DX) return;
+      switchSession(dx < 0 ? +1 : -1);
+    }, { passive: true });
+  }
+
+  function switchSession(delta) {
+    const opts = Array.from(sessionPicker.options).filter(function (o) { return o.value; });
+    if (opts.length < 2) return;
+    const idx = opts.findIndex(function (o) { return o.value === currentSessionId; });
+    if (idx === -1) return;
+    const next = (idx + delta + opts.length) % opts.length;
+    const nextId = opts[next].value;
+    sessionPicker.value = nextId;
+    connectToSession(nextId);
+  }
+
+  function showTerminalOverlay(label) {
+    const ov = document.getElementById('terminal-overlay');
+    const lbl = document.getElementById('terminal-overlay-label');
+    if (!ov) return;
+    if (lbl && label) lbl.textContent = label;
+    ov.hidden = false;
+  }
+  function hideTerminalOverlay() {
+    const ov = document.getElementById('terminal-overlay');
+    if (ov) ov.hidden = true;
   }
 
   async function handleProjectChange() {
@@ -1449,9 +1938,17 @@ const App = (function () {
 
   function handleWsClose(code, _reason) {
     switch (code) {
-      case 4000: // auth_expired
-        client.clearToken();
-        showPinScreen();
+      case 4000: // auth_expired — try silent refresh before dropping to PIN
+        (async function () {
+          const refreshed = await client.refreshToken();
+          if (refreshed && currentSessionId) {
+            // Reconnect WS with the new token — user never sees PIN.
+            connectToSession(currentSessionId);
+          } else {
+            client.clearToken();
+            showPinScreen();
+          }
+        })();
         break;
       case 4001: // disconnected_by_host
         updateConnectionStatus('disconnected');
@@ -1502,8 +1999,12 @@ const App = (function () {
         break;
 
       case 'device_disconnected':
+        // Only react if the server-supplied deviceId matches ours AND we don't
+        // already have a usable token. With sliding refresh + reconnect, the
+        // server may notify us of an old session being detached; ignore those
+        // when our token is still valid (we'll reconnect transparently).
         const deviceId = client.getDeviceId();
-        if (msg.device_id === deviceId) {
+        if (msg.device_id === deviceId && client.isTokenExpired()) {
           client.clearToken();
           showPinScreen();
         }
@@ -1586,3 +2087,12 @@ const App = (function () {
 
 // Boot
 document.addEventListener('DOMContentLoaded', App.init);
+
+// Register service worker for shell caching (instant boot on repeat visits).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function (_e) {
+      // SW registration failures are non-fatal — app works without it.
+    });
+  });
+}

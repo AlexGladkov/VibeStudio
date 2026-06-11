@@ -1,4 +1,4 @@
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.core.common
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job

@@ -11,11 +11,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import studio.vibe.shared.contract.RemoteAuthorizing
-import studio.vibe.shared.contract.SecurityEvent
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.model.RemoteDevice
-import studio.vibe.shared.preferences.RemoteControlPreferencesReading
+import studio.vibe.shared.feature.remote.domain.contract.RemoteAuthorizing
+import studio.vibe.shared.feature.remote.domain.contract.SecurityEvent
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.feature.remote.domain.model.RemoteDevice
+import studio.vibe.shared.feature.settings.domain.model.RemoteControlPreferencesReading
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

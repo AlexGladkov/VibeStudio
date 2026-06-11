@@ -1,8 +1,8 @@
-package studio.vibe.shared.service.git.executor
+package studio.vibe.shared.feature.git.data.executor
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AheadBehind
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.feature.git.domain.model.AheadBehind
+import studio.vibe.shared.core.common.FilePath
 import studio.vibe.shared.testutil.FakeProcessRunner
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,6 +1,6 @@
 package studio.vibe.shared.security
 
-import studio.vibe.shared.service.remote.SecureRandom
+import studio.vibe.shared.feature.remote.data.SecureRandom
 import java.security.SecureRandom as JSecureRandom
 
 /**

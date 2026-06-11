@@ -31,6 +31,7 @@ struct RootView: View {
     @Environment(AppNavigationCoordinator.self) private var navigationCoordinator
     @Environment(\.freeTabStore) private var freeTabStore
     @Environment(\.codeSpeak) private var codeSpeak
+    @Environment(\.csPreferences) private var csPreferences
     @State private var showSidebar = true
     @State private var showSettings = false
     @State private var codeSpeakModeVM: CodeSpeakModeViewModel?
@@ -53,7 +54,11 @@ struct RootView: View {
 
     private func getOrCreateCodeSpeakVM() -> CodeSpeakModeViewModel {
         if let existing = codeSpeakModeVM { return existing }
-        let created = CodeSpeakModeViewModel(codeSpeak: codeSpeak, projectManager: projectManager)
+        let created = CodeSpeakModeViewModel(
+            codeSpeak: codeSpeak,
+            projectManager: projectManager,
+            csPreferences: csPreferences
+        )
         DispatchQueue.main.async { codeSpeakModeVM = created }
         return created
     }

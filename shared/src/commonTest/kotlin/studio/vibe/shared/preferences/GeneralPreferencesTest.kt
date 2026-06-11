@@ -1,5 +1,7 @@
-package studio.vibe.shared.preferences
+package studio.vibe.shared.core.common
 
+import studio.vibe.shared.feature.settings.data.AppTheme
+import studio.vibe.shared.feature.settings.data.GeneralPreferences
 import studio.vibe.shared.testutil.InMemorySettingsStorage
 import kotlin.test.BeforeTest
 import kotlin.test.Test

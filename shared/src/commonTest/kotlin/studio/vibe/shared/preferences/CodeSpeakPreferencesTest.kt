@@ -1,6 +1,7 @@
-package studio.vibe.shared.preferences
+package studio.vibe.shared.core.common
 
-import studio.vibe.shared.model.CodeSpeakCommand
+import studio.vibe.shared.feature.codespeak.data.CodeSpeakPreferences
+import studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakCommand
 import studio.vibe.shared.testutil.InMemorySettingsStorage
 import kotlin.test.BeforeTest
 import kotlin.test.Test

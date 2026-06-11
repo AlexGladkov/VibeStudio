@@ -1,12 +1,12 @@
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.git.presentation
 
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.DiffLineType
-import studio.vibe.shared.model.GitDiffHunk
-import studio.vibe.shared.model.GitDiffLine
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
+import studio.vibe.shared.feature.git.domain.model.DiffLineType
+import studio.vibe.shared.feature.git.domain.model.GitDiffHunk
+import studio.vibe.shared.feature.git.domain.model.GitDiffLine
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
 import studio.vibe.shared.testutil.FakeGitService
 import kotlin.test.Test
 import kotlin.test.assertIs

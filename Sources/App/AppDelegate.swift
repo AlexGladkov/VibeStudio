@@ -67,7 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         authService: remoteAuthService,
         preferences: remoteControlPreferences,
         terminalService: terminalService,
-        projectManager: projectStore
+        projectManager: projectStore,
+        claudePermissions: generalPreferences
     )
     private lazy var syntaxParserRegistry: SyntaxParserRegistry = {
         let registry = SyntaxParserRegistry()
@@ -124,8 +125,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        Task { @MainActor [weak self] in
-            await self?.lifecycleCoordinator.stopBeforeTermination()
+        // We're terminating — retain self for the duration of the async cleanup so
+        // that the reply ALWAYS fires. If `self` were `weak` and the closure ran
+        // after AppDelegate was deallocated (or never ran at all due to immediate
+        // dealloc), NSApp would hang forever waiting for `.reply(...)`.
+        Task { @MainActor in
+            await self.lifecycleCoordinator.stopBeforeTermination()
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

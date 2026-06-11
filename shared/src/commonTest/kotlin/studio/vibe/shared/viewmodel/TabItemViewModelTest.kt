@@ -1,6 +1,6 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.tabbar.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.ProjectsState
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.core.common.project.ProjectsState
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
 import kotlin.test.Test

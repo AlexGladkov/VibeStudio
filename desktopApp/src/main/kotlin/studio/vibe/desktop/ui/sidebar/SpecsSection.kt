@@ -35,16 +35,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
-import studio.vibe.shared.service.filetree.FileTreeBuilder
+import studio.vibe.shared.feature.filetree.data.FileTreeBuilder
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.model.FileEntry
-import studio.vibe.shared.model.FileTreeNode
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.model.SpecStatus
+import studio.vibe.shared.feature.filetree.domain.FileEntry
+import studio.vibe.shared.feature.filetree.domain.FileTreeNode
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.feature.codespeak.domain.model.SpecStatus
 
 @Composable
 internal fun SpecsSection(

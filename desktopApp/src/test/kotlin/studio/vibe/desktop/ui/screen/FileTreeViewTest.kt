@@ -6,10 +6,10 @@ import org.junit.Rule
 import org.junit.Test
 import studio.vibe.desktop.ui.FileTreeView
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.DirectoryEntry
-import studio.vibe.shared.model.FileEntry
-import studio.vibe.shared.model.FileTreeNode
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.feature.filetree.domain.DirectoryEntry
+import studio.vibe.shared.feature.filetree.domain.FileEntry
+import studio.vibe.shared.feature.filetree.domain.FileTreeNode
+import studio.vibe.shared.core.common.FilePath
 
 /**
  * UI tests for [FileTreeView].

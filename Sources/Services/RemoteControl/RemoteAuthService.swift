@@ -40,6 +40,9 @@ enum AuthError: Error, Equatable {
     case tokenExpired
     case ipMismatch
     case maxDevicesReached
+    /// The cryptographic RNG (`SecRandomCopyBytes`) failed — caller should
+    /// surface as a 500 to the client and never fall back to a weak secret.
+    case secureRandomFailure(osStatus: Int32)
 }
 
 // MARK: - RemoteAuthService
@@ -72,8 +75,12 @@ final class RemoteAuthService {
         static let pinByteCount = 4
         /// Number of random bytes for token generation.
         static let tokenByteCount = 32
-        /// Token validity duration.
-        static let tokenTTL: TimeInterval = 4 * 60 * 60 // 4 hours
+        /// Token validity duration. 7 days — token can be refreshed via
+        /// `/api/v1/auth/refresh` before expiry to extend (sliding window).
+        static let tokenTTL: TimeInterval = 7 * 24 * 60 * 60 // 7 days
+        /// Sliding-refresh window: any refresh call within `tokenTTL - now`
+        /// returns a new token with `expiresAt = now + tokenTTL`.
+        static let refreshMinRemaining: TimeInterval = 60 // 1 minute
         /// Maximum failed attempts per IP within the rate-limit window.
         static let maxFailuresPerIP = 3
         /// Rate-limit window duration in seconds.
@@ -125,18 +132,32 @@ final class RemoteAuthService {
     /// Called at init, after a successful authentication, and after a rate-limit
     /// lockout event.
     func regeneratePin() {
+        do {
+            currentPin = try Self.makeSecurePin()
+            Logger.remoteControl.info("PIN regenerated")
+        } catch let AuthError.secureRandomFailure(osStatus) {
+            // SecRandomCopyBytes failed. Do NOT downgrade to a weak PIN and do NOT crash.
+            // Clear currentPin so any further auth attempts deterministically fail with
+            // .invalidPin (the user-facing flow is rate-limited and safe).
+            currentPin = ""
+            Logger.remoteControl.error(
+                "PIN regeneration failed: SecRandomCopyBytes status=\(osStatus, privacy: .public). Authentication is temporarily unavailable."
+            )
+        } catch {
+            currentPin = ""
+            Logger.remoteControl.error("PIN regeneration failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Throwing PIN generator that propagates RNG failure as `AuthError.secureRandomFailure`.
+    private static func makeSecurePin() throws -> String {
         var bytes = [UInt8](repeating: 0, count: Constants.pinByteCount)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
-            // SecRandomCopyBytes failing indicates a catastrophic system error.
-            // Refusing to generate a weak PIN -- crash is safer than silent downgrade.
-            fatalError("SecRandomCopyBytes failed with status \(status) -- cannot generate secure PIN")
+            throw AuthError.secureRandomFailure(osStatus: status)
         }
-        // Convert 4 random bytes to a UInt32, then mod 1_000_000 for 6 digits.
         let raw = bytes.withUnsafeBytes { $0.load(as: UInt32.self) }
-        let pin = raw % 1_000_000
-        currentPin = String(format: "%06d", pin)
-        Logger.remoteControl.info("PIN regenerated")
+        return String(format: "%06d", raw % 1_000_000)
     }
 
     // MARK: - PIN Validation
@@ -187,7 +208,17 @@ final class RemoteAuthService {
         }
 
         // Success -- consume PIN and issue token.
-        let token = generateToken()
+        let token: String
+        do {
+            token = try generateToken()
+        } catch let AuthError.secureRandomFailure(osStatus) {
+            Logger.remoteControl.error(
+                "Token generation failed: SecRandomCopyBytes status=\(osStatus, privacy: .public)"
+            )
+            return .failure(.secureRandomFailure(osStatus: osStatus))
+        } catch {
+            return .failure(.secureRandomFailure(osStatus: -1))
+        }
         let deviceId = UUID()
         let now = Date()
         let expiresAt = now.addingTimeInterval(Constants.tokenTTL)
@@ -256,6 +287,66 @@ final class RemoteAuthService {
         return .success(device)
     }
 
+    // MARK: - Token Refresh (Sliding Window)
+
+    /// Refresh a still-valid bearer token. Issues a new token bound to the same
+    /// device and the requesting IP, with `expiresAt = now + tokenTTL`. The old
+    /// token is invalidated (single-use, prevents replay).
+    ///
+    /// - Returns: A new `AuthTokenResponse` on success, or an `AuthError` if the
+    ///   submitted token is invalid / expired / IP-mismatched.
+    func refreshToken(_ oldToken: String, clientIP: String) -> Result<AuthTokenResponse, AuthError> {
+        guard let entry = tokens[oldToken] else { return .failure(.invalidToken) }
+        guard Date() < entry.expiresAt else {
+            tokens.removeValue(forKey: oldToken)
+            removeDevice(entry.deviceId)
+            return .failure(.tokenExpired)
+        }
+        guard entry.clientIP == clientIP else {
+            // Don't leak IP-binding to network clients beyond a generic error.
+            Logger.remoteControl.warning(
+                "Token refresh IP mismatch: expected \(entry.clientIP, privacy: .public), got \(clientIP, privacy: .public)"
+            )
+            return .failure(.ipMismatch)
+        }
+        guard let device = connectedDevices.first(where: { $0.id == entry.deviceId }) else {
+            return .failure(.invalidToken)
+        }
+
+        let newToken: String
+        do {
+            newToken = try generateToken()
+        } catch let AuthError.secureRandomFailure(osStatus) {
+            return .failure(.secureRandomFailure(osStatus: osStatus))
+        } catch {
+            return .failure(.secureRandomFailure(osStatus: -1))
+        }
+
+        let now = Date()
+        let newEntry = TokenEntry(
+            deviceId: entry.deviceId,
+            clientIP: clientIP,
+            issuedAt: now,
+            expiresAt: now.addingTimeInterval(Constants.tokenTTL)
+        )
+        tokens.removeValue(forKey: oldToken)
+        tokens[newToken] = newEntry
+
+        Logger.remoteControl.info(
+            "Token refreshed: device=\(device.id) tokenPrefix=\(String(newToken.prefix(8)), privacy: .public)"
+        )
+        return .success(AuthTokenResponse(token: newToken, device: device))
+    }
+
+    /// Token TTL exposed for response DTOs / client expiry hints.
+    var tokenTTLSeconds: TimeInterval { Constants.tokenTTL }
+
+    /// Return the issued-at + expires-at for a token, or nil if unknown.
+    func expiry(of token: String) -> (issuedAt: Date, expiresAt: Date)? {
+        guard let e = tokens[token] else { return nil }
+        return (e.issuedAt, e.expiresAt)
+    }
+
     // MARK: - Device Management
 
     /// Revoke a specific device's access and remove its token.
@@ -286,13 +377,12 @@ final class RemoteAuthService {
     // MARK: - Private: Token Generation
 
     /// Generate a cryptographically random 32-byte hex-encoded token.
-    private func generateToken() -> String {
+    /// Throws `AuthError.secureRandomFailure` instead of crashing the server on RNG failure.
+    private func generateToken() throws -> String {
         var bytes = [UInt8](repeating: 0, count: Constants.tokenByteCount)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         guard status == errSecSuccess else {
-            // SecRandomCopyBytes failing indicates a catastrophic system error.
-            // Refusing to generate a weak token -- crash is safer than silent downgrade.
-            fatalError("SecRandomCopyBytes failed with status \(status) -- cannot generate secure token")
+            throw AuthError.secureRandomFailure(osStatus: status)
         }
         return bytes.map { String(format: "%02x", $0) }.joined()
     }

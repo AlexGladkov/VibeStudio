@@ -18,10 +18,10 @@ import platform.Foundation.NSFileManager
 import platform.posix.S_IFDIR
 import platform.posix.S_IFMT
 import platform.posix.stat
-import studio.vibe.shared.contract.FileSystemWatcher
-import studio.vibe.shared.model.FileChangeEvent
-import studio.vibe.shared.model.FileChangeKind
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FileSystemWatcher
+import studio.vibe.shared.core.common.FileChangeEvent
+import studio.vibe.shared.core.common.FileChangeKind
+import studio.vibe.shared.core.common.FilePath
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 

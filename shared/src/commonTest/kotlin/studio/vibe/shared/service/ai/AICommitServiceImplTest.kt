@@ -1,4 +1,4 @@
-package studio.vibe.shared.service.ai
+package studio.vibe.shared.feature.git.data
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -10,7 +10,8 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.model.AICommitServiceError
+import studio.vibe.shared.core.common.AICommitServiceError
+import studio.vibe.shared.core.common.AICommitServiceImpl
 import studio.vibe.shared.testutil.FakeAPIKeyResolving
 import kotlin.test.Test
 import kotlin.test.assertEquals

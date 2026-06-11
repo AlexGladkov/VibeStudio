@@ -1,6 +1,6 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.preferences.RemoteControlPreferencesWriting
+import studio.vibe.shared.feature.settings.domain.model.RemoteControlPreferencesWriting
 
 class FakeRemoteControlPreferences(
     override var remoteControlEnabled: Boolean = false,

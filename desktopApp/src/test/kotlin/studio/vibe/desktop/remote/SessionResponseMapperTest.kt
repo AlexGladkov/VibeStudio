@@ -2,8 +2,8 @@
 
 package studio.vibe.desktop.remote
 
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,16 +1,16 @@
 @file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.service.agent
+package studio.vibe.shared.core.common
 
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.AgentAvailabilityStatus
-import studio.vibe.shared.contract.BinaryResolver
-import studio.vibe.shared.contract.CredentialStorage
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.AgentAvailabilityStatus
+import studio.vibe.shared.core.common.BinaryResolver
+import studio.vibe.shared.core.common.CredentialStorage
+import studio.vibe.shared.core.common.FilePath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

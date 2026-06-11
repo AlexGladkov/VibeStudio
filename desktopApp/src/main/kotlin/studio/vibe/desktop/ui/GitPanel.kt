@@ -43,18 +43,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.GitServicing
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.viewmodel.GitSidebarViewModel
+import studio.vibe.shared.feature.git.domain.contract.GitServicing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.git.presentation.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.GitDiffStat
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
+import studio.vibe.shared.feature.git.domain.model.GitDiffStat
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
 
 // ── GitPanel ──────────────────────────────────────────────────────────────────
 

@@ -1,13 +1,13 @@
-package studio.vibe.shared.service.git
+package studio.vibe.shared.feature.git.data
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.*
-import studio.vibe.shared.contract.AheadBehind
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
-import studio.vibe.shared.model.GitStatus
+import studio.vibe.shared.feature.git.domain.model.AheadBehind
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.core.common.git.GitStatus
 import studio.vibe.shared.testutil.FakeGitService
 import kotlin.test.*
 import kotlin.time.Duration.Companion.seconds

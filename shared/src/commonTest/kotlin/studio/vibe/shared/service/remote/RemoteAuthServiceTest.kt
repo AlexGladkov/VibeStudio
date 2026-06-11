@@ -1,12 +1,12 @@
-package studio.vibe.shared.service.remote
+package studio.vibe.shared.feature.remote.data
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.SecurityEvent
-import studio.vibe.shared.model.RemoteAuthError
-import studio.vibe.shared.model.RemoteAuthResult
+import studio.vibe.shared.feature.remote.domain.contract.SecurityEvent
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthError
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

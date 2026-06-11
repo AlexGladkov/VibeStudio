@@ -10,68 +10,66 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.AgentSessionLog
-import studio.vibe.shared.contract.AIAgentRegistry
-import studio.vibe.shared.contract.AICommitServicing
-import studio.vibe.shared.contract.APIKeyResolving
-import studio.vibe.shared.contract.AgentAvailabilityChecking
-import studio.vibe.shared.contract.GitServicing
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.SessionPersisting
-import studio.vibe.shared.contract.TerminalSessionEvent
-import studio.vibe.shared.contract.TerminalSessionManaging
+import studio.vibe.shared.core.common.AgentSessionLog
+import studio.vibe.shared.core.common.AIAgentRegistry
+import studio.vibe.shared.core.common.AICommitServicing
+import studio.vibe.shared.core.common.APIKeyResolving
+import studio.vibe.shared.core.common.AgentAvailabilityChecking
+import studio.vibe.shared.feature.git.domain.contract.GitServicing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.session.domain.contract.SessionPersisting
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
-import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.SplitDirection
-import studio.vibe.shared.model.TabActivityState
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.core.common.DefaultAIAgentRegistry
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.desktop.platform.EnvironmentAPIKeyResolver
+import studio.vibe.desktop.platform.JvmEnvVarResolving
+import studio.vibe.desktop.platform.JvmPathResolving
+import studio.vibe.desktop.platform.JvmUrlOpening
 import studio.vibe.shared.platform.JvmBinaryResolver
 import studio.vibe.shared.platform.JvmCredentialStorage
 import studio.vibe.shared.platform.JvmFileSystemWatchingService
 import studio.vibe.shared.platform.JvmPersistenceStore
 import studio.vibe.shared.platform.JvmProcessRunner
 import studio.vibe.shared.platform.JvmSettingsStorage
-import studio.vibe.shared.service.agent.AgentAvailabilityServiceImpl
-import studio.vibe.shared.service.ai.AICommitServiceImpl
-import studio.vibe.shared.contract.CodeSpeakServicing
-import studio.vibe.shared.contract.FreeTabManaging
-import studio.vibe.shared.service.codespeak.CodeSpeakServiceImpl
-import studio.vibe.shared.service.freetab.FreeTabStoreImpl
-import studio.vibe.shared.service.filetree.FileTreeBuilder
-import studio.vibe.shared.service.git.GitCommandExecutor
-import studio.vibe.shared.service.git.GitStatusPollerImpl
-import studio.vibe.shared.preferences.CodeSpeakPreferences
-import studio.vibe.shared.preferences.GeneralPreferences
-import studio.vibe.shared.preferences.RemoteControlPreferences
-import studio.vibe.shared.service.persistence.AgentSessionLogImpl
-import studio.vibe.shared.service.persistence.ProjectStoreImpl
-import studio.vibe.shared.service.persistence.SessionStoreImpl
-import studio.vibe.shared.usecase.CaptureAgentSessionIdUseCase
-import studio.vibe.shared.usecase.ListRecentAgentSessionsUseCase
-import studio.vibe.shared.usecase.RestoreSessionUseCase
+import studio.vibe.shared.core.common.AgentAvailabilityServiceImpl
+import studio.vibe.shared.core.common.AICommitServiceImpl
+import studio.vibe.shared.feature.codespeak.domain.contract.CodeSpeakServicing
+import studio.vibe.shared.feature.tabbar.presentation.FreeTabManaging
+import studio.vibe.shared.feature.codespeak.data.CodeSpeakServiceImpl
+import studio.vibe.shared.feature.tabbar.data.FreeTabStoreImpl
+import studio.vibe.shared.feature.filetree.data.FileTreeBuilder
+import studio.vibe.shared.feature.git.data.GitCommandExecutor
+import studio.vibe.shared.feature.git.data.GitStatusPollerImpl
+import studio.vibe.shared.feature.codespeak.data.CodeSpeakPreferences
+import studio.vibe.shared.feature.settings.data.GeneralPreferences
+import studio.vibe.shared.feature.settings.data.RemoteControlPreferences
+import studio.vibe.shared.core.common.AgentSessionLogImpl
+import studio.vibe.shared.feature.project.data.ProjectStoreImpl
+import studio.vibe.shared.feature.session.data.SessionStoreImpl
+import studio.vibe.shared.core.common.CaptureAgentSessionIdUseCase
+import studio.vibe.shared.core.common.CaptureAgentSessionIdParams
+import studio.vibe.shared.feature.terminal.domain.usecase.CloseTerminalSessionUseCase
+import studio.vibe.shared.feature.terminal.domain.usecase.CreateTerminalSessionUseCase
+import studio.vibe.shared.core.common.ListRecentAgentSessionsUseCase
+import studio.vibe.shared.feature.terminal.domain.usecase.ListTerminalSessionsUseCase
+import studio.vibe.shared.feature.session.domain.usecase.RestoreSessionUseCase
+import studio.vibe.shared.feature.codespeak.domain.usecase.RunSpecBuildUseCase
+import studio.vibe.shared.feature.terminal.domain.usecase.SendTerminalInputUseCase
 import studio.vibe.desktop.remote.RemoteControlServer
 import studio.vibe.desktop.terminal.DesktopTerminalService
 import studio.vibe.desktop.terminal.ScrollbackPersistCoordinator
-import studio.vibe.shared.service.assistant.AssistantLauncherImpl
-import studio.vibe.shared.contract.EnvVarResolving
-import studio.vibe.shared.contract.PathResolving
-import studio.vibe.shared.contract.UrlOpening
-import studio.vibe.shared.viewmodel.FileTreeViewModel
-import studio.vibe.shared.viewmodel.GitSidebarViewModel
-import studio.vibe.shared.viewmodel.ToolbarViewModel
+import studio.vibe.shared.feature.assistant.data.AssistantLauncherImpl
+import studio.vibe.shared.feature.assistant.domain.contract.AssistantLaunching
+import studio.vibe.shared.feature.remote.data.RemoteAuthServiceImpl
+import studio.vibe.shared.security.JavaSecureRandom
+import studio.vibe.shared.feature.git.data.GitURLConverter
+import studio.vibe.shared.feature.filetree.presentation.FileTreeViewModel
+import studio.vibe.shared.feature.git.presentation.GitSidebarViewModel
+import studio.vibe.shared.feature.toolbar.presentation.ToolbarViewModel
 import studio.vibe.desktop.session.AgentSessionDataSource
 import studio.vibe.desktop.session.KmpAgentSessionDataSource
 
@@ -83,7 +81,7 @@ import studio.vibe.desktop.session.KmpAgentSessionDataSource
  */
 class DesktopServiceContainer {
 
-    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     // ── Platform implementations (jvmMain) ────────────────────────────────────
 
@@ -100,20 +98,7 @@ class DesktopServiceContainer {
     val projectStore: ProjectManaging = ProjectStoreImpl(
         persistence = persistenceStore,
         scope = scope,
-    ).also { store ->
-        // JVM-only: blocking load during DI startup is acceptable here — we are
-        // not on the EDT yet.  Kotlin/Native containers must use suspend init.
-        // 10-second timeout guards against indefinite hang on NFS/network mounts.
-        // On timeout we log and continue with an empty store — better than freezing
-        // the UI forever.
-        runBlocking {
-            try {
-                withTimeout(10_000) { store.load() }
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                System.err.println("DesktopServiceContainer: projectStore.load() timed out after 10 s — continuing with empty store")
-            }
-        }
-    }
+    )
 
     val agentRegistry: AIAgentRegistry = DefaultAIAgentRegistry()
 
@@ -239,7 +224,7 @@ class DesktopServiceContainer {
 
             // Non-blocking fire-and-forget — must not block the PTY hot path.
             scope.launch(Dispatchers.IO) {
-                captureAgentSessionIdUseCase.execute(sessionId, chunk)
+                captureAgentSessionIdUseCase(CaptureAgentSessionIdParams(sessionId, chunk))
                 // Mark as captured so subsequent chunks skip this session entirely.
                 capturedNativeIdSessions.add(sessionId)
             }
@@ -292,7 +277,7 @@ class DesktopServiceContainer {
      * and the same running-state tracking. Created eagerly (not lazy) because
      * [remoteControlServer] is also eager.
      */
-    val assistantLauncher: AssistantLauncherImpl = AssistantLauncherImpl(
+    val assistantLauncher: AssistantLaunching = AssistantLauncherImpl(
         projectManaging = projectStore,
         terminalSessionManaging = terminalService,
         agentRegistry = agentRegistry,
@@ -300,6 +285,9 @@ class DesktopServiceContainer {
         apiKeyResolving = apiKeyResolving,
         blockingDispatcher = Dispatchers.IO,
         onResolveEnvVar = { name -> System.getenv(name) },
+        // Explicit scope injection (B4) — lifetime tied to this container's scope so
+        // AssistantLauncherImpl's internal StateFlow sharing is cancelled in dispose().
+        scope = CoroutineScope(scope.coroutineContext + SupervisorJob()),
         agentSessionLog = agentSessionLog,
     )
 
@@ -332,8 +320,24 @@ class DesktopServiceContainer {
         projectManaging = projectStore,
         scrollbackAccessing = terminalService,
         assistantLauncher = assistantLauncher,
+        authService = RemoteAuthServiceImpl(JavaSecureRandom),
         parentScope = scope,
     )
+
+    // ── UseCases (B5) ─────────────────────────────────────────────────────────
+
+    /** Streams codespeak build output — used by SpecBuildPanelViewModel. */
+    val runSpecBuildUseCase: RunSpecBuildUseCase = RunSpecBuildUseCase(processRunner)
+
+    /** Terminal session lifecycle use cases — used by TerminalAreaViewModel. */
+    val createTerminalSessionUseCase: CreateTerminalSessionUseCase =
+        CreateTerminalSessionUseCase(terminalService)
+    val listTerminalSessionsUseCase: ListTerminalSessionsUseCase =
+        ListTerminalSessionsUseCase(terminalService)
+    val sendTerminalInputUseCase: SendTerminalInputUseCase =
+        SendTerminalInputUseCase(terminalService)
+    val closeTerminalSessionUseCase: CloseTerminalSessionUseCase =
+        CloseTerminalSessionUseCase(terminalService)
 
     // ── ViewModels ────────────────────────────────────────────────────────────
 
@@ -358,26 +362,41 @@ class DesktopServiceContainer {
             aiCommitService = aiCommitService,
             parentScope = scope,
             urlOpening = JvmUrlOpening,
+            urlConverter = GitURLConverter,
         )
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    fun dispose() {
+    /**
+     * Loads persistent state that requires async I/O.
+     * Must be called once after construction, before UI is shown.
+     * A 10-second timeout guards against indefinite hang on NFS/network mounts.
+     * On timeout we log and continue with an empty store — better than freezing
+     * the UI forever.
+     */
+    suspend fun bootstrap() {
+        try {
+            kotlinx.coroutines.withTimeout(10_000) { projectStore.load() }
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            System.err.println("DesktopServiceContainer: projectStore.load() timed out after 10 s — continuing with empty store")
+        }
+    }
+
+    /**
+     * Shuts down all services and cancels the container scope.
+     * Call from [onCloseRequest] via `scope.launch { container.shutdown(); exitApplication() }`.
+     */
+    suspend fun shutdown() {
         // Stop autosave background jobs before cancelling scope.
         sessionAutosaveCoordinator.stop()
 
-        // Final synchronous flush so unsaved in-memory edits hit disk before exit.
-        runBlocking(Dispatchers.IO) { projectStore.save() }
+        // Final flush: persist unsaved in-memory edits to disk before exit.
+        kotlinx.coroutines.withContext(Dispatchers.IO) { projectStore.save() }
 
         gitStatusPoller.stopPolling()
 
-        // Cancel VM scopes without joining — fire-and-forget.
-        // We must NOT call disposeAndJoin() here: VM child scopes use Dispatchers.Main.immediate,
-        // so their coroutines can only resume on the Main thread.  dispose() is called from
-        // onCloseRequest (Compose Main thread), so a blocking join would deadlock: Main is
-        // blocked waiting for coroutines that need Main to proceed.
-        // Process exit via exitApplication() handles cleanup of any remaining coroutines.
+        // Cancel VM scopes — fire-and-forget (no join needed, process exit handles cleanup).
         fileTreeViewModel.dispose()
         toolbarViewModel.dispose()
         gitSidebarViewModel.dispose()
@@ -385,9 +404,8 @@ class DesktopServiceContainer {
         fileSystemWatchingService.unwatchAll()
 
         // Stop Remote Control server before terminal service so bridges can detach cleanly.
-        // Use Dispatchers.IO to avoid blocking Main and add a hard 3-second timeout so a
-        // hung ngrok process cannot prevent the app from exiting.
-        runBlocking(Dispatchers.IO) {
+        // Hard 3-second timeout prevents a hung ngrok process from blocking exit.
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
             withTimeoutOrNull(3_000) { remoteControlServer.stopAsync() }
         }
 
@@ -396,96 +414,13 @@ class DesktopServiceContainer {
         httpClient.close()
         scope.cancel()
     }
-}
 
-// ── Lightweight stubs for services not yet ported ─────────────────────────────
-
-/**
- * Resolves API keys from process environment variables.
- * Replaces NSProcessInfo.processInfo.environment on JVM.
- */
-private class EnvironmentAPIKeyResolver : APIKeyResolving {
-    override fun resolve(envVar: String): String? = System.getenv(envVar)
-}
-
-/** JVM singleton — reads the user home from system properties. */
-private object JvmPathResolving : PathResolving {
-    override fun resolveHomePath(): String = System.getProperty("user.home") ?: ""
-}
-
-/** JVM singleton — reads environment variables from the process environment. */
-private object JvmEnvVarResolving : EnvVarResolving {
-    override fun resolve(name: String): String? = System.getenv(name)
-}
-
-/** JVM singleton — opens URLs in the AWT Desktop browser. */
-private object JvmUrlOpening : UrlOpening {
-    override fun openUrl(url: String) {
-        try {
-            val desktop = java.awt.Desktop.getDesktop()
-            if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
-                desktop.browse(java.net.URI(url))
-            }
-        } catch (_: Exception) { /* Ignore — best effort */ }
+    /**
+     * Lightweight synchronous teardown for tests.
+     * Cancels the container scope without awaiting graceful service shutdown.
+     */
+    fun dispose() {
+        scope.cancel()
     }
 }
 
-/**
- * Stub for TerminalSessionManaging until pty4j integration is complete.
- * All operations are no-ops or return safe defaults.
- * [createSession] and [split] throw [UnsupportedOperationException] — they must not
- * be called before the real implementation is wired in.
- */
-private class StubTerminalSessionManaging : TerminalSessionManaging {
-
-    private val _sessionsByProject =
-        MutableStateFlow<Map<Uuid, List<TerminalSession>>>(emptyMap())
-    private val _projectActivityStates =
-        MutableStateFlow<Map<Uuid, TabActivityState>>(emptyMap())
-    private val _sessionEvents =
-        MutableSharedFlow<TerminalSessionEvent>()
-
-    override val sessionsByProject: StateFlow<Map<Uuid, List<TerminalSession>>> =
-        _sessionsByProject
-    override val projectActivityStates: StateFlow<Map<Uuid, TabActivityState>> =
-        _projectActivityStates
-    override val sessionEvents: Flow<TerminalSessionEvent> =
-        _sessionEvents
-
-    override fun createSession(
-        projectId: Uuid,
-        shell: String?,
-        workingDirectory: FilePath?,
-        size: TerminalSize,
-    ): TerminalSession = error("pty4j integration pending — createSession not available in scaffold")
-
-    override fun resize(sessionId: Uuid, size: TerminalSize) = Unit
-
-    override fun killSession(sessionId: Uuid, force: Boolean) = Unit
-
-    override fun killAllSessions(projectId: Uuid) = Unit
-
-    override fun split(
-        sessionId: Uuid,
-        direction: SplitDirection,
-        size: TerminalSize,
-    ): TerminalSession = error("pty4j integration pending — split not available in scaffold")
-
-    override fun startAgentSession(
-        agent: AIAgent,
-        projectId: Uuid,
-        workingDirectory: String,
-        apiKeyValue: String?,
-    ): Result<TerminalSession> =
-        Result.failure(IllegalStateException("No active project — open a folder first"))
-
-    override fun session(id: Uuid): TerminalSession? = null
-
-    override fun sessions(projectId: Uuid): List<TerminalSession> = emptyList()
-
-    override fun markProjectSeen(projectId: Uuid) = Unit
-
-    override fun sendInput(text: String, sessionId: Uuid) = Unit
-
-    override fun scrollbackContent(sessionId: Uuid): String? = null
-}

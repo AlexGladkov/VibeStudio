@@ -21,14 +21,14 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.model.ProjectManagerError
-import studio.vibe.shared.model.RemoteAuthResult
-import studio.vibe.shared.model.RemoteDevice
-import studio.vibe.shared.contract.RemoteAuthorizing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.core.common.project.ProjectManagerError
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthResult
+import studio.vibe.shared.feature.remote.domain.model.RemoteDevice
+import studio.vibe.shared.feature.remote.domain.contract.RemoteAuthorizing
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -80,7 +80,7 @@ class ProjectApiHandlerTest {
     private fun unauthenticatedAuthHandler(): RemoteAuthHandler {
         val authService = mockk<RemoteAuthorizing>(relaxed = true)
         coEvery { authService.validateToken(any(), any()) } returns
-            RemoteAuthResult.failure(studio.vibe.shared.model.RemoteAuthError.InvalidToken)
+            RemoteAuthResult.failure(studio.vibe.shared.feature.remote.domain.model.RemoteAuthError.InvalidToken)
         return RemoteAuthHandler(authService, json)
     }
 

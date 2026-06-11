@@ -1,7 +1,8 @@
-package studio.vibe.shared.service.syntax
+package studio.vibe.shared.core.syntax
 
-import studio.vibe.shared.contract.LineContext
-import studio.vibe.shared.contract.SyntaxTokenKind
+import studio.vibe.shared.core.common.LineContext
+import studio.vibe.shared.core.common.CodeSpeakSyntaxParser
+import studio.vibe.shared.core.common.SyntaxTokenKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

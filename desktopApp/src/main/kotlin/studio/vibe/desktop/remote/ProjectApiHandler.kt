@@ -11,10 +11,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.TerminalScrollbackAccessing
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.core.common.terminal.TerminalScrollbackAccessing
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.core.common.FilePath
 import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
 import kotlin.uuid.Uuid

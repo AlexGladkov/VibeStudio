@@ -33,14 +33,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
-import studio.vibe.shared.viewmodel.GitSidebarViewModel
+import studio.vibe.shared.feature.git.presentation.GitSidebarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FilePath
 
 private const val COMMIT_SUMMARY_LIMIT = 72
 

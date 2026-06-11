@@ -1,6 +1,6 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.contract.SettingsStorage
+import studio.vibe.shared.core.common.SettingsStorage
 
 class InMemorySettingsStorage : SettingsStorage {
     private val strings = mutableMapOf<String, String>()

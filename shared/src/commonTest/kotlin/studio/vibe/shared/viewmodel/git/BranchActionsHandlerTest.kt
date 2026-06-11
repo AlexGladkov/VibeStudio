@@ -1,15 +1,15 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel.git
+package studio.vibe.shared.feature.git.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.GitServiceError
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.git.domain.model.GitServiceError
 import studio.vibe.shared.testutil.FakeGitServicingBase
-import studio.vibe.shared.viewmodel.GitSidebarState
+import studio.vibe.shared.feature.git.presentation.GitSidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,7 +21,7 @@ import kotlin.uuid.Uuid
 class BranchActionsHandlerTest {
 
     private fun buildHandler(
-        git: studio.vibe.shared.contract.GitServicing = FakeGitServicingBase(),
+        git: studio.vibe.shared.feature.git.domain.contract.GitServicing = FakeGitServicingBase(),
         onLoadGitInfo: (Uuid, FilePath) -> Unit = { _, _ -> },
     ): Pair<BranchActionsHandler, MutableStateFlow<GitSidebarState>> {
         val state = MutableStateFlow(GitSidebarState())

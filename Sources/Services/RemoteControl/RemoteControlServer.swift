@@ -75,12 +75,16 @@ final class RemoteControlServer {
 
     // MARK: - Dependencies
 
-    private(set) var authService: RemoteAuthService
-    private(set) var preferences: RemoteControlPreferences
-    private(set) var terminalService: TerminalService
-    private(set) var projectManager: any ProjectManaging
+    private let authService: RemoteAuthService
+    private let preferences: RemoteControlPreferences
+    private let terminalService: TerminalService
+    private let projectManager: any ProjectManaging
+    /// Resolver for Claude `--dangerously-skip-permissions` — passed to every router.
+    private let claudePermissions: any ClaudePermissionsResolving
     private let bonjour: BonjourAdvertiser
     private let ngrok: NgrokTunnelService
+    /// Backing store for remote chat attachments (image uploads).
+    private let uploadStore: RemoteUploadStore
 
     // MARK: - NIO State
 
@@ -109,12 +113,13 @@ final class RemoteControlServer {
     private var startedAt: Date?
 
     /// Observation task for session changes broadcast.
-    /// Assigned/cancelled on MainActor; `nonisolated(unsafe)` only to allow
-    /// `.cancel()` from `deinit` (Task.cancel is thread-safe).
+    ///
+    /// Written only in init/start (MainActor). Read from nonisolated `deinit`
+    /// to call `.cancel()` — `Task` is `Sendable` and `cancel()` is atomic, so
+    /// `nonisolated(unsafe)` is required by Swift 5.10 strict concurrency.
     nonisolated(unsafe) private var sessionObservationTask: Task<Void, Never>?
 
-    /// Observation task that keeps `ngrokHostRef` in sync with the tunnel URL.
-    /// Assigned/cancelled on MainActor; same `nonisolated(unsafe)` rationale.
+    /// See `sessionObservationTask` for isolation rationale.
     nonisolated(unsafe) private var ngrokHostObservationTask: Task<Void, Never>?
 
     /// Shared ngrok host reference passed to all HTTPRequestRouter instances.
@@ -142,41 +147,48 @@ final class RemoteControlServer {
         authService: RemoteAuthService,
         preferences: RemoteControlPreferences,
         terminalService: TerminalService,
-        projectManager: any ProjectManaging
+        projectManager: any ProjectManaging,
+        claudePermissions: any ClaudePermissionsResolving
     ) {
         self.authService = authService
         self.preferences = preferences
         self.terminalService = terminalService
         self.projectManager = projectManager
+        self.claudePermissions = claudePermissions
         self.bonjour = BonjourAdvertiser()
         self.ngrok = NgrokTunnelService()
+        self.uploadStore = RemoteUploadStore()
     }
 
-    /// Convenience init for previews and SwiftUI environment key defaults.
+    /// Preview/EnvironmentKey-default factory.
     ///
-    /// Creates a server with fresh default services that are never started.
-    /// The `terminalService` and `projectManager` are stubs -- this server
-    /// instance is only used for preview layout, never for networking.
-    convenience init() {
-        let prefs = RemoteControlPreferences()
-        let theme = ThemeService()
-        let general = GeneralPreferences()
+    /// Builds a server using stub dependencies that never trigger:
+    /// - `DistributedNotificationCenter` observer registration (`ThemeService.previewStub`)
+    /// - `UserDefaults` writes (`GeneralPreferences.previewStub`, `RemoteControlPreferences.previewStub`)
+    ///
+    /// The returned server is NEVER started — it exists only to satisfy SwiftUI
+    /// `EnvironmentKey.defaultValue` so previews don't crash on missing injection.
+    static func previewStub() -> RemoteControlServer {
+        let prefs = RemoteControlPreferences.previewStub()
+        let theme = ThemeService.previewStub()
+        let general = GeneralPreferences.previewStub()
         let terminal = TerminalService(themeService: theme, generalPreferences: general)
-        self.init(
+        return RemoteControlServer(
             authService: RemoteAuthService(),
             preferences: prefs,
             terminalService: terminal,
-            projectManager: PreviewProjectManagerStub()
+            projectManager: PreviewProjectManagerStub(),
+            claudePermissions: general
         )
     }
 
     deinit {
-        // Task.cancel() is safe to call from any context — Task<Void, Never>
-        // is Sendable and cancellation is atomic. The `nonisolated(unsafe)`
-        // annotation is intentional: these properties are only *assigned* on
-        // the MainActor; here we only call `.cancel()` which is thread-safe.
-        sessionObservationTask?.cancel()
-        ngrokHostObservationTask?.cancel()
+        // Capture to locals to call `.cancel()` from nonisolated deinit.
+        // `Task` is Sendable and `cancel()` is atomic — safe across actors.
+        let sessionTask = sessionObservationTask
+        let ngrokTask = ngrokHostObservationTask
+        sessionTask?.cancel()
+        ngrokTask?.cancel()
     }
 
     // MARK: - Server Lifecycle
@@ -201,6 +213,8 @@ final class RemoteControlServer {
         let projMgr = self.projectManager
         let prefs = self.preferences
         let idleTimeout = self.preferences.idleTimeoutMinutes
+        let claudePerms = self.claudePermissions
+        let upStore = self.uploadStore
 
         isTransitioning = true
         startupError = nil
@@ -253,7 +267,9 @@ final class RemoteControlServer {
                         idleTimeoutMinutes: idleTimeout,
                         serverRef: weakSelf,
                         staticFileCache: staticFileCache,
-                        ngrokHostRef: ngrokRef
+                        ngrokHostRef: ngrokRef,
+                        claudePermissions: claudePerms,
+                        uploadStore: upStore
                     )
                     return channel.pipeline.addHandler(encoder, name: "http_encoder").flatMap {
                         channel.pipeline.addHandler(decoder, name: "http_decoder")
@@ -500,6 +516,12 @@ final class RemoteControlServer {
     /// Installs `onLinesChanged` callback on the terminal view so that
     /// terminal output is relayed to the WebSocket client.
     func registerBridge(_ bridge: RemoteSessionBridge) {
+        // Detach any prior bridge for this device to avoid leaking its
+        // idleTimer / outputBufferTask / pending byte buffer when the same
+        // deviceId reconnects (e.g. WebSocket reconnect before old close).
+        if let existing = activeBridges[bridge.deviceId] {
+            existing.detach()
+        }
         activeBridges[bridge.deviceId] = bridge
         connectedDeviceCount = activeBridges.count
 
@@ -509,10 +531,17 @@ final class RemoteControlServer {
         if let view = terminalService.terminalView(for: bridge.sessionId) {
             view.onRawData = { [weak bridge] (_, slice) in
                 guard let bridge else { return }
-                // Explicit MainActor dispatch — dataReceived fires on PTY read thread,
-                // but handleRawData is @MainActor.
-                Task { @MainActor in
-                    bridge.handleRawData(slice)
+                // SwiftTerm fires onRawData from updateDisplay() which is dispatched on
+                // DispatchQueue.main — i.e. we are already on the main thread/MainActor
+                // executor. Spawning a Task per PTY chunk (potentially thousands/sec)
+                // floods the executor. Hop via MainActor.assumeIsolated, matching the
+                // pattern in TerminalService.installCallbacks (onRangeChanged).
+                //
+                // ArraySlice<UInt8> is not Sendable so we eagerly copy into Data which
+                // IS Sendable. RemoteSessionBridge.handleRawData accepts Data.
+                let data = Data(slice)
+                MainActor.assumeIsolated {
+                    bridge.handleRawData(data)
                 }
             }
             #if DEBUG
@@ -533,12 +562,18 @@ final class RemoteControlServer {
     func unregisterBridge(_ bridge: RemoteSessionBridge) {
         bridge.detach()
 
-        // Disconnect terminal output callback.
-        if let view = terminalService.terminalView(for: bridge.sessionId) {
+        // Remove from the registry first so the "any other bridge" scan below
+        // does not see ourselves.
+        activeBridges.removeValue(forKey: bridge.deviceId)
+
+        // Only clear the terminal view's onRawData when no other bridge is
+        // still attached to the same session — otherwise a concurrent bridge
+        // (different deviceId, same sessionId) would lose its output stream.
+        let stillAttached = activeBridges.values.contains { $0.sessionId == bridge.sessionId }
+        if !stillAttached, let view = terminalService.terminalView(for: bridge.sessionId) {
             view.onRawData = nil
         }
 
-        activeBridges.removeValue(forKey: bridge.deviceId)
         connectedDeviceCount = activeBridges.count
         Logger.remoteControl.info(
             "Bridge unregistered: device=\(bridge.deviceId) session=\(bridge.sessionId)"
@@ -686,6 +721,7 @@ final class RemoteControlServer {
                 guard !Task.isCancelled else { return }
 
                 // Sessions changed -- broadcast to all bridges.
+                Logger.remoteControl.info("sessionsByProject changed -- broadcasting to \(self.activeBridges.count) bridge(s)")
                 let encoder = JSONEncoder()
                 for (projectId, sessions) in terminalService.sessionsByProject {
                     let sessionResponses = sessions.map { session in

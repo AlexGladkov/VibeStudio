@@ -62,10 +62,10 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 import studio.vibe.desktop.terminal.DesktopTerminalService
-import studio.vibe.shared.contract.FreeTabManaging
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.preferences.GeneralPreferencesReading
-import studio.vibe.shared.viewmodel.ToolbarViewModel
+import studio.vibe.shared.feature.tabbar.presentation.FreeTabManaging
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.settings.domain.model.GeneralPreferencesReading
+import studio.vibe.shared.feature.toolbar.presentation.ToolbarViewModel
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
@@ -74,8 +74,8 @@ import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import studio.vibe.shared.model.FreeTab
-import studio.vibe.shared.model.TabActivityState
+import studio.vibe.shared.feature.tabbar.presentation.FreeTab
+import studio.vibe.shared.core.common.terminal.TabActivityState
 
 /**
  * Horizontal tab bar displaying one tab per open project, followed by free terminal tabs.

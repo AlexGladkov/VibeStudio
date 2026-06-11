@@ -1,6 +1,6 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.contract.EnvVarResolving
+import studio.vibe.shared.core.common.EnvVarResolving
 
 /**
  * Test double for [EnvVarResolving].

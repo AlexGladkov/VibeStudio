@@ -23,9 +23,9 @@ import platform.posix.kill
 import platform.posix.pclose
 import platform.posix.popen
 import platform.posix.unlink
-import studio.vibe.shared.contract.ProcessResult
-import studio.vibe.shared.contract.ProcessRunner
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.ProcessResult
+import studio.vibe.shared.core.common.ProcessRunner
+import studio.vibe.shared.core.common.FilePath
 import kotlin.concurrent.AtomicInt
 import kotlin.time.Duration
 

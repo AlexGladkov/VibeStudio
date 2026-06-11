@@ -99,6 +99,25 @@ final class ThemeService: ThemeServicing {
         }
     }
 
+    /// Internal init flavour used by SwiftUI EnvironmentKey defaults / Previews.
+    ///
+    /// Skips:
+    /// - `DistributedNotificationCenter` observer registration (would leak across
+    ///   preview reloads and fire on every macOS theme change).
+    /// - `UserDefaults` read of `vs_appearance` (irrelevant in previews).
+    ///
+    /// Use `ThemeService()` for the production composition root; this factory is
+    /// only safe in preview / environment-default contexts where the instance is
+    /// never observed by the actual UI.
+    static func previewStub() -> ThemeService {
+        ThemeService(previewMarker: ())
+    }
+
+    private init(previewMarker: Void) {
+        self.selectedAppearance = .system
+        self.systemThemeObserver = nil
+    }
+
     deinit {
         if let observer = systemThemeObserver {
             DistributedNotificationCenter.default().removeObserver(observer)

@@ -21,16 +21,14 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.contract.RemoteAuthorizing
-import studio.vibe.shared.contract.SecurityEvent
-import studio.vibe.shared.contract.TerminalScrollbackAccessing
-import studio.vibe.shared.usecase.AssistantLauncher
-import studio.vibe.shared.model.RemoteDevice as SharedRemoteDevice
-import studio.vibe.shared.preferences.RemoteControlPreferencesReading
-import studio.vibe.shared.security.JavaSecureRandom
-import studio.vibe.shared.service.remote.RemoteAuthServiceImpl
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.feature.remote.domain.contract.RemoteAuthorizing
+import studio.vibe.shared.feature.remote.domain.contract.SecurityEvent
+import studio.vibe.shared.core.common.terminal.TerminalScrollbackAccessing
+import studio.vibe.shared.feature.assistant.domain.usecase.AssistantLauncher
+import studio.vibe.shared.feature.remote.domain.model.RemoteDevice as SharedRemoteDevice
+import studio.vibe.shared.feature.settings.domain.model.RemoteControlPreferencesReading
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
@@ -57,7 +55,7 @@ class RemoteControlServer(
     private val terminalService: TerminalRemoteHost,
     private val projectManaging: ProjectManaging? = null,
     private val scrollbackAccessing: TerminalScrollbackAccessing? = null,
-    val authService: RemoteAuthorizing = RemoteAuthServiceImpl(JavaSecureRandom),
+    val authService: RemoteAuthorizing,
     private val assistantLauncher: AssistantLauncher? = null,
     parentScope: CoroutineScope? = null,
 ) {

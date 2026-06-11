@@ -25,8 +25,8 @@ import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.core.common.terminal.TerminalSize
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest

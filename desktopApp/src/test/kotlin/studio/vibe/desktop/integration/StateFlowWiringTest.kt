@@ -18,7 +18,7 @@ import studio.vibe.desktop.testutil.SidebarView
 import studio.vibe.desktop.testutil.TabBarView
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FilePath
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.assertEquals

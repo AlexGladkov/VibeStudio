@@ -40,13 +40,13 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.project.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.viewmodel.ProjectSettingsViewModel
+import studio.vibe.shared.feature.settings.presentation.ProjectSettingsViewModel
 
 /**
  * DialogWindow for per-project settings.

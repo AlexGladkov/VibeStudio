@@ -1,12 +1,12 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.git.presentation
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AICommitServicing
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.AICommitServicing
+import studio.vibe.shared.core.common.FilePath
 import studio.vibe.shared.testutil.FakeGitService
 import studio.vibe.shared.testutil.FakeGitServicingBase
 import kotlin.test.Test
@@ -23,7 +23,7 @@ class GitSidebarViewModelTest {
     }
 
     private fun buildVm(
-        gitService: studio.vibe.shared.contract.GitServicing = FakeGitService(),
+        gitService: studio.vibe.shared.feature.git.domain.contract.GitServicing = FakeGitService(),
     ): GitSidebarViewModel {
         val scope = CoroutineScope(UnconfinedTestDispatcher())
         return GitSidebarViewModel(

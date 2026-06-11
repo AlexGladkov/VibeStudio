@@ -29,10 +29,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.RemoteAuthorizing
-import studio.vibe.shared.contract.TerminalRemoteHost
-import studio.vibe.shared.model.RemoteAuthResult
-import studio.vibe.shared.preferences.RemoteControlPreferencesReading
+import studio.vibe.shared.feature.remote.domain.contract.RemoteAuthorizing
+import studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthResult
+import studio.vibe.shared.feature.settings.domain.model.RemoteControlPreferencesReading
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger

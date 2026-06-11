@@ -1,6 +1,6 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.contract.APIKeyResolving
+import studio.vibe.shared.core.common.APIKeyResolving
 
 /** Map-backed [APIKeyResolving]. */
 class FakeAPIKeyResolving(

@@ -75,13 +75,12 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     private let idleTimeoutMinutes: Int
 
     /// Heartbeat timer: close connection if no message received within 60 seconds.
-    /// Accessed from the NIO event loop thread only — protected by `bridgeLock`
-    /// to satisfy Swift strict concurrency checking.
-    nonisolated(unsafe) private var heartbeatTask: Task<Void, Never>?
+    /// All reads and writes go through `bridgeLock` — never access directly.
+    nonisolated(unsafe) private var _heartbeatTask: Task<Void, Never>?
 
     /// Auth timeout: close if no auth message within 10 seconds.
-    /// Accessed from the NIO event loop thread only — protected by `bridgeLock`.
-    nonisolated(unsafe) private var authTimeoutTask: Task<Void, Never>?
+    /// All reads and writes go through `bridgeLock` — never access directly.
+    nonisolated(unsafe) private var _authTimeoutTask: Task<Void, Never>?
 
     /// JSON decoder.
     private let decoder = JSONDecoder()
@@ -184,10 +183,8 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         #if DEBUG
         HTTPRequestRouter.wsLog("[WSH] channelInactive")
         #endif
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
-        authTimeoutTask?.cancel()
-        authTimeoutTask = nil
+        cancelHeartbeat()
+        cancelAuthTimeout()
 
         let bridge = takeBridge()
         let serverRef = self.serverRef
@@ -332,10 +329,10 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             )
             if let pongData = try? self.pongEncoder.encode(pong),
                let pongString = String(data: pongData, encoding: .utf8) {
-                var buffer = channel.allocator.buffer(capacity: pongString.utf8.count)
-                buffer.writeString(pongString)
-                let responseFrame = WebSocketFrame(fin: true, opcode: .text, data: buffer)
-                channel.writeAndFlush(NIOAny(responseFrame), promise: nil)
+                // Route through the shared helper to keep threading invariants
+                // (event-loop dispatch, frame construction) uniform with the
+                // other paths (auth ack, input rejection, error envelopes).
+                sendTextOnEventLoop(pongString, channel: channel)
             }
 
         case "detach":
@@ -374,16 +371,20 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             let result = authSvc.validateToken(token, clientIP: ip)
             switch result {
             case .success(let device):
-                self.deviceInfo = device
-                self.isAuthenticated = true
-                self.authTimeoutTask?.cancel()
-                self.authTimeoutTask = nil
+                // SECURITY: All mutations of WS-handler state (deviceInfo, isAuthenticated,
+                // authInProgress, _authTimeoutTask) must happen on the NIO event loop thread
+                // so they stay consistent with channelRead/handleTextFrame reads.
+                channel.eventLoop.execute {
+                    self.deviceInfo = device
+                    self.isAuthenticated = true
+                    self.cancelAuthTimeout()
 
-                // Send auth success confirmation.
-                let ack = "{\"type\":\"auth_ok\"}"
-                self.sendTextOnEventLoop(ack, channel: channel)
+                    // Send auth success confirmation.
+                    let ack = "{\"type\":\"auth_ok\"}"
+                    self.sendTextOnEventLoop(ack, channel: channel)
 
-                self.initializeSession(channel: channel, device: device)
+                    self.initializeSession(channel: channel, device: device)
+                }
 
             case .failure:
                 channel.eventLoop.execute {
@@ -406,14 +407,17 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
         }
     }
 
-    /// Send error and close with custom code.
+    /// Send error and close with custom code. Safe from any thread —
+    /// writeAndFlush is hopped onto the channel's event loop.
     private func sendErrorAndClose(code: UInt16, reason: String, channel: Channel) {
-        var buffer = channel.allocator.buffer(capacity: 2 + reason.utf8.count)
-        buffer.writeInteger(code)
-        buffer.writeString(reason)
-        let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
-        channel.writeAndFlush(NIOAny(frame)).whenComplete { _ in
-            channel.close(promise: nil)
+        channel.eventLoop.execute {
+            var buffer = channel.allocator.buffer(capacity: 2 + reason.utf8.count)
+            buffer.writeInteger(code)
+            buffer.writeString(reason)
+            let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
+            channel.writeAndFlush(NIOAny(frame)).whenComplete { _ in
+                channel.close(promise: nil)
+            }
         }
     }
 
@@ -421,12 +425,31 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
 
     /// Close connection if no auth message received within 10 seconds.
     private func startAuthTimeout(channel: Channel) {
-        authTimeoutTask = Task { [weak self] in
+        let task = Task { [weak self] in
             try? await Task.sleep(for: .seconds(10))
             guard !Task.isCancelled, let self, !self.isAuthenticated else { return }
             Logger.remoteControl.warning("RemoteWebSocketHandler: auth timeout, closing unauthenticated connection")
             self.sendErrorAndClose(code: 4000, reason: "Auth timeout", channel: channel)
         }
+        setAuthTimeoutTask(task)
+    }
+
+    /// Atomically set the auth-timeout task, cancelling any prior one.
+    private func setAuthTimeoutTask(_ task: Task<Void, Never>) {
+        bridgeLock.lock()
+        let prev = _authTimeoutTask
+        _authTimeoutTask = task
+        bridgeLock.unlock()
+        prev?.cancel()
+    }
+
+    /// Atomically cancel and clear the auth-timeout task.
+    private func cancelAuthTimeout() {
+        bridgeLock.lock()
+        let prev = _authTimeoutTask
+        _authTimeoutTask = nil
+        bridgeLock.unlock()
+        prev?.cancel()
     }
 
     // MARK: - Private: Close Handling
@@ -465,18 +488,38 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     // MARK: - Private: Heartbeat
 
     private func resetHeartbeat(channel: Channel) {
-        heartbeatTask?.cancel()
-        heartbeatTask = Task { [weak self] in
+        let task = Task { [weak self] in
             try? await Task.sleep(for: .seconds(60))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self != nil else { return }
             Logger.remoteControl.info("RemoteWebSocketHandler: heartbeat timeout, closing connection")
-            var buffer = channel.allocator.buffer(capacity: 2 + "Heartbeat timeout".utf8.count)
-            buffer.writeInteger(UInt16(4004))
-            buffer.writeString("Heartbeat timeout")
-            let closeFrame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
-            channel.writeAndFlush(NIOAny(closeFrame)).whenComplete { _ in
-                channel.close(promise: nil)
+            channel.eventLoop.execute {
+                var buffer = channel.allocator.buffer(capacity: 2 + "Heartbeat timeout".utf8.count)
+                buffer.writeInteger(UInt16(4004))
+                buffer.writeString("Heartbeat timeout")
+                let closeFrame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
+                channel.writeAndFlush(NIOAny(closeFrame)).whenComplete { _ in
+                    channel.close(promise: nil)
+                }
             }
         }
+        setHeartbeatTask(task)
+    }
+
+    /// Atomically set the heartbeat task, cancelling any prior one.
+    private func setHeartbeatTask(_ task: Task<Void, Never>) {
+        bridgeLock.lock()
+        let prev = _heartbeatTask
+        _heartbeatTask = task
+        bridgeLock.unlock()
+        prev?.cancel()
+    }
+
+    /// Atomically cancel and clear the heartbeat task.
+    private func cancelHeartbeat() {
+        bridgeLock.lock()
+        let prev = _heartbeatTask
+        _heartbeatTask = nil
+        bridgeLock.unlock()
+        prev?.cancel()
     }
 }

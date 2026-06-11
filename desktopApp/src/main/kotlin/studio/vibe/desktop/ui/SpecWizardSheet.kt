@@ -45,13 +45,13 @@ import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.PersistenceStore
+import studio.vibe.shared.core.common.PersistenceStore
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FilePath
 import kotlin.uuid.Uuid
 
 /**

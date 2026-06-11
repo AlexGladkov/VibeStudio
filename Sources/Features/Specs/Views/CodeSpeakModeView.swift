@@ -14,6 +14,18 @@ import SwiftUI
 /// │ * pay.cs.md   x  │  (full height)           │  > 5 specs passing    │
 /// └──────────────────┴─────────────────────────┴───────────────────────┘
 /// ```
+/// PreferenceKey to bubble the specs sidebar width up the view tree.
+///
+/// Replaces a `GeometryReader { ... onAppear/onChange }` block that wrote to
+/// `navigationCoordinator.specsColumnWidth` from inside the view body — a
+/// SwiftUI anti-pattern that can produce mid-render mutations and warnings.
+private struct SpecsColumnWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct CodeSpeakModeView: View {
 
     let vm: CodeSpeakModeViewModel
@@ -36,13 +48,16 @@ struct CodeSpeakModeView: View {
                     .frame(minWidth: 180, idealWidth: 220, maxWidth: 320)
                     // Report column width so ToolbarView can align breadcrumb
                     // exactly above the center column's left edge.
-                    .background(GeometryReader { geo in
-                        Color.clear
-                            .onAppear { navigationCoordinator.specsColumnWidth = geo.size.width }
-                            .onChange(of: geo.size.width) { _, w in
-                                navigationCoordinator.specsColumnWidth = w
-                            }
-                    })
+                    // PreferenceKey + onPreferenceChange avoids mutating the
+                    // navigation coordinator from inside the view body.
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: SpecsColumnWidthKey.self,
+                                value: geo.size.width
+                            )
+                        }
+                    )
 
                 editorColumn()
                     .frame(minWidth: 300)
@@ -50,6 +65,9 @@ struct CodeSpeakModeView: View {
                 buildColumn()
                     .frame(minWidth: 240, idealWidth: 320, maxWidth: 480)
             }
+        }
+        .onPreferenceChange(SpecsColumnWidthKey.self) { width in
+            navigationCoordinator.specsColumnWidth = width
         }
         .background(DSColor.surfaceBase)
         .onChange(of: projectManager.activeProjectId) { _, _ in
@@ -81,7 +99,7 @@ struct CodeSpeakModeView: View {
             }
         }
         // Mirror isRunning back to coordinator so toolbar can show ■ vs ▶
-        .onChange(of: vm.buildVM.isRunning) { old, running in
+        .onChange(of: vm.buildVM.isRunning) { _, running in
             navigationCoordinator.runBar.isRunning = running
             // Auto-open build panel (Regular mode right panel) when command starts.
             if running && csPreferences.autoOpenBuildPanel {
@@ -89,14 +107,9 @@ struct CodeSpeakModeView: View {
                     navigationCoordinator.showingSpecPanel = true
                 }
             }
-            // Notify on complete (command finished, not cancelled).
-            if old && !running {
-                csPreferences.sendCompletionNotification(
-                    command: vm.buildVM.selectedCommand,
-                    exitCode: vm.buildVM.exitCode,
-                    wasCancelled: vm.buildVM.wasCancelled
-                )
-            }
+            // Completion notification is fired by SpecBuildPanelViewModel itself
+            // (via injected `csPreferences`) when its async `run()` returns. The
+            // view layer no longer triggers UserNotificationCenter side-effects.
         }
         // Auto-build on save: always run `build` after a successful spec save.
         .onChange(of: vm.savedAt) { _, _ in

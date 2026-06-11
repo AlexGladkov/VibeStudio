@@ -26,8 +26,8 @@ import platform.posix.fseek
 import platform.posix.ftell
 import platform.posix.fwrite
 import platform.posix.getenv
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.FilePath
 
 class MacosPersistenceStore : PersistenceStore {
 

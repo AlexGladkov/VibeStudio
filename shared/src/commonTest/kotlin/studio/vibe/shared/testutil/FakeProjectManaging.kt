@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.ProjectsState
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.model.ProjectManagerError
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.core.common.project.ProjectsState
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.core.common.project.ProjectManagerError
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

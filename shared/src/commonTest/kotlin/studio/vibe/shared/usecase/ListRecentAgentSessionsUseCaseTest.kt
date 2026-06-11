@@ -1,9 +1,11 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.usecase
+package studio.vibe.shared.feature.session.domain.usecase
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionRecord
+import studio.vibe.shared.core.common.ListRecentAgentSessionsParams
+import studio.vibe.shared.core.common.ListRecentAgentSessionsUseCase
 import studio.vibe.shared.testutil.FakeAgentSessionLog
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,11 +31,14 @@ class ListRecentAgentSessionsUseCaseTest {
         startedAt = startedAt,
     )
 
+    private suspend fun invoke(projectId: Uuid = this.projectId, limit: Int = 20): List<AgentSessionRecord> =
+        useCase(ListRecentAgentSessionsParams(projectId, limit)).getOrElse { emptyList() }
+
     // ── Basic query ───────────────────────────────────────────────────────────
 
     @Test
     fun execute_emptyLog_returnsEmptyList() = runTest {
-        val results = useCase.execute(projectId)
+        val results = invoke()
         assertTrue(results.isEmpty())
     }
 
@@ -41,7 +46,7 @@ class ListRecentAgentSessionsUseCaseTest {
     fun execute_singleSession_returnsSingleItem() = runTest {
         log.append(record("s1", startedAt = 1_000L))
 
-        val results = useCase.execute(projectId)
+        val results = invoke()
         assertEquals(1, results.size)
         assertEquals("s1", results[0].sessionId)
     }
@@ -54,7 +59,7 @@ class ListRecentAgentSessionsUseCaseTest {
         log.append(record("latest", startedAt = 300L))
         log.append(record("middle", startedAt = 200L))
 
-        val results = useCase.execute(projectId)
+        val results = invoke()
         assertEquals(listOf("latest", "middle", "early"), results.map { it.sessionId })
     }
 
@@ -64,7 +69,7 @@ class ListRecentAgentSessionsUseCaseTest {
         log.append(record("older",  startedAt = 500L))
         log.append(record("oldest", startedAt = 100L))
 
-        val results = useCase.execute(projectId)
+        val results = invoke()
         assertEquals("newest", results[0].sessionId)
         assertEquals("oldest", results.last().sessionId)
     }
@@ -77,7 +82,7 @@ class ListRecentAgentSessionsUseCaseTest {
             log.append(record("s$i", startedAt = i.toLong()))
         }
 
-        val results = useCase.execute(projectId, limit = 3)
+        val results = invoke(limit = 3)
         assertEquals(3, results.size)
     }
 
@@ -87,7 +92,7 @@ class ListRecentAgentSessionsUseCaseTest {
         log.append(record("middle",  startedAt = 200L))
         log.append(record("newest",  startedAt = 300L))
 
-        val results = useCase.execute(projectId, limit = 2)
+        val results = invoke(limit = 2)
         assertEquals(listOf("newest", "middle"), results.map { it.sessionId })
     }
 
@@ -96,7 +101,7 @@ class ListRecentAgentSessionsUseCaseTest {
         log.append(record("s1", startedAt = 100L))
         log.append(record("s2", startedAt = 200L))
 
-        val results = useCase.execute(projectId, limit = 100)
+        val results = invoke(limit = 100)
         assertEquals(2, results.size)
     }
 
@@ -108,7 +113,7 @@ class ListRecentAgentSessionsUseCaseTest {
         log.append(record("theirs", projectId = otherProjectId, startedAt = 200L))
         log.append(record("mine2",  projectId = projectId,      startedAt = 300L))
 
-        val results = useCase.execute(projectId)
+        val results = invoke()
         assertEquals(2, results.size)
         assertTrue(results.all { it.projectId == projectId.toString() })
         assertTrue(results.none { it.sessionId == "theirs" })
@@ -118,7 +123,7 @@ class ListRecentAgentSessionsUseCaseTest {
     fun execute_otherProjectHasNoSessions_returnsEmpty() = runTest {
         log.append(record("s1", projectId = otherProjectId, startedAt = 100L))
 
-        val results = useCase.execute(projectId)
+        val results = invoke()
         assertTrue(results.isEmpty())
     }
 
@@ -130,7 +135,7 @@ class ListRecentAgentSessionsUseCaseTest {
             log.append(record("s$i", startedAt = i.toLong()))
         }
 
-        val results = useCase.execute(projectId) // default limit = 20
+        val results = invoke() // default limit = 20
         assertEquals(20, results.size)
     }
 }

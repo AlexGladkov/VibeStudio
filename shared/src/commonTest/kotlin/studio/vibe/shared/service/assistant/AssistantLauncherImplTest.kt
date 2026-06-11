@@ -1,25 +1,25 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.service.assistant
+package studio.vibe.shared.feature.assistant.data
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AgentAvailabilityStatus
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
-import studio.vibe.shared.service.agent.ClaudeAgent
-import studio.vibe.shared.service.agent.CodexAgent
-import studio.vibe.shared.service.agent.GeminiAgent
-import studio.vibe.shared.service.agent.OpenCodeAgent
-import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
+import studio.vibe.shared.core.common.AgentAvailabilityStatus
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
+import studio.vibe.shared.core.common.ClaudeAgent
+import studio.vibe.shared.core.common.CodexAgent
+import studio.vibe.shared.core.common.GeminiAgent
+import studio.vibe.shared.core.common.OpenCodeAgent
+import studio.vibe.shared.core.common.DefaultAIAgentRegistry
 import studio.vibe.shared.testutil.FakeAPIKeyResolving
 import studio.vibe.shared.testutil.FakeAgentAvailabilityChecking
 import studio.vibe.shared.testutil.FakeAgentSessionLog
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
-import studio.vibe.shared.usecase.ResumeRequest
+import studio.vibe.shared.core.common.assistant.ResumeRequest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

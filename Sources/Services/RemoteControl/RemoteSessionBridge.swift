@@ -65,6 +65,19 @@ final class RemoteSessionBridge {
     private var outputBufferTask: Task<Void, Never>?
     private var pendingRawBytes: [UInt8] = []
 
+    /// Maximum size of the pending output buffer (256 KB).
+    /// When exceeded, oldest bytes are dropped to bound memory under PTY flood.
+    private static let maxPendingBytes = 256 * 1024
+
+    /// Throttle log of buffer-overflow warnings — at most one per second.
+    private var lastOverflowLog: Date = .distantPast
+
+    // Byte-based input rate limiting (separate from message rate limit).
+    /// Maximum input bytes accepted per minute.
+    private static let maxInputBytesPerMinute = 256 * 1024
+    private var rateLimitBytes: Int = 0
+    private var lastInputBytesLog: Date = .distantPast
+
     /// Whether streaming is active (prevents double-subscribe).
     private var isStreaming = false
 
@@ -121,7 +134,7 @@ final class RemoteSessionBridge {
     /// WebSocket frame, reducing frame overhead.
     ///
     /// - Parameter data: Raw bytes from the PTY file descriptor.
-    func handleRawData(_ data: ArraySlice<UInt8>) {
+    func handleRawData(_ data: Data) {
         guard isStreaming else {
             #if DEBUG
             NSLog("[RC-BRIDGE] handleRawData SKIPPED (not streaming) bytes=\(data.count)")
@@ -134,6 +147,22 @@ final class RemoteSessionBridge {
         #endif
 
         pendingRawBytes.append(contentsOf: data)
+
+        // Cap buffer to prevent unbounded growth if the WS write side stalls or
+        // the PTY floods data faster than we can flush. Drop oldest bytes so the
+        // most recent terminal state is preserved (xterm.js can recover from a
+        // truncated prefix, but the latest cursor/screen state matters).
+        if pendingRawBytes.count > Self.maxPendingBytes {
+            let overflow = pendingRawBytes.count - Self.maxPendingBytes
+            pendingRawBytes.removeFirst(overflow)
+            let now = Date()
+            if now.timeIntervalSince(lastOverflowLog) >= 1 {
+                lastOverflowLog = now
+                Logger.remoteControl.warning(
+                    "RemoteSessionBridge: output buffer overflow — dropped \(overflow, privacy: .public) oldest bytes (device=\(self.deviceId, privacy: .public))"
+                )
+            }
+        }
 
         if outputBufferTask == nil {
             outputBufferTask = Task { @MainActor [weak self] in
@@ -158,12 +187,13 @@ final class RemoteSessionBridge {
     func handleInput(_ data: String) {
         resetIdleTimer()
 
-        // Rate limiting: O(1) sliding window counter (120 messages/min).
+        // Rate limiting: O(1) sliding window counter (120 messages/min + 256 KB/min).
         let now = Date()
         if now.timeIntervalSince(rateLimitWindowStart) >= 60 {
-            // Window expired — reset.
+            // Window expired — reset both counters together.
             rateLimitWindowStart = now
             rateLimitCount = 0
+            rateLimitBytes = 0
         }
 
         if rateLimitCount >= Self.maxInputPerMinute {
@@ -171,7 +201,21 @@ final class RemoteSessionBridge {
             return
         }
 
+        let byteLen = data.utf8.count
+        if rateLimitBytes + byteLen > Self.maxInputBytesPerMinute {
+            // Throttle the log to once per second per bridge to avoid log spam under attack.
+            if now.timeIntervalSince(lastInputBytesLog) >= 1 {
+                lastInputBytesLog = now
+                Logger.remoteControl.warning(
+                    "RemoteSessionBridge: input byte cap exceeded — rejected \(byteLen, privacy: .public)B (device=\(self.deviceId, privacy: .public))"
+                )
+            }
+            sendRateLimitWarning()
+            return
+        }
+
         rateLimitCount += 1
+        rateLimitBytes += byteLen
 
         // Relay to PTY.
         terminalService.sendInput(data, to: sessionId)
@@ -219,6 +263,7 @@ final class RemoteSessionBridge {
         outputBufferTask = nil
         pendingRawBytes = []
         rateLimitCount = 0
+        rateLimitBytes = 0
 
         Logger.remoteControl.info(
             "RemoteSessionBridge: detached session=\(self.sessionId) device=\(self.deviceId)"

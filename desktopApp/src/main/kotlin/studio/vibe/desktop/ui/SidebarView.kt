@@ -17,16 +17,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.GitServicing
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.service.filetree.FileTreeBuilder
+import studio.vibe.shared.feature.git.domain.contract.GitServicing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.filetree.data.FileTreeBuilder
 import studio.vibe.desktop.ui.sidebar.GitBranchSection
 import studio.vibe.desktop.ui.sidebar.IconStrip
 import studio.vibe.desktop.ui.sidebar.MultiProjectFileTree
 import studio.vibe.desktop.ui.sidebar.SidebarTab
 import studio.vibe.desktop.ui.sidebar.SpecsSection
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.viewmodel.GitSidebarViewModel
+import studio.vibe.shared.feature.git.presentation.GitSidebarViewModel
 
 /**
  * Root sidebar composable.

@@ -6,10 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import studio.vibe.shared.contract.SettingsStorage
-import studio.vibe.shared.preferences.GeneralPreferences
-import studio.vibe.shared.service.agent.ClaudeAgent
-import studio.vibe.shared.service.agent.CodexAgent
+import studio.vibe.shared.core.common.SettingsStorage
+import studio.vibe.shared.feature.settings.data.GeneralPreferences
+import studio.vibe.shared.core.common.ClaudeAgent
+import studio.vibe.shared.core.common.CodexAgent
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -127,7 +127,7 @@ class DesktopTerminalServiceTest {
 
     @Test
     fun resize_unknownId_doesNotThrow() {
-        service.resize(Uuid.random(), studio.vibe.shared.model.TerminalSize(80, 24))
+        service.resize(Uuid.random(), studio.vibe.shared.feature.terminal.domain.model.TerminalSize(80, 24))
     }
 
     // ── markProjectSeen ───────────────────────────────────────────────────────
@@ -333,10 +333,10 @@ class DesktopTerminalServiceTest {
             io.mockk.every { outputStream } returns java.io.ByteArrayOutputStream()
         }
         val state = PtySessionState(
-            session = studio.vibe.shared.model.TerminalSession(
+            session = studio.vibe.shared.feature.terminal.domain.model.TerminalSession(
                 projectId = kotlin.uuid.Uuid.random(),
                 title = "claude",
-                state = studio.vibe.shared.model.TerminalSessionState.Running,
+                state = studio.vibe.shared.core.common.terminal.TerminalSessionState.Running,
                 isAgentSession = true,
             ),
             ptyProcess = ptyProcess,

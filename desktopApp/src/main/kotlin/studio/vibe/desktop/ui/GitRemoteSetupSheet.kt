@@ -37,14 +37,14 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberDialogState
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.GitRemoteOperating
+import studio.vibe.shared.feature.git.domain.contract.GitRemoteOperating
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.viewmodel.GitRemoteSetupViewModel
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.git.presentation.GitRemoteSetupViewModel
 
 /**
  * DialogWindow for configuring a git remote on the active project.

@@ -7,15 +7,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.TerminalSessionEvent
-import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.SplitDirection
-import studio.vibe.shared.model.TabActivityState
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.terminal.TerminalSessionEvent
+import studio.vibe.shared.core.common.terminal.TerminalSessionManaging
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.terminal.SplitDirection
+import studio.vibe.shared.core.common.terminal.TabActivityState
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
+import studio.vibe.shared.core.common.terminal.TerminalSize
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

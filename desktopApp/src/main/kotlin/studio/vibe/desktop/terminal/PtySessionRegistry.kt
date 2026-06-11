@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import studio.vibe.shared.model.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSession
 import kotlin.uuid.Uuid
 
 /**

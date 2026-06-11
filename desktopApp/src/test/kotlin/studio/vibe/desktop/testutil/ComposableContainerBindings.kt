@@ -22,8 +22,8 @@ import studio.vibe.desktop.ui.settings.CodeSpeakSettingsPane
 import studio.vibe.desktop.ui.settings.GeneralSettingsPane
 import studio.vibe.desktop.ui.settings.LlmSettingsPane
 import studio.vibe.desktop.ui.settings.RemoteControlSettingsPane
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.FilePath
 import kotlin.uuid.Uuid
 
 /**
@@ -186,7 +186,7 @@ fun CodeSpeakModeView(
     CodeSpeakModeView(
         persistenceStore = container.persistenceStore,
         projectStore = container.projectStore,
-        processRunner = container.processRunner,
+        runSpecBuildUseCase = container.runSpecBuildUseCase,
         coroutineScope = container.scope,
         modifier = modifier,
     )

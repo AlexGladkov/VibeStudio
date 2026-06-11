@@ -17,13 +17,13 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import studio.vibe.desktop.AppLifecycleCoordinator
-import studio.vibe.shared.contract.CodeSpeakServicing
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.ProjectsState
+import studio.vibe.shared.feature.codespeak.domain.contract.CodeSpeakServicing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.core.common.project.ProjectsState
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.usecase.RestoreSessionUseCase
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.feature.session.domain.usecase.RestoreSessionUseCase
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -80,12 +80,12 @@ class AppLifecycleCoordinatorTest {
         }
 
         val restoreUseCase = mockk<RestoreSessionUseCase>(relaxed = true) {
-            coEvery { execute() } returns restoreReturns
+            coEvery { this@mockk.invoke() } returns Result.success(restoreReturns)
         }
 
         val codeSpeakService = mockk<CodeSpeakServicing>(relaxed = true)
         val navCoordinator = AppNavigationCoordinator()
-        val remoteControlPrefs = mockk<studio.vibe.shared.preferences.RemoteControlPreferences>(relaxed = true) {
+        val remoteControlPrefs = mockk<studio.vibe.shared.feature.settings.domain.model.RemoteControlPreferencesReading>(relaxed = true) {
             every { remoteControlEnabled } returns false
         }
         val remoteControlServer = mockk<studio.vibe.desktop.remote.RemoteControlServer>(relaxed = true)
@@ -118,7 +118,7 @@ class AppLifecycleCoordinatorTest {
         advanceUntilIdle()
 
         // Verify restore was called
-        coVerify(atLeast = 1) { restoreUseCase.execute() }
+        coVerify(atLeast = 1) { restoreUseCase() }
 
         // Verify setActiveProjectId was called for the first project
         verify(atLeast = 1) { projectManaging.setActiveProjectId(project.id) }

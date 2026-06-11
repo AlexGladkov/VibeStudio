@@ -48,17 +48,17 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.project.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.viewmodel.FileTraceabilityEntry
-import studio.vibe.shared.viewmodel.TraceabilityEntry
-import studio.vibe.shared.viewmodel.TraceabilityPanelViewModel
+import studio.vibe.shared.feature.codespeak.presentation.FileTraceabilityEntry
+import studio.vibe.shared.feature.codespeak.presentation.TraceabilityEntry
+import studio.vibe.shared.feature.codespeak.presentation.TraceabilityPanelViewModel
 
 /**
  * Right-side panel showing spec <-> source file cross-references.

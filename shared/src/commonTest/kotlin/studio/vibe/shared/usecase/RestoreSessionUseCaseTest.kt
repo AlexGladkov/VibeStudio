@@ -1,16 +1,15 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.usecase
+package studio.vibe.shared.feature.session.domain.usecase
 
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.SessionPersisting
-import studio.vibe.shared.model.AppSessionSnapshot
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.model.ProjectSessionSnapshot
-import studio.vibe.shared.model.SessionPersistenceError
-import studio.vibe.shared.model.TerminalLayoutSnapshot
+import studio.vibe.shared.feature.session.domain.contract.SessionPersisting
+import studio.vibe.shared.feature.session.domain.model.AppSessionSnapshot
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.core.common.project.ProjectSessionSnapshot
+import studio.vibe.shared.feature.session.domain.model.SessionPersistenceError
+import studio.vibe.shared.core.common.terminal.TerminalLayoutSnapshot
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
 import kotlin.test.Test
@@ -21,8 +20,6 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 class RestoreSessionUseCaseTest {
-
-    // ── minimal fake ─────────────────────────────────────────────────────────────
 
     private class FakeSessionPersisting(
         private val snapshot: AppSessionSnapshot? = null,
@@ -52,55 +49,55 @@ class RestoreSessionUseCaseTest {
             projectSessions = projectSessions,
         )
 
-    // ── tests ─────────────────────────────────────────────────────────────────────
-
     @Test
-    fun execute_noSnapshot_returnsFalse() = runTest {
+    fun invoke_noSnapshot_returnsFalse() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
 
-        val result = RestoreSessionUseCase(pm, tsm, FakeSessionPersisting()).execute()
+        val result = RestoreSessionUseCase(pm, tsm, FakeSessionPersisting())()
 
-        assertFalse(result)
+        assertTrue(result.isSuccess)
+        assertFalse(result.getOrThrow())
     }
 
     @Test
-    fun execute_snapshotExists_returnsTrue() = runTest {
+    fun invoke_snapshotExists_returnsTrue() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
         val persistence = FakeSessionPersisting(snapshot = snapshot())
 
-        val result = RestoreSessionUseCase(pm, tsm, persistence).execute()
+        val result = RestoreSessionUseCase(pm, tsm, persistence)()
 
-        assertTrue(result)
+        assertTrue(result.isSuccess)
+        assertTrue(result.getOrThrow())
     }
 
     @Test
-    fun execute_snapshotWithActiveProject_restoresActiveProjectId() = runTest {
+    fun invoke_snapshotWithActiveProject_restoresActiveProjectId() = runTest {
         val project = Project(name = "app", path = FilePath("/app"))
         val pm = FakeProjectManaging(initialProjects = listOf(project))
         val tsm = FakeTerminalSessionManaging()
         val persistence = FakeSessionPersisting(snapshot = snapshot(activeId = project.id))
 
-        RestoreSessionUseCase(pm, tsm, persistence).execute()
+        RestoreSessionUseCase(pm, tsm, persistence)()
 
         assertEquals(project.id, pm.activeProjectId.value)
     }
 
     @Test
-    fun execute_activeProjectIdNotInProjectManager_doesNotSetActive() = runTest {
+    fun invoke_activeProjectIdNotInProjectManager_doesNotSetActive() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
         val orphanId = Uuid.random()
         val persistence = FakeSessionPersisting(snapshot = snapshot(activeId = orphanId))
 
-        RestoreSessionUseCase(pm, tsm, persistence).execute()
+        RestoreSessionUseCase(pm, tsm, persistence)()
 
         assertEquals(null, pm.activeProjectId.value)
     }
 
     @Test
-    fun execute_snapshotWithTerminalLayouts_createsTerminalForFirstLayout() = runTest {
+    fun invoke_snapshotWithTerminalLayouts_createsTerminalForFirstLayout() = runTest {
         val project = Project(name = "app", path = FilePath("/app"))
         val pm = FakeProjectManaging(initialProjects = listOf(project))
         val tsm = FakeTerminalSessionManaging()
@@ -113,22 +110,21 @@ class RestoreSessionUseCaseTest {
         )
         val persistence = FakeSessionPersisting(snapshot = snapshot(projectSessions = listOf(projSession)))
 
-        RestoreSessionUseCase(pm, tsm, persistence).execute()
+        RestoreSessionUseCase(pm, tsm, persistence)()
 
         assertEquals(1, tsm.createCallCount)
     }
 
     @Test
-    fun execute_corruptedSnapshot_returnsFalse() = runTest {
+    fun invoke_corruptedSnapshot_returnsFailure() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
         val persistence = FakeSessionPersisting(
             throwOnRestore = SessionPersistenceError.DecodingFailed(RuntimeException("bad json")),
         )
 
-        // Errors are caught internally; must not propagate
-        val result = RestoreSessionUseCase(pm, tsm, persistence).execute()
+        val result = RestoreSessionUseCase(pm, tsm, persistence)()
 
-        assertFalse(result)
+        assertTrue(result.isFailure)
     }
 }

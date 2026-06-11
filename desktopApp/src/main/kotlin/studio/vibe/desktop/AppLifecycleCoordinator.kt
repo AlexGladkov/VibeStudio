@@ -6,13 +6,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.CodeSpeakServicing
-import studio.vibe.shared.contract.ProjectManaging
-import studio.vibe.shared.contract.SessionPersisting
-import studio.vibe.shared.contract.TerminalSessionManaging
+import studio.vibe.shared.feature.codespeak.domain.contract.CodeSpeakServicing
+import studio.vibe.shared.core.common.project.ProjectManaging
+import studio.vibe.shared.feature.session.domain.contract.SessionPersisting
+import studio.vibe.shared.core.common.terminal.TerminalSessionManaging
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
-import studio.vibe.shared.preferences.RemoteControlPreferences
-import studio.vibe.shared.usecase.RestoreSessionUseCase
+import studio.vibe.shared.feature.settings.domain.model.RemoteControlPreferencesReading
+import studio.vibe.shared.feature.session.domain.usecase.RestoreSessionUseCase
 import studio.vibe.desktop.remote.RemoteControlServer
 
 /**
@@ -35,7 +35,7 @@ class AppLifecycleCoordinator(
     private val codeSpeakService: CodeSpeakServicing,
     private val navigationCoordinator: AppNavigationCoordinator,
     private val restoreSessionUseCase: RestoreSessionUseCase,
-    private val remoteControlPreferences: RemoteControlPreferences,
+    private val remoteControlPreferences: RemoteControlPreferencesReading,
     private val remoteControlServer: RemoteControlServer,
     private val scope: CoroutineScope,
     private val sessionAutosaveCoordinator: SessionAutosaveCoordinator? = null,
@@ -54,7 +54,7 @@ class AppLifecycleCoordinator(
     fun onStartup() {
         scope.launch(Dispatchers.IO) {
             // Phase 1: restore sessions and auto-activate the first project.
-            restoreSessionUseCase.execute()
+            restoreSessionUseCase()
 
             val projects = projectManaging.projects.value
             if (projectManaging.activeProjectId.value == null && projects.isNotEmpty()) {

@@ -58,10 +58,10 @@ import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.model.DirectoryEntry
-import studio.vibe.shared.model.FileEntry
-import studio.vibe.shared.model.FileTreeNode
-import studio.vibe.shared.model.GitFileStatus
+import studio.vibe.shared.feature.filetree.domain.DirectoryEntry
+import studio.vibe.shared.feature.filetree.domain.FileEntry
+import studio.vibe.shared.feature.filetree.domain.FileTreeNode
+import studio.vibe.shared.core.common.git.GitFileStatus
 
 // ── Public API ────────────────────────────────────────────────────────────────
 

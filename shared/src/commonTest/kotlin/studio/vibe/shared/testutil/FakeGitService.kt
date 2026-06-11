@@ -1,8 +1,13 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.contract.AheadBehind
-import studio.vibe.shared.contract.GitServicing
-import studio.vibe.shared.model.*
+import studio.vibe.shared.feature.git.domain.model.AheadBehind
+import studio.vibe.shared.feature.git.domain.contract.GitServicing
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.git.domain.model.GitBranch
+import studio.vibe.shared.feature.git.domain.model.GitCommitInfo
+import studio.vibe.shared.feature.git.domain.model.GitDiffHunk
+import studio.vibe.shared.feature.git.domain.model.GitDiffStat
+import studio.vibe.shared.core.common.git.GitStatus
 
 /**
  * Minimal [GitServicing] test double for [GitStatusPollerImpl] tests.

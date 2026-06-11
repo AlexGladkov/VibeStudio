@@ -68,12 +68,12 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import studio.vibe.desktop.remote.RemoteControlServer
-import studio.vibe.shared.contract.AgentAvailabilityStatus
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.AgentAvailabilityStatus
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.project.ProjectManaging
 import studio.vibe.shared.coordinator.AppNavigationCoordinator
-import studio.vibe.shared.model.CodeSpeakCommand
-import studio.vibe.shared.viewmodel.ToolbarViewModel
+import studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakCommand
+import studio.vibe.shared.feature.toolbar.presentation.ToolbarViewModel
 import studio.vibe.desktop.ui.theme.DSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
@@ -144,7 +144,7 @@ fun ToolbarView(
 
 @Composable
 private fun RegularToolbar(
-    toolbarState: studio.vibe.shared.viewmodel.ToolbarState,
+    toolbarState: studio.vibe.shared.feature.toolbar.presentation.ToolbarState,
     remoteControlServer: RemoteControlServer,
     activeProductionURL: String?,
     showingChangesPanel: Boolean,
@@ -288,7 +288,7 @@ private fun CodeSpeakThreeSectionToolbar(
 
 @Composable
 private fun CodeSpeakBreadcrumb(
-    runBarState: studio.vibe.shared.model.CodeSpeakRunBarState,
+    runBarState: studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakRunBarState,
     onProjectsClick: () -> Unit,
 ) {
     Row(
@@ -334,7 +334,7 @@ private fun CodeSpeakBreadcrumb(
 
 @Composable
 private fun CodeSpeakRunBarControls(
-    runBarState: studio.vibe.shared.model.CodeSpeakRunBarState,
+    runBarState: studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakRunBarState,
     onSelectCommand: (CodeSpeakCommand) -> Unit,
     onUpdateTaskName: (String) -> Unit,
     onUpdateChangeMessage: (String) -> Unit,

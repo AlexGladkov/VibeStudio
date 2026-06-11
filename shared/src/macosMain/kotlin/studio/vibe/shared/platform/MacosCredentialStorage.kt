@@ -38,7 +38,7 @@ import platform.Security.kSecMatchLimit
 import platform.Security.kSecMatchLimitOne
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
-import studio.vibe.shared.contract.CredentialStorage
+import studio.vibe.shared.core.common.CredentialStorage
 
 private const val SERVICE_NAME = "com.vibestudio"
 

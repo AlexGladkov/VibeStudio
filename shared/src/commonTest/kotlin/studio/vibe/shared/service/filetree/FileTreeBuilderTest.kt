@@ -1,12 +1,12 @@
-package studio.vibe.shared.service.filetree
+package studio.vibe.shared.feature.filetree.data
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.FileTreeNode
-import studio.vibe.shared.model.GitFile
-import studio.vibe.shared.model.GitFileStatus
-import studio.vibe.shared.model.GitStatus
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.filetree.domain.FileTreeNode
+import studio.vibe.shared.core.common.git.GitFile
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.core.common.git.GitStatus
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.BeforeTest
 import kotlin.test.Test

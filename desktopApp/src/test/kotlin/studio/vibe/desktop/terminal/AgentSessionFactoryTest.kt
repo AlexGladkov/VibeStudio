@@ -6,9 +6,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.model.AgentExitSequence
-import studio.vibe.shared.preferences.GeneralPreferencesReading
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.AgentExitSequence
+import studio.vibe.shared.feature.settings.domain.model.GeneralPreferencesReading
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -260,7 +260,7 @@ class AgentSessionFactoryTest {
     fun `buildEffectiveLaunchCommand uses ClaudeAgent jsonStreamOutputArgs correctly`() {
         // Verify against the real built-in agent definition, not a stub.
         val factory = makeFactory(claudeSkipPermissions = false)
-        val cmd = factory.buildEffectiveLaunchCommand(studio.vibe.shared.service.agent.ClaudeAgent)
+        val cmd = factory.buildEffectiveLaunchCommand(studio.vibe.shared.core.common.ClaudeAgent)
 
         assertTrue(
             cmd.contains("--output-format stream-json"),

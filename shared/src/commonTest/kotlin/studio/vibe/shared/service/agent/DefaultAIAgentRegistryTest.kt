@@ -1,7 +1,7 @@
-package studio.vibe.shared.service.agent
+package studio.vibe.shared.core.common
 
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.model.AgentExitSequence
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.AgentExitSequence
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

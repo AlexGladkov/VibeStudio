@@ -62,11 +62,11 @@ import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.model.CodeSpeakCommand
-import studio.vibe.shared.model.GeneratedFile
-import studio.vibe.shared.model.SpecFile
-import studio.vibe.shared.model.SpecStats
-import studio.vibe.shared.viewmodel.SpecBuildPanelState
+import studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakCommand
+import studio.vibe.shared.feature.filetree.domain.GeneratedFile
+import studio.vibe.shared.feature.codespeak.domain.model.SpecFile
+import studio.vibe.shared.feature.codespeak.domain.model.SpecStats
+import studio.vibe.shared.feature.codespeak.presentation.SpecBuildPanelState
 
 @Composable
 internal fun BuildOutputColumn(

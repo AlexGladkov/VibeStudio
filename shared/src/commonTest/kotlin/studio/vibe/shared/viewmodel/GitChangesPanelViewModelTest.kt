@@ -1,11 +1,11 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.git.presentation
 
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.GitStatus
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.git.GitStatus
 import studio.vibe.shared.testutil.FakeGitService
 import studio.vibe.shared.testutil.FakeProjectManaging
 import kotlin.test.Test
@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 class GitChangesPanelViewModelTest {
 
     private fun buildVm(
-        projects: List<studio.vibe.shared.model.Project> = emptyList(),
+        projects: List<studio.vibe.shared.feature.project.domain.model.Project> = emptyList(),
     ): Triple<GitChangesPanelViewModel, FakeGitService, FakeProjectManaging> {
         val dispatcher = UnconfinedTestDispatcher()
         val scope = kotlinx.coroutines.CoroutineScope(dispatcher)
@@ -50,7 +50,7 @@ class GitChangesPanelViewModelTest {
 
     @Test
     fun loadStats_knownProject_updatesStatus() = runTest {
-        val project = studio.vibe.shared.model.Project(
+        val project = studio.vibe.shared.feature.project.domain.model.Project(
             name = "p",
             path = FilePath("/tmp/repo"),
         )
@@ -71,7 +71,7 @@ class GitChangesPanelViewModelTest {
 
     @Test
     fun loadStats_onError_setsErrorMessage() = runTest {
-        val project = studio.vibe.shared.model.Project(
+        val project = studio.vibe.shared.feature.project.domain.model.Project(
             name = "p",
             path = FilePath("/tmp/repo"),
         )

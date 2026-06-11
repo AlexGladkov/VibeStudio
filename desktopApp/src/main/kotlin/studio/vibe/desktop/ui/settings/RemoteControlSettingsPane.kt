@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import studio.vibe.desktop.remote.RemoteControlServer
-import studio.vibe.shared.preferences.RemoteControlPreferences
+import studio.vibe.shared.feature.settings.data.RemoteControlPreferences
 import studio.vibe.desktop.remote.TlsCertificateManager
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors

@@ -1,7 +1,7 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.model.CodeSpeakCommand
-import studio.vibe.shared.preferences.CodeSpeakPreferencesWriting
+import studio.vibe.shared.feature.codespeak.domain.model.CodeSpeakCommand
+import studio.vibe.shared.feature.codespeak.domain.contract.CodeSpeakPreferencesWriting
 
 class FakeCodeSpeakPreferences(
     override var autoBuildOnSave: Boolean = false,

@@ -1,7 +1,7 @@
-package studio.vibe.shared.service.git.parser
+package studio.vibe.shared.feature.git.data.parser
 
-import studio.vibe.shared.model.DiffLineType
-import studio.vibe.shared.model.GitFileStatus
+import studio.vibe.shared.feature.git.domain.model.DiffLineType
+import studio.vibe.shared.core.common.git.GitFileStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

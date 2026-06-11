@@ -13,16 +13,16 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.contract.TerminalSessionEvent
-import studio.vibe.shared.preferences.GeneralPreferencesReading
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.SplitDirection
-import studio.vibe.shared.model.TabActivityState
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.terminal.TerminalSessionManaging
+import studio.vibe.shared.core.common.terminal.TerminalSessionEvent
+import studio.vibe.shared.feature.settings.domain.model.GeneralPreferencesReading
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.terminal.SplitDirection
+import studio.vibe.shared.core.common.terminal.TabActivityState
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
+import studio.vibe.shared.core.common.terminal.TerminalSize
 import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 import kotlin.uuid.Uuid
@@ -113,7 +113,7 @@ class DesktopTerminalService(
      * Used to populate [AgentSessionRecord.firstPrompt] in the session log.
      */
     private val onFirstAgentInput: ((sessionId: Uuid, input: String) -> Unit)? = null,
-) : TerminalSessionManaging, studio.vibe.shared.contract.TerminalRemoteHost {
+) : TerminalSessionManaging, studio.vibe.shared.feature.terminal.domain.contract.TerminalRemoteHost {
 
     /**
      * Internal scope for all service-level coroutines.

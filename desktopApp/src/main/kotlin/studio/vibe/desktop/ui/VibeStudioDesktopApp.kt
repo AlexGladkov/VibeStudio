@@ -28,15 +28,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import studio.vibe.desktop.DesktopServiceContainer
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionRecord
 import studio.vibe.desktop.ui.components.ResolvedSessionRow
 import studio.vibe.desktop.ui.components.agentBrandColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
-import studio.vibe.shared.usecase.ResumeRequest
+import studio.vibe.shared.core.common.assistant.ResumeRequest
 import kotlin.uuid.Uuid
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.ProjectManagerError
-import studio.vibe.shared.preferences.AppTheme
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.ProjectManagerError
+import studio.vibe.shared.feature.settings.data.AppTheme
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -197,7 +197,7 @@ fun VibeStudioDesktopApp(
                     CodeSpeakModeView(
                         persistenceStore = container.persistenceStore,
                         projectStore = container.projectStore,
-                        processRunner = container.processRunner,
+                        runSpecBuildUseCase = container.runSpecBuildUseCase,
                         coroutineScope = container.scope,
                         codeSpeakPreferences = container.codeSpeakPreferences,
                         navigationCoordinator = container.navigationCoordinator,

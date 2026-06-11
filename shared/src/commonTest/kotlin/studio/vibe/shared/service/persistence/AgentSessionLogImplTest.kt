@@ -1,7 +1,8 @@
-package studio.vibe.shared.service.persistence
+package studio.vibe.shared.feature.session.data
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionLogImpl
+import studio.vibe.shared.core.common.AgentSessionRecord
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -100,7 +101,7 @@ class AgentSessionLogImplTest {
         log1.append(record(sessionId = "good-1"))
 
         // Inject a corrupt line after the valid one
-        val logFile = studio.vibe.shared.model.FilePath(
+        val logFile = studio.vibe.shared.core.common.FilePath(
             "${store.appSupportDirectory().path}/agent-sessions.jsonl"
         )
         val existing = store.readFile(logFile)?.decodeToString() ?: ""

@@ -11,7 +11,7 @@ import platform.Security.SecRandomCopyBytes
 import platform.Security.errSecSuccess
 import platform.Security.kSecRandomDefault
 import platform.posix.uint8_tVar
-import studio.vibe.shared.service.remote.SecureRandom
+import studio.vibe.shared.feature.remote.data.SecureRandom
 
 /**
  * macOS/Native implementation of [SecureRandom] backed by

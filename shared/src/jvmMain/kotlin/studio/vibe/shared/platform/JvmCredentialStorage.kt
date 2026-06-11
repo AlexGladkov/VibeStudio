@@ -2,7 +2,7 @@ package studio.vibe.shared.platform
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import studio.vibe.shared.contract.CredentialStorage
+import studio.vibe.shared.core.common.CredentialStorage
 
 private const val ACCOUNT_NAME = "VibeStudio"
 

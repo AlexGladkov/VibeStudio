@@ -1,8 +1,9 @@
-package studio.vibe.shared.service.syntax
+package studio.vibe.shared.core.syntax
 
-import studio.vibe.shared.contract.LineContext
-import studio.vibe.shared.contract.ParseLineResult
-import studio.vibe.shared.contract.SyntaxParsing
+import studio.vibe.shared.core.common.LineContext
+import studio.vibe.shared.core.common.ParseLineResult
+import studio.vibe.shared.core.common.SyntaxParserRegistryImpl
+import studio.vibe.shared.core.common.SyntaxParsing
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull

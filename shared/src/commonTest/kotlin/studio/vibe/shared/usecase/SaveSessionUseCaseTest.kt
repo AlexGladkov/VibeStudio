@@ -1,12 +1,12 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 
-package studio.vibe.shared.usecase
+package studio.vibe.shared.feature.session.domain.usecase
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.SessionPersisting
-import studio.vibe.shared.model.AppSessionSnapshot
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
+import studio.vibe.shared.feature.session.domain.contract.SessionPersisting
+import studio.vibe.shared.feature.session.domain.model.AppSessionSnapshot
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
 import kotlin.test.Test
@@ -41,53 +41,52 @@ class SaveSessionUseCaseTest {
     }
 
     @Test
-    fun execute_noProjects_savesSnapshotWithEmptyProjectSessions() = runTest {
+    fun invoke_noProjects_savesSnapshotWithEmptyProjectSessions() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
         val persistence = CapturingSessionPersisting()
 
-        SaveSessionUseCase(pm, tsm, persistence).execute()
+        SaveSessionUseCase(pm, tsm, persistence)()
 
         assertNotNull(persistence.saved)
         assertTrue(persistence.saved!!.projectSessions.isEmpty())
     }
 
     @Test
-    fun execute_withActiveProject_persistsActiveProjectId() = runTest {
+    fun invoke_withActiveProject_persistsActiveProjectId() = runTest {
         val project = Project(name = "app", path = FilePath("/app"))
         val pm = FakeProjectManaging(initialProjects = listOf(project))
         pm.setActiveProjectId(project.id)
         val tsm = FakeTerminalSessionManaging()
         val persistence = CapturingSessionPersisting()
 
-        SaveSessionUseCase(pm, tsm, persistence).execute()
+        SaveSessionUseCase(pm, tsm, persistence)()
 
         assertEquals(project.id, persistence.saved?.activeProjectId)
     }
 
     @Test
-    fun execute_activeIdIsNotARealProject_persistsNullActiveId() = runTest {
+    fun invoke_activeIdIsNotARealProject_persistsNullActiveId() = runTest {
         val project = Project(name = "app", path = FilePath("/app"))
         val pm = FakeProjectManaging(initialProjects = listOf(project))
-        // Set active to a UUID not in the project list (simulates FreeTab)
         pm.setActiveProjectId(Uuid.random())
         val tsm = FakeTerminalSessionManaging()
         val persistence = CapturingSessionPersisting()
 
-        SaveSessionUseCase(pm, tsm, persistence).execute()
+        SaveSessionUseCase(pm, tsm, persistence)()
 
         assertNull(persistence.saved?.activeProjectId)
     }
 
     @Test
-    fun execute_projectWithTerminalSession_includesLayoutInSnapshot() = runTest {
+    fun invoke_projectWithTerminalSession_includesLayoutInSnapshot() = runTest {
         val project = Project(name = "app", path = FilePath("/app"))
         val pm = FakeProjectManaging(initialProjects = listOf(project))
         val tsm = FakeTerminalSessionManaging()
         tsm.createSession(projectId = project.id, shell = null, workingDirectory = null)
         val persistence = CapturingSessionPersisting()
 
-        SaveSessionUseCase(pm, tsm, persistence).execute()
+        SaveSessionUseCase(pm, tsm, persistence)()
 
         val projectSession = persistence.saved?.projectSessions?.firstOrNull()
         assertEquals(project.id, projectSession?.projectId)
@@ -95,24 +94,25 @@ class SaveSessionUseCaseTest {
     }
 
     @Test
-    fun execute_persistenceThrows_doesNotPropagate() = runTest {
+    fun invoke_persistenceThrows_returnsFailure() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
         val persistence = CapturingSessionPersisting().also {
             it.throwOnSave = RuntimeException("disk full")
         }
 
-        // Must not throw
-        SaveSessionUseCase(pm, tsm, persistence).execute()
+        val result = SaveSessionUseCase(pm, tsm, persistence)()
+
+        assertTrue(result.isFailure)
     }
 
     @Test
-    fun execute_snapshotVersionMatchesCurrentSnapshotVersion() = runTest {
+    fun invoke_snapshotVersionMatchesCurrentSnapshotVersion() = runTest {
         val pm = FakeProjectManaging()
         val tsm = FakeTerminalSessionManaging()
         val persistence = CapturingSessionPersisting()
 
-        SaveSessionUseCase(pm, tsm, persistence).execute()
+        SaveSessionUseCase(pm, tsm, persistence)()
 
         assertEquals(persistence.currentSnapshotVersion, persistence.saved?.version)
     }

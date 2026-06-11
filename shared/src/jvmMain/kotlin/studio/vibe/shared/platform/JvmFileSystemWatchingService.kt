@@ -8,12 +8,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.FileSystemWatchingService
-import studio.vibe.shared.contract.WatchInfo
-import studio.vibe.shared.contract.WatchOptions
-import studio.vibe.shared.contract.WatchToken
-import studio.vibe.shared.model.FileChangeEvent
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.feature.filetree.domain.FileSystemWatchingService
+import studio.vibe.shared.feature.filetree.domain.WatchInfo
+import studio.vibe.shared.feature.filetree.domain.WatchOptions
+import studio.vibe.shared.feature.filetree.domain.WatchToken
+import studio.vibe.shared.core.common.FileChangeEvent
+import studio.vibe.shared.core.common.FilePath
 import kotlin.time.Clock
 
 /**

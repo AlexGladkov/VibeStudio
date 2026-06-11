@@ -1,12 +1,12 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.service.persistence
+package studio.vibe.shared.feature.session.data
 
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.model.AppSessionSnapshot
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.SessionPersistenceError
+import studio.vibe.shared.feature.session.domain.model.AppSessionSnapshot
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.session.domain.model.SessionPersistenceError
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.Test
 import kotlin.test.assertEquals

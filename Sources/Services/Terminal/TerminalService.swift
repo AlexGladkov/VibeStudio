@@ -52,9 +52,14 @@ final class TerminalService: TerminalSessionManaging {
     let sessionEvents: AsyncStream<TerminalSessionEvent>
 
     /// Long-running task observing `ThemeService.selectedAppearance`.
+    ///
+    /// Written only in init (MainActor). Read from nonisolated `deinit` to call
+    /// `.cancel()` — `Task` is `Sendable` and `cancel()` is atomic, so
+    /// `nonisolated(unsafe)` is required by Swift 5.10 strict concurrency to
+    /// permit the deinit access despite the access pattern being safe.
     nonisolated(unsafe) private var themeObservationTask: Task<Void, Never>?
 
-    /// Long-running task observing `GeneralPreferences.terminalFontSize`.
+    /// See `themeObservationTask` for isolation rationale.
     nonisolated(unsafe) private var fontObservationTask: Task<Void, Never>?
 
     /// General preferences (font size).
@@ -119,8 +124,12 @@ final class TerminalService: TerminalSessionManaging {
 
     deinit {
         eventContinuation.finish()
-        themeObservationTask?.cancel()
-        fontObservationTask?.cancel()
+        // Capture to locals to call `.cancel()` from nonisolated deinit.
+        // `Task` is Sendable and `cancel()` is atomic — safe across actors.
+        let themeTask = themeObservationTask
+        let fontTask = fontObservationTask
+        themeTask?.cancel()
+        fontTask?.cancel()
     }
 
     // MARK: - TerminalSessionManaging: Lifecycle

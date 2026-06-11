@@ -149,20 +149,29 @@ private struct TerminalSessionManagerKey: EnvironmentKey {
     @MainActor static let defaultValue: any TerminalSessionManaging = PreviewTerminalSessionManager()
 }
 
+// NOTE: Defaults for concrete @Observable services use `previewStub()` factories
+// (not the production init) to avoid side-effects in SwiftUI previews:
+//   - DistributedNotificationCenter observer registration (ThemeService)
+//   - Long-running observation Task spawning (TerminalService dependents)
+//   - Real network bootstrap (RemoteControlServer.start() — not triggered by init,
+//     but the stub keeps the dependency graph isolated for safety).
+// Memory invariant: ThemeService etc. must stay concrete in ServiceContainer,
+// so we use static factory methods on the concrete type instead of protocol stubs.
+
 private struct GitServiceKey: EnvironmentKey {
-    static let defaultValue: any GitServicing = PreviewGitService()
+    @MainActor static let defaultValue: any GitServicing = PreviewGitService()
 }
 
 private struct FileSystemWatcherKey: EnvironmentKey {
-    static let defaultValue: any FileSystemWatching = PreviewFileSystemWatcher()
+    @MainActor static let defaultValue: any FileSystemWatching = PreviewFileSystemWatcher()
 }
 
 private struct SessionPersistenceKey: EnvironmentKey {
-    static let defaultValue: any SessionPersisting = PreviewSessionPersistence()
+    @MainActor static let defaultValue: any SessionPersisting = PreviewSessionPersistence()
 }
 
 private struct AICommitServiceKey: EnvironmentKey {
-    static let defaultValue: any AICommitServicing = PreviewAICommitService()
+    @MainActor static let defaultValue: any AICommitServicing = PreviewAICommitService()
 }
 
 private struct GitStatusPollerKey: EnvironmentKey {
@@ -178,7 +187,7 @@ private struct NavigationCoordinatorKey: EnvironmentKey {
 }
 
 private struct ThemeServiceKey: EnvironmentKey {
-    @MainActor static let defaultValue: ThemeService = ThemeService()
+    @MainActor static let defaultValue: ThemeService = ThemeService.previewStub()
 }
 
 private struct FreeTabStoreKey: EnvironmentKey {
@@ -198,15 +207,15 @@ private struct CodeSpeakPreferencesKey: EnvironmentKey {
 }
 
 private struct GeneralPreferencesKey: EnvironmentKey {
-    @MainActor static let defaultValue: GeneralPreferences = GeneralPreferences()
+    @MainActor static let defaultValue: GeneralPreferences = GeneralPreferences.previewStub()
 }
 
 private struct RemoteControlServerKey: EnvironmentKey {
-    @MainActor static let defaultValue: RemoteControlServer = RemoteControlServer()
+    @MainActor static let defaultValue: RemoteControlServer = RemoteControlServer.previewStub()
 }
 
 private struct RemoteControlPreferencesKey: EnvironmentKey {
-    @MainActor static let defaultValue: RemoteControlPreferences = RemoteControlPreferences()
+    @MainActor static let defaultValue: RemoteControlPreferences = RemoteControlPreferences.previewStub()
 }
 
 extension EnvironmentValues {

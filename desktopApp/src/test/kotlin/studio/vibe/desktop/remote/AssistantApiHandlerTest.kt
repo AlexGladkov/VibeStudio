@@ -19,11 +19,11 @@ import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.serialization.json.Json
-import studio.vibe.shared.contract.RemoteAuthorizing
-import studio.vibe.shared.model.RemoteAuthResult
-import studio.vibe.shared.model.RemoteDevice
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.usecase.AssistantLauncher
+import studio.vibe.shared.feature.remote.domain.contract.RemoteAuthorizing
+import studio.vibe.shared.feature.remote.domain.model.RemoteAuthResult
+import studio.vibe.shared.feature.remote.domain.model.RemoteDevice
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.feature.assistant.domain.usecase.AssistantLauncher
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -62,7 +62,7 @@ class AssistantApiHandlerTest {
     private fun unauthenticatedAuthHandler(): RemoteAuthHandler {
         val authService = mockk<RemoteAuthorizing>(relaxed = true)
         coEvery { authService.validateToken(any(), any()) } returns
-            RemoteAuthResult.failure(studio.vibe.shared.model.RemoteAuthError.InvalidToken)
+            RemoteAuthResult.failure(studio.vibe.shared.feature.remote.domain.model.RemoteAuthError.InvalidToken)
         return RemoteAuthHandler(authService, json)
     }
 

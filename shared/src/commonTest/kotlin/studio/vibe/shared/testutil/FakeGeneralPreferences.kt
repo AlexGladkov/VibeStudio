@@ -3,8 +3,8 @@ package studio.vibe.shared.testutil
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import studio.vibe.shared.preferences.AppTheme
-import studio.vibe.shared.preferences.GeneralPreferencesWriting
+import studio.vibe.shared.feature.settings.data.AppTheme
+import studio.vibe.shared.feature.settings.domain.model.GeneralPreferencesWriting
 
 class FakeGeneralPreferences(
     confirmTabClose: Boolean = true,

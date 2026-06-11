@@ -44,9 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindow
 import androidx.compose.ui.window.rememberDialogState
 import studio.vibe.desktop.remote.RemoteControlServer
-import studio.vibe.shared.preferences.CodeSpeakPreferences
-import studio.vibe.shared.preferences.GeneralPreferences
-import studio.vibe.shared.preferences.RemoteControlPreferences
+import studio.vibe.shared.feature.codespeak.data.CodeSpeakPreferences
+import studio.vibe.shared.feature.settings.data.GeneralPreferences
+import studio.vibe.shared.feature.settings.data.RemoteControlPreferences
 import studio.vibe.desktop.ui.settings.GeneralSettingsPane
 import studio.vibe.desktop.ui.settings.LlmSettingsPane
 import studio.vibe.desktop.ui.settings.RemoteControlSettingsPane
@@ -57,11 +57,11 @@ import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.AIAgentRegistry
-import studio.vibe.shared.model.SettingsItem
-import studio.vibe.shared.model.SettingsSectionGroup
-import studio.vibe.shared.preferences.AppTheme
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.AIAgentRegistry
+import studio.vibe.shared.feature.settings.domain.model.SettingsItem
+import studio.vibe.shared.feature.settings.domain.model.SettingsSectionGroup
+import studio.vibe.shared.feature.settings.data.AppTheme
 
 // ── Public entry point ────────────────────────────────────────────────────────
 

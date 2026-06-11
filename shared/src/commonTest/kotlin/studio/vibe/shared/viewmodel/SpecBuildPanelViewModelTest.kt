@@ -1,13 +1,14 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.codespeak.presentation
 
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
 import studio.vibe.shared.testutil.FakeProcessRunner
 import studio.vibe.shared.testutil.FakeProjectManaging
+import studio.vibe.shared.feature.codespeak.domain.usecase.RunSpecBuildUseCase
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -23,7 +24,7 @@ class SpecBuildPanelViewModelTest {
         val runner = FakeProcessRunner()
         val pm = FakeProjectManaging(initialProjects = projects)
         val vm = SpecBuildPanelViewModel(
-            processRunner = runner,
+            runSpecBuildUseCase = RunSpecBuildUseCase(runner),
             projectManaging = pm,
             parentScope = scope,
         )

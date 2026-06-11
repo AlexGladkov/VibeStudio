@@ -70,10 +70,10 @@ class PtyKillStrategyTest {
         proc: PtyProcess,
         projectId: Uuid = Uuid.random(),
     ): PtySessionState {
-        val session = studio.vibe.shared.model.TerminalSession(
+        val session = studio.vibe.shared.feature.terminal.domain.model.TerminalSession(
             projectId = projectId,
             title = "zsh",
-            state = studio.vibe.shared.model.TerminalSessionState.Running,
+            state = studio.vibe.shared.core.common.terminal.TerminalSessionState.Running,
         )
         val state = PtySessionState(
             session = session,

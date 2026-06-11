@@ -1,9 +1,13 @@
-package studio.vibe.shared.service.git
+package studio.vibe.shared.feature.git.data
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.*
-import studio.vibe.shared.service.git.parser.GitBranchParser
-import studio.vibe.shared.service.git.parser.GitOutputParser
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.feature.git.domain.model.DiffLineType
+import studio.vibe.shared.feature.git.domain.model.GitDiffStat
+import studio.vibe.shared.core.common.git.GitFileStatus
+import studio.vibe.shared.feature.git.domain.model.GitServiceError
+import studio.vibe.shared.feature.git.data.parser.GitBranchParser
+import studio.vibe.shared.feature.git.data.parser.GitOutputParser
 import studio.vibe.shared.testutil.FakeProcessRunner
 import kotlin.test.*
 

@@ -1,7 +1,7 @@
 package studio.vibe.shared.platform
 
-import studio.vibe.shared.contract.BinaryResolver
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.BinaryResolver
+import studio.vibe.shared.core.common.FilePath
 import java.nio.file.Files
 import java.nio.file.Path
 

@@ -2,8 +2,8 @@ package studio.vibe.shared.platform
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import studio.vibe.shared.contract.PersistenceStore
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.PersistenceStore
+import studio.vibe.shared.core.common.FilePath
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption

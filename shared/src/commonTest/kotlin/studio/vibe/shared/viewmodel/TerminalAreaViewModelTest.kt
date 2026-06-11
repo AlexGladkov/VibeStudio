@@ -1,34 +1,35 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.terminal.presentation
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import studio.vibe.shared.contract.AIAgent
-import studio.vibe.shared.contract.TerminalSessionManaging
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.model.SplitDirection
-import studio.vibe.shared.model.TabActivityState
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionError
-import studio.vibe.shared.model.TerminalSessionState
-import studio.vibe.shared.model.TerminalSize
+import studio.vibe.shared.core.common.AIAgent
+import studio.vibe.shared.core.common.terminal.TerminalSessionEvent
+import studio.vibe.shared.core.common.terminal.TerminalSessionManaging
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.core.common.terminal.SplitDirection
+import studio.vibe.shared.core.common.terminal.TabActivityState
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.feature.terminal.domain.model.TerminalSessionError
+import studio.vibe.shared.core.common.terminal.TerminalSize
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
+import studio.vibe.shared.feature.terminal.domain.usecase.CreateTerminalSessionUseCase
+import studio.vibe.shared.feature.terminal.domain.usecase.ListTerminalSessionsUseCase
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import studio.vibe.shared.contract.TerminalSessionEvent
 
 class TerminalAreaViewModelTest {
 
@@ -62,7 +63,12 @@ class TerminalAreaViewModelTest {
         tsm: TerminalSessionManaging = FakeTerminalSessionManaging(),
     ): Triple<TerminalAreaViewModel, FakeProjectManaging, TerminalSessionManaging> {
         val scope = CoroutineScope(UnconfinedTestDispatcher())
-        val vm = TerminalAreaViewModel(projectManaging = pm, terminalSessionManaging = tsm, parentScope = scope)
+        val vm = TerminalAreaViewModel(
+            projectManaging = pm,
+            createTerminalSessionUseCase = CreateTerminalSessionUseCase(tsm),
+            listTerminalSessionsUseCase = ListTerminalSessionsUseCase(tsm),
+            parentScope = scope,
+        )
         return Triple(vm, pm, tsm)
     }
 

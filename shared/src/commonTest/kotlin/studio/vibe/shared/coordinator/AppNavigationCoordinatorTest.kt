@@ -1,5 +1,7 @@
-package studio.vibe.shared.coordinator
+package studio.vibe.shared.core.common
 
+import studio.vibe.shared.coordinator.AppMode
+import studio.vibe.shared.coordinator.AppNavigationCoordinator
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

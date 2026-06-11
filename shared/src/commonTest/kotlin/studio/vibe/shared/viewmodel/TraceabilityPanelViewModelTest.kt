@@ -1,8 +1,8 @@
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.codespeak.presentation
 
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FilePath
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.test.Test
 import kotlin.test.assertFalse

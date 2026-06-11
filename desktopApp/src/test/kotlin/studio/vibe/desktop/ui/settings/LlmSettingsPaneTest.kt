@@ -10,12 +10,12 @@ import org.junit.Test
 import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.service.agent.ClaudeAgent
-import studio.vibe.shared.service.agent.CodeSpeakAgent
-import studio.vibe.shared.service.agent.CodexAgent
-import studio.vibe.shared.service.agent.GeminiAgent
-import studio.vibe.shared.service.agent.OpenCodeAgent
-import studio.vibe.shared.service.agent.QwenCodeAgent
+import studio.vibe.shared.core.common.ClaudeAgent
+import studio.vibe.shared.core.common.CodeSpeakAgent
+import studio.vibe.shared.core.common.CodexAgent
+import studio.vibe.shared.core.common.GeminiAgent
+import studio.vibe.shared.core.common.OpenCodeAgent
+import studio.vibe.shared.core.common.QwenCodeAgent
 import java.io.File
 
 /**

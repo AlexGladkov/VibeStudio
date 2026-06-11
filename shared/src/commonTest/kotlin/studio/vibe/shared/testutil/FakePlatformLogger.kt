@@ -1,6 +1,6 @@
 package studio.vibe.shared.testutil
 
-import studio.vibe.shared.service.remote.PlatformLogger
+import studio.vibe.shared.feature.remote.data.PlatformLogger
 
 /**
  * In-memory [PlatformLogger] test double.

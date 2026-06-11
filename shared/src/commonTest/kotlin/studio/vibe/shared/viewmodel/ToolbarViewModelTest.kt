@@ -1,19 +1,19 @@
-package studio.vibe.shared.viewmodel
+package studio.vibe.shared.feature.toolbar.presentation
 
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AgentAvailabilityStatus
-import studio.vibe.shared.contract.TerminalSessionEvent
-import studio.vibe.shared.service.agent.ClaudeAgent
-import studio.vibe.shared.service.agent.CodexAgent
-import studio.vibe.shared.service.agent.DefaultAIAgentRegistry
+import studio.vibe.shared.core.common.AgentAvailabilityStatus
+import studio.vibe.shared.core.common.terminal.TerminalSessionEvent
+import studio.vibe.shared.core.common.ClaudeAgent
+import studio.vibe.shared.core.common.CodexAgent
+import studio.vibe.shared.core.common.DefaultAIAgentRegistry
 import studio.vibe.shared.testutil.FakeAPIKeyResolving
 import studio.vibe.shared.testutil.FakeAgentAvailabilityChecking
 import studio.vibe.shared.testutil.FakeAssistantLauncher
 import studio.vibe.shared.testutil.FakeProjectManaging
 import studio.vibe.shared.testutil.FakeTerminalSessionManaging
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FilePath
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

@@ -20,42 +20,42 @@ dependencies {
     implementation(compose.materialIconsExtended)
 
     // Coroutines Swing dispatcher (provides Dispatchers.Main on Desktop JVM)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.11.0")
+    implementation(libs.kotlinx.coroutines.swing)
 
     // Terminal emulation — PTY process management
-    implementation("org.jetbrains.pty4j:pty4j:0.13.11")
+    implementation(libs.pty4j)
     // Terminal emulation — JediTerm ANSI/VT100 emulator and Swing widget
     // Version 3.68 is the latest stable release on intellij-dependencies maven.
     // The original requirement of 3.72 does not exist upstream; 3.68 is the
     // correct artifact to use.
-    implementation("org.jetbrains.jediterm:jediterm-core:3.68")
-    implementation("org.jetbrains.jediterm:jediterm-ui:3.68")
+    implementation(libs.jediterm.core)
+    implementation(libs.jediterm.ui)
 
     // Ktor HTTP client — used by AICommitServiceImpl in DesktopServiceContainer
-    implementation("io.ktor:ktor-client-okhttp:3.5.0")
-    implementation("io.ktor:ktor-client-content-negotiation:3.5.0")
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
 
     // Embedded HTTP server for Remote Control
-    implementation("io.ktor:ktor-server-netty:3.5.0")
-    implementation("io.ktor:ktor-server-websockets:3.5.0")
-    implementation("io.ktor:ktor-server-content-negotiation:3.5.0")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
-    implementation("io.ktor:ktor-server-cors:3.5.0")
+    implementation(libs.ktor.server.netty)
+    implementation(libs.ktor.server.websockets)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.ktor.server.cors)
     // JSON parsing for ngrok API response (no additional dep — org.json ships with Android/JVM)
-    implementation("org.json:json:20240303")
+    implementation(libs.org.json)
 
     // QR code generation for remote control popover
-    implementation("com.google.zxing:core:3.5.3")
+    implementation(libs.zxing.core)
 
     // Test dependencies
     testImplementation(kotlin("test"))
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(compose.desktop.uiTestJUnit4)
-    testImplementation("io.mockk:mockk:1.14.2")
-    testImplementation("io.ktor:ktor-server-test-host:3.5.0")
-    testImplementation("io.ktor:ktor-server-content-negotiation:3.5.0")
-    testImplementation("io.ktor:ktor-client-content-negotiation:3.5.0")
-    testImplementation("io.ktor:ktor-server-status-pages:3.5.0")
+    testImplementation(libs.mockk)
+    testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.server.content.negotiation)
+    testImplementation(libs.ktor.client.content.negotiation)
+    testImplementation(libs.ktor.server.status.pages)
 }
 
 val appVersion = project.findProperty("app.version")?.toString() ?: "1.0.0"

@@ -10,9 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
-import studio.vibe.shared.contract.TerminalSessionEvent
-import studio.vibe.shared.model.TabActivityState
-import studio.vibe.shared.model.TerminalSessionState
+import studio.vibe.shared.core.common.terminal.TerminalSessionEvent
+import studio.vibe.shared.core.common.terminal.TabActivityState
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
 import kotlin.uuid.Uuid
 
 /**

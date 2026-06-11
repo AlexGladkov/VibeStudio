@@ -6,9 +6,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import studio.vibe.desktop.ui.theme.DSColors
-import studio.vibe.shared.contract.LineContext
-import studio.vibe.shared.contract.SyntaxTokenKind
-import studio.vibe.shared.service.syntax.CodeSpeakSyntaxParser
+import studio.vibe.shared.core.common.LineContext
+import studio.vibe.shared.core.common.SyntaxTokenKind
+import studio.vibe.shared.core.common.CodeSpeakSyntaxParser
 
 internal fun highlightCodeSpeak(content: String, colors: DSColors): AnnotatedString {
     val parser = CodeSpeakSyntaxParser()

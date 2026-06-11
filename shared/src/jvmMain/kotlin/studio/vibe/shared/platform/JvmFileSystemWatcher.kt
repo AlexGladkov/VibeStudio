@@ -6,10 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import studio.vibe.shared.contract.FileSystemWatcher
-import studio.vibe.shared.model.FileChangeEvent
-import studio.vibe.shared.model.FileChangeKind
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FileSystemWatcher
+import studio.vibe.shared.core.common.FileChangeEvent
+import studio.vibe.shared.core.common.FileChangeKind
+import studio.vibe.shared.core.common.FilePath
 import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.nio.file.StandardWatchEventKinds

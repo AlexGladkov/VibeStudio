@@ -1,6 +1,6 @@
-package studio.vibe.shared.service.remote
+package studio.vibe.shared.feature.remote.data
 
-import studio.vibe.shared.model.RemoteDevice
+import studio.vibe.shared.feature.remote.domain.model.RemoteDevice
 import studio.vibe.shared.testutil.FakePlatformLogger
 import kotlin.test.*
 import kotlin.time.Clock

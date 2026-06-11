@@ -371,6 +371,44 @@ input, select, textarea {
   min-height: 0;
   overflow: hidden;
   background: var(--term-background);
+  position: relative;
+}
+
+.terminal-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-sm);
+  background: var(--term-background);
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.terminal-overlay[hidden] {
+  display: none;
+}
+
+.terminal-overlay-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.terminal-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: vs-spin 0.8s linear infinite;
+}
+
+@keyframes vs-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* xterm.js overrides */
@@ -392,7 +430,7 @@ input, select, textarea {
 
 .input-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--sp-xs);
   padding: var(--sp-xs) var(--sp-sm);
   background: var(--surface-raised);
@@ -403,15 +441,19 @@ input, select, textarea {
 .prompt-input {
   flex: 1;
   min-width: 0;
-  height: 44px;
-  padding: 0 var(--sp-md);
+  min-height: 44px;
+  max-height: 30vh;
+  padding: 10px var(--sp-md);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--surface-input);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 16px;
+  line-height: 1.4;
   outline: none;
+  resize: none;
+  overflow-y: auto;
   -webkit-appearance: none;
   appearance: none;
 }
@@ -445,6 +487,220 @@ input, select, textarea {
 .input-send-btn:active {
   background: var(--accent-primary-hover);
   transform: scale(0.95);
+}
+
+/* --- Chat-style Composer --- */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-xs);
+  padding: var(--sp-xs) var(--sp-sm);
+  background: var(--surface-raised);
+  border-top: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.composer.is-dragover {
+  background: var(--surface-input);
+  outline: 2px dashed var(--accent-primary);
+  outline-offset: -4px;
+}
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-sm);
+  flex-wrap: wrap;
+  min-height: 28px;
+}
+
+.agent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 2px 0 4px;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.agent-pill.is-running {
+  border-color: var(--accent-primary);
+  background: rgba(74, 158, 255, 0.08);
+}
+
+.agent-pill-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  color: #fff;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.agent-pill-action--stop {
+  background: #d04646;
+}
+
+.agent-pill-action:active {
+  transform: scale(0.92);
+}
+
+.agent-pill-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 0 16px 0 4px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+                    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 8px) 50%, calc(100% - 4px) 50%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+
+.attachments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+  overflow-x: auto;
+}
+
+.attachment {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment.is-uploading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background-size: 200% 100%;
+  animation: vs-shimmer 1.2s linear infinite;
+}
+
+@keyframes vs-shimmer {
+  to { background-position: -200% 0; }
+}
+
+.attachment-remove {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-xs);
+}
+
+.composer-attach-btn,
+.composer-send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
+}
+
+.composer-attach-btn {
+  background: var(--surface-input);
+  color: var(--text-muted);
+}
+
+.composer-attach-btn:active {
+  transform: scale(0.95);
+  color: var(--text-primary);
+}
+
+.composer-send-btn {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.composer-send-btn:active {
+  background: var(--accent-primary-hover);
+  transform: scale(0.95);
+}
+
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 30vh;
+  padding: 10px var(--sp-md);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-input);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1.4;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.composer-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.15);
+}
+
+.composer-input::placeholder {
+  color: var(--text-muted);
 }
 
 /* --- Special Keys Bar --- */

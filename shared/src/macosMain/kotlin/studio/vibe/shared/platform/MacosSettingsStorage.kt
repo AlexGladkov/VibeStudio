@@ -1,7 +1,7 @@
 package studio.vibe.shared.platform
 
 import platform.Foundation.NSUserDefaults
-import studio.vibe.shared.contract.SettingsStorage
+import studio.vibe.shared.core.common.SettingsStorage
 
 class MacosSettingsStorage : SettingsStorage {
 

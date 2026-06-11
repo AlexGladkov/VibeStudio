@@ -3,7 +3,7 @@ package studio.vibe.desktop.session
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionRecord
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

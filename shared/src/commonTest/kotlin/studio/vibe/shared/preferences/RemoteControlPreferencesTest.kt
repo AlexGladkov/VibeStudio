@@ -1,7 +1,8 @@
-package studio.vibe.shared.preferences
+package studio.vibe.shared.core.common
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.CredentialStorage
+import studio.vibe.shared.core.common.CredentialStorage
+import studio.vibe.shared.feature.settings.data.RemoteControlPreferences
 import studio.vibe.shared.testutil.InMemorySettingsStorage
 import kotlin.test.BeforeTest
 import kotlin.test.Test

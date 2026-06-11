@@ -14,7 +14,7 @@ import studio.vibe.desktop.DesktopServiceContainer
 import studio.vibe.desktop.createIsolatedContainer
 import studio.vibe.desktop.ui.VibeStudioDesktopApp
 import studio.vibe.desktop.ui.theme.VibeStudioTheme
-import studio.vibe.shared.model.FilePath
+import studio.vibe.shared.core.common.FilePath
 import java.io.File
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking

@@ -48,19 +48,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.project.ProjectManaging
 import studio.vibe.desktop.ui.theme.DSColor
 import studio.vibe.desktop.ui.theme.LocalDSColors
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
 import studio.vibe.desktop.ui.theme.DSRadius
 import studio.vibe.desktop.ui.theme.DSSpacing
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionRecord
 import studio.vibe.desktop.ui.components.ResolvedSessionRow
 import studio.vibe.desktop.ui.components.RecentSessionsSection
 import studio.vibe.desktop.ui.components.recentSessionsSection
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
 
 @Composable
 fun WelcomeView(

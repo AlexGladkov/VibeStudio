@@ -43,9 +43,17 @@ final class CodeSpeakModeViewModel {
 
     // MARK: - Init
 
-    init(codeSpeak: CodeSpeakService, projectManager: any ProjectManaging) {
+    init(
+        codeSpeak: CodeSpeakService,
+        projectManager: any ProjectManaging,
+        csPreferences: CodeSpeakPreferences? = nil
+    ) {
         specsVM = SpecsViewModel()
-        buildVM = SpecBuildPanelViewModel(codeSpeak: codeSpeak, projectManager: projectManager)
+        buildVM = SpecBuildPanelViewModel(
+            codeSpeak: codeSpeak,
+            projectManager: projectManager,
+            csPreferences: csPreferences
+        )
     }
 
     // MARK: - Spec Selection

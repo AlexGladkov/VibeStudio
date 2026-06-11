@@ -19,10 +19,10 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.TerminalSessionEvent
-import studio.vibe.shared.model.TabActivityState
-import studio.vibe.shared.model.TerminalSession
-import studio.vibe.shared.model.TerminalSessionState
+import studio.vibe.shared.core.common.terminal.TerminalSessionEvent
+import studio.vibe.shared.core.common.terminal.TabActivityState
+import studio.vibe.shared.core.common.terminal.TerminalSession
+import studio.vibe.shared.core.common.terminal.TerminalSessionState
 import java.io.BufferedWriter
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream

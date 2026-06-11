@@ -1,11 +1,11 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.service.codespeak
+package studio.vibe.shared.feature.codespeak.data
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.model.FilePath
-import studio.vibe.shared.model.Project
-import studio.vibe.shared.model.SpecStats
+import studio.vibe.shared.core.common.FilePath
+import studio.vibe.shared.core.common.project.Project
+import studio.vibe.shared.feature.codespeak.domain.model.SpecStats
 import studio.vibe.shared.testutil.FakePersistenceStore
 import kotlin.time.Clock
 import kotlin.uuid.Uuid

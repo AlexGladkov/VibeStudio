@@ -1,9 +1,11 @@
 @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 
-package studio.vibe.shared.usecase
+package studio.vibe.shared.feature.session.domain.usecase
 
 import kotlinx.coroutines.test.runTest
-import studio.vibe.shared.contract.AgentSessionRecord
+import studio.vibe.shared.core.common.AgentSessionRecord
+import studio.vibe.shared.core.common.CaptureAgentSessionIdParams
+import studio.vibe.shared.core.common.CaptureAgentSessionIdUseCase
 import studio.vibe.shared.testutil.FakeAgentSessionLog
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,6 +30,9 @@ class CaptureAgentSessionIdUseCaseTest {
         )
     }
 
+    private suspend fun invoke(line: String) =
+        useCase(CaptureAgentSessionIdParams(sessionId, line))
+
     // ── Valid Claude stream-json lines ────────────────────────────────────────
 
     @Test
@@ -35,7 +40,7 @@ class CaptureAgentSessionIdUseCaseTest {
         seedSession()
         val line = """{"type":"system","subtype":"init","session_id":"12345678-1234-1234-1234-123456789abc","tools":[],"mcp_servers":[]}"""
 
-        useCase.execute(sessionId, line)
+        invoke(line)
 
         assertEquals(1, log.updateNativeSessionIdCalls.size)
         assertEquals(sessionId.toString() to "12345678-1234-1234-1234-123456789abc", log.updateNativeSessionIdCalls[0])
@@ -47,7 +52,7 @@ class CaptureAgentSessionIdUseCaseTest {
         val uuid = "abcdef01-abcd-abcd-abcd-abcdef012345"
         val line = """{"type":"system","subtype":"init","session_id":"$uuid"}"""
 
-        useCase.execute(sessionId, line)
+        invoke(line)
 
         assertEquals(uuid, log.updateNativeSessionIdCalls.firstOrNull()?.second)
     }
@@ -57,7 +62,7 @@ class CaptureAgentSessionIdUseCaseTest {
         seedSession()
         val line = """{ "session_id" : "aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb" }"""
 
-        useCase.execute(sessionId, line)
+        invoke(line)
 
         assertEquals("aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb", log.updateNativeSessionIdCalls.firstOrNull()?.second)
     }
@@ -67,7 +72,7 @@ class CaptureAgentSessionIdUseCaseTest {
     @Test
     fun execute_regularTerminalOutput_noUpdate() = runTest {
         seedSession()
-        useCase.execute(sessionId, "Compiling files...")
+        invoke("Compiling files...")
 
         assertTrue(log.updateNativeSessionIdCalls.isEmpty())
     }
@@ -75,7 +80,7 @@ class CaptureAgentSessionIdUseCaseTest {
     @Test
     fun execute_emptyLine_noUpdate() = runTest {
         seedSession()
-        useCase.execute(sessionId, "")
+        invoke("")
 
         assertTrue(log.updateNativeSessionIdCalls.isEmpty())
     }
@@ -85,7 +90,7 @@ class CaptureAgentSessionIdUseCaseTest {
         seedSession()
         val line = """{"type":"system","subtype":"init","other_field":"value"}"""
 
-        useCase.execute(sessionId, line)
+        invoke(line)
 
         assertTrue(log.updateNativeSessionIdCalls.isEmpty())
     }
@@ -93,7 +98,7 @@ class CaptureAgentSessionIdUseCaseTest {
     @Test
     fun execute_malformedJson_noUpdate() = runTest {
         seedSession()
-        useCase.execute(sessionId, "{not valid json at all}")
+        invoke("{not valid json at all}")
 
         assertTrue(log.updateNativeSessionIdCalls.isEmpty())
     }
@@ -104,7 +109,7 @@ class CaptureAgentSessionIdUseCaseTest {
         // session_id present but not UUID format
         val line = """{"session_id":"not-a-uuid-at-all"}"""
 
-        useCase.execute(sessionId, line)
+        invoke(line)
 
         assertTrue(log.updateNativeSessionIdCalls.isEmpty())
     }
@@ -114,7 +119,7 @@ class CaptureAgentSessionIdUseCaseTest {
         seedSession()
         val line = """{"session_id":"12345678-1234-1234"}"""
 
-        useCase.execute(sessionId, line)
+        invoke(line)
 
         assertTrue(log.updateNativeSessionIdCalls.isEmpty())
     }
@@ -127,7 +132,7 @@ class CaptureAgentSessionIdUseCaseTest {
         // but the use case itself must never throw.
         val line = """{"type":"system","subtype":"init","session_id":"12345678-1234-1234-1234-123456789abc"}"""
 
-        useCase.execute(sessionId, line) // must complete without throwing
+        invoke(line) // must complete without throwing
     }
 
     // ── Regex companion object ────────────────────────────────────────────────

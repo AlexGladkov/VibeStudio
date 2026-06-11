@@ -31,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import studio.vibe.shared.contract.ProjectManaging
+import studio.vibe.shared.core.common.project.ProjectManaging
 import studio.vibe.desktop.ui.AddProjectPopover
 import studio.vibe.desktop.ui.theme.DSFont
 import studio.vibe.desktop.ui.theme.DSLayout
