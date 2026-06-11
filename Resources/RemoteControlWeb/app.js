@@ -1478,32 +1478,113 @@ const App = (function () {
       }
     });
 
-    // Agent pill (inline play/stop in composer)
-    const agentPicker = document.getElementById('agent-picker');
-    const agentPlayBtn = document.getElementById('agent-play-btn');
-    const agentStopBtn = document.getElementById('agent-stop-btn');
-    const agentPill = document.getElementById('agent-pill');
+    // Agent trigger + bottom sheet
+    const agentTrigger = document.getElementById('agent-trigger-btn');
+    const agentTriggerIcon = document.getElementById('agent-trigger-icon');
+    const agentSheet = document.getElementById('agent-sheet');
+    const agentSheetBackdrop = document.getElementById('agent-sheet-backdrop');
+    const agentSheetTitle = document.getElementById('agent-sheet-title');
+    const agentSheetSubtitle = document.getElementById('agent-sheet-subtitle');
+    const agentSheetList = document.getElementById('agent-sheet-list');
+    const agentSheetCancel = document.getElementById('agent-sheet-cancel');
     let agentRunning = false;
+    let agentRunningName = null;
 
-    function setAgentRunning(running) {
+    const PLAY_ICON_SVG =
+      '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+      '<path d="M4 2v12l10-6L4 2z" fill="currentColor"/></svg>';
+    const STOP_ICON_SVG =
+      '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+      '<rect x="3" y="3" width="10" height="10" fill="currentColor"/></svg>';
+
+    function setAgentRunning(running, name) {
       agentRunning = running;
-      agentPlayBtn.hidden = running;
-      agentStopBtn.hidden = !running;
-      agentPicker.disabled = running;
-      agentPill.classList.toggle('is-running', running);
+      agentRunningName = running ? (name || agentRunningName || 'agent') : null;
+      agentTrigger.classList.toggle('is-running', running);
+      agentTrigger.title = running ? ('Stop ' + agentRunningName) : 'Run agent';
+      agentTrigger.setAttribute('aria-label', running ? 'Stop agent' : 'Start agent');
+      agentTriggerIcon.innerHTML = running ? STOP_ICON_SVG : PLAY_ICON_SVG;
     }
 
-    agentPlayBtn.addEventListener('click', function () {
-      const agent = agentPicker.value;
-      client.startAssistant(agent).then(function (resp) {
-        if (resp.ok) setAgentRunning(true);
-      });
+    // Cache the original agent start-option templates once — sheet rebuilds
+    // them on every open and may switch to a stop-only layout that throws
+    // them away otherwise.
+    const agentSheetTemplates = Array.from(agentSheetList.querySelectorAll('[data-agent]'))
+      .map(function (n) { return n.cloneNode(true); });
+
+    function openAgentSheet() {
+      agentSheetList.innerHTML = '';
+
+      if (agentRunning) {
+        agentSheetTitle.textContent = 'Agent running';
+        agentSheetSubtitle.textContent = 'Stop the current ' + (agentRunningName || 'agent') + ' session?';
+        const stopBtn = document.createElement('button');
+        stopBtn.className = 'sheet-item sheet-item--stop';
+        stopBtn.type = 'button';
+        stopBtn.textContent = 'Stop ' + (agentRunningName || 'agent');
+        stopBtn.addEventListener('click', function () {
+          closeAgentSheet();
+          client.stopAssistant().then(function (resp) {
+            if (resp && resp.ok) setAgentRunning(false);
+          });
+        });
+        agentSheetList.appendChild(stopBtn);
+      } else {
+        agentSheetTitle.textContent = 'Start agent';
+        agentSheetSubtitle.textContent = 'Pick which agent to launch in the active project.';
+        agentSheetTemplates.forEach(function (proto) {
+          const opt = proto.cloneNode(true);
+          opt.addEventListener('click', function () {
+            const name = opt.dataset.agent;
+            closeAgentSheet();
+            client.startAssistant(name).then(function (resp) {
+              if (resp && resp.ok) setAgentRunning(true, name);
+            });
+          });
+          agentSheetList.appendChild(opt);
+        });
+      }
+
+      agentSheetBackdrop.hidden = false;
+      agentSheet.hidden = false;
+      agentTrigger.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeAgentSheet() {
+      agentSheetBackdrop.hidden = true;
+      agentSheet.hidden = true;
+      agentTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    agentTrigger.addEventListener('click', openAgentSheet);
+    agentSheetBackdrop.addEventListener('click', closeAgentSheet);
+    agentSheetCancel.addEventListener('click', closeAgentSheet);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !agentSheet.hidden) {
+        e.preventDefault();
+        closeAgentSheet();
+      }
     });
 
-    agentStopBtn.addEventListener('click', function () {
-      client.stopAssistant().then(function (resp) {
-        if (resp.ok) setAgentRunning(false);
-      });
+    setAgentRunning(false);
+
+    // Keys-bar toggle — collapsed by default to save vertical space.
+    // State persists across reloads in localStorage.
+    const keysToggleBtn = document.getElementById('keys-toggle-btn');
+    const keysBarEl = document.getElementById('keys-bar');
+
+    function setKeysBarVisible(visible) {
+      keysBarEl.hidden = !visible;
+      keysToggleBtn.setAttribute('aria-expanded', visible ? 'true' : 'false');
+      keysToggleBtn.classList.toggle('is-active', visible);
+      try { localStorage.setItem('vs_keys_visible', visible ? '1' : '0'); } catch (_e) {}
+    }
+
+    const keysInitial = localStorage.getItem('vs_keys_visible') === '1';
+    setKeysBarVisible(keysInitial);
+
+    keysToggleBtn.addEventListener('click', function () {
+      setKeysBarVisible(keysBarEl.hidden);
     });
 
     // ── Attachments (images) ───────────────────────────────────────────────

@@ -78,33 +78,29 @@
       <!-- Chat-style composer -->
       <div class="composer" id="composer">
 
-        <!-- Top row: agent pill + attachment chips -->
-        <div class="composer-toolbar">
-          <div class="agent-pill" id="agent-pill">
-            <button class="agent-pill-action" id="agent-play-btn" aria-label="Start agent" title="Start">
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+        <!-- Attachments row (only visible when there are attachments) -->
+        <div class="attachments" id="attachments" aria-label="Attachments"></div>
+
+        <!-- Composer row: agent | paperclip | textarea | send -->
+        <div class="composer-row">
+          <button class="composer-icon-btn agent-trigger" id="agent-trigger-btn"
+                  aria-label="Agent" title="Run agent" aria-haspopup="dialog" aria-expanded="false">
+            <span class="agent-trigger-icon" id="agent-trigger-icon">
+              <!-- ▶ default; replaced with ⏹ when running, via JS -->
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M4 2v12l10-6L4 2z" fill="currentColor"/>
               </svg>
-            </button>
-            <button class="agent-pill-action agent-pill-action--stop" id="agent-stop-btn" aria-label="Stop agent" title="Stop" hidden>
-              <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
-                <rect x="3" y="3" width="10" height="10" fill="currentColor"/>
-              </svg>
-            </button>
-            <select id="agent-picker" class="agent-pill-select" aria-label="Agent">
-              <option value="claude">claude</option>
-              <option value="opencode">opencode</option>
-              <option value="codex">codex</option>
-              <option value="gemini">gemini</option>
-              <option value="qwenCode">qwen</option>
-            </select>
-          </div>
-          <div class="attachments" id="attachments" aria-label="Attachments"></div>
-        </div>
-
-        <!-- Bottom row: paperclip | textarea | send -->
-        <div class="composer-row">
-          <button class="composer-attach-btn" id="attach-btn" aria-label="Attach image" title="Attach image (paste/drop also works)">
+            </span>
+          </button>
+          <button class="composer-icon-btn" id="keys-toggle-btn"
+                  aria-label="Special keys" title="Show special keys"
+                  aria-expanded="false" aria-controls="keys-bar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="6" width="20" height="12" rx="2"/>
+              <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/>
+            </svg>
+          </button>
+          <button class="composer-icon-btn" id="attach-btn" aria-label="Attach image" title="Attach image (paste/drop also works)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
             </svg>
@@ -122,8 +118,39 @@
         </div>
       </div>
 
-      <!-- Special Keys Bar -->
-      <div class="keys-bar" id="keys-bar" role="toolbar" aria-label="Special keys">
+      <!-- Agent action sheet (modal popup) -->
+      <div class="sheet-backdrop" id="agent-sheet-backdrop" hidden></div>
+      <div class="sheet" id="agent-sheet" role="dialog" aria-labelledby="agent-sheet-title" aria-modal="true" hidden>
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <h2 class="sheet-title" id="agent-sheet-title">Agent</h2>
+        <p class="sheet-subtitle" id="agent-sheet-subtitle">Select an agent to start in the active project.</p>
+        <div class="sheet-list" id="agent-sheet-list">
+          <button class="sheet-item" data-agent="claude">
+            <span class="sheet-item-label">Claude Code</span>
+            <span class="sheet-item-key">claude</span>
+          </button>
+          <button class="sheet-item" data-agent="opencode">
+            <span class="sheet-item-label">OpenCode</span>
+            <span class="sheet-item-key">opencode</span>
+          </button>
+          <button class="sheet-item" data-agent="codex">
+            <span class="sheet-item-label">Codex</span>
+            <span class="sheet-item-key">codex</span>
+          </button>
+          <button class="sheet-item" data-agent="gemini">
+            <span class="sheet-item-label">Gemini</span>
+            <span class="sheet-item-key">gemini</span>
+          </button>
+          <button class="sheet-item" data-agent="qwenCode">
+            <span class="sheet-item-label">Qwen Code</span>
+            <span class="sheet-item-key">qwen</span>
+          </button>
+        </div>
+        <button class="sheet-cancel" id="agent-sheet-cancel">Cancel</button>
+      </div>
+
+      <!-- Special Keys Bar — toggled by #keys-toggle-btn, hidden by default -->
+      <div class="keys-bar" id="keys-bar" role="toolbar" aria-label="Special keys" hidden>
         <button class="key-btn" data-key="esc" aria-label="Escape">Esc</button>
         <button class="key-btn" data-key="tab" aria-label="Tab">Tab</button>
         <button class="key-btn key-btn--modifier" data-key="ctrl" aria-label="Control modifier" aria-pressed="false">Ctrl</button>

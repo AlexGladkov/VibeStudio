@@ -62,3 +62,6 @@ local.properties
 *.tmp
 swarm-report/
 cat
+
+# Playwright CLI artifacts
+.playwright-cli/
