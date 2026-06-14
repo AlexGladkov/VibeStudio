@@ -133,8 +133,24 @@ struct HTTPResponseBuilder: Sendable {
             ? "public, max-age=31536000, immutable"
             : "no-cache"
         )
-        let isHTML = contentType.hasPrefix("text/html")
-        Self.addSecurityHeaders(to: &headers, isHTML: isHTML)
+        if fileName == "sw.js" {
+            // CRITICAL: the CSP on the service-worker SCRIPT governs the worker's
+            // own runtime, not just the document. `default-src 'none'` implies
+            // `connect-src 'none'`, which silently blocked EVERY fetch the SW
+            // made — both `cache.add()` at install and runtime revalidation —
+            // leaving the cache empty so returning users were served the SW's
+            // "Offline" 503 fallback even though the server was reachable. The
+            // worker only needs to fetch same-origin shell assets.
+            headers.add(name: "X-Content-Type-Options", value: "nosniff")
+            headers.add(name: "Referrer-Policy", value: "no-referrer")
+            headers.add(
+                name: "Content-Security-Policy",
+                value: "default-src 'none'; connect-src 'self'"
+            )
+        } else {
+            let isHTML = contentType.hasPrefix("text/html")
+            Self.addSecurityHeaders(to: &headers, isHTML: isHTML)
+        }
         let head = HTTPResponseHead(version: .http1_1, status: .ok, headers: headers)
         var buffer = allocator.buffer(capacity: data.count)
         buffer.writeBytes(data)
@@ -179,6 +195,10 @@ struct HTTPResponseBuilder: Sendable {
                 value: "default-src 'self'; " +
                        "script-src 'self'; " +
                        "style-src 'self' 'unsafe-inline'; " +
+                       // `data:` images: the UI renders inline SVG icons (e.g.
+                       // the dropdown chevron) as data: URIs. Without this they
+                       // are blocked by default-src and the icons vanish.
+                       "img-src 'self' data:; " +
                        "connect-src 'self' wss: ws:"
             )
         } else {

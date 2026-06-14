@@ -57,7 +57,9 @@
           <select id="project-picker" class="picker" aria-label="Project">
             <option value="">No projects</option>
           </select>
-          <select id="session-picker" class="picker" aria-label="Session">
+          <!-- Session selection is automatic (follows the agent/active session
+               on the Mac); the picker is kept in the DOM for JS state but hidden. -->
+          <select id="session-picker" class="picker picker-hidden" aria-label="Session" tabindex="-1" aria-hidden="true">
             <option value="">No sessions</option>
           </select>
         </div>
@@ -107,7 +109,7 @@
           </button>
           <input type="file" id="attach-input" accept="image/*" multiple hidden>
           <textarea id="prompt-input" class="composer-input"
-                    placeholder="Message... (Enter = send, Shift+Enter = newline)"
+                    placeholder="Message…"
                     rows="1"
                     autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
           <button class="composer-send-btn" id="input-send-btn" aria-label="Send">

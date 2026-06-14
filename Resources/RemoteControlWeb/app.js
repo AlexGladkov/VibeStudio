@@ -794,6 +794,25 @@ class TerminalManager {
    */
   async _onAuthAck() {
     const self = this;
+
+    // Transparent reconnect to the SAME session (heartbeat/idle/network blip):
+    // the xterm buffer already holds everything rendered so far. Re-running
+    // term.reset() + re-streaming the full 5000-line scrollback on every blip
+    // made the screen "rain"/flicker — the user's reported garbled output.
+    // On reconnect we skip the swap entirely: just drain frames buffered during
+    // the auth handshake and resume live. (A brief gap of output during the
+    // drop is accepted in exchange for a stable, flicker-free screen.)
+    if (this._everAuthedSession === this._currentSessionId) {
+      const pending = this._pendingBinary || [];
+      this._pendingBinary = null;
+      if (this.term) {
+        for (let i = 0; i < pending.length; i++) this.term.write(pending[i]);
+      }
+      this._authAcked = true;
+      if (this.onScrollbackReady) this.onScrollbackReady();
+      return;
+    }
+
     let scrollback = '';
     if (this._fetchScrollback) {
       try {
@@ -833,6 +852,9 @@ class TerminalManager {
         self.term.write(pending[i]);
       }
       self._authAcked = true;
+      // Mark this session as fully attached so subsequent transparent
+      // reconnects skip the reset + scrollback swap (see top of _onAuthAck).
+      self._everAuthedSession = self._currentSessionId;
       if (self.onScrollbackReady) self.onScrollbackReady();
     }
 
@@ -845,6 +867,10 @@ class TerminalManager {
 
   /** Disconnect WebSocket. */
   disconnect() {
+    // Clear the "already attached" marker so the NEXT connect performs a full
+    // reset + scrollback swap (e.g. when the user switches sessions). Only a
+    // ReconnectingWS auto-reconnect to the same session skips the swap.
+    this._everAuthedSession = null;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -1874,6 +1900,18 @@ const App = (function () {
     populateSessionPicker(project.sessions);
   }
 
+  /** Pick which session the phone should attach to, automatically.
+   *  Prefers the newest live agent session; else keeps a still-live current
+   *  selection; else the first live (or any) session. */
+  function chooseAutoSession(sessions, preferId) {
+    const live = sessions.filter(function (s) { return s.state !== 'exited'; });
+    const pool = live.length ? live : sessions;
+    const agents = pool.filter(function (s) { return s.is_agent; });
+    if (agents.length) return agents[agents.length - 1].id;
+    if (preferId && pool.some(function (s) { return s.id === preferId; })) return preferId;
+    return pool[0].id;
+  }
+
   function populateSessionPicker(sessions, preferId) {
     sessionPicker.innerHTML = '';
 
@@ -1892,10 +1930,11 @@ const App = (function () {
       sessionPicker.appendChild(opt);
     });
 
-    // Keep current selection if still present; otherwise pick first.
-    const targetId = (preferId && sessions.some(function (s) { return s.id === preferId; }))
-      ? preferId
-      : sessions[0].id;
+    // Auto-follow the active session on the Mac (the manual zsh/claude toggle
+    // was removed). Heuristic: prefer the most recent live AGENT session (so
+    // starting `claude` on the Mac auto-switches the phone to it); otherwise
+    // keep the current selection if still alive; otherwise the first live one.
+    const targetId = chooseAutoSession(sessions, preferId);
     sessionPicker.value = targetId;
     // Only (re)connect when target differs from current — prevents flicker
     // on every sessions_changed broadcast.

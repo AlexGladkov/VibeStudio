@@ -47,8 +47,18 @@ final class RemoteSessionBridge {
     /// Idle timeout duration in minutes.
     private let idleTimeoutMinutes: Int
 
-    /// Task that fires the idle timeout closure.
+    /// Single long-lived task that polls `lastActivityAt` and closes the
+    /// connection once the session has been genuinely idle for the full
+    /// timeout. Replaces the old "cancel + recreate a Task on every event"
+    /// scheme, which (a) churned Tasks on every 16ms output batch and
+    /// (b) only treated *user input* as activity — so watching an agent or
+    /// build stream output for `idleTimeoutMinutes` with no typing wrongly
+    /// tripped the timeout and dropped the session.
     private var idleTimer: Task<Void, Never>?
+
+    /// Timestamp of the last activity that should keep the session alive.
+    /// Updated cheaply (just a date write) on input, resize, and output.
+    private var lastActivityAt: Date = .distantPast
 
     /// Rate limiter: O(1) sliding window counter.
     /// Tracks message count and window start instead of storing all timestamps.
@@ -145,6 +155,10 @@ final class RemoteSessionBridge {
         #if DEBUG
         NSLog("[RC-BRIDGE] handleRawData bytes=\(data.count) wsChannel=\(wsChannel != nil ? "alive" : "NIL")")
         #endif
+
+        // Output keeps the session alive: watching a long-running command must
+        // not trip the idle timeout (see `noteActivity`).
+        noteActivity()
 
         pendingRawBytes.append(contentsOf: data)
 
@@ -320,17 +334,39 @@ final class RemoteSessionBridge {
 
     // MARK: - Private: Idle Timeout
 
-    /// Reset the idle timeout timer.
+    /// Mark the session as active. O(1) — just stamps `lastActivityAt`.
+    /// Called on client input, resize, and **terminal output**, so a session
+    /// that is actively streaming output (agent run, build, log tail) is never
+    /// considered idle even when the user is not typing.
+    func noteActivity() {
+        lastActivityAt = Date()
+    }
+
+    /// Start the single idle-monitor loop. Idempotent — a running monitor is
+    /// reused. The loop wakes periodically and only closes the connection once
+    /// the *full* idle window has elapsed since the last activity.
     private func resetIdleTimer() {
-        idleTimer?.cancel()
-        let timeoutMinutes = idleTimeoutMinutes
+        noteActivity()
+        guard idleTimer == nil else { return }
+
+        let timeoutSeconds = Double(max(idleTimeoutMinutes, 1) * 60)
+        // Poll granularity: re-check at most every 15s (and never longer than
+        // the timeout itself) so a closed/abandoned session is reaped promptly.
+        let tick = min(timeoutSeconds, 15)
+
         idleTimer = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(timeoutMinutes * 60))
-            guard let self, !Task.isCancelled else { return }
-            Logger.remoteControl.info(
-                "RemoteSessionBridge: idle timeout device=\(self.deviceId) session=\(self.sessionId)"
-            )
-            self.closeWithCode(4004, reason: "Idle timeout")
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(tick))
+                guard let self, !Task.isCancelled else { return }
+                let idleFor = Date().timeIntervalSince(self.lastActivityAt)
+                if idleFor >= timeoutSeconds {
+                    Logger.remoteControl.info(
+                        "RemoteSessionBridge: idle timeout device=\(self.deviceId) session=\(self.sessionId) idleFor=\(Int(idleFor))s"
+                    )
+                    self.closeWithCode(4004, reason: "Idle timeout")
+                    return
+                }
+            }
         }
     }
 

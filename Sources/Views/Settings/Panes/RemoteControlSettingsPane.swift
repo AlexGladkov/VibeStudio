@@ -35,6 +35,11 @@ struct RemoteControlSettingsPane: View {
                         if newValue {
                             remoteServer.start()
                         } else {
+                            // Explicit user disable is a security action: revoke
+                            // all tokens (clears the persisted set) so no device
+                            // can reconnect without a fresh PIN. Benign restarts
+                            // (port change, app quit) keep tokens — see server.
+                            remoteServer.revokeAllDevices()
                             remoteServer.stop()
                         }
                     }

@@ -12,12 +12,11 @@
  * Cache name is versioned; bump CACHE_VERSION to roll out changes.
  */
 
-const CACHE_VERSION = 'v2-dev';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = 'vibestudio-shell-' + CACHE_VERSION;
 
 const SHELL_ASSETS = [
   '/',
-  '/index.html',
   '/app.js',
   '/app.css',
   '/vendor/xterm.min.js',
@@ -29,9 +28,15 @@ const SHELL_ASSETS = [
 self.addEventListener('install', function (event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(SHELL_ASSETS).catch(function (_e) {
-        // Partial cache is acceptable — runtime fetches will retry.
-      });
+      // Cache each asset INDEPENDENTLY (not cache.addAll). addAll is
+      // all-or-nothing: a single failing request (e.g. a 404) aborted the
+      // whole install and left the cache empty, so returning users — whose
+      // SW now controls the page — were served the "Offline" fallback even
+      // though the server was reachable. Per-asset caching tolerates a bad
+      // entry and still caches the rest, so the shell always boots.
+      return Promise.all(SHELL_ASSETS.map(function (url) {
+        return cache.add(url).catch(function (_e) { /* tolerate one bad asset */ });
+      }));
     }).then(function () { return self.skipWaiting(); })
   );
 });
@@ -75,7 +80,15 @@ self.addEventListener('fetch', function (event) {
     }
     const fresh = await networkPromise;
     if (fresh) return fresh;
-    // Offline + uncached → minimal fallback.
+
+    // Network failed and nothing cached. For a top-level navigation, fall back
+    // to the cached app shell ('/') so the SPA still boots and can show the
+    // PIN/terminal once the connection recovers — far better than a dead
+    // "Offline" page. Only if even '/' is uncached do we emit the 503.
+    if (req.mode === 'navigate') {
+      const shell = await cache.match('/', { ignoreSearch: true });
+      if (shell) return shell;
+    }
     return new Response('Offline', { status: 503, statusText: 'Offline' });
   })());
 });

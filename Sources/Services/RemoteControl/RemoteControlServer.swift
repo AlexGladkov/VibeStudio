@@ -413,7 +413,11 @@ final class RemoteControlServer {
         bonjour.unpublish()
         ngrok.stop()
         ngrokHostRef.set(nil)
-        authService.revokeAllDevices()
+        // NOTE: tokens are deliberately NOT revoked here. `stop()` also runs on
+        // benign restarts (port change, app quit); wiping tokens on those forced
+        // a PIN re-prompt the user can't satisfy remotely. Tokens persist
+        // (Keychain) and survive the restart. Explicit revocation happens only
+        // when the user turns Remote Control OFF — see `RemoteControlSettingsPane`.
 
         sessionObservationTask?.cancel()
         sessionObservationTask = nil
@@ -467,6 +471,13 @@ final class RemoteControlServer {
     /// Regenerate the authentication PIN.
     func regeneratePin() {
         authService.regeneratePin()
+    }
+
+    /// Revoke all authenticated devices and clear persisted tokens.
+    /// Called when the user explicitly turns Remote Control OFF (a security
+    /// action), as opposed to a benign restart which preserves tokens.
+    func revokeAllDevices() {
+        authService.revokeAllDevices()
     }
 
     // MARK: - Security Lockout

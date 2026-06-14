@@ -270,6 +270,11 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     private func handleStatic(path: String, channel: Channel) -> Bool {
         let mapping: [String: String] = [
             "/": "index.html",
+            // `/index.html` must resolve too: the service worker pre-caches it
+            // in SHELL_ASSETS via cache.addAll(), which is all-or-nothing — a
+            // 404 here aborted the entire install and left the SW cache empty,
+            // so returning users were served the SW's "Offline" 503 fallback.
+            "/index.html": "index.html",
             "/app.css": "app.css",
             "/app.js": "app.js",
             "/sw.js": "sw.js",

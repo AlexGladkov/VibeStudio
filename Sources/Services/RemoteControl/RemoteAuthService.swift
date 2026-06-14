@@ -7,6 +7,30 @@ import Observation
 import OSLog
 import Security
 
+// MARK: - Token Persistence
+
+/// Abstraction over where the active token set is persisted, so the
+/// production Keychain store can be swapped for a no-op in tests (keeping
+/// test runs isolated from the shared system Keychain).
+protocol RemoteTokenStoring: Sendable {
+    func save(_ json: String)
+    func load() -> String?
+}
+
+/// Default persistence: a single Keychain generic-password item.
+struct KeychainTokenStore: RemoteTokenStoring {
+    let account: String
+    func save(_ json: String) { KeychainHelper.save(account: account, value: json) }
+    func load() -> String? { KeychainHelper.load(account: account) }
+}
+
+/// No-op store — nothing persisted, nothing restored. Used by tests and any
+/// caller that wants purely in-memory token state.
+struct EphemeralTokenStore: RemoteTokenStoring {
+    func save(_ json: String) {}
+    func load() -> String? { nil }
+}
+
 // MARK: - Supporting Types
 
 /// A remote device that has successfully authenticated via PIN.
@@ -18,7 +42,10 @@ struct RemoteDevice: Identifiable, Codable {
 }
 
 /// Internal token storage entry -- not exposed to clients.
-struct TokenEntry {
+/// `Codable` so the active token set can be persisted across app restarts
+/// (see `RemoteAuthService` persistence), avoiding a PIN re-prompt every time
+/// the process restarts (crash, rebuild, settings-triggered server restart).
+struct TokenEntry: Codable {
     let deviceId: UUID
     let clientIP: String
     let issuedAt: Date
@@ -119,10 +146,63 @@ final class RemoteAuthService {
     /// Total failed attempts across all IPs (never reset automatically).
     private var globalFailedCount: Int = 0
 
+    // MARK: - Persistence
+
+    /// Keychain account under which the active token set is persisted.
+    static let persistenceAccount = "vs_remote_tokens_v1"
+
+    /// Where tokens are persisted. Injected so tests can use a no-op store.
+    private let tokenStore: RemoteTokenStoring
+
+    /// Persist the current tokens + devices (best-effort). Called after every
+    /// mutation so a process restart keeps live sessions authenticated instead
+    /// of forcing a PIN the user can't see remotely.
+    private func persistState() {
+        struct Snapshot: Codable {
+            let tokens: [String: TokenEntry]
+            let devices: [RemoteDevice]
+        }
+        let snapshot = Snapshot(tokens: tokens, devices: connectedDevices)
+        guard let data = try? JSONEncoder().encode(snapshot),
+              let json = String(data: data, encoding: .utf8) else { return }
+        tokenStore.save(json)
+    }
+
+    /// Load persisted tokens + devices on launch, dropping anything expired or
+    /// orphaned. Failure degrades gracefully to an empty set (== pre-persistence
+    /// behaviour: the user authenticates once with the PIN).
+    private func loadPersistedState() {
+        struct Snapshot: Codable {
+            let tokens: [String: TokenEntry]
+            let devices: [RemoteDevice]
+        }
+        guard let json = tokenStore.load(),
+              let data = json.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else {
+            return
+        }
+        let now = Date()
+        let validTokens = snapshot.tokens.filter { $0.value.expiresAt > now }
+        let liveDeviceIds = Set(validTokens.values.map { $0.deviceId })
+        tokens = validTokens
+        connectedDevices = snapshot.devices.filter { liveDeviceIds.contains($0.id) }
+        if !connectedDevices.isEmpty {
+            Logger.remoteControl.info(
+                "RemoteAuthService: restored \(self.connectedDevices.count, privacy: .public) device(s) from persisted tokens"
+            )
+            onDevicesChanged?(connectedDevices.count)
+        }
+    }
+
     // MARK: - Init
 
-    init() {
+    /// - Parameter tokenStore: Persistence backend. Defaults to the Keychain;
+    ///   tests inject ``EphemeralTokenStore`` to stay isolated from the system
+    ///   Keychain.
+    init(tokenStore: RemoteTokenStoring = KeychainTokenStore(account: RemoteAuthService.persistenceAccount)) {
+        self.tokenStore = tokenStore
         regeneratePin()
+        loadPersistedState()
     }
 
     // MARK: - PIN Management
@@ -183,11 +263,13 @@ final class RemoteAuthService {
             return .failure(.globalLockout)
         }
 
-        // Check max connected devices.
-        if connectedDevices.count >= RemoteAuthService.maxDevices {
-            Logger.remoteControl.warning("PIN validation rejected: max devices (\(RemoteAuthService.maxDevices)) reached (IP: \(clientIP, privacy: .public))")
-            return .failure(.maxDevicesReached)
-        }
+        // NOTE: the max-devices limit is enforced AFTER the PIN is validated
+        // (see the success path below), by evicting the oldest device rather
+        // than rejecting. A correct PIN is a legitimate access and must never
+        // be locked out — otherwise persisted/stale device slots could leave a
+        // remote user (who can't reach the Mac) permanently unable to connect.
+        // Checking before the PIN compare would also let wrong-PIN spam reason
+        // about the device count, so the check belongs after the match.
 
         // Check per-IP rate limit.
         pruneExpiredAttempts(for: clientIP)
@@ -238,9 +320,22 @@ final class RemoteAuthService {
             expiresAt: expiresAt
         )
 
+        // Enforce the device cap by evicting the oldest device(s) — newest wins.
+        // Keeps at most `maxDevices` concurrent sessions while guaranteeing a
+        // freshly PIN-authenticated client always gets in.
+        while connectedDevices.count >= RemoteAuthService.maxDevices {
+            guard let oldest = connectedDevices.min(by: { $0.connectedAt < $1.connectedAt }) else { break }
+            tokens = tokens.filter { $0.value.deviceId != oldest.id }
+            connectedDevices.removeAll { $0.id == oldest.id }
+            Logger.remoteControl.info(
+                "PIN auth at capacity: evicted oldest device \(oldest.id) to admit new login"
+            )
+        }
+
         tokens[token] = entry
         connectedDevices.append(device)
         onDevicesChanged?(connectedDevices.count)
+        persistState()
 
         // Clear failed attempts for this IP on success.
         failedAttempts.removeValue(forKey: clientIP)
@@ -272,10 +367,11 @@ final class RemoteAuthService {
             // Token expired -- remove it.
             tokens.removeValue(forKey: token)
             removeDevice(entry.deviceId)
+            persistState()
             return .failure(.tokenExpired)
         }
 
-        guard entry.clientIP == clientIP else {
+        guard Self.ipBindingSatisfied(expected: entry.clientIP, actual: clientIP) else {
             Logger.remoteControl.warning("Token IP mismatch: expected \(entry.clientIP, privacy: .public), got \(clientIP, privacy: .public)")
             return .failure(.ipMismatch)
         }
@@ -285,6 +381,22 @@ final class RemoteAuthService {
         }
 
         return .success(device)
+    }
+
+    /// Decide whether a token's IP binding is satisfied.
+    ///
+    /// IP binding is real defense-in-depth for a client connecting **directly**
+    /// (same LAN, public IP): a stolen token can't be replayed from another
+    /// address. But when the token was issued to the **loopback** address the
+    /// server is behind a tunnel/proxy (ngrok) or a local forwarder — every
+    /// client appears as `127.0.0.1`, so the binding protects nothing yet still
+    /// breaks legitimately if the apparent loopback family flips. In that case
+    /// we rely on the 256-bit token secret + TLS as the boundary and skip the
+    /// IP equality check. For non-loopback (direct) clients the strict check
+    /// stays in force.
+    private static func ipBindingSatisfied(expected: String, actual: String) -> Bool {
+        if ClientIPExtractor.isLoopback(expected) { return true }
+        return expected == actual
     }
 
     // MARK: - Token Refresh (Sliding Window)
@@ -300,9 +412,10 @@ final class RemoteAuthService {
         guard Date() < entry.expiresAt else {
             tokens.removeValue(forKey: oldToken)
             removeDevice(entry.deviceId)
+            persistState()
             return .failure(.tokenExpired)
         }
-        guard entry.clientIP == clientIP else {
+        guard Self.ipBindingSatisfied(expected: entry.clientIP, actual: clientIP) else {
             // Don't leak IP-binding to network clients beyond a generic error.
             Logger.remoteControl.warning(
                 "Token refresh IP mismatch: expected \(entry.clientIP, privacy: .public), got \(clientIP, privacy: .public)"
@@ -331,6 +444,7 @@ final class RemoteAuthService {
         )
         tokens.removeValue(forKey: oldToken)
         tokens[newToken] = newEntry
+        persistState()
 
         Logger.remoteControl.info(
             "Token refreshed: device=\(device.id) tokenPrefix=\(String(newToken.prefix(8)), privacy: .public)"
@@ -354,6 +468,7 @@ final class RemoteAuthService {
         // Remove all tokens for this device.
         tokens = tokens.filter { $0.value.deviceId != deviceId }
         removeDevice(deviceId)
+        persistState()
         Logger.remoteControl.info("Device revoked: \(deviceId)")
     }
 
@@ -362,6 +477,7 @@ final class RemoteAuthService {
         tokens.removeAll()
         connectedDevices.removeAll()
         onDevicesChanged?(0)
+        persistState()
         Logger.remoteControl.info("All devices revoked")
     }
 

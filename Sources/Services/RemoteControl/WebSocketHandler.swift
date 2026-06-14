@@ -18,7 +18,7 @@ import OSLog
 /// 3. **Subsequent text frames:** Parse JSON, dispatch to bridge (input/resize/ping/detach).
 /// 4. **Binary frames:** Not expected from clients -- ignored.
 /// 5. **Close frame:** Clean up bridge, unregister from server.
-/// 6. **Heartbeat:** If no message for 60s, close with code 4004.
+/// 6. **Heartbeat:** If no message for 120s, close with code 4004.
 ///
 /// **Security:**
 /// Token is sent as the first WS message (not in URL query params) to prevent
@@ -59,6 +59,23 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     /// Set synchronously on the NIO event loop thread before dispatching to MainActor.
     private var authInProgress = false
 
+    /// Non-auth frames received while authentication is still in progress.
+    ///
+    /// The web client (`app.js`) sends `{"type":"auth"}` immediately followed by
+    /// `{"type":"resize"}` in its WebSocket `onopen` handler, without waiting for
+    /// the `auth_ok` reply. Because token validation hops to the MainActor, the
+    /// `resize` frame can arrive on the event loop while `authInProgress == true`
+    /// but `isAuthenticated == false`. Closing the connection in that window
+    /// (code 4000) left the terminal stuck on "Loading session..." with a
+    /// reconnect loop. Instead we buffer such frames here and replay them once
+    /// the session bridge exists. Event-loop-thread only, like `isAuthenticated`.
+    private var pendingPreAuthFrames: [Data] = []
+
+    /// Upper bound on buffered pre-auth frames — bounds memory for a peer that
+    /// has not yet authenticated. The legitimate client buffers at most one
+    /// (`resize`); anything beyond a small cap is dropped.
+    private static let maxPendingPreAuthFrames = 16
+
     /// Auth service for validating the token on first message.
     private let authService: RemoteAuthService?
 
@@ -74,7 +91,7 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
     /// Idle timeout minutes from preferences.
     private let idleTimeoutMinutes: Int
 
-    /// Heartbeat timer: close connection if no message received within 60 seconds.
+    /// Heartbeat timer: close connection if no message received within 120 seconds.
     /// All reads and writes go through `bridgeLock` — never access directly.
     nonisolated(unsafe) private var _heartbeatTask: Task<Void, Never>?
 
@@ -176,6 +193,22 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             bridge.startStreaming()
             serverRef?.registerBridge(bridge)
             RemoteAuditLog.deviceConnect(device: device, sessionId: sessionId)
+
+            // Bridge is now live — replay any frames that raced ahead of auth
+            // (e.g. the client's initial `resize`). Hop back to the event loop
+            // so the buffer is touched only from its owning thread.
+            channel.eventLoop.execute { self?.flushPendingPreAuthFrames(channel: channel) }
+        }
+    }
+
+    /// Replay frames buffered while authentication was in progress, now that the
+    /// session bridge exists. Runs on the NIO event loop thread.
+    private func flushPendingPreAuthFrames(channel: Channel) {
+        guard !pendingPreAuthFrames.isEmpty else { return }
+        let frames = pendingPreAuthFrames
+        pendingPreAuthFrames.removeAll()
+        for jsonData in frames {
+            processAuthenticatedFrame(jsonData: jsonData, channel: channel)
         }
     }
 
@@ -283,9 +316,38 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                 // a second frame arriving on the same event loop iteration cannot also enter here.
                 authInProgress = true
                 handleAuthMessage(jsonData: jsonData, channel: channel)
+            } else if authInProgress {
+                // Auth is validating on the MainActor and a non-auth frame
+                // (the client's initial `resize`) raced ahead of `auth_ok`.
+                // Buffer it for replay rather than dropping the connection.
+                if pendingPreAuthFrames.count < Self.maxPendingPreAuthFrames {
+                    pendingPreAuthFrames.append(jsonData)
+                } else {
+                    Logger.remoteControl.warning(
+                        "RemoteWebSocketHandler: pre-auth frame buffer full, dropping frame"
+                    )
+                }
             } else {
+                // First frame was not auth and no auth is in flight — a genuine
+                // protocol violation. Reject and close.
                 sendErrorAndClose(code: 4000, reason: "Authentication required", channel: channel)
             }
+            return
+        }
+
+        processAuthenticatedFrame(jsonData: jsonData, channel: channel)
+    }
+
+    /// Dispatch a frame from an already-authenticated peer. Extracted so that
+    /// buffered pre-auth frames can be replayed through the identical code path
+    /// once the session bridge exists (see `flushPendingPreAuthFrames`).
+    private func processAuthenticatedFrame(jsonData: Data, channel: Channel) {
+        struct TypeEnvelope: Decodable {
+            let type: String
+        }
+
+        guard let envelope = try? decoder.decode(TypeEnvelope.self, from: jsonData) else {
+            Logger.remoteControl.warning("RemoteWebSocketHandler: failed to decode message type")
             return
         }
 
@@ -371,6 +433,9 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             let result = authSvc.validateToken(token, clientIP: ip)
             switch result {
             case .success(let device):
+                #if DEBUG
+                HTTPRequestRouter.wsLog("[WSH] auth OK device=\(device.id) ip=\(ip)")
+                #endif
                 // SECURITY: All mutations of WS-handler state (deviceInfo, isAuthenticated,
                 // authInProgress, _authTimeoutTask) must happen on the NIO event loop thread
                 // so they stay consistent with channelRead/handleTextFrame reads.
@@ -386,11 +451,31 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                     self.initializeSession(channel: channel, device: device)
                 }
 
-            case .failure:
+            case .failure(let authError):
+                // DIAGNOSTIC: surface *which* validation failed. Re-prompting the
+                // user for a PIN remotely is the worst failure mode (they can't see
+                // the screen), so we record the precise reason — invalidToken
+                // (server restarted / token rotated away), tokenExpired, or
+                // ipMismatch (apparent client IP changed) — to pin down the cause.
+                let reasonTag: String
+                switch authError {
+                case .invalidToken: reasonTag = "invalid_token"
+                case .tokenExpired: reasonTag = "token_expired"
+                case .ipMismatch: reasonTag = "ip_mismatch"
+                default: reasonTag = "other"
+                }
+                Logger.remoteControl.warning(
+                    "RemoteWebSocketHandler: WS auth FAILED reason=\(reasonTag, privacy: .public) ip=\(ip, privacy: .public)"
+                )
+                #if DEBUG
+                HTTPRequestRouter.wsLog("[WSH] auth FAILED reason=\(reasonTag) ip=\(ip)")
+                #endif
                 channel.eventLoop.execute {
                     // Reset authInProgress on the event loop thread so the flag stays
                     // consistent with the thread that originally set it.
                     self.authInProgress = false
+                    // Discard any frames buffered against this now-failed auth.
+                    self.pendingPreAuthFrames.removeAll()
                     self.sendErrorAndClose(code: 4000, reason: "Authentication failed", channel: channel)
                 }
             }
@@ -489,7 +574,12 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
 
     private func resetHeartbeat(channel: Channel) {
         let task = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(60))
+            // 120s, not 60s: the web client pings every 30s, but mobile browsers
+            // (esp. iOS Safari) throttle/suspend timers when the tab is
+            // backgrounded or the phone is locked. A 60s window tripped on a
+            // single missed ping during a brief screen-lock; 120s tolerates a
+            // couple of missed pings without killing an otherwise-live session.
+            try? await Task.sleep(for: .seconds(120))
             guard !Task.isCancelled, self != nil else { return }
             Logger.remoteControl.info("RemoteWebSocketHandler: heartbeat timeout, closing connection")
             channel.eventLoop.execute {

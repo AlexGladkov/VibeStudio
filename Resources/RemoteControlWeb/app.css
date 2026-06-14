@@ -314,6 +314,12 @@ input, select, textarea {
   box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.15);
 }
 
+/* Session selection is automatic — the picker is hidden (kept in DOM for JS
+   state). The project picker then fills the top bar like a chat header. */
+.picker-hidden {
+  display: none !important;
+}
+
 .picker option {
   background: var(--surface-overlay);
   color: var(--text-primary);
@@ -581,10 +587,11 @@ input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: var(--radius-md);
+  /* Round buttons, Telegram-style. */
+  border-radius: 50%;
   cursor: pointer;
   flex-shrink: 0;
   -webkit-appearance: none;
@@ -751,16 +758,19 @@ input, select, textarea {
 .composer-input {
   flex: 1;
   min-width: 0;
-  min-height: 44px;
+  /* Single line by default; grows up to ~5 lines (capped in JS by 30vh). The
+     pill shape (large radius) matches the chat-style composer. */
+  min-height: 40px;
+  height: 40px;
   max-height: 30vh;
-  padding: 10px var(--sp-md);
+  padding: 9px var(--sp-md);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: 20px;
   background: var(--surface-input);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: 16px;
-  line-height: 1.4;
+  line-height: 1.35;
   outline: none;
   resize: none;
   overflow-y: auto;
