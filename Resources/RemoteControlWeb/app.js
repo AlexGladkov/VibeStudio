@@ -794,6 +794,10 @@ class TerminalManager {
    */
   async _onAuthAck() {
     const self = this;
+    // Capture the session this ack belongs to. If a newer connect supersedes
+    // it while we await scrollback (rapid project/session switching), abort so
+    // we never write a stale session's scrollback into the shared terminal.
+    const ackSessionId = this._currentSessionId;
 
     // Transparent reconnect to the SAME session (heartbeat/idle/network blip):
     // the xterm buffer already holds everything rendered so far. Re-running
@@ -823,6 +827,8 @@ class TerminalManager {
       }
     }
 
+    // A newer connect won the race while we awaited — drop this stale ack.
+    if (this._currentSessionId !== ackSessionId) return;
     if (!this.term) return;
     this.term.reset();
 
@@ -1316,6 +1322,11 @@ const App = (function () {
   let currentProjectId = null;
   let currentSessionId = null;
   let projectsData = null;
+  // Monotonic guard for project navigation: every switch bumps it, and each
+  // async continuation (getProjects poll, connect) aborts if it's no longer
+  // the latest. Prevents a slower intermediate switch from winning when the
+  // user changes projects rapidly (A→B→A or A→B→C within a poll window).
+  let projectNavSeq = 0;
 
   // ------ Init ------
 
@@ -1890,14 +1901,36 @@ const App = (function () {
     }
   }
 
-  function selectProject(projectId) {
+  function selectProject(projectId, attempt, seq) {
+    // First (non-retry) call starts a new navigation generation.
+    if (seq === undefined) seq = ++projectNavSeq;
     currentProjectId = projectId;
-    if (!projectsData) return;
+    attempt = attempt || 0;
 
-    const project = projectsData.projects.find(function (p) { return p.id === projectId; });
-    if (!project) return;
-
-    populateSessionPicker(project.sessions);
+    // Always re-fetch: the cached projectsData is captured at load time and a
+    // session created/changed on the Mac afterwards isn't in it. Crucially, the
+    // Mac creates a project's terminal session LAZILY once the project becomes
+    // active — so right after `activateProject` the session list can still be
+    // empty. We have no WebSocket yet (disconnected on switch), so we won't
+    // receive the `sessions_changed` broadcast; poll getProjects until the
+    // session appears, then connect. `seq` drops this whole chain the instant a
+    // newer switch begins, so an intermediate target can never win the race.
+    client.getProjects().then(function (data) {
+      if (seq !== projectNavSeq) return;
+      if (data && data.projects) projectsData = data;
+      const project = (projectsData ? projectsData.projects : []).find(function (p) { return p.id === projectId; });
+      if (!project) return;
+      const hasSessions = project.sessions && project.sessions.length > 0;
+      if (!hasSessions && attempt < 10) {
+        setTimeout(function () { selectProject(projectId, attempt + 1, seq); }, 500);
+        return;
+      }
+      populateSessionPicker(project.sessions || []);
+    }).catch(function () {
+      if (seq === projectNavSeq && attempt < 10) {
+        setTimeout(function () { selectProject(projectId, attempt + 1, seq); }, 500);
+      }
+    });
   }
 
   /** Pick which session the phone should attach to, automatically.
@@ -2042,6 +2075,7 @@ const App = (function () {
     if (newValue !== currentProjectId) {
       client.activateProject(newValue);
       terminalMgr.disconnect();
+      updateConnectionStatus('connecting');
       selectProject(newValue);
     }
   }

@@ -12,7 +12,7 @@
  * Cache name is versioned; bump CACHE_VERSION to roll out changes.
  */
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v9';
 const CACHE_NAME = 'vibestudio-shell-' + CACHE_VERSION;
 
 const SHELL_ASSETS = [
