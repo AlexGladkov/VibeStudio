@@ -50,11 +50,13 @@ final class ProjectStore: ProjectManaging {
         }
     }
 
-    /// Projects from history that are NOT currently open in the sidebar.
-    /// Used by WelcomeView.
+    /// Projects from history that are NOT currently open in the sidebar,
+    /// most-recently-opened first. Used by WelcomeView's "Recent" list.
     var recentProjects: [Project] {
         let currentIds = Set(projects.map { $0.id })
-        return recentHistory.filter { !currentIds.contains($0.id) }
+        return recentHistory
+            .filter { !currentIds.contains($0.id) }
+            .sorted { $0.lastOpened > $1.lastOpened }
     }
 
     // MARK: - Private State
@@ -161,7 +163,12 @@ final class ProjectStore: ProjectManaging {
         }
 
         mutate(&projects[index])
+        // Keep recent history consistent with the mutated project (name,
+        // lastOpened, etc.) so the Welcome "Recent" list never shows stale data
+        // once the project is closed.
+        updateRecentHistory(projects[index])
         try save()
+        try? saveRecents()
     }
 
     func moveProjects(from indices: IndexSet, to destination: Int) {

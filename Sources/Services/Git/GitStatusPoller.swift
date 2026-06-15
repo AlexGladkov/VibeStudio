@@ -77,12 +77,20 @@ final class GitStatusPoller: GitStatusPolling {
         consecutiveErrors = 0
 
         pollingTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-
             while !Task.isCancelled {
-                await self.poll()
-
-                let interval = self.effectiveInterval(isActive: isActive)
+                // Acquire a strong reference ONLY for the poll, not across the
+                // sleep below. A `guard let self` at the top of the task would
+                // pin `self` for the whole loop (including the multi-second
+                // sleep between polls), so the poller could never deallocate
+                // while polling was active — a retain leak (caught by
+                // GitStatusPollerDeinitTests). Scoping it to this inner block
+                // releases `self` before we sleep.
+                let interval: TimeInterval
+                do {
+                    guard let self else { return }
+                    await self.poll()
+                    interval = self.effectiveInterval(isActive: isActive)
+                }
                 try? await Task.sleep(for: .seconds(interval))
             }
         }

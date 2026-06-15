@@ -304,18 +304,39 @@ final class ProjectStoreTests: XCTestCase {
 
     // MARK: - recentProjects
 
+    func testRecentProjectsExcludesOpenProjects() throws {
+        // `recentProjects` feeds WelcomeView's "Recent" list, which shows
+        // projects you can RE-open — i.e. ones not currently open. While both
+        // are open they must NOT appear.
+        let projectA = try store.addProject(at: try makeFakeProjectDir(named: "OpenA"))
+        let projectB = try store.addProject(at: try makeFakeProjectDir(named: "OpenB"))
+        XCTAssertTrue(store.recentProjects.isEmpty, "open projects must not appear in recents")
+
+        // Close A → it moves into the recents list; B (still open) does not.
+        try store.removeProject(projectA.id)
+        XCTAssertEqual(store.recentProjects.map(\.id), [projectA.id])
+        XCTAssertFalse(store.recentProjects.contains { $0.id == projectB.id })
+    }
+
     func testRecentProjectsSortedByLastOpened() throws {
         let dirA = try makeFakeProjectDir(named: "OldProject")
         let dirB = try makeFakeProjectDir(named: "NewProject")
 
         let projectA = try store.addProject(at: dirA)
-        _ = try store.addProject(at: dirB)
+        let projectB = try store.addProject(at: dirB)
 
-        // Force projectA to have the latest lastOpened.
+        // Force projectA to have the latest lastOpened (updateProject mirrors
+        // this into recent history).
         try store.updateProject(projectA.id) { p in
             p.lastOpened = Date.distantFuture
         }
 
+        // Close both so they appear in the recents list, then verify most-
+        // recently-opened (A) sorts first.
+        try store.removeProject(projectB.id)
+        try store.removeProject(projectA.id)
+
+        XCTAssertEqual(store.recentProjects.map(\.id), [projectA.id, projectB.id])
         XCTAssertEqual(store.recentProjects.first?.id, projectA.id)
     }
 
