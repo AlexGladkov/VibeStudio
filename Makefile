@@ -46,7 +46,7 @@ XCODEBUILD := xcodebuild \
 
 # --- Targets ------------------------------------------------------------------
 
-.PHONY: all build test archive export dmg notarize clean help resolve-deps
+.PHONY: all build test archive export dmg notarize release clean help resolve-deps
 
 all: dmg
 
@@ -92,6 +92,9 @@ dmg: export ## Create DMG installer
 
 notarize: dmg ## Notarize DMG (requires Apple Developer account)
 	@$(CURDIR)/scripts/notarize.sh "$(DMG_OUTPUT)" "$(BUNDLE_ID)"
+
+release: ## Build DMG + publish GitHub Release with it (local, CI-free; needs gh)
+	@$(CURDIR)/scripts/publish-release.sh "$(VERSION)"
 
 clean: ## Remove all build artifacts
 	@rm -rf $(BUILD_DIR)

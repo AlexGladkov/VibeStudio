@@ -1,17 +1,22 @@
 # ============================================================
 # VibeStudio — Release Pipeline
-# Triggers on push of version tags (v*).
 # Builds macOS app, creates DMG, publishes GitHub Release.
+#
+# DISABLED auto-trigger: GitHub Actions runner minutes are exhausted,
+# so tag pushes must NOT spawn doomed runs. Releases are cut LOCALLY
+# via `make release` (scripts/publish-release.sh). This workflow is
+# kept for reference and can still be run manually from the Actions tab
+# (workflow_dispatch) if/when runner minutes are available again — to
+# re-enable automatic tag releases, restore the `push: tags: ['v*']`
+# trigger below.
 # ============================================================
 
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
-# Cancel redundant runs for the same tag
+# Cancel redundant runs for the same ref
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
