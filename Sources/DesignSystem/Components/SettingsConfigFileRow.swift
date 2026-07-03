@@ -16,18 +16,18 @@ import SwiftUI
 /// `GeminiSettingsPane`:
 /// - path: `DSFont.monoPath`, `DSColor.textPrimary` (or `.textMuted` when
 ///   the file is missing).
-/// - "не найден" label appears when `configExists == false` (matches the
+/// - "not found" label appears when `configExists == false` (matches the
 ///   Qwen / Gemini variant).
 /// - Finder button: `Label("Finder", systemImage: "folder")`, `.bordered`,
 ///   `controlSize(.small)`. Hidden when the file does not exist (matches
 ///   Qwen / Gemini behaviour); pass `alwaysShowReveal = true` to always
 ///   render it (Claude / Codex always show it because their config dir
 ///   always exists).
-/// - Edit/Create button: `Label("Редактировать"|"Создать конфиг", …)`,
+/// - Edit/Create button: `Label("Edit"|"Create config", …)`,
 ///   `.borderedProminent`, `controlSize(.small)`.
 ///
 /// Caller wraps the row in its own outer section header (e.g.
-/// `Text("Глобальный конфиг")`) — this component only renders the action
+/// `Text("Global config")`) — this component only renders the action
 /// row inside a `.settingsCard()`.
 struct SettingsConfigFileRow: View {
 
@@ -37,14 +37,14 @@ struct SettingsConfigFileRow: View {
     let displayPath: String
 
     /// Whether the underlying file currently exists on disk.
-    /// Controls the muted style, "не найден" label, Finder visibility and
+    /// Controls the muted style, "not found" label, Finder visibility and
     /// the Edit-vs-Create button text/icon.
     let configExists: Bool
 
-    /// Localised label for the edit action (default: "Редактировать").
+    /// Localised label for the edit action (default: "Edit").
     let editLabel: String
 
-    /// Localised label for the create action (default: "Создать конфиг").
+    /// Localised label for the create action (default: "Create config").
     let createLabel: String
 
     /// When `true`, the Finder button is rendered regardless of
@@ -63,8 +63,8 @@ struct SettingsConfigFileRow: View {
     init(
         displayPath: String,
         configExists: Bool,
-        editLabel: String = "Редактировать",
-        createLabel: String = "Создать конфиг",
+        editLabel: String = "Edit",
+        createLabel: String = "Create config",
         alwaysShowReveal: Bool = false,
         onReveal: @escaping () -> Void,
         onEdit: @escaping () -> Void
@@ -89,7 +89,7 @@ struct SettingsConfigFileRow: View {
                 .truncationMode(.middle)
 
             if !configExists {
-                Text("не найден")
+                Text("not found")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }

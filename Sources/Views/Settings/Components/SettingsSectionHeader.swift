@@ -14,7 +14,7 @@ import SwiftUI
 ///
 /// Usage:
 /// ```swift
-/// SettingsSectionHeader(title: "Субагенты", showAddButton: true) {
+/// SettingsSectionHeader(title: "Subagents", showAddButton: true) {
 ///     showNewAgent = true
 /// }
 /// ```

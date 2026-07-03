@@ -18,14 +18,14 @@ struct GeneralSettingsPane: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
-            Text("Внешний вид")
+            Text("Appearance")
                 .font(DSFont.settingsTitle)
                 .foregroundStyle(DSColor.textPrimary)
 
             Divider().background(DSColor.borderDefault)
 
             HStack(spacing: DSSpacing.lg) {
-                Text("Тема")
+                Text("Theme")
                     .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textPrimary)
                     .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
@@ -46,7 +46,7 @@ struct GeneralSettingsPane: View {
             }
 
             HStack(spacing: DSSpacing.lg) {
-                Text("Шрифт терминала")
+                Text("Terminal font")
                     .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textPrimary)
                     .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
@@ -69,7 +69,7 @@ struct GeneralSettingsPane: View {
             }
 
             HStack(spacing: DSSpacing.lg) {
-                Text("Подтверждать закрытие")
+                Text("Confirm on close")
                     .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textPrimary)
                     .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
@@ -81,7 +81,7 @@ struct GeneralSettingsPane: View {
                 .toggleStyle(.switch)
                 .labelsHidden()
 
-                Text("Спрашивать перед закрытием вкладок")
+                Text("Ask before closing tabs")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
 

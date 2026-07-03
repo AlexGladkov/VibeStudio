@@ -66,7 +66,7 @@ struct RemoteControlSettingsPane: View {
 
     private func enableSection(model: RemoteControlSettingsPaneViewModel) -> some View {
         HStack(spacing: DSSpacing.lg) {
-            Text("Включить")
+            Text("Enable")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textPrimary)
                 .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
@@ -86,7 +86,7 @@ struct RemoteControlSettingsPane: View {
 
     private func portSection(model: RemoteControlSettingsPaneViewModel) -> some View {
         HStack(spacing: DSSpacing.lg) {
-            Text("Порт")
+            Text("Port")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textPrimary)
                 .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
@@ -124,7 +124,7 @@ struct RemoteControlSettingsPane: View {
             .labelsHidden()
             .disabled(!model.isEnabled)
 
-            Text("Только локальные подключения")
+            Text("Local connections only")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
 
@@ -149,7 +149,7 @@ struct RemoteControlSettingsPane: View {
             .labelsHidden()
             .disabled(!model.isEnabled || model.bindToLocalhost)
 
-            Text("Обнаружение в сети")
+            Text("Network discovery")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
 
@@ -161,7 +161,7 @@ struct RemoteControlSettingsPane: View {
 
     private func statusSection(model: RemoteControlSettingsPaneViewModel) -> some View {
         HStack(spacing: DSSpacing.lg) {
-            Text("Статус")
+            Text("Status")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textPrimary)
                 .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
@@ -170,7 +170,7 @@ struct RemoteControlSettingsPane: View {
                 .fill(model.isRunning ? DSColor.gitAdded : DSColor.actionStop)
                 .frame(width: DSLayout.statusDotSize, height: DSLayout.statusDotSize)
 
-            Text(model.isRunning ? "Активен (порт \(model.serverPort))" : "Остановлен")
+            Text(model.isRunning ? "Running (port \(model.serverPort))" : "Stopped")
                 .font(DSFont.sidebarItem)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -184,7 +184,7 @@ struct RemoteControlSettingsPane: View {
     private func connectedDevicesSection(model: RemoteControlSettingsPaneViewModel) -> some View {
         if !model.connectedDevices.isEmpty {
             VStack(alignment: .leading, spacing: DSSpacing.sm) {
-                Text("Подключённые устройства")
+                Text("Connected devices")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textSecondary)
 
@@ -206,7 +206,7 @@ struct RemoteControlSettingsPane: View {
                                 .foregroundStyle(DSColor.textMuted)
                         }
                         .buttonStyle(.plain)
-                        .help("Отключить \(device.displayName)")
+                        .help("Disconnect \(device.displayName)")
                     }
                 }
             }

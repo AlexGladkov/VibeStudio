@@ -107,21 +107,21 @@ struct ClaudeSettingsPane: View {
             }
         }
         // MARK: Alerts
-        .alert("Удалить агента?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
-            Button("Удалить", role: .destructive) {
+        .alert("Delete agent?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
+            Button("Delete", role: .destructive) {
                 viewModel.deleteAgent(agent)
             }
-            Button("Отмена", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: { agent in
-            Text("Файл \u{00AB}\(agent.fileURL.lastPathComponent)\u{00BB} будет удалён без возможности восстановления.")
+            Text("File \u{00AB}\(agent.fileURL.lastPathComponent)\u{00BB} will be permanently deleted.")
         }
-        .alert("Удалить команду?", isPresented: $showDeleteCommandAlert, presenting: commandToDelete) { cmd in
-            Button("Удалить", role: .destructive) {
+        .alert("Delete command?", isPresented: $showDeleteCommandAlert, presenting: commandToDelete) { cmd in
+            Button("Delete", role: .destructive) {
                 viewModel.deleteCommand(cmd)
             }
-            Button("Отмена", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: { cmd in
-            Text("Файл \u{00AB}\(cmd.filename)\u{00BB} будет удалён без возможности восстановления.")
+            Text("File \u{00AB}\(cmd.filename)\u{00BB} will be permanently deleted.")
         }
     }
 
@@ -129,7 +129,7 @@ struct ClaudeSettingsPane: View {
 
     private var launchOptionsSection: some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Запуск")
+            Text("Launch")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -142,7 +142,7 @@ struct ClaudeSettingsPane: View {
                         Text("--dangerously-skip-permissions")
                             .font(DSFont.monoPath)
                             .foregroundStyle(DSColor.textPrimary)
-                        Text("Запускать Claude без подтверждений на выполнение команд")
+                        Text("Run Claude without confirmation prompts for commands")
                             .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)
                     }
@@ -158,7 +158,7 @@ struct ClaudeSettingsPane: View {
 
     private func fileRow(model: ClaudeSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Глобальный конфиг")
+            Text("Global config")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -191,13 +191,13 @@ struct ClaudeSettingsPane: View {
     }
 
     private var agentsSectionHeader: some View {
-        SettingsSectionHeader(title: "Субагенты", showAddButton: true) {
+        SettingsSectionHeader(title: "Subagents", showAddButton: true) {
             showNewAgent = true
         }
     }
 
     private var emptyAgentsState: some View {
-        SettingsEmptyState(text: "Нет субагентов")
+        SettingsEmptyState(text: "No subagents")
     }
 
     private func agentRow(_ agent: AgentEntry) -> some View {
@@ -228,13 +228,13 @@ struct ClaudeSettingsPane: View {
     }
 
     private var commandsSectionHeader: some View {
-        SettingsSectionHeader(title: "Команды", showAddButton: true) {
+        SettingsSectionHeader(title: "Commands", showAddButton: true) {
             showNewCommand = true
         }
     }
 
     private var emptyCommandsState: some View {
-        SettingsEmptyState(text: "Нет команд")
+        SettingsEmptyState(text: "No commands")
     }
 
     private func commandRow(_ cmd: CommandEntry) -> some View {
@@ -267,11 +267,11 @@ struct ClaudeSettingsPane: View {
     }
 
     private var skillsSectionHeader: some View {
-        SettingsSectionHeader(title: "Скиллы")
+        SettingsSectionHeader(title: "Skills")
     }
 
     private var emptySkillsState: some View {
-        SettingsEmptyState(text: "Нет скиллов")
+        SettingsEmptyState(text: "No skills")
     }
 
     private func skillRow(_ skill: SkillInfo) -> some View {

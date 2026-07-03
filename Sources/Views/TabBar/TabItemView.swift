@@ -117,13 +117,13 @@ struct TabItemView: View {
                     .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
         }
-        .alert("Закрыть вкладку?", isPresented: $showCloseAlert) {
-            Button("Отмена", role: .cancel) {}
-            Button("Закрыть", role: .destructive) {
+        .alert("Close tab?", isPresented: $showCloseAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Close", role: .destructive) {
                 closeProject()
             }
         } message: {
-            Text("Терминальные сессии этой вкладки будут завершены.")
+            Text("Terminal sessions in this tab will be terminated.")
         }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.08)) {

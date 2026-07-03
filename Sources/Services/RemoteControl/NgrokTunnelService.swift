@@ -101,7 +101,7 @@ final class NgrokTunnelService {
         // Resolve ngrok binary from trusted directories before going async,
         // so we can surface the error synchronously on the current call frame.
         guard let ngrokPath = CLIAgentPathResolver.resolve("ngrok") else {
-            error = "ngrok не найден. Установите: brew install ngrok"
+            error = String(localized: "ngrok not found. Install: brew install ngrok")
             Logger.remoteControl.warning("NgrokTunnelService: ngrok binary not found in trusted directories")
             return
         }
@@ -204,7 +204,7 @@ final class NgrokTunnelService {
         do {
             try proc.run()
         } catch {
-            self.error = "Не удалось запустить ngrok: \(error.localizedDescription)"
+            self.error = String(localized: "Failed to start ngrok: \(error.localizedDescription)")
             Logger.remoteControl.error(
                 "NgrokTunnelService: failed to launch: \(error.localizedDescription, privacy: .public)"
             )
@@ -292,7 +292,7 @@ final class NgrokTunnelService {
                 if exitCode != 0 && self.error == nil {
                     let stderrText = collectedStderr.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.error = stderrText.isEmpty
-                        ? "ngrok завершился с кодом \(exitCode)"
+                        ? String(localized: "ngrok exited with code \(Int(exitCode))")
                         : "ngrok: \(stderrText)"
                 }
 
@@ -340,7 +340,7 @@ final class NgrokTunnelService {
 
             // Exhausted all attempts.
             guard let self, self.isRunning, self.tunnelURL == nil else { return }
-            self.error = "Не удалось получить URL туннеля"
+            self.error = String(localized: "Failed to obtain tunnel URL")
             Logger.remoteControl.warning("NgrokTunnelService: failed to obtain tunnel URL after \(maxAttempts) attempts")
         }
     }

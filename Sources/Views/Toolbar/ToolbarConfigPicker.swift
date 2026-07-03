@@ -62,7 +62,7 @@ struct ToolbarConfigPicker: View {
                         .foregroundStyle(canLaunch ? DSColor.textPrimary : DSColor.textSecondary)
 
                     if isNotInstalled {
-                        Text("Нажми для установки")
+                        Text("Tap to install")
                             .font(DSFont.iconMD)
                             .foregroundStyle(DSColor.accentPrimary)
                             .lineLimit(1)

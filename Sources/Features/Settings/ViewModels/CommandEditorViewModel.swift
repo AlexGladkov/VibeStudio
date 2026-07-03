@@ -115,7 +115,7 @@ final class CommandEditorViewModel {
                 savedContent = content
                 return .saved
             } catch {
-                saveError = "Ошибка: \(error.localizedDescription)"
+                saveError = String(localized: "Error: \(error.localizedDescription)")
                 return nil
             }
         }
@@ -126,10 +126,10 @@ final class CommandEditorViewModel {
         case .success(let name):
             trimmed = name
         case .failure(.empty):
-            saveError = "Введите имя файла"
+            saveError = String(localized: "Enter a file name")
             return nil
         case .failure(.invalidCharacters):
-            saveError = "Допустимы только строчные латинские буквы, цифры, дефис и подчёркивание"
+            saveError = String(localized: "Only lowercase Latin letters, digits, hyphen, and underscore are allowed")
             return nil
         }
 
@@ -137,7 +137,7 @@ final class CommandEditorViewModel {
         let targetURL = dir.appendingPathComponent("\(trimmed).md")
 
         guard !FileManager.default.fileExists(atPath: targetURL.path) else {
-            saveError = "Файл «\(trimmed).md» уже существует"
+            saveError = String(localized: "A file named “\(trimmed).md” already exists")
             return nil
         }
 
@@ -147,7 +147,7 @@ final class CommandEditorViewModel {
             savedContent = content
             return .savedAndDismiss
         } catch {
-            saveError = "Ошибка: \(error.localizedDescription)"
+            saveError = String(localized: "Error: \(error.localizedDescription)")
             return nil
         }
     }

@@ -329,8 +329,8 @@ final class RemoteControlServer {
         Logger.remoteControl.error("Security lockout triggered — stopping Remote Control server")
 
         let content = UNMutableNotificationContent()
-        content.title = "Remote Control отключён"
-        content.body = "Обнаружено 10 неудачных попыток входа. Сервер остановлен в целях безопасности."
+        content.title = String(localized: "Remote Control disabled")
+        content.body = String(localized: "10 failed login attempts detected. The server has been stopped for security.")
         content.sound = .default
 
         let request = UNNotificationRequest(

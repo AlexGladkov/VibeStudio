@@ -31,7 +31,7 @@ struct SettingsView: View {
         .background(DSColor.surfaceDefault)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Закрыть") {
+                Button("Close") {
                     dismiss()
                 }
             }
@@ -58,8 +58,9 @@ struct SettingsView: View {
         .background(DSColor.surfaceRaised)
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title.uppercased())
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .textCase(.uppercase)
             .font(DSFont.statusBadge)
             .foregroundStyle(DSColor.textMuted)
             .padding(.horizontal, DSSpacing.md)

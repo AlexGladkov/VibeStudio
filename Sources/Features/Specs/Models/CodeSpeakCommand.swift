@@ -3,6 +3,7 @@
 // macOS 14+, Swift 5.10
 
 import Foundation
+import SwiftUI
 
 /// A codespeak CLI command that can be executed from the build panel.
 ///
@@ -36,7 +37,23 @@ enum CodeSpeakCommand: String, CaseIterable, Identifiable, Sendable {
     // MARK: - Display
 
     /// Human-readable label for UI display.
+    ///
+    /// Kept as a plain `String` because it is also lowercased and interpolated
+    /// into help strings (e.g. `"Run codespeak \(displayName.lowercased())"`).
+    /// For `Text` consumption use ``titleKey`` so the label is localized.
     var displayName: String {
+        switch self {
+        case .build:  return "Build"
+        case .run:    return "Run"
+        case .impl:   return "Impl"
+        case .test:   return "Test"
+        case .task:   return "Task"
+        case .change: return "Change"
+        }
+    }
+
+    /// Localized `Text`-ready title for UI display (mirrors ``displayName``).
+    var titleKey: LocalizedStringKey {
         switch self {
         case .build:  return "Build"
         case .run:    return "Run"
@@ -58,7 +75,7 @@ enum CodeSpeakCommand: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Label for the text input field when ``requiresInput`` is `true`.
-    var inputLabel: String {
+    var inputLabel: LocalizedStringKey {
         switch self {
         case .task:   return "Task"
         case .change: return "Message"
@@ -67,7 +84,7 @@ enum CodeSpeakCommand: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Placeholder for the text input field when ``requiresInput`` is `true`.
-    var inputPlaceholder: String {
+    var inputPlaceholder: LocalizedStringKey {
         switch self {
         case .task:   return "Task name..."
         case .change: return "Describe the change..."

@@ -72,13 +72,13 @@ struct FreeTabItemView: View {
                     .frame(height: DSLayout.tabActiveIndicatorHeight)
             }
         }
-        .alert("Закрыть вкладку?", isPresented: $showCloseAlert) {
-            Button("Отмена", role: .cancel) {}
-            Button("Закрыть", role: .destructive) {
+        .alert("Close tab?", isPresented: $showCloseAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Close", role: .destructive) {
                 closeFreeTab()
             }
         } message: {
-            Text("Терминальная сессия будет завершена.")
+            Text("The terminal session will be terminated.")
         }
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.08)) {

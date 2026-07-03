@@ -34,12 +34,12 @@ struct CommandSelectorView: View {
                 Button {
                     selectedCommand = command
                 } label: {
-                    Text(command.displayName)
+                    Text(command.titleKey)
                 }
             }
         } label: {
             HStack(spacing: DSSpacing.xxs) {
-                Text(selectedCommand.displayName)
+                Text(selectedCommand.titleKey)
                     .font(DSFont.sidebarSection)
                     .foregroundStyle(DSColor.textPrimary)
                 Image(systemName: "chevron.down")

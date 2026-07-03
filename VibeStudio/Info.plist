@@ -35,6 +35,12 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
 
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>ru</string>
+    </array>
+
     <!-- App icon -->
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>

@@ -30,8 +30,8 @@ struct CommandEditorSheet: View {
     }
 
     private var title: String {
-        if fileURL == nil { return "Новая команда" }
-        return fileURL?.deletingPathExtension().lastPathComponent ?? "Команда"
+        if fileURL == nil { return "New command" }
+        return fileURL?.deletingPathExtension().lastPathComponent ?? "Command"
     }
 
     // MARK: - Body
@@ -61,7 +61,7 @@ struct CommandEditorSheet: View {
             toolbarAccessory: {
                 if model.isNewFile {
                     HStack(spacing: DSSpacing.xs) {
-                        TextField("имя-файла", text: Binding(get: { model.filename }, set: { model.filename = $0 }))
+                        TextField("filename", text: Binding(get: { model.filename }, set: { model.filename = $0 }))
                             .font(DSFont.monoSmall)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: DSLayout.settingsLabelWidthLong)
@@ -73,7 +73,7 @@ struct CommandEditorSheet: View {
                 }
             },
             bottomAccessory: {
-                Button("Закрыть") {
+                Button("Close") {
                     dismiss()
                 }
                 .buttonStyle(.bordered)

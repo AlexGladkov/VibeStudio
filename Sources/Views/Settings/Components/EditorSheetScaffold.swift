@@ -19,7 +19,7 @@ import SwiftUI
 /// - `toolbarAccessory` is injected between the subtitle and the trailing close
 ///   button (used for the command filename field and the skill lock badge).
 /// - `bottomAccessory` is injected between the status spacer and the save button
-///   (used for the command sheet's extra "Закрыть" button).
+///   (used for the command sheet's extra "Close" button).
 struct EditorSheetScaffold<ToolbarAccessory: View, BottomAccessory: View>: View {
 
     // MARK: Configuration
@@ -123,7 +123,7 @@ struct EditorSheetScaffold<ToolbarAccessory: View, BottomAccessory: View>: View 
             bottomAccessory
 
             if !readOnly {
-                Button("Сохранить", action: onSave)
+                Button("Save", action: onSave)
                     .keyboardShortcut("s", modifiers: .command)
                     .disabled(!hasUnsavedChanges)
                     .buttonStyle(.borderedProminent)
@@ -146,7 +146,7 @@ struct EditorSheetScaffold<ToolbarAccessory: View, BottomAccessory: View>: View 
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.gitDeleted)
         } else if hasUnsavedChanges {
-            Text("Есть несохранённые изменения")
+            Text("Unsaved changes")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
         }

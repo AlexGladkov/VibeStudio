@@ -13,7 +13,7 @@ import SwiftUI
 /// Example usage:
 /// ```swift
 /// if agents.isEmpty {
-///     SettingsEmptyState(text: "Нет субагентов")
+///     SettingsEmptyState(text: "No subagents")
 /// }
 /// ```
 struct SettingsEmptyState: View {

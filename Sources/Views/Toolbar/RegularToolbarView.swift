@@ -120,7 +120,7 @@ struct RegularToolbarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Remote Control connection")
-            .help("QR-код для подключения")
+            .help("Connection QR code")
             .popover(isPresented: $showingQRPopover, arrowEdge: .bottom) {
                 RemoteQRPopover(
                     url: RemoteConnectionURLBuilder.build(

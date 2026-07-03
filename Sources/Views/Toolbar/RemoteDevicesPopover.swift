@@ -34,13 +34,13 @@ struct RemoteDevicesPopover: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Regenerate PIN")
-                .help("Обновить PIN")
+                .help("Regenerate PIN")
             }
 
             Divider()
 
             if remoteServer.connectedDevices.isEmpty {
-                Text("Нет подключённых устройств")
+                Text("No connected devices")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             } else {
@@ -61,7 +61,7 @@ struct RemoteDevicesPopover: View {
                                 .foregroundStyle(DSColor.textMuted)
                         }
                         .buttonStyle(.plain)
-                        .help("Отключить \(device.displayName)")
+                        .help("Disconnect \(device.displayName)")
                     }
                 }
             }
@@ -69,14 +69,14 @@ struct RemoteDevicesPopover: View {
             Divider()
 
             HStack {
-                Text("Порт \(remoteServer.port)")
+                Text("Port \(remoteServer.port)")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
                 Spacer()
                 Circle()
                     .fill(remoteServer.isRunning ? DSColor.gitAdded : DSColor.actionStop)
                     .frame(width: 6, height: 6) // intentional: micro status dot
-                Text(remoteServer.isRunning ? "Активен" : "Остановлен")
+                (remoteServer.isRunning ? Text("Running") : Text("Stopped"))
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }

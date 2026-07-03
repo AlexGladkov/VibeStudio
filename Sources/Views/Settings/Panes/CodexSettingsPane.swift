@@ -76,15 +76,15 @@ struct CodexSettingsPane: View {
         .sheet(isPresented: $showNewMemory) {
             TextFileEditorSheet(
                 fileURL: CodexSettingsPaneViewModel.memoriesURL.appendingPathComponent("memory.md"),
-                displayTitle: "Новая память",
+                displayTitle: "New memory",
                 defaultContent: "# Память\n\n"
             ) { viewModel.loadMemories() }
         }
-        .alert("Удалить память?", isPresented: $showDeleteAlert, presenting: memoryToDelete) { mem in
-            Button("Удалить", role: .destructive) { viewModel.deleteMemory(mem) }
-            Button("Отмена", role: .cancel) {}
+        .alert("Delete memory?", isPresented: $showDeleteAlert, presenting: memoryToDelete) { mem in
+            Button("Delete", role: .destructive) { viewModel.deleteMemory(mem) }
+            Button("Cancel", role: .cancel) {}
         } message: { mem in
-            Text("Файл «\(mem.filename)» будет удалён без возможности восстановления.")
+            Text("File \u{00AB}\(mem.filename)\u{00BB} will be permanently deleted.")
         }
     }
 
@@ -92,7 +92,7 @@ struct CodexSettingsPane: View {
 
     private func configSection(model: CodexSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Конфиг")
+            Text("Config")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -125,13 +125,13 @@ struct CodexSettingsPane: View {
     }
 
     private var memoriesSectionHeader: some View {
-        SettingsSectionHeader(title: "Память", showAddButton: true) {
+        SettingsSectionHeader(title: "Memory", showAddButton: true) {
             showNewMemory = true
         }
     }
 
     private var emptyMemoriesState: some View {
-        SettingsEmptyState(text: "Нет файлов памяти")
+        SettingsEmptyState(text: "No memory files")
     }
 
     private func memoryRow(_ mem: CodexMemoryEntry) -> some View {
@@ -151,10 +151,10 @@ struct CodexSettingsPane: View {
 
     private func skillsSection(model: CodexSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            SettingsSectionHeader(title: "Скиллы")
+            SettingsSectionHeader(title: "Skills")
 
             if model.skills.isEmpty {
-                SettingsEmptyState(text: "Нет скиллов")
+                SettingsEmptyState(text: "No skills")
             } else {
                 SettingsListCard(items: model.skills, maxHeight: DSLayout.settingsListMaxHeightSmall) { skill in
                     skillRow(skill)

@@ -171,13 +171,13 @@ struct CodeSpeakToolbarView: View {
     private var commandMenu: some View {
         Menu {
             ForEach(CodeSpeakCommand.allCases) { cmd in
-                Button(cmd.displayName) {
+                Button(cmd.titleKey) {
                     navigationCoordinator.runBar.command = cmd
                 }
             }
         } label: {
             HStack(spacing: DSSpacing.xs) {
-                Text(navigationCoordinator.runBar.command.displayName)
+                Text(navigationCoordinator.runBar.command.titleKey)
                     .font(DSFont.tabTitle)
                     .foregroundStyle(
                         navigationCoordinator.runBar.isRunning
@@ -259,7 +259,7 @@ struct CodeSpeakToolbarView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Remote Control connection")
-            .help("QR-код для подключения")
+            .help("Connection QR code")
             .popover(isPresented: $showingQRPopover, arrowEdge: .bottom) {
                 RemoteQRPopover(
                     url: RemoteConnectionURLBuilder.build(

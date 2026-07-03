@@ -35,12 +35,12 @@ final class AgentEditorViewModel {
     /// Parsed agent name from frontmatter (for the toolbar title).
     var agentName: String {
         let parsed = parseFrontmatter(content).name
-        return parsed.isEmpty ? "Новый агент" : parsed
+        return parsed.isEmpty ? String(localized: "New agent") : parsed
     }
 
     /// Subtitle shown below the agent name in the toolbar.
     var agentSubtitle: String {
-        guard let url = fileURL else { return "Новый файл" }
+        guard let url = fileURL else { return String(localized: "New file") }
         return url.tildeAbbreviatedPath
     }
 
@@ -103,7 +103,7 @@ final class AgentEditorViewModel {
                 savedContent = content
                 return .saved
             } catch {
-                saveError = "Ошибка: \(error.localizedDescription)"
+                saveError = String(localized: "Error: \(error.localizedDescription)")
                 return nil
             }
         }
@@ -112,12 +112,12 @@ final class AgentEditorViewModel {
         let parsed = parseFrontmatter(content)
         let rawName = parsed.name
         guard !rawName.isEmpty else {
-            saveError = "Укажите поле name в frontmatter"
+            saveError = String(localized: "Specify the name field in frontmatter")
             return nil
         }
         let sanitized = AgentNameSanitizer.sanitize(rawName)
         guard !sanitized.isEmpty else {
-            saveError = "Недопустимое имя агента: используйте латинские буквы, цифры и дефисы"
+            saveError = String(localized: "Invalid agent name: use Latin letters, digits, and hyphens")
             return nil
         }
 
@@ -130,7 +130,7 @@ final class AgentEditorViewModel {
             savedContent = content
             return .savedAndDismiss
         } catch {
-            saveError = "Ошибка: \(error.localizedDescription)"
+            saveError = String(localized: "Error: \(error.localizedDescription)")
             return nil
         }
     }

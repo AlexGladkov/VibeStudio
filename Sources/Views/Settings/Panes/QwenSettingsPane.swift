@@ -79,15 +79,15 @@ struct QwenSettingsPane: View {
         .sheet(isPresented: $showNewAgent) {
             TextFileEditorSheet(
                 fileURL: QwenSettingsPaneViewModel.agentsDirectoryURL.appendingPathComponent("new-agent.md"),
-                displayTitle: "Новый агент",
+                displayTitle: "New agent",
                 defaultContent: newAgentTemplate
             ) { viewModel.loadAgents() }
         }
-        .alert("Удалить агента?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
-            Button("Удалить", role: .destructive) { viewModel.deleteAgent(agent) }
-            Button("Отмена", role: .cancel) {}
+        .alert("Delete agent?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
+            Button("Delete", role: .destructive) { viewModel.deleteAgent(agent) }
+            Button("Cancel", role: .cancel) {}
         } message: { agent in
-            Text("Файл «\(agent.fileURL.lastPathComponent)» будет удалён без возможности восстановления.")
+            Text("File \u{00AB}\(agent.fileURL.lastPathComponent)\u{00BB} will be permanently deleted.")
         }
     }
 
@@ -95,7 +95,7 @@ struct QwenSettingsPane: View {
 
     private func fileRow(model: QwenSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Глобальный конфиг")
+            Text("Global config")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -127,13 +127,13 @@ struct QwenSettingsPane: View {
     }
 
     private var agentsSectionHeader: some View {
-        SettingsSectionHeader(title: "Субагенты", showAddButton: true) {
+        SettingsSectionHeader(title: "Subagents", showAddButton: true) {
             showNewAgent = true
         }
     }
 
     private var emptyAgentsState: some View {
-        SettingsEmptyState(text: "Нет субагентов")
+        SettingsEmptyState(text: "No subagents")
     }
 
     private func agentRow(_ agent: AgentEntry) -> some View {
@@ -151,7 +151,7 @@ struct QwenSettingsPane: View {
 
     private var authInfoRow: some View {
         SettingsAuthInfoRow(
-            hint: "Установите API-ключ DashScope через переменную окружения:",
+            hint: "Set the DashScope API key via an environment variable:",
             envVar: "export DASHSCOPE_API_KEY=your-key"
         )
     }

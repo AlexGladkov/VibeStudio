@@ -3,6 +3,7 @@
 // macOS 14+, Swift 5.10
 
 import Foundation
+import SwiftUI
 
 // MARK: - SettingsSectionGroup
 
@@ -14,9 +15,9 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Localized section header displayed in the sidebar.
-    var displayName: String {
+    var displayName: LocalizedStringKey {
         switch self {
-        case .general: return "Общие"
+        case .general: return "General"
         case .llm:     return "LLM"
         }
     }
@@ -61,14 +62,15 @@ enum SettingsItem: Hashable, Identifiable {
     }
 
     /// Human-readable label for the sidebar row.
-    var displayName: String {
+    var displayName: LocalizedStringKey {
         switch self {
         case .appearance:
-            return "Внешний вид"
+            return "Appearance"
         case .remoteControl:
             return "Remote Control"
         case .llmAssistant(let assistant):
-            return assistant.displayName.capitalized
+            // Assistant names are proper nouns; not localized.
+            return LocalizedStringKey(assistant.displayName.capitalized)
         }
     }
 

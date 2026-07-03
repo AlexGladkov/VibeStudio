@@ -38,6 +38,8 @@ targets:
       - path: Sources
     resources:
       - path: Sources/Assets.xcassets
+      - path: Sources/Resources/en.lproj
+      - path: Sources/Resources/ru.lproj
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio

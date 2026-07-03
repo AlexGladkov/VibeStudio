@@ -70,7 +70,7 @@ final class FileEditorViewModel {
             savedContent = content
             return true
         } catch {
-            saveError = "Ошибка: \(error.localizedDescription)"
+            saveError = String(localized: "Error: \(error.localizedDescription)")
             return false
         }
     }

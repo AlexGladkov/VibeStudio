@@ -62,7 +62,7 @@ struct SkillViewerSheet: View {
         EditorSheetScaffold(
             title: title,
             readOnly: !skill.isWritable,
-            readOnlyMessage: "Скилл установлен через Homebrew, файл только для чтения",
+            readOnlyMessage: "Skill installed via Homebrew, file is read-only",
             hasUnsavedChanges: model.hasUnsavedChanges,
             saveError: model.saveError,
             minEditorHeight: 300,
@@ -81,7 +81,7 @@ struct SkillViewerSheet: View {
                             .font(DSFont.iconMD)
                             .foregroundStyle(DSColor.textMuted)
 
-                        Text("Только чтение")
+                        Text("Read-only")
                             .font(DSFont.sidebarItemSmall)
                             .foregroundStyle(DSColor.textMuted)
                     }

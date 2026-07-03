@@ -38,14 +38,14 @@ struct RemoteQRPopover: View {
                 HStack(spacing: DSSpacing.xs) {
                     Image(systemName: "doc.on.doc")
                         .font(DSFont.iconSM)
-                    Text("Скопировать URL")
+                    Text("Copy URL")
                         .font(DSFont.smallButtonLabel)
                 }
                 .foregroundStyle(DSColor.accentPrimary)
             }
             .buttonStyle(.plain)
 
-            Text("Отсканируйте камерой телефона")
+            Text("Scan with your phone camera")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
         }

@@ -10,7 +10,7 @@ import AppKit
 /// Settings pane for Google Gemini CLI.
 ///
 /// Shows `~/.gemini/settings.json` with Finder + editor actions.
-/// When the file does not exist yet a "Создать конфиг" button is offered.
+/// When the file does not exist yet a "Create config" button is offered.
 struct GeminiSettingsPane: View {
 
     // MARK: ViewModel (lazy init)
@@ -58,7 +58,7 @@ struct GeminiSettingsPane: View {
 
     private func settingsFileSection(model: GeminiSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Конфиг")
+            Text("Config")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -81,7 +81,7 @@ struct GeminiSettingsPane: View {
 
     private var settingsReferenceRow: some View {
         VStack(alignment: .leading, spacing: DSSpacing.xs) {
-            Text("Доступные настройки: theme, sandbox, checkpointing, preferredEditor,")
+            Text("Available settings: theme, sandbox, checkpointing, preferredEditor,")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
             Text("contextWindowCompression, telemetry, coreTools, mcpServers, extensions.")
@@ -94,7 +94,7 @@ struct GeminiSettingsPane: View {
 
     private var authInfoRow: some View {
         SettingsAuthInfoRow(
-            hint: "Установите API-ключ через переменную окружения:",
+            hint: "Set the API key via an environment variable:",
             envVar: "export GEMINI_API_KEY=your-key"
         )
     }

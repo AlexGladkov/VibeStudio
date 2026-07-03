@@ -62,11 +62,11 @@ struct OpencodeSettingsPane: View {
         .sheet(isPresented: $showNewPlugin) {
             newPluginSheet
         }
-        .alert("Удалить плагин?", isPresented: $showDeleteAlert, presenting: pluginToDelete) { plugin in
-            Button("Удалить", role: .destructive) { viewModel.deletePlugin(plugin) }
-            Button("Отмена", role: .cancel) {}
+        .alert("Delete plugin?", isPresented: $showDeleteAlert, presenting: pluginToDelete) { plugin in
+            Button("Delete", role: .destructive) { viewModel.deletePlugin(plugin) }
+            Button("Cancel", role: .cancel) {}
         } message: { plugin in
-            Text("Файл «\(plugin.filename)» будет удалён без возможности восстановления.")
+            Text("File \u{00AB}\(plugin.filename)\u{00BB} will be permanently deleted.")
         }
     }
 
@@ -74,7 +74,7 @@ struct OpencodeSettingsPane: View {
 
     private func configDirectoryRow(model: OpencodeSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Директория конфига")
+            Text("Config directory")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
@@ -118,13 +118,13 @@ struct OpencodeSettingsPane: View {
     }
 
     private var pluginsSectionHeader: some View {
-        SettingsSectionHeader(title: "Плагины", showAddButton: true) {
+        SettingsSectionHeader(title: "Plugins", showAddButton: true) {
             showNewPlugin = true
         }
     }
 
     private var emptyPluginsState: some View {
-        SettingsEmptyState(text: "Нет плагинов")
+        SettingsEmptyState(text: "No plugins")
     }
 
     private func pluginRow(_ plugin: OpencodePluginEntry) -> some View {
@@ -174,7 +174,7 @@ struct OpencodeSettingsPane: View {
 
     private var providersInfoRow: some View {
         SettingsAuthInfoRow(
-            hint: "Провайдеры и API-ключи управляются через CLI: ",
+            hint: "Providers and API keys are managed via the CLI: ",
             command: "opencode providers"
         )
     }

@@ -66,8 +66,8 @@ struct InstallAgentSheet: View {
            let checkCmd = assistant.prerequisiteCheckCommand {
             stepView(
                 number: 1,
-                title: "Установи \(prereq)",
-                description: "Убедись что установлена нужная версия:",
+                title: "Install \(prereq)",
+                description: "Make sure the required version is installed:",
                 command: checkCmd
             )
         }
@@ -75,8 +75,8 @@ struct InstallAgentSheet: View {
         // Step: Install
         stepView(
             number: installStep,
-            title: "Установи \(assistant.displayName)",
-            description: "Выполни команду в терминале:",
+            title: "Install \(assistant.displayName)",
+            description: "Run this command in the terminal:",
             command: assistant.installHint
         )
 
@@ -107,7 +107,7 @@ struct InstallAgentSheet: View {
 
     private func setupStepView(number: Int, instructions: String) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            stepHeader(number: number, title: "Настройка")
+            stepHeader(number: number, title: "Setup")
 
             Text(instructions)
                 .font(DSFont.monoPath)
@@ -184,7 +184,7 @@ struct InstallAgentSheet: View {
 
     private var footer: some View {
         HStack {
-            Text("После установки перезапусти VibeStudio")
+            Text("Restart VibeStudio after installation")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
 

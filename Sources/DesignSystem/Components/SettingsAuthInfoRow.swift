@@ -1,5 +1,5 @@
 // MARK: - SettingsAuthInfoRow
-// Reusable "Авторизация" info card used by AI-assistant settings panes that
+// Reusable "Authorization" info card used by AI-assistant settings panes that
 // authenticate via an environment variable (Qwen / Gemini / ...).
 // macOS 14+, Swift 5.10
 
@@ -31,7 +31,7 @@ struct SettingsAuthInfoRow: View {
 
     // MARK: Properties
 
-    /// Section header text (default: "Авторизация").
+    /// Section header text (default: "Authorization").
     let title: String
 
     /// Muted explanatory line shown next to / above the monospaced example.
@@ -44,7 +44,7 @@ struct SettingsAuthInfoRow: View {
 
     /// Two-line variant showing a monospaced environment-variable example.
     init(
-        title: String = "Авторизация",
+        title: String = "Authorization",
         hint: String,
         envVar: String
     ) {
@@ -55,7 +55,7 @@ struct SettingsAuthInfoRow: View {
 
     /// Single-line variant showing a monospaced CLI command inline with the hint.
     init(
-        title: String = "Авторизация",
+        title: String = "Authorization",
         hint: String,
         command: String
     ) {

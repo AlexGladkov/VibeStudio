@@ -41,13 +41,13 @@ extension RemoteControlSettingsPane {
                 HStack(spacing: DSSpacing.xxs) {
                     Image(systemName: "lock.fill")
                         .font(DSFont.iconXS)
-                    Text("Подключайтесь по wss:// (https:// для веб-клиента)")
+                    Text("Connect via wss:// (https:// for web client)")
                 }
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
             }
 
-            Button("Отключить") {
+            Button("Disconnect") {
                 model.disconnectNgrok()
             }
             .font(DSFont.smallButtonLabel)
@@ -57,13 +57,13 @@ extension RemoteControlSettingsPane {
             // Starting...
             ProgressView()
                 .controlSize(.small)
-            Text("Подключение...")
+            Text("Connecting...")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
 
         } else if !model.ngrokAuthtoken.isEmpty && model.isEnabled {
             // Has token, ready to connect
-            Button("Подключить") {
+            Button("Connect") {
                 model.connectNgrok()
             }
             .font(DSFont.smallButtonLabel)
@@ -74,14 +74,14 @@ extension RemoteControlSettingsPane {
                     .foregroundStyle(DSColor.indicatorError)
                     .lineLimit(2)
             } else {
-                Text("Доступ вне Wi-Fi")
+                Text("Access outside Wi-Fi")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }
 
         } else {
             // No token — show setup hint
-            Text("Доступ вне Wi-Fi")
+            Text("Access outside Wi-Fi")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
         }
@@ -104,7 +104,7 @@ extension RemoteControlSettingsPane {
             .frame(maxWidth: 300)
             .disabled(!model.isEnabled || model.isNgrokRunning)
 
-            Link("Получить", destination: URL(string: "https://dashboard.ngrok.com/get-started/your-authtoken")!)
+            Link("Get", destination: URL(string: "https://dashboard.ngrok.com/get-started/your-authtoken")!)
                 .font(DSFont.sidebarItemSmall)
 
             Spacer()
@@ -136,7 +136,7 @@ extension RemoteControlSettingsPane {
                                 NSCursor.pop()
                             }
                         }
-                        Text("  ⌘ скопировать")
+                        Text("  ⌘ copy")
                             .foregroundStyle(DSColor.textGhost)
                     }
                     HStack(spacing: 0) {
@@ -144,11 +144,11 @@ extension RemoteControlSettingsPane {
                             .foregroundStyle(DSColor.textMuted)
                         Link("ngrok.com", destination: URL(string: "https://dashboard.ngrok.com/signup")!)
                             .foregroundStyle(DSColor.accentPrimary)
-                        Text(" → регистрация (бесплатно) → скопировать authtoken")
+                        Text(" → sign up (free) → copy authtoken")
                             .foregroundStyle(DSColor.textMuted)
                     }
                     HStack(spacing: 0) {
-                        Text("3. Вставить токен в поле выше → Подключить")
+                        Text("3. Paste the token in the field above → Connect")
                             .foregroundStyle(DSColor.textMuted)
                     }
                 }
@@ -172,7 +172,7 @@ extension RemoteControlSettingsPane {
                 .font(DSFont.pinDisplay)
                 .textSelection(.enabled)
 
-            Button("Обновить") {
+            Button("Regenerate") {
                 model.regeneratePin()
             }
             .font(DSFont.smallButtonLabel)
@@ -198,7 +198,7 @@ extension RemoteControlSettingsPane {
                     .textSelection(.enabled)
                     .lineLimit(nil)
             } else {
-                Text("Сертификат не создан")
+                Text("Certificate not created")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)
             }

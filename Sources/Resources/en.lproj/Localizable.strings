@@ -1,0 +1,6 @@
+/* VibeStudio — English (development language).
+   Keys ARE the English strings, so SwiftUI Text("...") and String(localized:)
+   resolve to the key itself here — no per-key entries are required for English
+   display. This table is intentionally sparse; ru.lproj carries the
+   translations. Add explicit entries here only if a key ever needs to differ
+   from its English rendering. */
