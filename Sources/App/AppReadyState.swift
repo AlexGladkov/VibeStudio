@@ -16,9 +16,4 @@ final class AppReadyState {
     /// Whether TCC (Transparency, Consent, and Control) permissions have been granted
     /// for required system access (terminal input, file access, etc.).
     var tccGranted: Bool = false
-
-    /// Mark TCC permissions as granted.
-    func markTCCGranted() {
-        tccGranted = true
-    }
 }

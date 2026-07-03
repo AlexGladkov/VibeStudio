@@ -24,6 +24,19 @@ final class CommandEditorViewModel {
         case savedAndDismiss
     }
 
+    // MARK: - Filename Validation
+
+    /// Reason a user-supplied command filename was rejected.
+    ///
+    /// Rejecting anything outside `[a-z0-9_-]` is the primary defence against
+    /// path-traversal: names like `../etc` or `foo/bar` fail ``invalidCharacters``.
+    enum FilenameValidationError: Error, Equatable {
+        /// Name was empty after trimming whitespace.
+        case empty
+        /// Name contained characters outside `[a-z0-9_-]`.
+        case invalidCharacters
+    }
+
     // MARK: - State
 
     var content: String = ""
@@ -39,9 +52,14 @@ final class CommandEditorViewModel {
     let fileURL: URL?
     var isNewFile: Bool { fileURL == nil }
 
+    /// Directory new command files are written to. Injectable for testing;
+    /// defaults to the real `~/.claude/commands/`.
+    let commandsDirectoryURL: URL
+
     // MARK: - Constants
 
-    private static let commandsDirectoryURL: URL = FileManager.default
+    /// Real on-disk commands directory used in production.
+    static let defaultCommandsDirectoryURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/commands")
 
@@ -52,8 +70,24 @@ final class CommandEditorViewModel {
 
     // MARK: - Init
 
-    init(fileURL: URL?) {
+    init(fileURL: URL?, commandsDirectoryURL: URL = CommandEditorViewModel.defaultCommandsDirectoryURL) {
         self.fileURL = fileURL
+        self.commandsDirectoryURL = commandsDirectoryURL
+    }
+
+    // MARK: - Validation
+
+    /// Validates a user-supplied command filename (without extension).
+    ///
+    /// Trims surrounding whitespace, then requires a non-empty string matching
+    /// `^[a-z0-9_-]+$`. Returns the trimmed name on success.
+    static func validateFilename(_ name: String) -> Result<String, FilenameValidationError> {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return .failure(.empty) }
+        guard (try? filenameRegex.wholeMatch(in: trimmed)) != nil else {
+            return .failure(.invalidCharacters)
+        }
+        return .success(trimmed)
     }
 
     // MARK: - File I/O
@@ -87,17 +121,19 @@ final class CommandEditorViewModel {
         }
 
         // New command — validate filename, write new file.
-        let trimmed = filename.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else {
+        let trimmed: String
+        switch Self.validateFilename(filename) {
+        case .success(let name):
+            trimmed = name
+        case .failure(.empty):
             saveError = "Введите имя файла"
             return nil
-        }
-        guard (try? Self.filenameRegex.wholeMatch(in: trimmed)) != nil else {
+        case .failure(.invalidCharacters):
             saveError = "Допустимы только строчные латинские буквы, цифры, дефис и подчёркивание"
             return nil
         }
 
-        let dir = Self.commandsDirectoryURL
+        let dir = commandsDirectoryURL
         let targetURL = dir.appendingPathComponent("\(trimmed).md")
 
         guard !FileManager.default.fileExists(atPath: targetURL.path) else {

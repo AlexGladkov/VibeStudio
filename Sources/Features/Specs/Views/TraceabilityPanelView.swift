@@ -80,6 +80,7 @@ struct TraceabilityPanelView: View {
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Refresh")
             .help("Refresh traceability map")
 
             // Close
@@ -93,6 +94,8 @@ struct TraceabilityPanelView: View {
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+            .help("Close")
         }
         .padding(.horizontal, DSSpacing.md)
         .frame(height: DSLayout.gitSectionHeaderHeight)

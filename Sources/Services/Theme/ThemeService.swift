@@ -23,7 +23,10 @@ final class ThemeService {
     // MARK: - Stored State
 
     private let defaults = UserDefaults.standard
-    private let storageKey = "vs_appearance"
+
+    private enum Keys {
+        static let appearance = "vs_appearance"
+    }
 
     /// The currently selected appearance preference.
     ///
@@ -31,7 +34,7 @@ final class ThemeService {
     /// and notifies observers via `Notification.Name.themeDidChange`.
     var selectedAppearance: AppAppearance {
         didSet {
-            defaults.set(selectedAppearance.rawValue, forKey: storageKey)
+            defaults.set(selectedAppearance.rawValue, forKey: Keys.appearance)
             apply(selectedAppearance)
         }
     }
@@ -79,7 +82,7 @@ final class ThemeService {
     // MARK: - Init
 
     init() {
-        let stored = defaults.integer(forKey: storageKey)
+        let stored = defaults.integer(forKey: Keys.appearance)
         self.selectedAppearance = AppAppearance(rawValue: stored) ?? .system
 
         // Observe macOS system dark/light toggle.
@@ -91,11 +94,17 @@ final class ThemeService {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self, self.selectedAppearance == .system else { return }
-            // Bumping this triggers @Observable to re-render all dependents,
-            // which re-evaluates `resolvedColorScheme` against the new
-            // `NSApp.effectiveAppearance` value.
-            self.systemThemeToken += 1
+            // `queue: .main` guarantees this fires on the main thread, so the
+            // MainActor state below is safe to touch. `assumeIsolated` makes
+            // that guarantee statically checkable (Swift 6 readiness) instead
+            // of implicitly mutating MainActor state from a nonisolated closure.
+            MainActor.assumeIsolated {
+                guard let self, self.selectedAppearance == .system else { return }
+                // Bumping this triggers @Observable to re-render all dependents,
+                // which re-evaluates `resolvedColorScheme` against the new
+                // `NSApp.effectiveAppearance` value.
+                self.systemThemeToken += 1
+            }
         }
     }
 

@@ -97,6 +97,8 @@ struct TabItemView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close tab")
+                .help("Close tab")
             }
         }
         .padding(.horizontal, DSLayout.tabHorizontalPadding)

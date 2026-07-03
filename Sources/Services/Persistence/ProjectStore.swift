@@ -167,7 +167,13 @@ final class ProjectStore: ProjectManaging {
     func moveProjects(from indices: IndexSet, to destination: Int) {
         projects.move(fromOffsets: indices, toOffset: destination)
         rebuildIndex()
-        try? save()
+        do {
+            try save()
+        } catch {
+            Logger.persistence.error(
+                "Failed to save after moveProjects: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     // MARK: - ProjectManaging: Lookup

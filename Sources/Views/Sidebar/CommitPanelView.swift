@@ -81,6 +81,7 @@ struct CommitPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!hasChanges || isGenerating || isCommitting)
+                    .accessibilityLabel("Generate commit message")
                     .help("Generate commit message with AI")
                 }
 

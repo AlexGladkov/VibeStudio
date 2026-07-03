@@ -40,26 +40,33 @@ extension RemoteWebSocketHandler {
             let result = authSvc.validateToken(token, clientIP: ip)
             switch result {
             case .success(let device):
-                self.deviceInfo = device
-                self.isAuthenticated = true
+                // MEMORY-SAFETY: `deviceInfo`/`isAuthenticated` are owned by the
+                // NIO event loop — they are read there in `handleTextFrame`
+                // (the auth gate), `onChannelReady` and `channelInactive`.
+                // `deviceInfo` is a multi-word `RemoteDevice?` value, so writing
+                // it from the MainActor while the event loop reads it risks a
+                // torn read (and thus an over-release / crash). Publish both here
+                // on the event loop so there is a single writer.
+                //
+                // `authInProgress` is reset in the same hop: without this it
+                // would stay `true` for the connection's lifetime — harmless
+                // today (the auth gate short-circuits on `isAuthenticated`) but
+                // it would silently break any future `authInProgress` re-check.
+                channel.eventLoop.execute {
+                    self.deviceInfo = device
+                    self.isAuthenticated = true
+                    self.authInProgress = false
+                }
                 // WS race fix: cancel auth-timeout under the lock to close the
                 // window where the timeout task could fire between the
                 // `!isAuthenticated` check inside its body and this cancel.
                 self.cancelAuthTimeout()
 
-                // Send auth success confirmation.
+                // Send auth success confirmation. Enqueued on the event loop
+                // after the state-publish block above, so `isAuthenticated` is
+                // already `true` by the time the client can respond with input.
                 let ack = "{\"type\":\"auth_ok\"}"
                 self.sendTextOnEventLoop(ack, channel: channel)
-
-                // Reset the in-progress flag on the event-loop thread that
-                // owns it. Without this the flag would remain `true` for the
-                // lifetime of the connection — harmless today because the
-                // first guard short-circuits on `isAuthenticated`, but it
-                // leaves the state inconsistent and would silently break any
-                // future code path that re-checks `authInProgress`.
-                channel.eventLoop.execute {
-                    self.authInProgress = false
-                }
 
                 self.initializeSession(channel: channel, device: device)
 

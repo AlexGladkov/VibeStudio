@@ -155,16 +155,33 @@ extension GitService {
     }
 
     /// Extract the starting old/new line numbers from a `@@ -a,b +c,d @@` header.
+    ///
+    /// PERF: hand-rolled scan instead of `.regularExpression` (which recompiles
+    /// the pattern on every call). Mirrors the old regexes `-(\d+)` / `\+(\d+)`:
+    /// the first `-`/`+` immediately followed by one or more digits.
     private func parseHunkLineNumbers(_ line: String) -> (old: Int, new: Int) {
-        var old = 0
-        var new = 0
-        if let match = line.range(of: #"-(\d+)"#, options: .regularExpression) {
-            old = Int(line[match].dropFirst()) ?? 0
+        (old: Self.firstNumber(in: line, afterSign: "-"),
+         new: Self.firstNumber(in: line, afterSign: "+"))
+    }
+
+    /// Return the integer formed by the first run of digits that immediately
+    /// follows `sign`, or `0` when no such `sign`+digit sequence exists.
+    private static func firstNumber(in line: String, afterSign sign: Character) -> Int {
+        let chars = Array(line)
+        var i = 0
+        while i < chars.count {
+            if chars[i] == sign, i + 1 < chars.count, chars[i + 1].isNumber {
+                var value = 0
+                var j = i + 1
+                while j < chars.count, let digit = chars[j].wholeNumberValue, chars[j].isNumber {
+                    value = value * 10 + digit
+                    j += 1
+                }
+                return value
+            }
+            i += 1
         }
-        if let match = line.range(of: #"\+(\d+)"#, options: .regularExpression) {
-            new = Int(line[match].dropFirst()) ?? 0
-        }
-        return (old, new)
+        return 0
     }
 
     /// Build a ``GitDiffLine`` from a diff body line, advancing the line counters.

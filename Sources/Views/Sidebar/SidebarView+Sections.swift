@@ -9,7 +9,7 @@ extension SidebarView {
 
     // MARK: - Icon Strip Button
 
-    func iconButton(section: SidebarSection, symbol: String) -> some View {
+    func iconButton(section: SidebarSection, symbol: String, label: String) -> some View {
         let isActive = activeSection == section
         return Button {
             activeSection = section
@@ -23,6 +23,8 @@ extension SidebarView {
         }
         .buttonStyle(.plain)
         .sidebarHover(cornerRadius: DSRadius.sm)
+        .accessibilityLabel(label)
+        .help(label)
     }
 
     // MARK: - No Project View

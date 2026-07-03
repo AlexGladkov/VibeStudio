@@ -10,6 +10,9 @@ import SwiftTerm
 
 extension TerminalService {
 
+    /// Maximum number of characters of agent exit output logged to Console.
+    private static let maxExitOutputLogCharacters = 3000
+
     // MARK: - Terminal Appearance
 
     /// Re-apply theme colors to all currently live terminal views.
@@ -91,11 +94,6 @@ extension TerminalService {
 
     /// Handle activity detection from a terminal view.
     func handleActivity(sessionId: UUID, projectId: UUID) {
-        // Emit activity event for backward compatibility.
-        eventContinuation.yield(
-            .activityDetected(sessionId: sessionId, projectId: projectId)
-        )
-
         // Delegate debouncing, state machine, and idle timers to the tracker.
         activityTracker.handleActivity(
             sessionId: sessionId,
@@ -129,12 +127,13 @@ extension TerminalService {
             let data = view.getTerminal().getBufferAsData(kind: .active, encoding: .utf8)
             if let raw = String(data: data, encoding: .utf8) {
                 // Strip ANSI escape codes for readability in Console.app.
-                let clean = raw.replacingOccurrences(
-                    of: #"\x1B\[[0-9;]*[mGKHJABCDEFG]|\x1B\][^\x07]*\x07"#,
-                    with: "", options: .regularExpression
-                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                let clean = ANSIStripper.strip(raw)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !clean.isEmpty {
-                    Logger.terminal.warning("Agent exit output (exitCode=\(exitCode)):\n\(clean.prefix(3000), privacy: .private)")
+                    let tail = clean.prefix(Self.maxExitOutputLogCharacters)
+                    Logger.terminal.warning(
+                        "Agent exit output (exitCode=\(exitCode)):\n\(tail, privacy: .private)"
+                    )
                 }
             }
         }

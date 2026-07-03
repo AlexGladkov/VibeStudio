@@ -79,7 +79,7 @@ struct OpencodeSettingsPane: View {
                 .foregroundStyle(DSColor.textSecondary)
 
             HStack(spacing: DSSpacing.sm) {
-                Text(model.displayConfigPath)
+                Text(model.displayPath)
                     .font(DSFont.monoPath)
                     .foregroundStyle(DSColor.textPrimary)
                     .lineLimit(1)

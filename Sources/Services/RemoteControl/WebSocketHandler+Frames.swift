@@ -74,9 +74,12 @@ extension RemoteWebSocketHandler {
         }
 
         // SECURITY: First message must be auth. All other messages rejected until authenticated.
-        // Both `isAuthenticated` and `authInProgress` are read and written exclusively on the
-        // NIO event loop thread (this call stack), closing the race window that existed when only
-        // `isAuthenticated` was checked and the flag was set later inside a MainActor Task.
+        // `authInProgress` is read and written exclusively on this NIO event loop thread.
+        // `isAuthenticated` is likewise *written* on the event loop — the auth-success path in
+        // ``handleAuthMessage`` publishes it via `channel.eventLoop.execute` — and read here on
+        // the event loop, so this gate observes a coherent value with no torn read. The only
+        // off-loop read is the benign `Bool` guard inside the auth-timeout Task, which is
+        // additionally cancelled on success.
         if !isAuthenticated {
             handleUnauthenticatedFrame(type: envelope.type, jsonData: jsonData, channel: channel)
             return

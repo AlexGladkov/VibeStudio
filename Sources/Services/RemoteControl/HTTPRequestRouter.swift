@@ -221,22 +221,20 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
                 requestHead = nil
                 requestBody = nil
                 let channel = context.channel
-                let json = #"{"error":{"code":"PAYLOAD_TOO_LARGE","message":"Request body exceeds the 64 KB limit."}}"#
-                let data = Data(json.utf8)
-                var headers = HTTPHeaders()
-                headers.add(name: "Content-Type", value: "application/json; charset=utf-8")
-                headers.add(name: "Content-Length", value: "\(data.count)")
-                headers.add(name: "Connection", value: "close")
-                let head = HTTPResponseHead(
-                    version: .http1_1, status: .payloadTooLarge, headers: headers
+                // Route through the shared writer so the 413 carries the same
+                // security headers + API-Version as every other response.
+                // `sendErrorJSON` writes head/body/end and flushes; closing the
+                // channel afterwards (on the same event loop) fires only after
+                // the flushed response drains, mirroring the previous
+                // Connection: close teardown.
+                writer.sendErrorJSON(
+                    status: .payloadTooLarge,
+                    code: "PAYLOAD_TOO_LARGE",
+                    message: "Request body exceeds the 64 KB limit.",
+                    channel: channel,
+                    corsOrigin: nil
                 )
-                var buffer = channel.allocator.buffer(capacity: data.count)
-                buffer.writeBytes(data)
-                channel.write(wrapOutboundOut(.head(head)), promise: nil)
-                channel.write(wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
-                channel.writeAndFlush(wrapOutboundOut(.end(nil))).whenComplete { _ in
-                    channel.close(promise: nil)
-                }
+                channel.close(promise: nil)
                 return
             }
             requestBody?.writeBuffer(&body)

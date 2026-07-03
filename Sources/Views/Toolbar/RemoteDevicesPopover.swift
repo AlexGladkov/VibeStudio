@@ -33,6 +33,7 @@ struct RemoteDevicesPopover: View {
                         .font(DSFont.iconSM)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Regenerate PIN")
                 .help("Обновить PIN")
             }
 

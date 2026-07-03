@@ -96,6 +96,7 @@ struct PlayStopButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!isRunning && !canRun)
+        .accessibilityLabel(isRunning ? "Stop" : "Run")
         .help(isRunning ? runningHelp : idleHelp)
     }
 }

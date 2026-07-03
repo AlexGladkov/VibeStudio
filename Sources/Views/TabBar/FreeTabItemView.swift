@@ -26,6 +26,7 @@ struct FreeTabItemView: View {
             Image(systemName: "terminal")
                 .font(DSFont.iconMD)
                 .foregroundStyle(isActive || isHovering ? DSColor.textPrimary : DSColor.textSecondary)
+                .accessibilityHidden(true)
 
             Text(freeTab.title)
                 .font(DSFont.tabTitle)
@@ -51,6 +52,8 @@ struct FreeTabItemView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close tab")
+                .help("Close tab")
             }
         }
         .padding(.horizontal, DSLayout.tabHorizontalPadding)

@@ -47,7 +47,7 @@ final class OpencodeSettingsPaneViewModel {
         .appendingPathComponent(".config/opencode/plugins")
 
     /// Display path of the config directory with home directory replaced by `~`.
-    var displayConfigPath: String {
+    var displayPath: String {
         Self.configDirectoryURL.tildeAbbreviatedPath
     }
 
@@ -55,28 +55,13 @@ final class OpencodeSettingsPaneViewModel {
 
     /// Scans `~/.config/opencode/plugins/` for TypeScript files.
     func loadPlugins() {
-        let fileManager = FileManager.default
-        let dir = Self.pluginsDirectoryURL
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.nameKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            Logger.settings.debug("OpencodeSettings: plugins dir not readable at \(dir.path, privacy: .public)")
-            plugins = []
-            return
+        plugins = AgentDirectoryLoader.loadFiles(from: Self.pluginsDirectoryURL, extension: "ts") { url in
+            OpencodePluginEntry(
+                id: url.path,
+                fileURL: url,
+                filename: url.lastPathComponent
+            )
         }
-
-        plugins = contents
-            .filter { $0.pathExtension == "ts" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { url in
-                OpencodePluginEntry(
-                    id: url.path,
-                    fileURL: url,
-                    filename: url.lastPathComponent
-                )
-            }
     }
 
     // MARK: - Delete

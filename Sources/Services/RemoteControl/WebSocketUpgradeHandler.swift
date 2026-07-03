@@ -79,6 +79,13 @@ final class WebSocketUpgradeHandler {
         // SEC-H1: reject WS upgrade when at device cap. We read
         // `activeBridges.count` via the server reference; if no server is
         // wired in (preview/test) we skip the check.
+        //
+        // Soft cap: the count read and the subsequent bridge registration are
+        // not atomic, so two upgrades racing on the same MainActor tick could
+        // both observe `count < maxDevices` and momentarily exceed the cap.
+        // This is deliberately tolerated — it is not memory-unsafe, and the
+        // hard limit is enforced later at authentication time, which is the
+        // authoritative gate. Here we only need a cheap early rejection.
         if let server = serverRef {
             // serverRef is @MainActor — hop briefly to read state, then bounce
             // back to the event loop for the upgrade.

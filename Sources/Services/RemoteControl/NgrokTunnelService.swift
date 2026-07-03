@@ -4,6 +4,7 @@
 
 import Foundation
 import Observation
+import os
 import OSLog
 
 /// Manages an ngrok tunnel subprocess to expose the local Remote Control
@@ -58,8 +59,17 @@ final class NgrokTunnelService {
     /// Stderr pipe for capturing error output.
     private var stderrPipe: Pipe?
 
-    /// Accumulated stderr output (read asynchronously during process lifetime).
-    private var accumulatedStderr: String = ""
+    /// Accumulated stderr output.
+    ///
+    /// Held under an `OSAllocatedUnfairLock` (a Sendable `let`, so it is
+    /// reachable from the nonisolated pipe/termination callbacks) rather than a
+    /// MainActor `var` appended via `Task { @MainActor }`. The previous approach
+    /// hopped each chunk onto the MainActor asynchronously, and ordering between
+    /// those hops and the termination handler's own hop was not guaranteed — so
+    /// ngrok's final diagnostic line could land in `error` too late (or never).
+    /// Appending under a lock, plus a synchronous drain in the termination
+    /// handler, makes the accumulation order-independent of thread scheduling.
+    private let stderrBuffer = OSAllocatedUnfairLock(initialState: "")
 
     // PID-file management lives in ``NgrokTunnelService+PIDFile`` (Iteration 9 split).
 
@@ -169,7 +179,7 @@ final class NgrokTunnelService {
         tunnelURL = nil
         error = nil
         stderrPipe = nil
-        accumulatedStderr = ""
+        stderrBuffer.withLock { $0 = "" }
 
         Logger.remoteControl.info("NgrokTunnelService: stopped")
     }
@@ -186,7 +196,7 @@ final class NgrokTunnelService {
         let proc = Self.makeNgrokProcess(path: path, httpPort: httpPort, env: env, errPipe: errPipe)
 
         self.stderrPipe = errPipe
-        self.accumulatedStderr = ""
+        self.stderrBuffer.withLock { $0 = "" }
 
         installStderrReader(errPipe: errPipe)
         installTerminationHandler(on: proc, errPipe: errPipe)
@@ -246,9 +256,9 @@ final class NgrokTunnelService {
             let data = handle.availableData
             guard !data.isEmpty,
                   let text = String(data: data, encoding: .utf8) else { return }
-            Task { @MainActor [weak self] in
-                self?.accumulatedStderr += text
-            }
+            // Append synchronously under the lock — no MainActor hop — so the
+            // accumulation order matches the delivery order regardless of thread.
+            self?.stderrBuffer.withLock { $0 += text }
         }
     }
 
@@ -260,6 +270,18 @@ final class NgrokTunnelService {
             // Stop async reading — process is done.
             errPipe.fileHandleForReading.readabilityHandler = nil
 
+            // Drain any bytes still buffered in the pipe synchronously on this
+            // termination thread. `readabilityHandler` is detached above and may
+            // have been detached before ngrok's final diagnostic line was
+            // delivered; without this drain that last chunk would be lost.
+            let tail = errPipe.fileHandleForReading.readDataToEndOfFile()
+            if !tail.isEmpty, let tailText = String(data: tail, encoding: .utf8) {
+                self?.stderrBuffer.withLock { $0 += tailText }
+            }
+            // Snapshot the fully-accumulated stderr synchronously so the value
+            // carried into the MainActor hop below is complete and final.
+            let collectedStderr = self?.stderrBuffer.withLock { $0 } ?? ""
+
             Task { @MainActor [weak self] in
                 guard let self, self.process === terminatedProcess else { return }
                 self.process = nil
@@ -268,7 +290,7 @@ final class NgrokTunnelService {
                 self.pollTask = nil
 
                 if exitCode != 0 && self.error == nil {
-                    let stderrText = self.accumulatedStderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let stderrText = collectedStderr.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.error = stderrText.isEmpty
                         ? "ngrok завершился с кодом \(exitCode)"
                         : "ngrok: \(stderrText)"

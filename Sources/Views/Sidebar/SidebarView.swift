@@ -221,9 +221,9 @@ struct SidebarView: View {
 
     private var iconStrip: some View {
         VStack(spacing: DSSpacing.sm) {
-            iconButton(section: .files, symbol: "folder.fill")
-            iconButton(section: .git, symbol: "arrow.triangle.branch")
-            iconButton(section: .specs, symbol: "doc.text.magnifyingglass")
+            iconButton(section: .files, symbol: "folder.fill", label: "Files")
+            iconButton(section: .git, symbol: "arrow.triangle.branch", label: "Git")
+            iconButton(section: .specs, symbol: "doc.text.magnifyingglass", label: "Specs")
             Spacer()
 
             Button {
@@ -236,6 +236,8 @@ struct SidebarView: View {
                     .cornerRadius(DSRadius.sm)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Add project")
+            .help("Add project")
             .padding(.bottom, DSSpacing.sm)
             .keyboardShortcut("t", modifiers: .command)
             .popover(isPresented: $showAddProjectPopover, arrowEdge: .trailing) {
@@ -379,6 +381,8 @@ struct SidebarView: View {
                                 .foregroundStyle(DSColor.textMuted)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Refresh")
+                        .help("Refresh")
                     }
                     .frame(height: DSLayout.gitSectionHeaderHeight)
 

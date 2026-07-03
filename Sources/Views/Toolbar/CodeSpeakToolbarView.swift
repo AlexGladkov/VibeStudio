@@ -115,6 +115,7 @@ struct CodeSpeakToolbarView: View {
                         .fill(DSColor.gitModified)
                         .frame(width: 5, height: 5) // dirty dot, intentionally sub-grid
                         .padding(.leading, DSSpacing.xxs)
+                        .accessibilityHidden(true)
                 }
             }
         }
@@ -158,6 +159,7 @@ struct CodeSpeakToolbarView: View {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(DSFont.tabTitle)
                 .foregroundStyle(DSColor.agentCodeSpeak)
+                .accessibilityHidden(true)
 
             commandMenu
             commandInputField
@@ -185,6 +187,7 @@ struct CodeSpeakToolbarView: View {
                 Image(systemName: "chevron.down")
                     .font(DSFont.iconSM)
                     .foregroundStyle(DSColor.textSecondary)
+                    .accessibilityHidden(true)
             }
             .frame(height: DSLayout.toolbarButtonHeight)
         }
@@ -255,6 +258,7 @@ struct CodeSpeakToolbarView: View {
                     .toolbarIconButton()
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remote Control connection")
             .help("QR-код для подключения")
             .popover(isPresented: $showingQRPopover, arrowEdge: .bottom) {
                 RemoteQRPopover(
@@ -284,6 +288,8 @@ struct CodeSpeakToolbarView: View {
                 .foregroundStyle(DSColor.accentPrimary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remote Control connection")
+            .accessibilityValue("\(remoteServer.connectedDeviceCount) devices")
             .help("Remote Control")
             .popover(isPresented: $showingRemotePopover, arrowEdge: .bottom) {
                 RemoteDevicesPopover()
@@ -302,6 +308,7 @@ struct CodeSpeakToolbarView: View {
                 .toolbarIconButton()
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
         .help("Settings")
     }
 }

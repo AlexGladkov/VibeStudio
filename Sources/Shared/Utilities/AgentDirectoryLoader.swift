@@ -57,4 +57,42 @@ enum AgentDirectoryLoader {
             }
         }
     }
+
+    /// Scans `directory` for files with the given `extension`, maps each to a
+    /// typed entry, and returns the results in ascending filename order.
+    ///
+    /// Unlike ``load(from:mapping:)`` this variant does **not** read or parse
+    /// file contents — the `mapping` closure receives only the file URL. Use it
+    /// for simple "list files of type X in a directory" panes (Codex memories,
+    /// opencode plugins, ...).
+    ///
+    /// - Parameters:
+    ///   - directory: The directory to enumerate.
+    ///   - ext: The file extension to keep (without the leading dot, e.g. `"md"`).
+    ///   - mapping: Closure producing an entry value given the file URL. Return
+    ///     `nil` to skip the file.
+    /// - Returns: Mapped entries in ascending filename order, or an empty array
+    ///   if the directory cannot be read.
+    static func loadFiles<T>(
+        from directory: URL,
+        extension ext: String,
+        mapping: (URL) -> T?
+    ) -> [T] {
+        let fileManager = FileManager.default
+        guard let contents = try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.nameKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            // Missing directory is the normal "nothing here yet" case — log at debug.
+            let path = directory.path
+            Logger.settings.debug("AgentDirectoryLoader: directory not readable at \(path, privacy: .public)")
+            return []
+        }
+
+        return contents
+            .filter { $0.pathExtension == ext }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .compactMap(mapping)
+    }
 }

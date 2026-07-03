@@ -51,6 +51,7 @@ struct RegularToolbarView: View {
             HStack(spacing: DSSpacing.xs) {
                 AIAssistantIconView(assistant: model.currentAssistant, size: 14)
                     .opacity(model.isRunning ? 0.4 : 1.0)
+                    .accessibilityHidden(true)
 
                 Text(model.currentAssistant.displayName)
                     .font(DSFont.tabTitle)
@@ -59,6 +60,7 @@ struct RegularToolbarView: View {
                 Image(systemName: "chevron.down")
                     .font(DSFont.iconSM)
                     .foregroundStyle(model.isRunning ? DSColor.textMuted : DSColor.textSecondary)
+                    .accessibilityHidden(true)
             }
             .frame(height: DSLayout.toolbarButtonHeight)
         }
@@ -102,6 +104,7 @@ struct RegularToolbarView: View {
         }
         .buttonStyle(.plain)
         .disabled(model.activeProductionURL == nil)
+        .accessibilityLabel("Open in browser")
         .help(model.activeProductionURL.map { "Open \($0.absoluteString) in browser" } ?? "No production URL set")
     }
 
@@ -116,6 +119,7 @@ struct RegularToolbarView: View {
                     .toolbarIconButton()
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remote Control connection")
             .help("QR-код для подключения")
             .popover(isPresented: $showingQRPopover, arrowEdge: .bottom) {
                 RemoteQRPopover(
@@ -145,6 +149,8 @@ struct RegularToolbarView: View {
                 .foregroundStyle(DSColor.accentPrimary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remote Control connection")
+            .accessibilityValue("\(remoteServer.connectedDeviceCount) devices")
             .help("Remote Control")
             .popover(isPresented: $showingRemotePopover, arrowEdge: .bottom) {
                 RemoteDevicesPopover()
@@ -163,6 +169,7 @@ struct RegularToolbarView: View {
                 .toolbarIconButton()
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
         .help("Settings")
     }
 
@@ -183,6 +190,8 @@ struct RegularToolbarView: View {
                 .toolbarIconButton()
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Changes panel")
+        .accessibilityValue(navigationCoordinator.showingChangesPanel ? "shown" : "hidden")
         .help("Toggle Changes Panel (\u{2318}\u{21E7}G)")
     }
 }

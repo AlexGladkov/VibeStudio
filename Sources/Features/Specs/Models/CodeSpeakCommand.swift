@@ -83,6 +83,14 @@ enum CodeSpeakCommand: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    // MARK: - Input Limits
+
+    /// Maximum accepted length for a `.task` name argument.
+    private static let maxTaskNameLength = 256
+
+    /// Maximum accepted length for a `.change` message argument.
+    private static let maxChangeMessageLength = 2000
+
     // MARK: - CLI Arguments
 
     /// Build the argument array for `CodeSpeakProcessRunner.run(_:at:env:)`.
@@ -98,7 +106,7 @@ enum CodeSpeakCommand: String, CaseIterable, Identifiable, Sendable {
     func cliArguments(specPath: String? = nil, taskName: String = "", changeMessage: String = "") -> [String] {
         switch self {
         case .task:
-            let sanitizedTask = String(taskName.prefix(256))
+            let sanitizedTask = String(taskName.prefix(Self.maxTaskNameLength))
             var args = ["task", "--no-interactive", "--", sanitizedTask]
             if let spec = specPath {
                 args.append(contentsOf: ["--spec", spec])
@@ -106,7 +114,7 @@ enum CodeSpeakCommand: String, CaseIterable, Identifiable, Sendable {
             return args
 
         case .change:
-            let sanitizedMessage = String(changeMessage.prefix(2000))
+            let sanitizedMessage = String(changeMessage.prefix(Self.maxChangeMessageLength))
             var args = ["change", "--no-interactive"]
             if let spec = specPath {
                 args.append(spec)

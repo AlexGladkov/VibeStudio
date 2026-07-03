@@ -18,6 +18,9 @@ import OSLog
 ///
 /// **Threading model:**
 /// - All public methods are `@MainActor` (terminal services live on MainActor).
+/// - Raw PTY output reaches ``handleRawData`` on the MainActor: SwiftTerm
+///   delivers `dataReceived` on the main thread (its LocalProcess uses
+///   `dispatchQueue: .main`), so there is no off-main PTY read thread here.
 /// - WebSocket writes go through the cached `Channel` reference (Sendable)
 ///   using `channel.eventLoop.execute`.
 @MainActor
@@ -57,6 +60,23 @@ final class RemoteSessionBridge {
 
     /// Rate limit: maximum input messages per minute.
     private static let maxInputPerMinute = 120
+
+    /// Output throttle window (ms): batch rapid PTY reads into one WS frame.
+    private static let outputThrottleMilliseconds = 16
+
+    /// Rate-limit sliding window duration (seconds).
+    private static let rateLimitWindowSeconds: TimeInterval = 60
+
+    /// Retry-After hint (ms) sent with a rate-limit warning.
+    private static let rateLimitRetryAfterMilliseconds = 500
+
+    /// Terminal resize clamps: allowed column range.
+    private static let minColumns = 10
+    private static let maxColumns = 500
+
+    /// Terminal resize clamps: allowed row range.
+    private static let minRows = 4
+    private static let maxRows = 200
 
     /// Shared encoder for rate-limit messages.
     private let jsonEncoder = JSONEncoder()
@@ -130,7 +150,7 @@ final class RemoteSessionBridge {
 
         if outputBufferTask == nil {
             outputBufferTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(16))
+                try? await Task.sleep(for: .milliseconds(Self.outputThrottleMilliseconds))
                 guard let self else { return }
                 let batch = self.pendingRawBytes
                 self.pendingRawBytes = []
@@ -153,7 +173,7 @@ final class RemoteSessionBridge {
 
         // Rate limiting: O(1) sliding window counter (120 messages/min).
         let now = Date()
-        if now.timeIntervalSince(rateLimitWindowStart) >= 60 {
+        if now.timeIntervalSince(rateLimitWindowStart) >= Self.rateLimitWindowSeconds {
             // Window expired — reset.
             rateLimitWindowStart = now
             rateLimitCount = 0
@@ -189,8 +209,8 @@ final class RemoteSessionBridge {
         // would silently coerce `cols = -1` into `10`.
         guard cols > 0, rows > 0 else { return }
         resetIdleTimer()
-        let clampedCols = min(max(cols, 10), 500)
-        let clampedRows = min(max(rows, 4), 200)
+        let clampedCols = min(max(cols, Self.minColumns), Self.maxColumns)
+        let clampedRows = min(max(rows, Self.minRows), Self.maxRows)
         terminalService.resize(
             session: sessionId,
             to: TerminalSize(columns: clampedCols, rows: clampedRows)
@@ -256,7 +276,7 @@ final class RemoteSessionBridge {
         let msg = WSRateLimitedMessage(
             type: "rate_limited",
             message: "Input rate limit exceeded. Messages are being dropped.",
-            retryAfterMs: 500
+            retryAfterMs: Self.rateLimitRetryAfterMilliseconds
         )
         if let json = try? jsonEncoder.encode(msg),
            let str = String(data: json, encoding: .utf8) {

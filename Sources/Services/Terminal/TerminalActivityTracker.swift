@@ -29,7 +29,11 @@ final class TerminalActivityTracker {
     private let debounceInterval: TimeInterval = 0.1
 
     /// How long to wait after the last output before checking shell state.
-    private let idleTimeout: TimeInterval = 1.5
+    ///
+    /// Injectable (default `1.5`s = production behaviour) so tests can drive the
+    /// idle-timer transition deterministically with a short timeout instead of
+    /// sleeping for the full production interval.
+    private let idleTimeout: TimeInterval
 
     // MARK: - State
 
@@ -47,18 +51,15 @@ final class TerminalActivityTracker {
     /// `self`-capturing initialiser (ARCH-L3).
     var stateChanged: StateChanged
 
-    // MARK: - Precompiled Regex
-
-    /// Regex for stripping ANSI escape sequences from terminal output.
-    private static let ansiRegex: NSRegularExpression? = try? NSRegularExpression(
-        pattern: "\\x1B(?:\\[[0-9;]*[A-Za-z]|[()][0-9A-Z]|[^\\[\\(\\)])"
-    )
-
     // MARK: - Init
 
-    /// - Parameter stateChanged: Called whenever a project's activity state should change.
-    ///   The owner (`TerminalService`) stores the value in its `@Observable` property.
-    init(stateChanged: @escaping StateChanged) {
+    /// - Parameters:
+    ///   - idleTimeout: Seconds of silence before the idle timer checks shell
+    ///     state. Defaults to `1.5` (production value); override in tests.
+    ///   - stateChanged: Called whenever a project's activity state should change.
+    ///     The owner (`TerminalService`) stores the value in its `@Observable` property.
+    init(idleTimeout: TimeInterval = 1.5, stateChanged: @escaping StateChanged) {
+        self.idleTimeout = idleTimeout
         self.stateChanged = stateChanged
     }
 
@@ -152,7 +153,7 @@ final class TerminalActivityTracker {
         viewProvider: @MainActor (UUID) -> TaggedTerminalView?
     ) -> Bool {
         let raw = lastVisibleLine(sessionId: sessionId, viewProvider: viewProvider)
-        let line = stripANSI(raw).trimmingCharacters(in: .whitespaces)
+        let line = ANSIStripper.strip(raw).trimmingCharacters(in: .whitespaces)
         guard !line.isEmpty else { return false }
         let promptSuffixes = ["$ ", "% ", "# ", "\u{276F} ", "\u{279C} ", "\u{2192} ", "> "]
         return promptSuffixes.contains(where: { line.hasSuffix($0) })
@@ -161,7 +162,18 @@ final class TerminalActivityTracker {
 
     // MARK: - Private: Buffer Reading
 
-    /// Read the last non-empty visible line from a terminal session's buffer.
+    /// Number of trailing characters of the active buffer inspected for the
+    /// last non-empty line. The live prompt is always well within this window.
+    private static let bufferTailCharacters = 1024
+
+    /// Read the last non-empty line from a terminal session's active buffer.
+    ///
+    /// Idle-path only: invoked from the 1.5s silence timer, never on the hot
+    /// output path. Reads the active buffer (scroll-position independent) and
+    /// returns the last non-empty line. A viewport-relative read (`getLine`) was
+    /// tried but depends on the user's manual scroll position — if they scroll
+    /// up during the idle window, prompt detection breaks — so we read the
+    /// buffer tail instead, matching the original behaviour.
     private func lastVisibleLine(
         sessionId: UUID,
         viewProvider: @MainActor (UUID) -> TaggedTerminalView?
@@ -171,16 +183,8 @@ final class TerminalActivityTracker {
         let terminal = view.getTerminal()
         let data = terminal.getBufferAsData(kind: .active, encoding: .utf8)
         guard let text = String(data: data, encoding: .utf8) else { return "" }
-        let tail = String(text.suffix(1024))
-        return tail
+        return String(text.suffix(Self.bufferTailCharacters))
             .components(separatedBy: .newlines)
-            .last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
-    }
-
-    /// Strip ANSI escape codes from a string for reliable pattern matching.
-    private func stripANSI(_ text: String) -> String {
-        guard let regex = Self.ansiRegex else { return text }
-        let range = NSRange(text.startIndex..., in: text)
-        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "")
+            .last { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
     }
 }

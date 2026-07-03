@@ -92,8 +92,9 @@ final class SpecBuildPanelViewModel {
             switch event {
             case .line(let line):
                 outputLines.append(line)
-                if selectedCommand.supportsStatsParsing {
-                    parseStats(from: line)
+                if selectedCommand.supportsStatsParsing,
+                   let parsed = SpecStatsLineParser.parseStats(from: line) {
+                    stats = parsed
                 }
             case .exitCode(let code):
                 exitCode = code
@@ -120,45 +121,5 @@ final class SpecBuildPanelViewModel {
         isRunning = false
         wasCancelled = true
         Task { await processRunner.stop() }
-    }
-
-    // MARK: - Output Parsing
-
-    /// Parse `codespeak build` summary line: "N passing, M failing" or similar.
-    private func parseStats(from line: String) {
-        let lower = line.lowercased()
-
-        // Patterns:
-        // "3 passing, 1 failing"
-        // "3/4 specs passing"
-        // "✓ 3 specs passing"
-        // "✗ 1 spec failing"
-
-        var passing = 0
-        var total = 0
-        var parsed = false
-
-        // Pattern: "N passing, M failing" / "N passing"
-        if let passingMatch = lower.firstMatch(of: /(\d+)\s+passing/) {
-            passing = Int(passingMatch.1) ?? 0
-            total = passing
-            parsed = true
-        }
-        if let failingMatch = lower.firstMatch(of: /(\d+)\s+failing/) {
-            let failing = Int(failingMatch.1) ?? 0
-            total = passing + failing
-            parsed = true
-        }
-
-        // Pattern: "N/M specs passing"
-        if let slashMatch = lower.firstMatch(of: /(\d+)\/(\d+)\s+specs?\s+passing/) {
-            passing = Int(slashMatch.1) ?? 0
-            total = Int(slashMatch.2) ?? 0
-            parsed = true
-        }
-
-        if parsed && total > 0 {
-            stats = SpecStats(passing: passing, total: total, buildDate: Date())
-        }
     }
 }

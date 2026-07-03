@@ -65,11 +65,18 @@ extension RemoteControlServer {
                 keyPath: \.sessionsByProject,
                 emitInitial: false
             )
+            // Reused across every wakeup — see `sessionsEncoder` declaration.
+            let encoder = self.sessionsEncoder
+            // NOTE: broadcast still fans out to ALL projects/bridges on any
+            // change (O(sessions×bridges)). Scoping the broadcast to only the
+            // mutated project would require diffing `sessionsByProject`, which
+            // risks the observation semantics; left as-is. After W2#1 the wakeup
+            // frequency drops sharply (no per-tick re-writes), so this loop now
+            // fires only on real session add/remove/state transitions.
             for await _ in stream {
                 guard !Task.isCancelled else { return }
 
                 // Sessions changed — broadcast to all bridges.
-                let encoder = JSONEncoder()
                 for (projectId, sessions) in terminalService.sessionsByProject {
                     let sessionResponses = sessions.map { session in
                         SessionResponse(

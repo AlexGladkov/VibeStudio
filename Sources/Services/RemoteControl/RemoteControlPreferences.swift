@@ -24,6 +24,16 @@ final class RemoteControlPreferences {
         static let bonjourEnabled = "vs_remote_bonjour_enabled"
         static let idleTimeoutMinutes = "vs_remote_idle_timeout"
         static let ngrokEnabled = "vs_remote_ngrok_enabled"
+
+        /// Keychain account for the ngrok authtoken (current storage location).
+        static let ngrokKeychainAccount = "vs_ngrok_authtoken"
+
+        /// Legacy UserDefaults key for the ngrok authtoken, migrated to Keychain.
+        /// Retained only for one-time migration — do NOT change the string.
+        static let legacyNgrokToken = "vs_remote_ngrok_authtoken"
+
+        /// Default TCP port for the HTTP/WS server on first launch.
+        static let defaultPort = 7842
     }
 
     // MARK: - Preferences
@@ -71,7 +81,7 @@ final class RemoteControlPreferences {
     ///
     /// Required since ngrok v3. Get one for free at https://dashboard.ngrok.com/get-started/your-authtoken
     var ngrokAuthtoken: String {
-        didSet { KeychainHelper.save(account: "vs_ngrok_authtoken", value: ngrokAuthtoken) }
+        didSet { KeychainHelper.save(account: Keys.ngrokKeychainAccount, value: ngrokAuthtoken) }
     }
 
     /// Idle timeout in minutes before disconnecting inactive remote clients.
@@ -94,7 +104,7 @@ final class RemoteControlPreferences {
 
         // remoteControlPort defaults to 7842
         remoteControlPort = defaults.object(forKey: Keys.port) == nil
-            ? 7842
+            ? Keys.defaultPort
             : defaults.integer(forKey: Keys.port)
 
         // bindToLocalhost defaults to false — Remote Control is for phone access over LAN
@@ -116,14 +126,14 @@ final class RemoteControlPreferences {
         // SEC-L3: only delete the UserDefaults copy AFTER Keychain confirms
         // the write — otherwise a crash between the two ops could leave the
         // token in plaintext UserDefaults forever.
-        if let legacyToken = defaults.string(forKey: "vs_remote_ngrok_authtoken"), !legacyToken.isEmpty {
-            let saved = KeychainHelper.save(account: "vs_ngrok_authtoken", value: legacyToken)
+        if let legacyToken = defaults.string(forKey: Keys.legacyNgrokToken), !legacyToken.isEmpty {
+            let saved = KeychainHelper.save(account: Keys.ngrokKeychainAccount, value: legacyToken)
             if saved {
-                defaults.removeObject(forKey: "vs_remote_ngrok_authtoken")
+                defaults.removeObject(forKey: Keys.legacyNgrokToken)
             }
             ngrokAuthtoken = legacyToken
         } else {
-            ngrokAuthtoken = KeychainHelper.load(account: "vs_ngrok_authtoken") ?? ""
+            ngrokAuthtoken = KeychainHelper.load(account: Keys.ngrokKeychainAccount) ?? ""
         }
 
         // idleTimeoutMinutes defaults to 30

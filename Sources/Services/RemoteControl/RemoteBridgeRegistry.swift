@@ -53,7 +53,12 @@ final class RemoteBridgeRegistry {
         if let view = terminalService.terminalView(for: bridge.sessionId) {
             view.onRawData = { [weak bridge] _, slice in
                 guard let bridge else { return }
-                // dataReceived fires on PTY read thread; handleRawData is @MainActor.
+                // SwiftTerm delivers `dataReceived` on the MAIN thread (its
+                // LocalProcess is created with `dispatchQueue: .main`), so we are
+                // already on the MainActor here. The `Task { @MainActor }` hop is
+                // therefore redundant — kept only because it is harmless and lets
+                // `handleRawData` stay `@MainActor`-isolated without an explicit
+                // `assumeIsolated`.
                 Task { @MainActor in
                     bridge.handleRawData(slice)
                 }

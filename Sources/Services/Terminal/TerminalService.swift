@@ -300,7 +300,16 @@ final class TerminalService: TerminalSessionManaging {
         guard let projectId = store.projectId(for: sessionId),
               var sessions = sessionsByProject[projectId],
               let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        // PERF (hot path): `handleActivity` calls this on EVERY terminal tick.
+        // After the first `.running → .hasActivity` transition the mutate closure
+        // is a no-op, so reassigning the observable array would wake every
+        // subscriber (TerminalAreaView re-render + RemoteControlServer session
+        // broadcast) dozens of times/sec for no state change. Only write back —
+        // and thus fire the `@Observable` notification — when the session
+        // actually changed.
+        let old = sessions[index]
         mutate(&sessions[index])
+        guard sessions[index] != old else { return }
         sessionsByProject[projectId] = sessions
     }
 }

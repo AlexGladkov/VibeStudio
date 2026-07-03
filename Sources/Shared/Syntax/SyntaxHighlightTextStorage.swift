@@ -39,6 +39,11 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
     private var baseFont: NSFont = DSFont.codeEditorNSFont(size: 13)
     private var baseTextColor: NSColor = .labelColor
 
+    /// Debounce window before a scheduled tokenization pass actually runs.
+    /// Coalesces rapid keystrokes into one pass; 40ms stays below the
+    /// perceptual latency threshold so highlighting still feels instant.
+    private static let highlightDebounceNanos: UInt64 = 40_000_000
+
     // MARK: - Version Guard
 
     /// Monotonically increasing edit counter.
@@ -159,6 +164,15 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
         highlightTask?.cancel()
         highlightTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
+
+            // Debounce rapid edits: a fresh keystroke cancels this task while it
+            // sleeps, so bursts of typing coalesce into a single tokenization
+            // pass once input pauses for `Self.highlightDebounceNanos`. The
+            // sleep throws on cancellation; bail before doing any work. 40ms is
+            // below the ~100ms perceptual threshold, so the first render after
+            // an edit still feels immediate.
+            try? await Task.sleep(nanoseconds: Self.highlightDebounceNanos)
+            guard !Task.isCancelled else { return }
 
             var tokens: [SyntaxToken] = []
             if let capturedParser {

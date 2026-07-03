@@ -60,6 +60,8 @@ struct FileTreeView: View {
                     .foregroundStyle(DSColor.textMuted)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Refresh")
+            .help("Refresh")
         }
         .frame(height: DSLayout.gitSectionHeaderHeight)
         .padding(.top, DSSpacing.sm)

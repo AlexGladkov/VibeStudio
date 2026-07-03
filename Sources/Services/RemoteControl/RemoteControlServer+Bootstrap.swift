@@ -18,6 +18,9 @@ import NIOSSL
 
 extension RemoteControlServer {
 
+    /// Listen backlog for the server socket (max pending connection queue).
+    private static let tcpBacklog: Int32 = 16
+
     /// Immutable per-connection dependencies handed to every
     /// ``HTTPRequestRouter`` a listening channel spawns.
     ///
@@ -144,7 +147,7 @@ extension RemoteControlServer {
         configureChildChannel: @escaping @Sendable (Channel) -> EventLoopFuture<Void>
     ) -> ServerBootstrap {
         ServerBootstrap(group: group)
-            .serverChannelOption(ChannelOptions.backlog, value: 16)
+            .serverChannelOption(ChannelOptions.backlog, value: Self.tcpBacklog)
             .serverChannelOption(
                 ChannelOptions.socketOption(.so_reuseaddr), value: 1
             )
@@ -163,7 +166,7 @@ extension RemoteControlServer {
         configureChildChannel: @escaping @Sendable (Channel) -> EventLoopFuture<Void>
     ) -> ServerBootstrap {
         ServerBootstrap(group: group)
-            .serverChannelOption(ChannelOptions.backlog, value: 16)
+            .serverChannelOption(ChannelOptions.backlog, value: Self.tcpBacklog)
             .serverChannelOption(
                 ChannelOptions.socketOption(.so_reuseaddr), value: 1
             )

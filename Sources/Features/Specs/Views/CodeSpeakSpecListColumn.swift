@@ -108,6 +108,7 @@ struct CodeSpeakSpecListColumn: View {
                             .foregroundStyle(DSColor.textMuted)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Refresh")
                     .help("Refresh specs")
                 }
                 .padding(.leading, DSSpacing.sm)
@@ -226,6 +227,7 @@ struct CodeSpeakSpecListColumn: View {
                             .foregroundStyle(DSColor.textMuted)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Refresh")
                     .help("Refresh generated files")
                 }
                 .padding(.leading, DSSpacing.sm)

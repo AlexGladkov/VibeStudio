@@ -19,6 +19,9 @@ struct SheetCloseButton: View {
 
     let action: () -> Void
     var font: Font = DSFont.bodyMedium
+    /// VoiceOver / tooltip label. Defaults to "Close"; override for sheets that
+    /// document a more specific dismissal semantics.
+    var label: String = "Close"
 
     var body: some View {
         Button(action: action) {
@@ -28,5 +31,7 @@ struct SheetCloseButton: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut(.escape, modifiers: [])
+        .accessibilityLabel(label)
+        .help(label)
     }
 }

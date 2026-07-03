@@ -122,6 +122,11 @@ final class RemoteControlServer {
     /// `internal` so ``RemoteControlServer+Observation`` can update it.
     let ngrokHostRef = NgrokHostRef()
 
+    /// Reused encoder for `sessions_changed` broadcasts. Hoisted out of the
+    /// observation loop so it is not re-allocated on every wakeup (hot path).
+    /// `internal` so ``RemoteControlServer+Observation`` can use it.
+    let sessionsEncoder = JSONEncoder()
+
     /// Uptime in seconds since server start.
     var uptimeSeconds: Int {
         guard let startedAt else { return 0 }

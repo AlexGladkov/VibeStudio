@@ -66,7 +66,7 @@ final class CodexSettingsPaneViewModel {
         .appendingPathComponent(".codex/skills")
 
     /// Display path of the config file with home directory replaced by `~`.
-    var displayConfigPath: String {
+    var displayPath: String {
         Self.configURL.tildeAbbreviatedPath
     }
 
@@ -74,28 +74,13 @@ final class CodexSettingsPaneViewModel {
 
     /// Scans `~/.codex/memories/` for markdown files.
     func loadMemories() {
-        let fileManager = FileManager.default
-        let dir = Self.memoriesURL
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: [.nameKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            Logger.settings.debug("CodexSettings: memories dir not readable at \(dir.path, privacy: .public)")
-            memories = []
-            return
+        memories = AgentDirectoryLoader.loadFiles(from: Self.memoriesURL, extension: "md") { url in
+            CodexMemoryEntry(
+                id: url.path,
+                fileURL: url,
+                filename: url.lastPathComponent
+            )
         }
-
-        memories = contents
-            .filter { $0.pathExtension == "md" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .map { url in
-                CodexMemoryEntry(
-                    id: url.path,
-                    fileURL: url,
-                    filename: url.lastPathComponent
-                )
-            }
     }
 
     // MARK: - Data Loading -- Skills

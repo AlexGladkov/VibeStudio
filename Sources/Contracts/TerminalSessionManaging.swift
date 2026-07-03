@@ -53,9 +53,6 @@ extension TerminalSessionManaging {
 
 /// События жизненного цикла терминальных сессий.
 enum TerminalSessionEvent: Sendable {
-    /// Новый вывод в неактивной сессии (для индикатора на табе).
-    case activityDetected(sessionId: UUID, projectId: UUID)
-
     /// Процесс в сессии завершился.
     case processExited(sessionId: UUID, projectId: UUID, exitCode: Int32)
 

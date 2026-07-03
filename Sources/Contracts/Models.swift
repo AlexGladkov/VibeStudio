@@ -86,7 +86,7 @@ enum TabActivityState: Sendable {
 }
 
 /// Терминальная сессия — один PTY-процесс внутри проекта.
-struct TerminalSession: Identifiable, Sendable {
+struct TerminalSession: Identifiable, Sendable, Equatable {
     let id: UUID
     let projectId: UUID
     var title: String

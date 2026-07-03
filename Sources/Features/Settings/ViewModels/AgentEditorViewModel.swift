@@ -49,9 +49,14 @@ final class AgentEditorViewModel {
     /// File to edit, or `nil` to create a new agent.
     let fileURL: URL?
 
+    /// Directory new agent files are written to. Injectable for testing;
+    /// defaults to the real `~/.claude/agents/`.
+    let agentsDirectoryURL: URL
+
     // MARK: - Constants
 
-    private static let agentsDirectoryURL: URL = FileManager.default
+    /// Real on-disk agents directory used in production.
+    static let defaultAgentsDirectoryURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
         .appendingPathComponent(".claude/agents")
 
@@ -68,8 +73,9 @@ final class AgentEditorViewModel {
 
     // MARK: - Init
 
-    init(fileURL: URL?) {
+    init(fileURL: URL?, agentsDirectoryURL: URL = AgentEditorViewModel.defaultAgentsDirectoryURL) {
         self.fileURL = fileURL
+        self.agentsDirectoryURL = agentsDirectoryURL
     }
 
     // MARK: - File I/O
@@ -109,13 +115,13 @@ final class AgentEditorViewModel {
             saveError = "Укажите поле name в frontmatter"
             return nil
         }
-        let sanitized = sanitizeAgentName(rawName)
+        let sanitized = AgentNameSanitizer.sanitize(rawName)
         guard !sanitized.isEmpty else {
             saveError = "Недопустимое имя агента: используйте латинские буквы, цифры и дефисы"
             return nil
         }
 
-        let dir = Self.agentsDirectoryURL
+        let dir = agentsDirectoryURL
         let targetURL = dir.appendingPathComponent("\(sanitized).md")
 
         do {
@@ -127,17 +133,5 @@ final class AgentEditorViewModel {
             saveError = "Ошибка: \(error.localizedDescription)"
             return nil
         }
-    }
-
-    // MARK: - Name Sanitisation
-
-    /// Converts an agent name to a safe filename component.
-    ///
-    /// Rules: lowercase, spaces replaced with dashes, only `[a-z0-9\-_]` allowed.
-    private func sanitizeAgentName(_ name: String) -> String {
-        name
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-            .filter { $0.isLetter && $0.isASCII || $0.isNumber || $0 == "-" || $0 == "_" }
     }
 }

@@ -97,7 +97,7 @@ struct CodexSettingsPane: View {
                 .foregroundStyle(DSColor.textSecondary)
 
             SettingsConfigFileRow(
-                displayPath: model.displayConfigPath,
+                displayPath: model.displayPath,
                 configExists: true,
                 alwaysShowReveal: true,
                 onReveal: {

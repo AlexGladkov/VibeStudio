@@ -121,17 +121,34 @@ extension GitService {
             branch = info
         }
 
-        let ahead = parseTrailingNumber(in: info, after: #"ahead (\d+)"#)
-        let behind = parseTrailingNumber(in: info, after: #"behind (\d+)"#)
+        let ahead = parseTrailingNumber(in: info, keyword: "ahead")
+        let behind = parseTrailingNumber(in: info, keyword: "behind")
         return BranchLineInfo(branch: branch, ahead: ahead, behind: behind)
     }
 
-    /// Helper: extract the final whitespace-separated integer from the
-    /// regex match (or `0` when no match is found).
-    private func parseTrailingNumber(in haystack: String, after pattern: String) -> Int {
-        guard let match = haystack.range(of: pattern, options: .regularExpression) else { return 0 }
-        let numStr = haystack[match].components(separatedBy: " ").last ?? "0"
-        return Int(numStr) ?? 0
+    /// Helper: read the integer that follows `keyword` in the porcelain
+    /// branch-header (e.g. `keyword = "ahead"` in `[ahead 2, behind 1]`).
+    ///
+    /// PERF: called on every status poll — hand-rolled instead of
+    /// `.regularExpression` (which recompiles the pattern each call). Mirrors
+    /// the old regex `keyword (\d+)`: exactly one space between the keyword and
+    /// one or more digits; anything else yields `0`.
+    ///
+    /// Scans *every* occurrence of `keyword` — not just the first — because a
+    /// branch name can contain the word as a substring (e.g.
+    /// `feature/ahead-payment...origin/... [ahead 2]`). Only an occurrence
+    /// followed by a space + digits is the real `[ahead N] / [behind M]` token.
+    private func parseTrailingNumber(in haystack: String, keyword: String) -> Int {
+        var searchStart = haystack.startIndex
+        while let range = haystack.range(of: keyword, range: searchStart..<haystack.endIndex) {
+            let rest = haystack[range.upperBound...]
+            if rest.hasPrefix(" ") {
+                let digits = rest.dropFirst().prefix { $0.isNumber }
+                if !digits.isEmpty { return Int(digits) ?? 0 }
+            }
+            searchStart = range.upperBound
+        }
+        return 0
     }
 
     /// Parse a single porcelain status line (non-header) and append the

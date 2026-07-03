@@ -82,9 +82,13 @@ enum FileTreeBuilder {
         }
         visitedPaths.insert(canonicalPath)
 
+        // Prefetch only `.isDirectoryKey`: it is the sole resource value read
+        // below, and enumeration caches it on each returned URL. `.isHiddenKey`
+        // was prefetched previously but never consumed — dropping it avoids an
+        // unused per-entry stat during directory enumeration.
         guard let contents = try? context.fileManager.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey, .isHiddenKey],
+            includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsPackageDescendants]
         ) else {
             return []
@@ -99,6 +103,7 @@ enum FileTreeBuilder {
             // Skip excluded directories and hidden files.
             if excludedNames.contains(name) { continue }
 
+            // Served from the enumeration prefetch cache — no additional stat.
             let resourceValues = try? url.resourceValues(forKeys: [.isDirectoryKey])
             let isDirectory = resourceValues?.isDirectory ?? false
 
