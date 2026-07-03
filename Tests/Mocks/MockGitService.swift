@@ -17,6 +17,11 @@ actor MockGitService: GitServicing {
         return try statusResult.get()
     }
 
+    /// Configure the value returned by ``status(at:)``.
+    func setStatusResult(_ result: Result<GitStatus, Error>) {
+        statusResult = result
+    }
+
     var diffResult: Result<[GitDiffHunk], Error> = .success([])
     var diffCallCount = 0
 
@@ -47,12 +52,22 @@ actor MockGitService: GitServicing {
         return try headDiffResult.get()
     }
 
+    /// Configure the value returned by ``headDiff(at:)``.
+    func setHeadDiffResult(_ result: Result<String, Error>) {
+        headDiffResult = result
+    }
+
     var branchesResult: Result<[GitBranch], Error> = .success([])
     var branchesCallCount = 0
 
     func branches(at repository: URL) async throws -> [GitBranch] {
         branchesCallCount += 1
         return try branchesResult.get()
+    }
+
+    /// Configure the value returned by ``branches(at:)``.
+    func setBranchesResult(_ result: Result<[GitBranch], Error>) {
+        branchesResult = result
     }
 
     var logResult: Result<[GitCommitInfo], Error> = .success([])
@@ -92,6 +107,11 @@ actor MockGitService: GitServicing {
         commitCallCount += 1
         lastCommitMessage = message
         return try commitResult.get()
+    }
+
+    /// Configure the value returned by ``commit(message:at:)``.
+    func setCommitResult(_ result: Result<String, Error>) {
+        commitResult = result
     }
 
     // MARK: - Remote
@@ -176,6 +196,11 @@ actor MockGitService: GitServicing {
 
     func remoteURL(name: String, at repository: URL) async -> String? {
         remoteURLResult
+    }
+
+    /// Configure the value returned by ``remoteURL(name:at:)``.
+    func setRemoteURLResult(_ value: String?) {
+        remoteURLResult = value
     }
 
     // MARK: - Ahead/Behind

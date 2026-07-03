@@ -44,6 +44,18 @@ final class GitStatusParserTests: XCTestCase {
         XCTAssertEqual(status.behindCount, 0)
     }
 
+    /// Regression: branch name contains the word "ahead"/"behind" as a
+    /// substring. The counter parser must skip those and read the real
+    /// `[ahead N, behind M]` token at the end, not the first textual match.
+    func testParseBranchNameContainingAheadBehindKeyword() async {
+        let output = "## feature/ahead-behind...origin/feature/ahead-behind [ahead 2, behind 3]\n"
+        let status = await sut.parseStatus(output)
+
+        XCTAssertEqual(status.branch, "feature/ahead-behind")
+        XCTAssertEqual(status.aheadCount, 2)
+        XCTAssertEqual(status.behindCount, 3)
+    }
+
     func testParseBranchWithBehindOnly() async {
         let output = "## develop...origin/develop [behind 3]\n"
         let status = await sut.parseStatus(output)

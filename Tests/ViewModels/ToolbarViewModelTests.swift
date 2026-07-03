@@ -46,17 +46,14 @@ final class ToolbarViewModelTests: XCTestCase {
         var sut: ToolbarViewModel? = makeSUT()
         weak var weakSut = sut
 
-        // Give observation tasks a chance to start.
-        try await Task.sleep(for: .milliseconds(50))
-
         // Finish the event stream so sessionEventTask can complete.
         terminalManager.finishEvents()
 
         sut = nil
 
-        // Allow async cleanup.
-        try await Task.sleep(for: .milliseconds(200))
-        XCTAssertNil(weakSut, "ToolbarViewModel should be deallocated after nilling — no retain cycle")
+        // Poll until deallocated instead of guessing a fixed cleanup delay.
+        let deallocated = await waitUntil { weakSut == nil }
+        XCTAssertTrue(deallocated, "ToolbarViewModel should be deallocated after nilling — no retain cycle")
     }
 
     // MARK: - No Active Project
@@ -195,10 +192,9 @@ final class ToolbarViewModelTests: XCTestCase {
             .processExited(sessionId: agentSessionId, projectId: project.id, exitCode: 0)
         )
 
-        // Allow the async stream consumer to process.
-        try await Task.sleep(for: .milliseconds(200))
-
-        XCTAssertFalse(sut.isRunning, "Running state should clear after agent process exits")
+        // Poll until the async stream consumer clears the running state.
+        let cleared = await waitUntil { !sut.isRunning }
+        XCTAssertTrue(cleared, "Running state should clear after agent process exits")
     }
 
     // MARK: - Cleanup

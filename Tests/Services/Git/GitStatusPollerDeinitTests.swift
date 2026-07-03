@@ -16,29 +16,29 @@ final class GitStatusPollerDeinitTests: XCTestCase {
         // Trigger refreshNow to create refreshTask.
         sut?.refreshNow()
 
-        // Allow tasks to start.
-        try await Task.sleep(for: .milliseconds(50))
-
         sut = nil
 
-        // Allow async cleanup.
-        try await Task.sleep(for: .milliseconds(200))
-
-        XCTAssertNil(weakSut, "GitStatusPoller should be deallocated — no task retain cycle")
+        // Poll until deallocated — both tasks capture [weak self], so dropping
+        // the last strong reference must run deinit and null the weak ref.
+        let deallocated = await waitUntil { weakSut == nil }
+        XCTAssertTrue(deallocated, "GitStatusPoller should be deallocated — no task retain cycle")
     }
 
     func testRefreshNow_cancelsPreviousTask() async throws {
         let sut = GitStatusPoller(gitService: MockGitService())
         sut.startPolling(for: URL(fileURLWithPath: "/tmp/repo"))
 
-        // Rapid refreshNow calls should not accumulate tasks.
+        // Rapid refreshNow calls should not accumulate tasks. The implementation
+        // cancels the prior refreshTask before creating a new one, so only one
+        // poll is ever in-flight.
         for _ in 0..<10 {
             sut.refreshNow()
         }
 
-        // Just verify no crash. The implementation cancels the prior refreshTask
-        // before creating a new one, so only one poll should be in-flight.
-        try await Task.sleep(for: .milliseconds(100))
+        // Wait until the in-flight poll settles (no crash / no accumulation),
+        // then stop. Deterministic: polls complete once isPolling drops to false.
+        let settled = await waitUntil { !sut.isPolling }
+        XCTAssertTrue(settled, "Coalesced refresh should settle without hanging")
         sut.stopPolling()
     }
 
@@ -46,12 +46,11 @@ final class GitStatusPollerDeinitTests: XCTestCase {
         let sut = GitStatusPoller(gitService: MockGitService())
         sut.startPolling(for: URL(fileURLWithPath: "/tmp/repo"))
 
-        try await Task.sleep(for: .milliseconds(50))
-
         sut.stopPolling()
 
-        // After stop, isPolling should be false.
-        try await Task.sleep(for: .milliseconds(100))
-        XCTAssertFalse(sut.isPolling)
+        // After stop, isPolling must settle to false (any in-flight poll clears
+        // it in its defer block).
+        let stopped = await waitUntil { !sut.isPolling }
+        XCTAssertTrue(stopped, "isPolling should be false after stopPolling")
     }
 }

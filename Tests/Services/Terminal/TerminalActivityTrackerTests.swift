@@ -70,8 +70,12 @@ final class TerminalActivityTrackerTests: XCTestCase {
 
     // MARK: - Idle Timer
 
+    /// Short idle timeout so the timer fires quickly; the test polls for the
+    /// resulting state transition instead of sleeping for a fixed duration.
+    private static let testIdleTimeout: TimeInterval = 0.05
+
     func testIdleTimer_firesAfterTimeout_promptAtShell_setsIdle() async throws {
-        sut = TerminalActivityTracker { [unowned self] projectId, state in
+        sut = TerminalActivityTracker(idleTimeout: Self.testIdleTimeout) { [unowned self] projectId, state in
             self.stateChanges.append((projectId, state))
         }
 
@@ -82,8 +86,9 @@ final class TerminalActivityTrackerTests: XCTestCase {
             promptChecker: promptChecker(true)  // At prompt
         )
 
-        // Wait for idle timeout (1.5s) + margin.
-        try await Task.sleep(for: .seconds(2.0))
+        // Poll until the idle timer fires and transitions to .idle.
+        let fired = await waitUntil { self.stateChanges.map(\.1).last == .idle }
+        XCTAssertTrue(fired, "Idle timer should transition to .idle")
 
         // Should have: .running (from handleActivity) + .idle (from timer).
         let states = stateChanges.map(\.1)
@@ -92,7 +97,7 @@ final class TerminalActivityTrackerTests: XCTestCase {
     }
 
     func testIdleTimer_firesAfterTimeout_notAtPrompt_setsWaitingForInput() async throws {
-        sut = TerminalActivityTracker { [unowned self] projectId, state in
+        sut = TerminalActivityTracker(idleTimeout: Self.testIdleTimeout) { [unowned self] projectId, state in
             self.stateChanges.append((projectId, state))
         }
 
@@ -103,7 +108,8 @@ final class TerminalActivityTrackerTests: XCTestCase {
             promptChecker: promptChecker(false)  // Not at prompt
         )
 
-        try await Task.sleep(for: .seconds(2.0))
+        let fired = await waitUntil { self.stateChanges.map(\.1).last == .waitingForInput }
+        XCTAssertTrue(fired, "Idle timer should transition to .waitingForInput")
 
         let states = stateChanges.map(\.1)
         XCTAssertTrue(states.contains(.running))
@@ -111,7 +117,11 @@ final class TerminalActivityTrackerTests: XCTestCase {
     }
 
     func testIdleTimer_cancelledByNewActivity() async throws {
-        // Fire first activity.
+        sut = TerminalActivityTracker(idleTimeout: Self.testIdleTimeout) { [unowned self] projectId, state in
+            self.stateChanges.append((projectId, state))
+        }
+
+        // Fire first activity — schedules timer A for projectA.
         _ = sut.handleActivity(
             sessionId: sessionA,
             projectId: projectA,
@@ -119,10 +129,9 @@ final class TerminalActivityTrackerTests: XCTestCase {
             promptChecker: promptChecker(true)
         )
 
-        // Wait half the idle timeout, then fire another activity.
-        try await Task.sleep(for: .seconds(0.8))
-
-        // Need to bypass debounce: use a different session.
+        // Immediately fire a second activity for the SAME project via a
+        // different session (bypasses per-session debounce). This must cancel
+        // timer A and replace it with timer B.
         let sessionB = UUID()
         _ = sut.handleActivity(
             sessionId: sessionB,
@@ -131,12 +140,17 @@ final class TerminalActivityTrackerTests: XCTestCase {
             promptChecker: promptChecker(true)
         )
 
-        // Wait for what would have been the first timer's fire time.
-        try await Task.sleep(for: .seconds(1.0))
+        // Wait until a non-running transition appears (timer B firing).
+        let fired = await waitUntil { self.stateChanges.contains { $0.1 != .running } }
+        XCTAssertTrue(fired, "The surviving timer should fire")
 
-        // Only .running states should exist (the first timer was cancelled).
+        // Settle margin: if timer A had NOT been cancelled it fires around the
+        // same time as timer B, producing a SECOND non-running state.
+        try await Task.sleep(for: .seconds(Self.testIdleTimeout * 3))
+
         let nonRunning = stateChanges.filter { $0.1 != .running }
-        XCTAssertTrue(nonRunning.isEmpty, "First timer should have been cancelled by second activity")
+        XCTAssertEqual(nonRunning.count, 1,
+                       "Cancelled first timer must not fire — exactly one transition expected")
     }
 
     // MARK: - markProjectSeen
