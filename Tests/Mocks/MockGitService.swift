@@ -25,6 +25,12 @@ actor MockGitService: GitServicing {
         return try diffResult.get()
     }
 
+    /// Configure the value returned by ``diff(file:staged:at:)``.
+    /// Actor-isolated setter so tests can stage a result across the actor boundary.
+    func setDiffResult(_ result: Result<[GitDiffHunk], Error>) {
+        diffResult = result
+    }
+
     var fullStagedDiffResult: Result<String, Error> = .success("")
     var fullStagedDiffCallCount = 0
 

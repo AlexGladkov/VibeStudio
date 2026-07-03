@@ -3,43 +3,27 @@ import XCTest
 
 /// Tests for GitStatusPoller backoff logic.
 ///
-/// `effectiveInterval(isActive:)` is `private` in `GitStatusPoller`.
-/// Direct unit testing of the backoff formula is not possible without
-/// changing the access level. Instead, we test the formula by
-/// replicating the exact logic from the source and verifying it
-/// produces the expected intervals.
-///
-/// If you need direct access, change `effectiveInterval` from
-/// `private` to `internal` (package access) in `GitStatusPoller.swift`.
+/// Exercises the REAL `effectiveInterval(isActive:consecutiveErrors:)` method
+/// on a live `GitStatusPoller` instance — no replicated formula. Since that
+/// pure overload is the single source of truth (the production
+/// `effectiveInterval(isActive:)` delegates to it), these assertions verify the
+/// exact code path used at runtime.
+@MainActor
 final class GitStatusPollerTests: XCTestCase {
 
-    // Constants matching GitStatusPoller source code.
-    private let activeInterval: TimeInterval = 3
-    private let backgroundInterval: TimeInterval = 30
+    // Expected boundary constants (documented in GitStatusPoller).
     private let maxBackoffInterval: TimeInterval = 30
 
-    /// Replicate the exact backoff formula from GitStatusPoller.effectiveInterval.
-    ///
-    /// ```swift
-    /// private func effectiveInterval(isActive: Bool) -> TimeInterval {
-    ///     let base = isActive ? activeInterval : backgroundInterval
-    ///     if consecutiveErrors > 0 {
-    ///         let backoff = base * pow(2.0, Double(min(consecutiveErrors, 4)))
-    ///         return min(backoff, maxBackoffInterval)
-    ///     }
-    ///     return base
-    /// }
-    /// ```
+    private func makeSUT() -> GitStatusPoller {
+        GitStatusPoller(gitService: MockGitService())
+    }
+
+    /// Invoke the production backoff formula directly.
     private func computeEffectiveInterval(
         isActive: Bool,
         consecutiveErrors: Int
     ) -> TimeInterval {
-        let base = isActive ? activeInterval : backgroundInterval
-        if consecutiveErrors > 0 {
-            let backoff = base * pow(2.0, Double(min(consecutiveErrors, 4)))
-            return min(backoff, maxBackoffInterval)
-        }
-        return base
+        makeSUT().effectiveInterval(isActive: isActive, consecutiveErrors: consecutiveErrors)
     }
 
     // MARK: - Active Project (base = 3s)
