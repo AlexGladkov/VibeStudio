@@ -17,12 +17,9 @@ struct CodexSettingsPane: View {
 
     // MARK: ViewModel (lazy init)
 
-    @State private var vm: CodexSettingsPaneViewModel?
+    @State private var vmBox = LazyStateObject<CodexSettingsPaneViewModel>()
     private var viewModel: CodexSettingsPaneViewModel {
-        if let existing = vm { return existing }
-        let created = CodexSettingsPaneViewModel()
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { CodexSettingsPaneViewModel() }
     }
 
     // MARK: State — Config
@@ -74,17 +71,17 @@ struct CodexSettingsPane: View {
             TextFileEditorSheet(
                 fileURL: memory.fileURL,
                 displayTitle: memory.filename
-            ) { vm?.loadMemories() }
+            ) { viewModel.loadMemories() }
         }
         .sheet(isPresented: $showNewMemory) {
             TextFileEditorSheet(
                 fileURL: CodexSettingsPaneViewModel.memoriesURL.appendingPathComponent("memory.md"),
                 displayTitle: "Новая память",
                 defaultContent: "# Память\n\n"
-            ) { vm?.loadMemories() }
+            ) { viewModel.loadMemories() }
         }
         .alert("Удалить память?", isPresented: $showDeleteAlert, presenting: memoryToDelete) { mem in
-            Button("Удалить", role: .destructive) { vm?.deleteMemory(mem) }
+            Button("Удалить", role: .destructive) { viewModel.deleteMemory(mem) }
             Button("Отмена", role: .cancel) {}
         } message: { mem in
             Text("Файл «\(mem.filename)» будет удалён без возможности восстановления.")
@@ -120,20 +117,9 @@ struct CodexSettingsPane: View {
             if model.memories.isEmpty {
                 emptyMemoriesState
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.memories) { mem in
-                            memoryRow(mem)
-                            if mem.id != model.memories.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.memories) { mem in
+                    memoryRow(mem)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
-                .settingsCard()
             }
         }
     }
@@ -170,20 +156,9 @@ struct CodexSettingsPane: View {
             if model.skills.isEmpty {
                 SettingsEmptyState(text: "Нет скиллов")
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.skills) { skill in
-                            skillRow(skill)
-                            if skill.id != model.skills.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.skills, maxHeight: DSLayout.settingsListMaxHeightSmall) { skill in
+                    skillRow(skill)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightSmall)
-                .settingsCard()
             }
         }
     }

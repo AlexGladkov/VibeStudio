@@ -16,6 +16,13 @@ import OSLog
 @MainActor
 final class ToolbarViewModel {
 
+    // MARK: - Constants
+
+    /// Delay between sending Ctrl+C and the follow-up command for agents whose
+    /// exit sequence is `.ctrlCThenCommand`, giving the shell time to interrupt
+    /// the running process before the next command is written to the PTY.
+    private static let ctrlCCommandDelayMilliseconds = 300
+
     // MARK: - Per-project State
 
     private var runningAssistants: [UUID: Bool] = [:]
@@ -148,7 +155,10 @@ final class ToolbarViewModel {
 
         // Check if agent can be launched.
         guard agentAvailability.canLaunch(agent) else {
-            Logger.ui.warning("ToolbarViewModel.startAssistant: agent \(agent.displayName, privacy: .public) cannot be launched (not installed or missing API key)")
+            let name = agent.displayName
+            Logger.ui.warning(
+                "ToolbarViewModel.startAssistant: agent \(name, privacy: .public) cannot be launched (not installed or missing API key)"
+            )
             return
         }
 
@@ -222,7 +232,7 @@ final class ToolbarViewModel {
         case .ctrlCThenCommand(let command):
             terminalManager.sendInput("\u{03}", to: targetSessionId)
             Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(300))
+                try? await Task.sleep(for: .milliseconds(Self.ctrlCCommandDelayMilliseconds))
                 guard let self else { return }
                 self.terminalManager.sendInput(command + "\n", to: targetSessionId)
                 self.runningAssistants[id] = false

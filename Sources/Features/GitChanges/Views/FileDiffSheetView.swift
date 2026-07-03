@@ -18,31 +18,24 @@ struct FileDiffSheetView: View {
     let projectPath: URL?
     let gitService: any GitServicing
 
-    @State private var hunks: [GitDiffHunk] = []
-    @State private var isLoading = true
-    @State private var sizeWarning: String?
-    @State private var errorMessage: String?
+    @State private var vmBox = LazyStateObject<FileDiffViewModel>()
 
-    // MARK: - Constants
-
-    private static let maxDiffSizeBytes = 512 * 1024
-
-    private static let binaryExtensions: Set<String> = [
-        "png", "jpg", "jpeg", "gif", "ico", "icns", "pdf",
-        "zip", "tar", "gz", "dmg", "exe", "dylib", "so", "a", "o",
-        "class", "jar", "war", "ear", "bin", "dat"
-    ]
+    private var viewModel: FileDiffViewModel {
+        vmBox.resolve { FileDiffViewModel(gitService: gitService) }
+    }
 
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
+        let model = viewModel
+
+        return VStack(spacing: 0) {
             headerView
             Divider()
-            diffContentView
+            diffContentView(model)
         }
         .background(DSColor.surfaceBase)
-        .task { await loadDiff() }
+        .task { await model.load(file: file, staged: staged, projectPath: projectPath) }
     }
 
     // MARK: - Header
@@ -100,18 +93,18 @@ struct FileDiffSheetView: View {
     // MARK: - Diff Content
 
     @ViewBuilder
-    private var diffContentView: some View {
-        if isLoading {
+    private func diffContentView(_ model: FileDiffViewModel) -> some View {
+        if model.isLoading {
             VStack {
                 Spacer()
                 ProgressView().scaleEffect(DSLayout.progressScaleMedium)
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if hunks.isEmpty {
+        } else if model.hunks.isEmpty {
             VStack {
                 Spacer()
-                Text(errorMessage ?? "No changes")
+                Text(model.errorMessage ?? "No changes")
                     .font(DSFont.sidebarItem)
                     .foregroundStyle(DSColor.textMuted)
                     .multilineTextAlignment(.center)
@@ -121,7 +114,7 @@ struct FileDiffSheetView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(spacing: 0) {
-                if let warning = sizeWarning {
+                if let warning = model.sizeWarning {
                     Text(warning)
                         .font(DSFont.iconMD)
                         .foregroundStyle(DSColor.indicatorWaiting)
@@ -130,50 +123,8 @@ struct FileDiffSheetView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Divider()
                 }
-                DiffView(hunks: hunks)
+                DiffView(hunks: model.hunks)
             }
         }
-    }
-
-    // MARK: - Diff Loading
-
-    private func loadDiff() async {
-        guard let path = projectPath else {
-            errorMessage = "No active project"
-            isLoading = false
-            return
-        }
-
-        let ext = (file.path as NSString).pathExtension.lowercased()
-        guard !Self.binaryExtensions.contains(ext) else {
-            errorMessage = "Binary file — diff not available"
-            isLoading = false
-            return
-        }
-
-        do {
-            let loaded = try await gitService.diff(file: file.path, staged: staged, at: path)
-
-            let totalSize = loaded.reduce(0) { total, hunk in
-                total + hunk.lines.reduce(0) { $0 + $1.content.utf8.count }
-            }
-
-            if totalSize > Self.maxDiffSizeBytes {
-                sizeWarning = "Diff truncated — file too large (\(totalSize / 1024) KB)"
-                var accumulated = 0
-                hunks = Array(loaded.prefix(while: { hunk in
-                    let size = hunk.lines.reduce(0) { $0 + $1.content.utf8.count }
-                    guard accumulated + size <= Self.maxDiffSizeBytes else { return false }
-                    accumulated += size
-                    return true
-                }))
-            } else {
-                hunks = loaded
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-
-        isLoading = false
     }
 }

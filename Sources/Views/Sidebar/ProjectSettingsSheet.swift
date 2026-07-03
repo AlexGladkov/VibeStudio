@@ -11,13 +11,10 @@ struct ProjectSettingsSheet: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.dismiss) private var dismiss
 
-    @State private var vm: ProjectSettingsViewModel?
+    @State private var vmBox = LazyStateObject<ProjectSettingsViewModel>()
 
     private var viewModel: ProjectSettingsViewModel {
-        if let existing = vm { return existing }
-        let created = ProjectSettingsViewModel(projectManager: projectManager, project: project)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { ProjectSettingsViewModel(projectManager: projectManager, project: project) }
     }
 
     var body: some View {
@@ -66,12 +63,12 @@ struct ProjectSettingsSheet: View {
             .keyboardShortcut(.return, modifiers: .command)
         }
         .padding(DSSpacing.lg)
-        .frame(minWidth: DSLayout.sheetSmallWidth, idealWidth: DSLayout.sheetMediumWidth - 20, minHeight: DSLayout.sheetSmallHeight, idealHeight: DSLayout.sheetMediumHeight - 60)
+        .frame(
+            minWidth: DSLayout.sheetSmallWidth,
+            idealWidth: DSLayout.sheetMediumWidth - 20,
+            minHeight: DSLayout.sheetSmallHeight,
+            idealHeight: DSLayout.sheetMediumHeight - 60
+        )
         .background(DSColor.surfaceOverlay)
-        .onAppear {
-            if vm == nil {
-                vm = ProjectSettingsViewModel(projectManager: projectManager, project: project)
-            }
-        }
     }
 }

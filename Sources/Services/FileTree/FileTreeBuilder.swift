@@ -40,29 +40,38 @@ enum FileTreeBuilder {
         // R-14: Track visited canonical paths to detect symlink loops.
         var visitedPaths = Set<String>()
 
-        return buildLevel(
-            at: root,
-            relativeTo: root,
+        let context = BuildContext(
+            root: root,
             fileManager: fm,
             gitMap: gitMap,
+            maxDepth: maxDepth
+        )
+
+        return buildLevel(
+            at: root,
+            context: context,
             currentDepth: 0,
-            maxDepth: maxDepth,
             visitedPaths: &visitedPaths
         )
     }
 
     // MARK: - Private
 
+    /// Invariant inputs shared across every recursive ``buildLevel`` call.
+    private struct BuildContext {
+        let root: URL
+        let fileManager: FileManager
+        let gitMap: [String: GitFileStatus]
+        let maxDepth: Int?
+    }
+
     private static func buildLevel(
         at directory: URL,
-        relativeTo root: URL,
-        fileManager: FileManager,
-        gitMap: [String: GitFileStatus],
+        context: BuildContext,
         currentDepth: Int,
-        maxDepth: Int?,
         visitedPaths: inout Set<String>
     ) -> [FileTreeNode] {
-        if let max = maxDepth, currentDepth >= max {
+        if let max = context.maxDepth, currentDepth >= max {
             return []
         }
 
@@ -73,7 +82,7 @@ enum FileTreeBuilder {
         }
         visitedPaths.insert(canonicalPath)
 
-        guard let contents = try? fileManager.contentsOfDirectory(
+        guard let contents = try? context.fileManager.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.isDirectoryKey, .isHiddenKey],
             options: [.skipsPackageDescendants]
@@ -96,11 +105,8 @@ enum FileTreeBuilder {
             if isDirectory {
                 let children = buildLevel(
                     at: url,
-                    relativeTo: root,
-                    fileManager: fileManager,
-                    gitMap: gitMap,
+                    context: context,
                     currentDepth: currentDepth + 1,
-                    maxDepth: maxDepth,
                     visitedPaths: &visitedPaths
                 )
                 let entry = DirectoryEntry(
@@ -111,10 +117,10 @@ enum FileTreeBuilder {
                 directories.append(.directory(entry))
             } else {
                 let relativePath = url.path.replacingOccurrences(
-                    of: root.path + "/",
+                    of: context.root.path + "/",
                     with: ""
                 )
-                let gitStatus = gitMap[relativePath]
+                let gitStatus = context.gitMap[relativePath]
                 let entry = FileEntry(path: url, gitStatus: gitStatus)
                 files.append(.file(entry))
             }

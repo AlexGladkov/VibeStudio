@@ -3,7 +3,6 @@
 // macOS 14+, Swift 5.10
 
 import SwiftUI
-import AppKit
 
 /// Modal sheet for editing a `.cs.md` spec file.
 ///

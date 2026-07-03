@@ -13,17 +13,16 @@ struct SpecBuildPanelView: View {
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.navigationCoordinator) private var navigationCoordinator
 
-    @State private var vm: SpecBuildPanelViewModel?
+    @State private var vmBox = LazyStateObject<SpecBuildPanelViewModel>()
     @State private var scrollProxy: ScrollViewProxy?
 
     private var viewModel: SpecBuildPanelViewModel {
-        if let existing = vm { return existing }
-        let created = SpecBuildPanelViewModel(
-            codeSpeak: codeSpeak,
-            projectManager: projectManager
-        )
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve {
+            SpecBuildPanelViewModel(
+                codeSpeak: codeSpeak,
+                projectManager: projectManager
+            )
+        }
     }
 
     var body: some View {
@@ -41,129 +40,141 @@ struct SpecBuildPanelView: View {
             maxWidth: DSLayout.specPanelMaxWidth
         )
         .background(DSColor.surfaceRaised)
-        .onAppear {
-            if vm == nil {
-                vm = SpecBuildPanelViewModel(
-                    codeSpeak: codeSpeak,
-                    projectManager: projectManager
-                )
-            }
-        }
     }
 
     // MARK: - Header
 
     private func headerView(model: SpecBuildPanelViewModel, project: Project?) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: DSSpacing.xs) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(DSFont.smallButtonLabel)
-                    .foregroundStyle(DSColor.agentCodeSpeak)
-
-                CommandSelectorView(
-                    selectedCommand: Binding(
-                        get: { model.selectedCommand },
-                        set: { model.selectedCommand = $0 }
-                    ),
-                    taskName: Binding(
-                        get: { model.taskName },
-                        set: { model.taskName = $0 }
-                    ),
-                    changeMessage: Binding(
-                        get: { model.changeMessage },
-                        set: { model.changeMessage = $0 }
-                    ),
-                    isRunning: model.isRunning
-                )
-
-                Spacer()
-
-                // Exit code badge (only for stats-capable commands)
-                if model.selectedCommand.supportsStatsParsing {
-                    if let code = model.exitCode {
-                        StatusBadgeView(
-                            code == 0 ? "PASS" : "FAIL",
-                            color: code == 0 ? DSColor.gitAdded : DSColor.gitDeleted,
-                            background: .solid(code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg)
-                        )
-                    }
-
-                    // Stats summary
-                    if let stats = model.stats {
-                        Text("\(stats.passing)/\(stats.total)")
-                            .font(DSFont.iconMDMedium)
-                            .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
-                    }
-                }
-
-                // Play/Stop button
-                Button {
-                    guard let project else { return }
-                    if model.isRunning {
-                        model.stop()
-                    } else {
-                        Task { await model.run(at: project.path) }
-                    }
-                } label: {
-                    Image(systemName: model.isRunning ? "stop.fill" : "play.fill")
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(model.isRunning ? DSColor.actionStop : DSColor.actionRun)
-                        .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
-                }
-                .buttonStyle(.plain)
-                .disabled(!model.canRun && !model.isRunning)
-                .help(model.isRunning ? "Stop codespeak" : "Run codespeak \(model.selectedCommand.displayName.lowercased())")
-
-                // Close button
-                Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        navigationCoordinator.showingSpecPanel = false
-                    }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(DSFont.iconMD)
-                        .foregroundStyle(DSColor.textMuted)
-                        .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, DSSpacing.md)
-            .frame(height: DSLayout.gitSectionHeaderHeight)
+            headerCommandRow(model: model, project: project)
 
             if model.selectedCommand.requiresInput {
-                HStack(spacing: DSSpacing.xs) {
-                    Text(model.selectedCommand.inputLabel)
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.textSecondary)
-                        .frame(width: DSLayout.inputLabelWidth, alignment: .trailing)
-
-                    TextField(
-                        model.selectedCommand.inputPlaceholder,
-                        text: model.selectedCommand == .task
-                            ? Binding(
-                                get: { model.taskName },
-                                set: { model.taskName = $0 }
-                            )
-                            : Binding(
-                                get: { model.changeMessage },
-                                set: { model.changeMessage = $0 }
-                            )
-                    )
-                    .textFieldStyle(.plain)
-                    .font(DSFont.sidebarItem)
-                    .foregroundStyle(DSColor.textPrimary)
-                    .padding(.horizontal, DSSpacing.xs)
-                    .padding(.vertical, DSSpacing.xxs)
-                    .background(
-                        DSColor.surfaceInput,
-                        in: RoundedRectangle(cornerRadius: DSRadius.sm)
-                    )
-                    .disabled(model.isRunning)
-                }
-                .padding(.horizontal, DSSpacing.md)
-                .frame(height: DSLayout.gitButtonHeight)
+                headerInputRow(model: model)
             }
         }
+    }
+
+    /// Top row: agent icon, command selector, status badges, play/stop, close.
+    private func headerCommandRow(model: SpecBuildPanelViewModel, project: Project?) -> some View {
+        HStack(spacing: DSSpacing.xs) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(DSFont.smallButtonLabel)
+                .foregroundStyle(DSColor.agentCodeSpeak)
+
+            CommandSelectorView(
+                selectedCommand: Binding(
+                    get: { model.selectedCommand },
+                    set: { model.selectedCommand = $0 }
+                ),
+                taskName: Binding(
+                    get: { model.taskName },
+                    set: { model.taskName = $0 }
+                ),
+                changeMessage: Binding(
+                    get: { model.changeMessage },
+                    set: { model.changeMessage = $0 }
+                ),
+                isRunning: model.isRunning
+            )
+
+            Spacer()
+
+            statusBadges(model: model)
+            playStopButton(model: model, project: project)
+            closeButton
+        }
+        .padding(.horizontal, DSSpacing.md)
+        .frame(height: DSLayout.gitSectionHeaderHeight)
+    }
+
+    /// Exit-code PASS/FAIL badge + passing/total stats (stats-capable commands only).
+    @ViewBuilder
+    private func statusBadges(model: SpecBuildPanelViewModel) -> some View {
+        if model.selectedCommand.supportsStatsParsing {
+            if let code = model.exitCode {
+                StatusBadgeView(
+                    code == 0 ? "PASS" : "FAIL",
+                    color: code == 0 ? DSColor.gitAdded : DSColor.gitDeleted,
+                    background: .solid(code == 0 ? DSColor.diffAddedBg : DSColor.diffDeletedBg)
+                )
+            }
+
+            if let stats = model.stats {
+                Text("\(stats.passing)/\(stats.total)")
+                    .font(DSFont.iconMDMedium)
+                    .foregroundStyle(stats.allPassing ? DSColor.gitAdded : DSColor.gitModified)
+            }
+        }
+    }
+
+    /// Run/stop toggle button for the selected codespeak command.
+    private func playStopButton(model: SpecBuildPanelViewModel, project: Project?) -> some View {
+        Button {
+            guard let project else { return }
+            if model.isRunning {
+                model.stop()
+            } else {
+                Task { await model.run(at: project.path) }
+            }
+        } label: {
+            Image(systemName: model.isRunning ? "stop.fill" : "play.fill")
+                .font(DSFont.sidebarItemSmall)
+                .foregroundStyle(model.isRunning ? DSColor.actionStop : DSColor.actionRun)
+                .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
+        }
+        .buttonStyle(.plain)
+        .disabled(!model.canRun && !model.isRunning)
+        .help(model.isRunning ? "Stop codespeak" : "Run codespeak \(model.selectedCommand.displayName.lowercased())")
+    }
+
+    /// Dismiss the spec build panel.
+    private var closeButton: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                navigationCoordinator.showingSpecPanel = false
+            }
+        } label: {
+            Image(systemName: "xmark")
+                .font(DSFont.iconMD)
+                .foregroundStyle(DSColor.textMuted)
+                .frame(width: DSLayout.smallIconButtonSize, height: DSLayout.smallIconButtonSize)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Second row: task-name / change-message input for commands that require it.
+    private func headerInputRow(model: SpecBuildPanelViewModel) -> some View {
+        HStack(spacing: DSSpacing.xs) {
+            Text(model.selectedCommand.inputLabel)
+                .font(DSFont.sidebarItemSmall)
+                .foregroundStyle(DSColor.textSecondary)
+                .frame(width: DSLayout.inputLabelWidth, alignment: .trailing)
+
+            TextField(
+                model.selectedCommand.inputPlaceholder,
+                text: model.selectedCommand == .task
+                    ? Binding(
+                        get: { model.taskName },
+                        set: { model.taskName = $0 }
+                    )
+                    : Binding(
+                        get: { model.changeMessage },
+                        set: { model.changeMessage = $0 }
+                    )
+            )
+            .textFieldStyle(.plain)
+            .font(DSFont.sidebarItem)
+            .foregroundStyle(DSColor.textPrimary)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
+            .background(
+                DSColor.surfaceInput,
+                in: RoundedRectangle(cornerRadius: DSRadius.sm)
+            )
+            .disabled(model.isRunning)
+        }
+        .padding(.horizontal, DSSpacing.md)
+        .frame(height: DSLayout.gitButtonHeight)
     }
 
     // MARK: - Output
@@ -191,7 +202,7 @@ struct SpecBuildPanelView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onChange(of: model.outputLines.count) { _, count in
-                        if count > 0 {
+                        if !model.outputLines.isEmpty {
                             withAnimation(.none) {
                                 proxy.scrollTo(count - 1, anchor: .bottom)
                             }

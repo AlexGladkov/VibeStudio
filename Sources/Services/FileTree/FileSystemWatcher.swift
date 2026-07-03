@@ -182,14 +182,43 @@ final class FileSystemWatcher: FileSystemWatching, @unchecked Sendable {
         ignoredPatterns: [String]
     ) -> FSEventStreamRef? {
         let pathsToWatch = [path] as CFArray
+        var context = makeStreamContext(ignoredPatterns: ignoredPatterns)
 
-        // R-05: Use passRetained via CallbackContext to prevent use-after-free.
-        // R-22: CallbackContext carries ignoredPatterns for per-watch filtering.
-        // The retain cycle (self <- stream <- context -> CallbackContext.watcher -> self)
-        // is broken because CallbackContext holds a weak ref to watcher, and the
-        // context release callback balances the passRetained call.
+        let flags: FSEventStreamCreateFlags = UInt32(
+            kFSEventStreamCreateFlagUseCFTypes |
+            kFSEventStreamCreateFlagFileEvents |
+            kFSEventStreamCreateFlagNoDefer
+        )
+
+        return FSEventStreamCreate(
+            nil, { _, info, numEvents, eventPaths, eventFlags, _ in
+                guard let info else { return }
+                let ctx = Unmanaged<CallbackContext>.fromOpaque(info).takeUnretainedValue()
+                FileSystemWatcher.handleFSEvents(
+                    ctx: ctx,
+                    numEvents: numEvents,
+                    eventPaths: eventPaths,
+                    eventFlags: eventFlags
+                )
+            },
+            &context,
+            pathsToWatch,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            debounce,
+            flags
+        )
+    }
+
+    /// Build the `FSEventStreamContext` whose `info` retains a `CallbackContext`.
+    ///
+    /// R-05: `passRetained` prevents use-after-free. R-22: `CallbackContext`
+    /// carries `ignoredPatterns` for per-watch filtering. The retain cycle
+    /// (self <- stream <- context -> CallbackContext.watcher -> self) is broken
+    /// because `CallbackContext` holds a weak ref to `watcher`, and the context
+    /// release callback balances the `passRetained` call.
+    private func makeStreamContext(ignoredPatterns: [String]) -> FSEventStreamContext {
         let callbackCtx = CallbackContext(watcher: self, ignoredPatterns: ignoredPatterns)
-        var context = FSEventStreamContext(
+        return FSEventStreamContext(
             version: 0,
             info: Unmanaged.passRetained(callbackCtx).toOpaque(),
             retain: nil,
@@ -199,66 +228,49 @@ final class FileSystemWatcher: FileSystemWatching, @unchecked Sendable {
             },
             copyDescription: nil
         )
+    }
 
-        let flags: FSEventStreamCreateFlags = UInt32(
-            kFSEventStreamCreateFlagUseCFTypes |
-            kFSEventStreamCreateFlagFileEvents |
-            kFSEventStreamCreateFlagNoDefer
-        )
+    /// Decode raw FSEvents, filter them, and forward `FileChangeEvent`s.
+    ///
+    /// Runs on the FSEvents callback thread; keeps no captured state (all inputs
+    /// arrive via `ctx` and the C parameters).
+    private static func handleFSEvents(
+        ctx: CallbackContext,
+        numEvents: Int,
+        eventPaths: UnsafeMutableRawPointer,
+        eventFlags: UnsafePointer<FSEventStreamEventFlags>
+    ) {
+        guard let watcher = ctx.watcher else { return }
+        guard let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String] else { return }
+        let flags = Array(UnsafeBufferPointer(start: eventFlags, count: numEvents))
 
-        return FSEventStreamCreate(
-            nil,
-            { _, info, numEvents, eventPaths, eventFlags, _ in
-                guard let info else { return }
-                let ctx = Unmanaged<CallbackContext>.fromOpaque(info).takeUnretainedValue()
-                guard let watcher = ctx.watcher else { return }
-                guard let paths = unsafeBitCast(eventPaths, to: NSArray.self) as? [String] else { return }
+        for i in 0..<numEvents {
+            let eventPath = paths[i]
+            if shouldSkipEvent(path: eventPath, ignoredPatterns: ctx.ignoredPatterns) { continue }
 
-                let flags = Array(UnsafeBufferPointer(start: eventFlags, count: numEvents))
+            let event = FileChangeEvent(
+                path: URL(fileURLWithPath: eventPath),
+                kind: fileChangeKind(for: flags[i]),
+                timestamp: .now
+            )
+            watcher.continuation.yield(event)
+        }
+    }
 
-                for i in 0..<numEvents {
-                    let eventPath = paths[i]
-                    let eventFlag = flags[i]
+    /// Whether an event path is filtered out by system exclusions or per-watch patterns.
+    private static func shouldSkipEvent(path eventPath: String, ignoredPatterns: [String]) -> Bool {
+        // Filter excluded directories (system-wide).
+        let pathComponents = eventPath.components(separatedBy: "/")
+        if pathComponents.contains(where: { systemExclusions.contains($0) }) { return true }
+        // R-22: Filter per-watch ignored patterns.
+        return ignoredPatterns.contains { eventPath.contains($0) }
+    }
 
-                    // Filter excluded directories (system-wide).
-                    let pathComponents = eventPath.components(separatedBy: "/")
-                    let shouldExclude = pathComponents.contains { component in
-                        FileSystemWatcher.systemExclusions.contains(component)
-                    }
-                    if shouldExclude { continue }
-
-                    // R-22: Filter per-watch ignored patterns.
-                    let shouldIgnore = ctx.ignoredPatterns.contains { pattern in
-                        eventPath.contains(pattern)
-                    }
-                    if shouldIgnore { continue }
-
-                    let url = URL(fileURLWithPath: eventPath)
-                    let kind: FileChangeKind
-
-                    if eventFlag & UInt32(kFSEventStreamEventFlagItemCreated) != 0 {
-                        kind = .created
-                    } else if eventFlag & UInt32(kFSEventStreamEventFlagItemRemoved) != 0 {
-                        kind = .deleted
-                    } else if eventFlag & UInt32(kFSEventStreamEventFlagItemRenamed) != 0 {
-                        kind = .renamed
-                    } else {
-                        kind = .modified
-                    }
-
-                    let event = FileChangeEvent(
-                        path: url,
-                        kind: kind,
-                        timestamp: .now
-                    )
-                    watcher.continuation.yield(event)
-                }
-            },
-            &context,
-            pathsToWatch,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            debounce,
-            flags
-        )
+    /// Map an FSEvent flag bitmask to a ``FileChangeKind`` (created > deleted > renamed > modified).
+    private static func fileChangeKind(for flag: FSEventStreamEventFlags) -> FileChangeKind {
+        if flag & UInt32(kFSEventStreamEventFlagItemCreated) != 0 { return .created }
+        if flag & UInt32(kFSEventStreamEventFlagItemRemoved) != 0 { return .deleted }
+        if flag & UInt32(kFSEventStreamEventFlagItemRenamed) != 0 { return .renamed }
+        return .modified
     }
 }

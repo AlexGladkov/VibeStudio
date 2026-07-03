@@ -53,8 +53,10 @@ enum RemoteAuditLog {
     ///   - device: The authenticated remote device.
     ///   - sessionId: The terminal session the device attached to.
     static func deviceConnect(device: RemoteDevice, sessionId: UUID) {
+        let name = device.displayName
+        let ip = device.ipAddress
         Logger.remoteControl.info(
-            "[AUDIT] Device connected: \(device.displayName, privacy: .public) (\(device.ipAddress, privacy: .public)) -> session \(sessionId)"
+            "[AUDIT] Device connected: \(name, privacy: .public) (\(ip, privacy: .public)) -> session \(sessionId)"
         )
     }
 

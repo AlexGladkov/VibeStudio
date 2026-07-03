@@ -23,12 +23,18 @@ final class FileTreeViewModel {
 
     // MARK: - Private State
 
-    private var rebuildTask: Task<Void, Never>?
+    // `nonisolated(unsafe)` so `deinit` (nonisolated on a @MainActor type) can
+    // cancel the task. `Task.cancel()` is safe to call from any context.
+    private nonisolated(unsafe) var rebuildTask: Task<Void, Never>?
     private let debounceMilliseconds: Int = 500
 
     // MARK: - Init
 
     init() {}
+
+    deinit {
+        rebuildTask?.cancel()
+    }
 
     // MARK: - Public API
 
@@ -49,13 +55,13 @@ final class FileTreeViewModel {
     /// Trigger an immediate tree rebuild.
     func rebuildTree(at projectPath: URL) {
         rebuildTask?.cancel()
-        rebuildTask = Task {
+        rebuildTask = Task { [weak self] in
             let nodes = await Task.detached(priority: .utility) {
                 guard !Task.isCancelled else { return [FileTreeNode]() }
                 return FileTreeBuilder.buildTree(at: projectPath)
             }.value
             guard !Task.isCancelled else { return }
-            tree = nodes
+            self?.tree = nodes
         }
     }
 
@@ -79,9 +85,10 @@ final class FileTreeViewModel {
             guard event.path.path.hasPrefix(projectPrefix) else { continue }
             debounceTask?.cancel()
             debounceTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(self?.debounceMilliseconds ?? 500))
+                guard let self else { return }
+                try? await Task.sleep(for: .milliseconds(self.debounceMilliseconds))
                 guard !Task.isCancelled else { return }
-                self?.rebuildTree(at: projectPath)
+                self.rebuildTree(at: projectPath)
             }
         }
     }

@@ -45,7 +45,7 @@ struct CodeSpeakBuildColumn: View {
                     .padding(.vertical, DSSpacing.xs)
                 }
                 .onChange(of: vm.buildVM.outputLines.count) { _, count in
-                    if count > 0 {
+                    if !vm.buildVM.outputLines.isEmpty {
                         withAnimation(.none) {
                             proxy.scrollTo(count - 1, anchor: .bottom)
                         }

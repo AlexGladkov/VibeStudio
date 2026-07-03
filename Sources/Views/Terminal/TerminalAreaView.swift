@@ -15,13 +15,12 @@ struct TerminalAreaView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.terminalSessionManager) private var terminalManager
 
-    @State private var vm: TerminalAreaViewModel?
+    @State private var vmBox = LazyStateObject<TerminalAreaViewModel>()
 
     private var viewModel: TerminalAreaViewModel {
-        if let existing = vm { return existing }
-        let created = TerminalAreaViewModel(projectManager: projectManager, terminalManager: terminalManager)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve {
+            TerminalAreaViewModel(projectManager: projectManager, terminalManager: terminalManager)
+        }
     }
 
     var body: some View {
@@ -54,11 +53,6 @@ struct TerminalAreaView: View {
             }
         }
         .background(DSColor.surfaceBase)
-        .onAppear {
-            if vm == nil {
-                vm = TerminalAreaViewModel(projectManager: projectManager, terminalManager: terminalManager)
-            }
-        }
     }
 
     @ViewBuilder

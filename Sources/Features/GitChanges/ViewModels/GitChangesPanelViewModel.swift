@@ -82,7 +82,9 @@ final class GitChangesPanelViewModel {
             do {
                 try await gitService.stage(files: [file.path], at: project.path)
             } catch {
-                Logger.git.error("GitChangesPanelVM: stage error for \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                Logger.git.error(
+                    "GitChangesPanelVM: stage error for \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
             }
             isPerformingAction = false
         }
@@ -97,7 +99,9 @@ final class GitChangesPanelViewModel {
             do {
                 try await gitService.unstage(files: [file.path], at: project.path)
             } catch {
-                Logger.git.error("GitChangesPanelVM: unstage error for \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                Logger.git.error(
+                    "GitChangesPanelVM: unstage error for \(file.path, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
             }
             isPerformingAction = false
         }

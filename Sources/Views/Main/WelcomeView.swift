@@ -14,13 +14,10 @@ struct WelcomeView: View {
     @Environment(\.projectManager) private var projectManager
     @State private var showFileImporter = false
     @State private var showCreateNewSheet = false
-    @State private var vm: AddProjectViewModel?
+    @State private var vmBox = LazyStateObject<AddProjectViewModel>()
 
     private var viewModel: AddProjectViewModel {
-        if let existing = vm { return existing }
-        let created = AddProjectViewModel(projectManager: projectManager)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { AddProjectViewModel(projectManager: projectManager) }
     }
 
     var body: some View {
@@ -148,11 +145,6 @@ struct WelcomeView: View {
         .sheet(isPresented: $showCreateNewSheet) {
             CreateNewProjectSheet()
         }
-        .onAppear {
-            if vm == nil {
-                vm = AddProjectViewModel(projectManager: projectManager)
-            }
-        }
     }
 }
 
@@ -238,7 +230,11 @@ struct CreateNewProjectSheet: View {
             }
         }
         .padding(DSSpacing.xl)
-        .frame(minWidth: 400, idealWidth: 480, minHeight: 240)
+        .frame(
+            minWidth: DSLayout.formSheetMinWidth,
+            idealWidth: DSLayout.formSheetIdealWidth,
+            minHeight: DSLayout.newProjectSheetMinHeight
+        )
         .background(DSColor.surfaceBase)
         .fileImporter(
             isPresented: $showFolderPicker,

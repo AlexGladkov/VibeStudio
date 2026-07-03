@@ -15,14 +15,14 @@ import OSLog
 /// Root finishes registration, the registry is effectively read-only.
 @Observable
 @MainActor
-final class SyntaxParserRegistry: SyntaxParserRegistering {
+final class SyntaxParserRegistry {
 
     // MARK: - Private State
 
     private var registry: [String: any SyntaxParsing] = [:]
     private let logger = Logger(subsystem: "com.vibestudio", category: "syntax")
 
-    // MARK: - SyntaxParserRegistering
+    // MARK: - Registration
 
     func register(_ parser: any SyntaxParsing) {
         for ext in parser.supportedExtensions {

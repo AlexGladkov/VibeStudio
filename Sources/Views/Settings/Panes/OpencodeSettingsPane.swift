@@ -15,12 +15,9 @@ struct OpencodeSettingsPane: View {
 
     // MARK: ViewModel (lazy init)
 
-    @State private var vm: OpencodeSettingsPaneViewModel?
+    @State private var vmBox = LazyStateObject<OpencodeSettingsPaneViewModel>()
     private var viewModel: OpencodeSettingsPaneViewModel {
-        if let existing = vm { return existing }
-        let created = OpencodeSettingsPaneViewModel()
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { OpencodeSettingsPaneViewModel() }
     }
 
     // MARK: State
@@ -60,13 +57,13 @@ struct OpencodeSettingsPane: View {
             TextFileEditorSheet(
                 fileURL: plugin.fileURL,
                 displayTitle: plugin.filename
-            ) { vm?.loadPlugins() }
+            ) { viewModel.loadPlugins() }
         }
         .sheet(isPresented: $showNewPlugin) {
             newPluginSheet
         }
         .alert("Удалить плагин?", isPresented: $showDeleteAlert, presenting: pluginToDelete) { plugin in
-            Button("Удалить", role: .destructive) { vm?.deletePlugin(plugin) }
+            Button("Удалить", role: .destructive) { viewModel.deletePlugin(plugin) }
             Button("Отмена", role: .cancel) {}
         } message: { plugin in
             Text("Файл «\(plugin.filename)» будет удалён без возможности восстановления.")
@@ -113,20 +110,9 @@ struct OpencodeSettingsPane: View {
             if model.plugins.isEmpty {
                 emptyPluginsState
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.plugins) { plugin in
-                            pluginRow(plugin)
-                            if plugin.id != model.plugins.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.plugins) { plugin in
+                    pluginRow(plugin)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
-                .settingsCard()
             }
         }
     }
@@ -169,7 +155,7 @@ struct OpencodeSettingsPane: View {
             defaultContent: newPluginTemplate
         ) {
             newPluginName = ""
-            vm?.loadPlugins()
+            viewModel.loadPlugins()
         }
     }
 
@@ -187,28 +173,9 @@ struct OpencodeSettingsPane: View {
     // MARK: - Providers Info Row
 
     private var providersInfoRow: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Авторизация")
-                .font(DSFont.buttonLabel)
-                .foregroundStyle(DSColor.textSecondary)
-
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "info.circle")
-                    .font(DSFont.bodySmall)
-                    .foregroundStyle(DSColor.textMuted)
-
-                Text("Провайдеры и API-ключи управляются через CLI: ")
-                    .font(DSFont.bodySmall)
-                    .foregroundStyle(DSColor.textMuted)
-
-                Text("opencode providers")
-                    .font(DSFont.monoSmall)
-                    .foregroundStyle(DSColor.textSecondary)
-
-                Spacer()
-            }
-            .padding(DSSpacing.md)
-            .settingsCard()
-        }
+        SettingsAuthInfoRow(
+            hint: "Провайдеры и API-ключи управляются через CLI: ",
+            command: "opencode providers"
+        )
     }
 }

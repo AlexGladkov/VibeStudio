@@ -11,13 +11,10 @@ struct GitRemoteSetupSheet: View {
     @Environment(\.gitService) private var gitService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var vm: GitRemoteSetupViewModel?
+    @State private var vmBox = LazyStateObject<GitRemoteSetupViewModel>()
 
     private var viewModel: GitRemoteSetupViewModel {
-        if let existing = vm { return existing }
-        let created = GitRemoteSetupViewModel(gitService: gitService, project: project)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { GitRemoteSetupViewModel(gitService: gitService, project: project) }
     }
 
     var body: some View {
@@ -81,12 +78,12 @@ struct GitRemoteSetupSheet: View {
             )
         }
         .padding(DSSpacing.lg)
-        .frame(minWidth: DSLayout.sheetMediumWidth - 20, idealWidth: DSLayout.sheetMediumWidth, minHeight: DSLayout.sheetMediumHeight - 40, idealHeight: DSLayout.sheetMediumHeight)
+        .frame(
+            minWidth: DSLayout.sheetMediumWidth - 20,
+            idealWidth: DSLayout.sheetMediumWidth,
+            minHeight: DSLayout.sheetMediumHeight - 40,
+            idealHeight: DSLayout.sheetMediumHeight
+        )
         .background(DSColor.surfaceOverlay)
-        .onAppear {
-            if vm == nil {
-                vm = GitRemoteSetupViewModel(gitService: gitService, project: project)
-            }
-        }
     }
 }

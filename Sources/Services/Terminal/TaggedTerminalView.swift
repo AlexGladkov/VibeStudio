@@ -52,6 +52,17 @@ final class TaggedTerminalView: LocalProcessTerminalView {
         self.sessionId = sessionId
         self.projectId = projectId
         super.init(frame: frame)
+
+        // Disable SwiftTerm's URL detection. Its default `.implicit` mode
+        // auto-detects plain-text URLs and opens them via `NSWorkspace` on a
+        // Cmd+click. During a window switch the activating click can carry the
+        // Command modifier, causing links to open by themselves — the
+        // `requestOpenLink` delegate default cannot be reliably overridden from
+        // a subclass (protocol-witness static dispatch), so we gate detection
+        // at the source instead. With `.none`, `getLink` returns nil, so both
+        // hover highlighting and click-to-open are fully suppressed.
+        // Switch to `.explicit` if deliberate OSC 8 hyperlinks are ever needed.
+        linkReporting = .none
     }
 
     @available(*, unavailable)

@@ -22,7 +22,12 @@ struct SettingsView: View {
             Divider()
             contentPane
         }
-        .frame(minWidth: DSLayout.settingsWindowMinWidth, idealWidth: DSLayout.settingsWindowIdealWidth, minHeight: DSLayout.settingsWindowMinHeight, idealHeight: DSLayout.settingsWindowIdealHeight)
+        .frame(
+            minWidth: DSLayout.settingsWindowMinWidth,
+            idealWidth: DSLayout.settingsWindowIdealWidth,
+            minHeight: DSLayout.settingsWindowMinHeight,
+            idealHeight: DSLayout.settingsWindowIdealHeight
+        )
         .background(DSColor.surfaceDefault)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

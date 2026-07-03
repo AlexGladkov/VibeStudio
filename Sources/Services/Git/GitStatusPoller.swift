@@ -41,11 +41,13 @@ final class GitStatusPoller: GitStatusPolling {
 
     // MARK: - Private State
 
-    private let gitService: any GitServicing
+    // ISP: only status(at:) / aheadBehind(at:) are used — the narrowest
+    // sub-protocol that covers both is `GitStatusQuerying`.
+    private let gitService: any GitStatusQuerying
     // nonisolated(unsafe): deinit is nonisolated and must cancel this task.
     // Safe because deinit only runs when no other references exist.
     nonisolated(unsafe) private var pollingTask: Task<Void, Never>?
-    /// Stored handle for the last refreshNow() task so rapid calls cancel the prior one.
+    // Stored handle for the last refreshNow() task so rapid calls cancel the prior one.
     // nonisolated(unsafe): deinit must cancel this alongside pollingTask.
     nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
     private var currentRepository: URL?
@@ -53,7 +55,7 @@ final class GitStatusPoller: GitStatusPolling {
 
     // MARK: - Init
 
-    init(gitService: any GitServicing) {
+    init(gitService: any GitStatusQuerying) {
         self.gitService = gitService
     }
 
@@ -144,8 +146,26 @@ final class GitStatusPoller: GitStatusPolling {
         }
     }
 
-    /// Calculate effective polling interval with exponential backoff.
-    private func effectiveInterval(isActive: Bool) -> TimeInterval {
+    /// Calculate the effective polling interval for the current error state.
+    ///
+    /// Delegates to the pure ``effectiveInterval(isActive:consecutiveErrors:)``
+    /// so the production call site and the unit tests exercise the exact same
+    /// backoff formula (no divergent copy).
+    ///
+    /// `internal` (not `private`) so tests can drive it directly.
+    func effectiveInterval(isActive: Bool) -> TimeInterval {
+        effectiveInterval(isActive: isActive, consecutiveErrors: consecutiveErrors)
+    }
+
+    /// Pure exponential-backoff formula — the single source of truth.
+    ///
+    /// - Parameters:
+    ///   - isActive: `true` for the foreground project (3s base), `false` for
+    ///     background projects (30s base).
+    ///   - consecutiveErrors: Number of consecutive failed polls. `0` means the
+    ///     base interval; each error doubles it (capped at 4 doublings and at
+    ///     ``maxBackoffInterval``).
+    func effectiveInterval(isActive: Bool, consecutiveErrors: Int) -> TimeInterval {
         let base = isActive ? activeInterval : backgroundInterval
 
         if consecutiveErrors > 0 {

@@ -162,7 +162,7 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
 
             var tokens: [SyntaxToken] = []
             if let capturedParser {
-                tokens = Self.tokenizeAll(text: text, parser: capturedParser)
+                tokens = SyntaxTokenizer.tokenizeAll(text: text, parser: capturedParser)
             }
 
             await MainActor.run { [weak self] in
@@ -175,44 +175,6 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
                 )
             }
         }
-    }
-
-    /// Tokenize the entire document line by line (runs on background thread).
-    private nonisolated static func tokenizeAll(
-        text: String,
-        parser: any SyntaxParsing
-    ) -> [SyntaxToken] {
-        let nsText = text as NSString
-        let fullLength = nsText.length
-        var context = LineContext.initial
-        var allTokens: [SyntaxToken] = []
-        var pos = 0
-
-        while pos < fullLength {
-            let lineRange = nsText.lineRange(for: NSRange(location: pos, length: 0))
-
-            var contentRange = lineRange
-            if contentRange.length > 0 {
-                let lastChar = nsText.character(at: NSMaxRange(contentRange) - 1)
-                if lastChar == 0x0A || lastChar == 0x0D {
-                    contentRange.length -= 1
-                }
-            }
-            let lineContent = nsText.substring(with: contentRange)
-
-            let (tokens, nextContext) = parser.parseLine(
-                lineContent,
-                lineRange: lineRange,
-                context: context
-            )
-            allTokens.append(contentsOf: tokens)
-            context = nextContext
-            pos = NSMaxRange(lineRange)
-
-            if pos == 0 { break }
-        }
-
-        return allTokens
     }
 
     /// Apply tokens to the backing store on the MainActor.

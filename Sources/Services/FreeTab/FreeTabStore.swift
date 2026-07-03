@@ -5,10 +5,6 @@
 import Foundation
 import Observation
 
-// MARK: - FreeTabManaging Conformance
-
-extension FreeTabStore: FreeTabManaging {}
-
 /// Manages the lifecycle of free (project-independent) terminal tabs.
 ///
 /// Each free tab is assigned a unique ``UUID`` that acts as a sentinel

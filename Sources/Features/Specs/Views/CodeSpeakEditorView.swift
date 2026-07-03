@@ -25,6 +25,17 @@ struct CodeSpeakEditorView: NSViewRepresentable {
     // MARK: - NSViewRepresentable
 
     func makeNSView(context: Context) -> NSScrollView {
+        let textView = makeTextView(delegate: context.coordinator)
+        let scrollView = makeScrollView(documentView: textView)
+
+        context.coordinator.parser = parserRegistry.parser(for: fileExtension)
+        scheduleInitialTextLoad(scrollView: scrollView, coordinator: context.coordinator)
+
+        return scrollView
+    }
+
+    /// Create and configure the editing `NSTextView` (TextKit 1, appearance, sizing).
+    private func makeTextView(delegate: NSTextViewDelegate) -> NSTextView {
         // ── 1. Text view ───────────────────────────────────────────────────
         let textView = NSTextView(frame: .zero)
 
@@ -71,8 +82,12 @@ struct CodeSpeakEditorView: NSViewRepresentable {
             height: CGFloat.greatestFiniteMagnitude
             // swiftlint:enable colon
         )
-        textView.delegate = context.coordinator
+        textView.delegate = delegate
+        return textView
+    }
 
+    /// Wrap the text view in a vertically-scrolling `NSScrollView`.
+    private func makeScrollView(documentView textView: NSTextView) -> NSScrollView {
         // ── 4. NSScrollView ────────────────────────────────────────────────
         let scrollView = NSScrollView()
         scrollView.documentView          = textView
@@ -80,17 +95,17 @@ struct CodeSpeakEditorView: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers    = true
         scrollView.drawsBackground       = false
+        return scrollView
+    }
 
-        // ── 5. Coordinator ─────────────────────────────────────────────────
-        context.coordinator.parser = parserRegistry.parser(for: fileExtension)
-
-        // Defer text load until after SwiftUI sets the scroll view frame.
-        // ARCH-M5: replaced `DispatchQueue.main.async` with a structured
-        // Task that yields once and bails out when the scroll view is no
-        // longer attached to a window (the user dismissed the sheet before
-        // the deferred work ran).
+    /// Defer the initial text load until SwiftUI has sized the scroll view.
+    ///
+    /// ARCH-M5: replaced `DispatchQueue.main.async` with a structured Task
+    /// that yields once and bails out when the scroll view is no longer
+    /// attached to a window (the user dismissed the sheet before the deferred
+    /// work ran).
+    private func scheduleInitialTextLoad(scrollView: NSScrollView, coordinator: Coordinator) {
         let initialText = text
-        let coordinator = context.coordinator
         Task { @MainActor [weak scrollView] in
             await Task.yield()
             guard let scrollView,
@@ -108,8 +123,6 @@ struct CodeSpeakEditorView: NSViewRepresentable {
             tv.string = initialText
             coordinator.scheduleHighlighting(for: tv, text: initialText)
         }
-
-        return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
@@ -163,7 +176,7 @@ struct CodeSpeakEditorView: NSViewRepresentable {
                 guard let self else { return }
                 var tokens: [SyntaxToken] = []
                 if let p = capturedParser {
-                    tokens = Self.tokenizeAll(text: text, parser: p)
+                    tokens = SyntaxTokenizer.tokenizeAll(text: text, parser: p)
                 }
                 await MainActor.run { [weak self, weak textView] in
                     guard let self,
@@ -195,32 +208,6 @@ struct CodeSpeakEditorView: NSViewRepresentable {
                     storage.endEditing()
                 }
             }
-        }
-
-        private nonisolated static func tokenizeAll(
-            text: String, parser: any SyntaxParsing
-        ) -> [SyntaxToken] {
-            let nsText     = text as NSString
-            let fullLength = nsText.length
-            var context    = LineContext.initial
-            var allTokens: [SyntaxToken] = []
-            var pos        = 0
-            while pos < fullLength {
-                let lineRange = nsText.lineRange(for: NSRange(location: pos, length: 0))
-                var contentRange = lineRange
-                if contentRange.length > 0 {
-                    let lastChar = nsText.character(at: NSMaxRange(contentRange) - 1)
-                    if lastChar == 0x0A || lastChar == 0x0D { contentRange.length -= 1 }
-                }
-                let lineContent = nsText.substring(with: contentRange)
-                let (tokens, nextContext) = parser.parseLine(
-                    lineContent, lineRange: lineRange, context: context)
-                allTokens.append(contentsOf: tokens)
-                context = nextContext
-                pos     = NSMaxRange(lineRange)
-                if pos == 0 { break }
-            }
-            return allTokens
         }
     }
 }

@@ -11,7 +11,6 @@ import Foundation
 /// retaining `Hashable` and `Sendable` conformance.
 struct SyntaxTokenKind: RawRepresentable, Hashable, Sendable {
     let rawValue: String
-    init(rawValue: String) { self.rawValue = rawValue }
 }
 
 // MARK: - Built-in Token Kinds

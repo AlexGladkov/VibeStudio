@@ -21,13 +21,14 @@ final class CreateBranchViewModel {
 
     // MARK: - Dependencies
 
-    private let gitService: any GitServicing
+    // ISP: only createBranch(...) is used — narrowed to `GitBranching`.
+    private let gitService: any GitBranching
     private let project: Project
     private let fromBranch: String?
 
     // MARK: - Init
 
-    init(gitService: any GitServicing, project: Project, fromBranch: String? = nil) {
+    init(gitService: any GitBranching, project: Project, fromBranch: String? = nil) {
         self.gitService = gitService
         self.project = project
         self.fromBranch = fromBranch

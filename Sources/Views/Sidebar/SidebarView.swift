@@ -80,7 +80,9 @@ struct SidebarView: View {
     @Environment(\.aiCommitService) private var aiCommitService
     @Environment(\.codeSpeak) private var codeSpeak
 
-    @State private var activeSection: SidebarSection = .files
+    /// `internal` (not `private`) so `iconButton(section:symbol:)` in
+    /// `SidebarView+Sections.swift` can read/write it across files.
+    @State var activeSection: SidebarSection = .files
     @State private var expandedProjects: Set<UUID> = []
     @State private var showFileImporter = false
     @State private var showAddProjectPopover = false
@@ -177,18 +179,19 @@ struct SidebarView: View {
             Text(vm.checkoutErrorMessage ?? "")
         }
         .alert("Send diff to Claude?", isPresented: Binding(
-            get: { vm.showAIDiffWarning },
-            set: { vm.showAIDiffWarning = $0 }
+            get: { vm.commit.showAIDiffWarning },
+            set: { vm.commit.showAIDiffWarning = $0 }
         )) {
             Button("Cancel", role: .cancel) {
-                vm.pendingAIDiffText = nil
-                vm.pendingAIDiffProject = nil
+                vm.commit.pendingAIDiffText = nil
+                vm.commit.pendingAIDiffProject = nil
             }
             Button("Proceed") {
-                guard let diff = vm.pendingAIDiffText, let project = vm.pendingAIDiffProject else { return }
-                vm.pendingAIDiffText = nil
-                vm.pendingAIDiffProject = nil
-                Task { await vm.sendAIDiff(diff, for: project) }
+                guard let diff = vm.commit.pendingAIDiffText,
+                      let project = vm.commit.pendingAIDiffProject else { return }
+                vm.commit.pendingAIDiffText = nil
+                vm.commit.pendingAIDiffProject = nil
+                Task { await vm.commit.sendAIDiff(diff, for: project) }
             }
         } message: {
             Text("This will send your diff to the Anthropic API. Review it to ensure no secrets or sensitive data are included.")
@@ -258,22 +261,6 @@ struct SidebarView: View {
         }
         .padding(.top, DSSpacing.sm)
         .frame(width: DSLayout.iconStripWidth)
-    }
-
-    private func iconButton(section: SidebarSection, symbol: String) -> some View {
-        let isActive = activeSection == section
-        return Button {
-            activeSection = section
-        } label: {
-            Image(systemName: symbol)
-                .font(DSFont.iconLG)
-                .foregroundStyle(isActive ? DSColor.accentPrimary : DSColor.textMuted)
-                .frame(width: DSLayout.iconStripButtonSize, height: DSLayout.iconStripButtonSize)
-                .background(isActive ? DSColor.surfaceOverlay : Color.clear)
-                .cornerRadius(DSRadius.sm)
-        }
-        .buttonStyle(.plain)
-        .sidebarHover(cornerRadius: DSRadius.sm)
     }
 
     // MARK: - Content Panel
@@ -420,19 +407,6 @@ struct SidebarView: View {
         .task {
             await vm.refreshAllGitInfo(projects: regularProjects)
         }
-    }
-
-    // MARK: - No Project View
-
-    private func noProjectView() -> some View {
-        VStack {
-            Spacer()
-            Text("No project selected")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
 }

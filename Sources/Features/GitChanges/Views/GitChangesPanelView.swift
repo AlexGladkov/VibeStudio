@@ -155,18 +155,7 @@ struct GitChangesPanelView: View {
 
             Spacer()
 
-            if let stat {
-                if stat.added > 0 {
-                    Text("+\(stat.added)")
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.gitAdded)
-                }
-                if stat.deleted > 0 {
-                    Text("-\(stat.deleted)")
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.gitDeleted)
-                }
-            }
+            fileStatsBadges(stat)
 
             Text(displayStatus(file.status))
                 .font(DSFont.gitStatus)
@@ -182,23 +171,50 @@ struct GitChangesPanelView: View {
         }
         .onHover { isHoveringNow in hoveredFile = isHoveringNow ? file.path : nil }
         .contextMenu {
-            Button("View Diff") {
-                openDiffWindow(file: file, staged: staged)
-            }
-            Divider()
-            if staged {
-                Button("Unstage") {
-                    model.unstageFile(file)
-                    gitStatusPoller.refreshNow()
-                }
-            } else {
-                Button("Stage") {
-                    model.stageFile(file)
-                    gitStatusPoller.refreshNow()
-                }
-            }
+            fileRowContextMenu(file: file, staged: staged, model: model)
         }
         .help(file.path)
+    }
+
+    /// Inline `+added` / `-deleted` line-count badges for a changed file.
+    @ViewBuilder
+    private func fileStatsBadges(_ stat: GitDiffStat?) -> some View {
+        if let stat {
+            if stat.added > 0 {
+                Text("+\(stat.added)")
+                    .font(DSFont.sidebarItemSmall)
+                    .foregroundStyle(DSColor.gitAdded)
+            }
+            if stat.deleted > 0 {
+                Text("-\(stat.deleted)")
+                    .font(DSFont.sidebarItemSmall)
+                    .foregroundStyle(DSColor.gitDeleted)
+            }
+        }
+    }
+
+    /// Right-click menu for a changed file row: view diff + stage/unstage.
+    @ViewBuilder
+    private func fileRowContextMenu(
+        file: GitFile,
+        staged: Bool,
+        model: GitChangesPanelViewModel
+    ) -> some View {
+        Button("View Diff") {
+            openDiffWindow(file: file, staged: staged)
+        }
+        Divider()
+        if staged {
+            Button("Unstage") {
+                model.unstageFile(file)
+                gitStatusPoller.refreshNow()
+            }
+        } else {
+            Button("Stage") {
+                model.stageFile(file)
+                gitStatusPoller.refreshNow()
+            }
+        }
     }
 
     /// Human-readable single-letter status. `?` (untracked) is shown as `U`.

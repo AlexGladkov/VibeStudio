@@ -205,7 +205,10 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .qwenCode:
             return "Set your DashScope API key:\nexport DASHSCOPE_API_KEY=your-key-here\n\nGet a key at: dashscope.console.aliyun.com"
         case .codeSpeak:
-            return "1. Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh\n2. uv tool install codespeak-cli\n3. Set ANTHROPIC_API_KEY in Claude settings\n4. Run codespeak init in your project"
+            return "1. Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh\n"
+                + "2. uv tool install codespeak-cli\n"
+                + "3. Set ANTHROPIC_API_KEY in Claude settings\n"
+                + "4. Run codespeak init in your project"
         }
     }
 }

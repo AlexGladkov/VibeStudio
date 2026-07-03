@@ -6,17 +6,6 @@
 import Foundation
 import OSLog
 
-// MARK: - AgentEntry
-
-/// Parsed representation of a single agent markdown file from `~/.claude/agents/`.
-struct AgentEntry: Identifiable {
-    /// File URL used as stable identity.
-    let id: String
-    let fileURL: URL
-    let name: String
-    let description: String
-}
-
 // MARK: - CommandEntry
 
 /// Parsed representation of a single command markdown file from `~/.claude/commands/`.
@@ -129,6 +118,7 @@ final class ClaudeSettingsPaneViewModel {
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         ) else {
+            Logger.settings.debug("ClaudeSettings: skills dir not readable at \(dir.path, privacy: .public)")
             skills = []
             return
         }
@@ -160,7 +150,14 @@ final class ClaudeSettingsPaneViewModel {
     ///
     /// - Parameter agent: The agent entry to remove.
     func deleteAgent(_ agent: AgentEntry) {
-        try? FileManager.default.removeItem(at: agent.fileURL)
+        do {
+            try FileManager.default.removeItem(at: agent.fileURL)
+        } catch {
+            let name = agent.fileURL.lastPathComponent
+            Logger.settings.error(
+                "ClaudeSettings: failed to delete agent \(name, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
         loadAgents()
     }
 
@@ -170,7 +167,14 @@ final class ClaudeSettingsPaneViewModel {
     ///
     /// - Parameter cmd: The command entry to remove.
     func deleteCommand(_ cmd: CommandEntry) {
-        try? FileManager.default.removeItem(at: cmd.fileURL)
+        do {
+            try FileManager.default.removeItem(at: cmd.fileURL)
+        } catch {
+            let name = cmd.filename
+            Logger.settings.error(
+                "ClaudeSettings: failed to delete command \(name, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
         loadCommands()
     }
 

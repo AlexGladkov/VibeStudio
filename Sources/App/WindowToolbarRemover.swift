@@ -39,6 +39,17 @@ struct WindowToolbarRemover: NSViewRepresentable {
 
         required init?(coder: NSCoder) { fatalError("init(coder:) not used") }
 
+        /// This view is mounted via SwiftUI `.background()` and fills the entire
+        /// window content area, but it only configures window chrome — it must
+        /// never consume mouse or scroll events. Without this override macOS 26+
+        /// routes `NSScrollWheel` to this view (it sits above content in the
+        /// z-order), swallowing scroll for every panel below. Returning `nil`
+        /// makes it transparent to hit-testing so events fall through to the
+        /// real content views. Mirrors `TaggedTerminalView.hitTest`.
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+
         deinit {
             NotificationCenter.default.removeObserver(self)
         }

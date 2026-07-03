@@ -65,19 +65,29 @@ final class RemoteAuthService {
     /// the single source of truth rather than duplicating the magic number.
     static let maxDevices = 3
 
+    /// Single source of truth for the token validity duration (4 hours).
+    /// Both the public ``tokenTTL`` mirror and the private ``Constants/tokenTTL``
+    /// derive from this so the value is never duplicated.
+    private static let _tokenTTLValue: TimeInterval = 4 * 60 * 60
+
+    /// Single source of truth for the rate-limit window (5 minutes).
+    /// Both the public ``rateLimitWindowSecondsPublic`` mirror and the private
+    /// ``Constants/rateLimitWindowSeconds`` derive from this.
+    private static let _rateLimitWindowValue: TimeInterval = 5 * 60
+
     /// Token validity duration, exposed for HTTP layer use (`expiresAt` claim,
     /// `Retry-After` hints). Mirrors ``Constants/tokenTTL``.
     ///
     /// `nonisolated` because the constant is also read from NIO event-loop
     /// threads (router responses) and must not require a MainActor hop.
-    nonisolated static let tokenTTL: TimeInterval = 4 * 60 * 60
+    nonisolated static let tokenTTL: TimeInterval = _tokenTTLValue
 
     /// Public mirror of ``Constants/rateLimitWindowSeconds`` so the HTTP layer
     /// can emit reasonable `Retry-After` hints without duplicating the literal.
     ///
     /// `nonisolated` for the same reason as ``tokenTTL`` — consumed from NIO
     /// handler threads.
-    nonisolated static let rateLimitWindowSecondsPublic: TimeInterval = 5 * 60
+    nonisolated static let rateLimitWindowSecondsPublic: TimeInterval = _rateLimitWindowValue
 
     // MARK: - Private Constants
 
@@ -86,12 +96,14 @@ final class RemoteAuthService {
         static let pinByteCount = 4
         /// Number of random bytes for token generation.
         static let tokenByteCount = 32
-        /// Token validity duration.
-        static let tokenTTL: TimeInterval = 4 * 60 * 60 // 4 hours
+        /// Token validity duration (4 hours). Derived from the single source
+        /// of truth ``RemoteAuthService/_tokenTTLValue``.
+        static let tokenTTL: TimeInterval = RemoteAuthService._tokenTTLValue
         /// Maximum failed attempts per IP within the rate-limit window.
         static let maxFailuresPerIP = 3
-        /// Rate-limit window duration in seconds.
-        static let rateLimitWindowSeconds: TimeInterval = 5 * 60 // 5 minutes
+        /// Rate-limit window duration in seconds (5 minutes). Derived from the
+        /// single source of truth ``RemoteAuthService/_rateLimitWindowValue``.
+        static let rateLimitWindowSeconds: TimeInterval = RemoteAuthService._rateLimitWindowValue
         /// Global failure threshold -- after this many total failures, the
         /// server locks out completely until manual reset.
         static let globalLockoutThreshold = 10
@@ -112,9 +124,6 @@ final class RemoteAuthService {
     /// Called when the server should shut down due to excessive failed auth attempts.
     var onSecurityLockout: (() -> Void)?
 
-    /// Called when the connected devices list changes (add/remove).
-    var onDevicesChanged: ((_ count: Int) -> Void)?
-
     // MARK: - Private State
 
     /// Active tokens: token string -> entry.
@@ -126,9 +135,17 @@ final class RemoteAuthService {
     /// Total failed attempts across all IPs (never reset automatically).
     private var globalFailedCount: Int = 0
 
+    /// Injectable clock. Production uses the system `Date()`; tests inject a
+    /// controllable source to make rate-limit windows and token TTLs
+    /// deterministic. Never observed — it is a constant dependency.
+    @ObservationIgnored private let now: () -> Date
+
     // MARK: - Init
 
-    init() {
+    /// - Parameter now: Clock source for all time-based decisions (rate-limit
+    ///   window, token issuance/expiry). Defaults to the system clock.
+    init(now: @escaping () -> Date = { Date() }) {
+        self.now = now
         regeneratePin()
     }
 
@@ -193,7 +210,9 @@ final class RemoteAuthService {
 
         // Check max connected devices.
         if connectedDevices.count >= RemoteAuthService.maxDevices {
-            Logger.remoteControl.warning("PIN validation rejected: max devices (\(RemoteAuthService.maxDevices)) reached (IP: \(clientIP, privacy: .public))")
+            Logger.remoteControl.warning(
+                "PIN validation rejected: max devices (\(RemoteAuthService.maxDevices)) reached (IP: \(clientIP, privacy: .public))"
+            )
             return .failure(.maxDevicesReached)
         }
 
@@ -214,27 +233,26 @@ final class RemoteAuthService {
         // Success -- consume PIN and issue token.
         let token = generateToken()
         let deviceId = UUID()
-        let now = Date()
-        let expiresAt = now.addingTimeInterval(Constants.tokenTTL)
+        let issuedAt = now()
+        let expiresAt = issuedAt.addingTimeInterval(Constants.tokenTTL)
         let displayName = parseDeviceName(from: userAgent)
 
         let device = RemoteDevice(
             id: deviceId,
             displayName: displayName,
             ipAddress: clientIP,
-            connectedAt: now
+            connectedAt: issuedAt
         )
 
         let entry = TokenEntry(
             deviceId: deviceId,
             clientIP: clientIP,
-            issuedAt: now,
+            issuedAt: issuedAt,
             expiresAt: expiresAt
         )
 
         tokens[token] = entry
         connectedDevices.append(device)
-        onDevicesChanged?(connectedDevices.count)
 
         // Clear failed attempts for this IP on success.
         failedAttempts.removeValue(forKey: clientIP)
@@ -243,7 +261,9 @@ final class RemoteAuthService {
         regeneratePin()
 
         let tokenCount = self.tokens.count
-        Logger.remoteControl.info("Device authenticated: \(displayName, privacy: .public) from \(clientIP, privacy: .public) deviceId=\(deviceId, privacy: .public) totalTokens=\(tokenCount, privacy: .public)")
+        let logMsg = "Device authenticated: \(displayName) from \(clientIP) "
+            + "deviceId=\(deviceId) totalTokens=\(tokenCount)"
+        Logger.remoteControl.info("\(logMsg, privacy: .public)")
 
         return .success(AuthTokenResponse(token: token, device: device))
     }
@@ -282,7 +302,7 @@ final class RemoteAuthService {
             return .failure(.invalidToken)
         }
 
-        guard Date() < entry.expiresAt else {
+        guard now() < entry.expiresAt else {
             // Token expired -- remove it. Not counted as an attack signal:
             // honest clients hit this once their token TTL elapses.
             tokens.removeValue(forKey: token)
@@ -291,7 +311,9 @@ final class RemoteAuthService {
         }
 
         guard entry.clientIP == clientIP else {
-            Logger.remoteControl.warning("Token IP mismatch: expected \(entry.clientIP, privacy: .public), got \(clientIP, privacy: .public)")
+            Logger.remoteControl.warning(
+                "Token IP mismatch: expected \(entry.clientIP, privacy: .public), got \(clientIP, privacy: .public)"
+            )
             // IP mismatch is a strong attack signal — a leaked token replayed
             // from a different host. Count it.
             recordFailure(for: clientIP)
@@ -321,7 +343,6 @@ final class RemoteAuthService {
     func revokeAllDevices() {
         tokens.removeAll()
         connectedDevices.removeAll()
-        onDevicesChanged?(0)
         Logger.remoteControl.info("All devices revoked")
     }
 
@@ -366,14 +387,14 @@ final class RemoteAuthService {
         guard recentFailures.count >= Constants.maxFailuresPerIP else {
             return .ok
         }
-        let oldestInWindow = recentFailures.first ?? Date()
-        let retryAfter = Int(Constants.rateLimitWindowSeconds - Date().timeIntervalSince(oldestInWindow))
+        let oldestInWindow = recentFailures.first ?? now()
+        let retryAfter = Int(Constants.rateLimitWindowSeconds - now().timeIntervalSince(oldestInWindow))
         return .limited(retryAfterSeconds: max(retryAfter, 1))
     }
 
     /// Record a failed authentication attempt for rate-limiting purposes.
     private func recordFailure(for clientIP: String) {
-        failedAttempts[clientIP, default: []].append(Date())
+        failedAttempts[clientIP, default: []].append(now())
         globalFailedCount += 1
 
         if globalFailedCount >= Constants.globalLockoutThreshold {
@@ -389,7 +410,7 @@ final class RemoteAuthService {
     /// unique IP addresses, and performs a full sweep when the dictionary exceeds
     /// 1000 entries.
     private func pruneExpiredAttempts(for clientIP: String) {
-        let cutoff = Date().addingTimeInterval(-Constants.rateLimitWindowSeconds)
+        let cutoff = now().addingTimeInterval(-Constants.rateLimitWindowSeconds)
         failedAttempts[clientIP] = failedAttempts[clientIP]?.filter { $0 > cutoff }
         // Remove empty entries to prevent unbounded dictionary growth from unique IPs.
         if failedAttempts[clientIP]?.isEmpty == true {
@@ -412,7 +433,6 @@ final class RemoteAuthService {
     /// Remove a device from the connected devices list.
     private func removeDevice(_ deviceId: UUID) {
         connectedDevices.removeAll { $0.id == deviceId }
-        onDevicesChanged?(connectedDevices.count)
     }
 
     // MARK: - Private: Helpers

@@ -9,11 +9,9 @@
 //
 // macOS 14+, Swift 5.10
 
-import CryptoKit
 import Foundation
 import NIOCore
 import NIOHTTP1
-import NIOWebSocket
 import OSLog
 
 /// NIO inbound channel handler that routes HTTP requests to the
@@ -31,12 +29,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
     // MARK: - Dependencies (thread-safe references)
 
-    private let authService: RemoteAuthService
+    let authService: RemoteAuthService
     private let terminalService: TerminalService
     private let projectManager: any ProjectManaging
     private let preferences: RemoteControlPreferences
-    private let generalPreferences: GeneralPreferences
-    private let cachedIdleTimeoutMinutes: Int
     private weak var serverRef: RemoteControlServer?
 
     /// Cached app metadata (Bundle.main snapshot from MainActor init).
@@ -48,39 +44,70 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     private let staticCache: RemoteStaticFileCache
 
     /// Stateless HTTP response builder shared across requests.
-    private let writer: HTTPResponseWriter
+    let writer: HTTPResponseWriter
 
     /// Static-file server (uses cached baseURL + writer).
     private let staticFileServer: RemoteStaticFileServer
 
     /// Pure path → handler dispatcher.
-    private let apiRouter: RemoteAPIRouter
+    let apiRouter: RemoteAPIRouter
 
     /// Shared decoder for request bodies.
     private let decoder = JSONDecoder()
+
+    // MARK: - Sub-routers (Wave-6 split)
+
+    /// Static-file + `/api/v1/health` routes.
+    private let staticRouter: StaticFileRouter
+
+    /// Public `/api/v1/auth/*` routes that do NOT need a Bearer token.
+    private let authRouter: AuthEndpointRouter
+
+    #if DEBUG
+    /// `/api/v1/debug/*` routes. Compiled out in Release.
+    private let debugRouter: DebugEndpointRouter
+    #endif
+
+    /// Cached, flattened table of every route claimed by the sub-routers.
+    /// Built lazily on first use — `routes()` only runs once per channel
+    /// handler instance.
+    lazy var preAuthRoutes: [RouteSpec] = {
+        var routes: [RouteSpec] = []
+        routes.append(contentsOf: staticRouter.routes())
+        routes.append(contentsOf: authRouter.routes())
+        #if DEBUG
+        routes.append(contentsOf: debugRouter.routes())
+        #endif
+        return routes
+    }()
 
     /// Shared ISO-8601 formatter (expensive to allocate per request).
     private static let isoFormatter = ISO8601DateFormatter()
 
     /// Shared encoder configured for ISO-8601 dates.
-    private static func makeEncoder() -> JSONEncoder {
+    static func makeEncoder() -> JSONEncoder {
         let enc = JSONEncoder()
         enc.dateEncodingStrategy = .iso8601
         return enc
     }
 
-    /// Exact-host ngrok reference (read on NIO thread for CORS).
-    private let ngrokHostRef: NgrokHostRef
+    /// CORS origin policy (A7 split) — allow-list + reflect-origin logic.
+    let corsPolicy: CORSPolicy
+
+    /// Manual RFC 6455 WebSocket upgrade coordinator (A7 split). Owned
+    /// strongly here so `[weak self]` inside its deferred closures mirrors
+    /// the original per-channel-handler teardown semantics.
+    let wsUpgrader: WebSocketUpgradeHandler
 
     // MARK: - Per-channel state
 
     /// Real TCP-level remote address captured in `channelActive`.
     /// Never derived from spoofable headers.
-    private var remoteAddress: String = "unknown"
+    var remoteAddress: String = "unknown"
 
     /// Real TCP-level client IP. X-Forwarded-For is intentionally NOT
     /// consulted — spoofable and must never feed rate limiting / token binding.
-    private var currentClientIP: String { remoteAddress }
+    var currentClientIP: String { remoteAddress }
 
     // MARK: - Request accumulator
 
@@ -129,7 +156,6 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         terminalService: TerminalService,
         projectManager: any ProjectManaging,
         preferences: RemoteControlPreferences,
-        generalPreferences: GeneralPreferences,
         idleTimeoutMinutes: Int,
         serverRef: RemoteControlServer?,
         staticCache: RemoteStaticFileCache = .empty,
@@ -140,32 +166,32 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         self.terminalService = terminalService
         self.projectManager = projectManager
         self.preferences = preferences
-        self.generalPreferences = generalPreferences
-        self.cachedIdleTimeoutMinutes = idleTimeoutMinutes
         self.serverRef = serverRef
         self.staticCache = staticCache
-        self.ngrokHostRef = ngrokHostRef
+        self.corsPolicy = CORSPolicy(ngrokHostRef: ngrokHostRef)
         self.metadata = metadata
 
-        let encoder = Self.makeEncoder()
-        let writer = HTTPResponseWriter(encoder: encoder)
-        self.writer = writer
-        self.staticFileServer = RemoteStaticFileServer(cache: staticCache, writer: writer)
-
-        let handlers = RemoteAPIHandlers(
-            authService: authService,
-            terminalService: terminalService,
-            projectManager: projectManager,
-            preferences: preferences,
-            serverRef: serverRef,
-            writer: writer,
-            metadata: metadata
-        )
-        self.apiRouter = RemoteAPIRouter(
-            handlers: handlers,
-            decoder: decoder,
+        // All immutable collaborators are wired up in one factory (see
+        // ``HTTPRequestRouter+Setup``) to keep this initializer readable.
+        let parts = Collaborators(
+            authService: authService, terminalService: terminalService,
+            projectManager: projectManager, preferences: preferences,
+            serverRef: serverRef, staticCache: staticCache, metadata: metadata,
+            idleTimeoutMinutes: idleTimeoutMinutes, decoder: decoder,
             isoFormatter: Self.isoFormatter
         )
+        self.writer = parts.writer
+        self.staticFileServer = parts.staticFileServer
+        self.wsUpgrader = parts.wsUpgrader
+        self.apiRouter = parts.apiRouter
+        self.staticRouter = parts.staticRouter
+        self.authRouter = parts.authRouter
+        #if DEBUG
+        self.debugRouter = DebugEndpointRouter(
+            authService: authService, serverRef: serverRef,
+            writer: parts.writer, isEnabled: HTTPRequestRouter.isDeveloperBuild
+        )
+        #endif
     }
 
     // MARK: - ChannelInboundHandler
@@ -191,7 +217,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
 
         case .body(var body):
             // 64 KB body limit for API requests.
-            if (requestBody?.readableBytes ?? 0) + body.readableBytes > 65_536 {
+            if (requestBody?.readableBytes ?? 0) + body.readableBytes > RemoteLimits.maxRequestBodyBytes {
                 requestHead = nil
                 requestBody = nil
                 let channel = context.channel
@@ -228,510 +254,5 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         Logger.remoteControl.error("HTTPRequestRouter error: \(error.localizedDescription, privacy: .public)")
         context.close(promise: nil)
-    }
-
-    // MARK: - Routing
-
-    private func routeRequest(head: HTTPRequestHead, body: ByteBuffer?, channel: Channel) {
-        let path = head.uri.split(separator: "?").first.map(String.init) ?? head.uri
-        let method = head.method
-
-        #if DEBUG
-        let upgradeHeader = head.headers["Upgrade"].first ?? "none"
-        let connHeader = head.headers["Connection"].first ?? "none"
-        if upgradeHeader != "none" || path.hasPrefix("/api/v1/terminal") {
-            HTTPRequestRouter.wsLog(
-                "[ROUTER] \(method.rawValue) \(path) Upgrade=\(upgradeHeader) Connection=\(connHeader) ip=\(self.remoteAddress)"
-            )
-        }
-        #endif
-
-        // ARCH-H9: resolve CORS origin once per request and pass it through
-        // every send* call. Never store on the handler — keep-alive sockets
-        // would otherwise risk reading the next request's origin from a
-        // Task-deferred response.
-        let corsOrigin = allowedOrigin(from: head)
-
-        // CORS preflight.
-        if method == .OPTIONS {
-            writer.sendCORSPreflight(channel: channel, corsOrigin: corsOrigin)
-            return
-        }
-
-        // Static files (no auth).
-        if method == .GET {
-            switch path {
-            case "/":
-                staticFileServer.serveStaticFile(
-                    "index.html", contentType: "text/html",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            case "/app.css":
-                staticFileServer.serveStaticFile(
-                    "app.css", contentType: "text/css",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            case "/app.js":
-                staticFileServer.serveStaticFile(
-                    "app.js", contentType: "application/javascript",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            case "/favicon.ico":
-                staticFileServer.serveStaticFile(
-                    "favicon.ico", contentType: "image/x-icon",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            default:
-                if path.hasPrefix("/vendor/") {
-                    let fileName = String(path.dropFirst(1)) // "vendor/..."
-                    let ext = (fileName as NSString).pathExtension
-                    let mime = MIMETypeResolver.mimeType(for: ext)
-                    staticFileServer.serveStaticFile(
-                        fileName, contentType: mime,
-                        channel: channel, corsOrigin: corsOrigin
-                    )
-                    return
-                }
-            }
-        }
-
-        // Health (no auth).
-        if method == .GET && path == "/api/v1/health" {
-            let theWriter = writer
-            Task { @MainActor in
-                theWriter.sendRawJSON(
-                    status: .ok,
-                    data: Data(#"{"status":"healthy"}"#.utf8),
-                    channel: channel,
-                    corsOrigin: corsOrigin
-                )
-            }
-            return
-        }
-
-        // Auth/token (no bearer required).
-        if method == .POST && path == "/api/v1/auth/token" {
-            let handlers = apiRouter.handlers
-            let clientIP = currentClientIP
-            let remoteAddr = remoteAddress
-            let decoder = self.decoder
-            Task { @MainActor in
-                handlers.handleAuthToken(
-                    head: head,
-                    body: body,
-                    channel: channel,
-                    clientIP: clientIP,
-                    remoteAddress: remoteAddr,
-                    corsOrigin: corsOrigin,
-                    decoder: decoder
-                )
-            }
-            return
-        }
-
-        #if DEBUG
-        // Debug endpoints exposed ONLY when the binary was loaded from a
-        // developer build directory. SEC-M1: the previous gate relied on
-        // `VS_DEBUG_API=1` which could be flipped through an Xcode scheme
-        // and accidentally shipped via TestFlight / Ad-Hoc. By keying off
-        // the bundle path we ensure that even a Debug build distributed as
-        // an .app cannot expose `/debug/pin` to the network.
-        let debugAPIEnabled = HTTPRequestRouter.isDeveloperBuild
-
-        if method == .GET && path == "/api/v1/debug/pin" {
-            guard debugAPIEnabled else {
-                writer.sendErrorJSON(
-                    status: .notFound, code: "NOT_FOUND",
-                    message: "The requested resource was not found.",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            }
-            let authSvc = authService
-            let theWriter = writer
-            Task { @MainActor in
-                let pin = authSvc.currentPin
-                let json = "{\"pin\":\"\(pin)\"}"
-                channel.eventLoop.execute {
-                    theWriter.sendRawJSON(
-                        status: .ok, data: Data(json.utf8),
-                        channel: channel, corsOrigin: corsOrigin
-                    )
-                }
-            }
-            return
-        }
-        if method == .GET && path == "/api/v1/debug/wslog" {
-            guard debugAPIEnabled else {
-                writer.sendErrorJSON(
-                    status: .notFound, code: "NOT_FOUND",
-                    message: "The requested resource was not found.",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            }
-            let log = HTTPRequestRouter.wsDebugLog
-            let json = "[" + log.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }
-                .joined(separator: ",") + "]"
-            writer.sendRawJSON(
-                status: .ok, data: Data(json.utf8),
-                channel: channel, corsOrigin: corsOrigin
-            )
-            return
-        }
-        if method == .GET && path == "/api/v1/debug/state" {
-            guard debugAPIEnabled else {
-                writer.sendErrorJSON(
-                    status: .notFound, code: "NOT_FOUND",
-                    message: "The requested resource was not found.",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            }
-            let authSvc = authService
-            let callerIP = remoteAddress
-            let serverRefLocal = self.serverRef
-            let theWriter = writer
-            Task { @MainActor in
-                let devices = authSvc.connectedDevices.map { d in
-                    "{\"id\":\"\(d.id)\",\"ip\":\"\(d.ipAddress)\"}"
-                }.joined(separator: ",")
-                let deviceCount = authSvc.connectedDevices.count
-                let ngrokURL = serverRefLocal?.ngrokTunnelURL ?? "null"
-                let ngrokRunning = serverRefLocal?.isNgrokRunning ?? false
-                let ngrokError = serverRefLocal?.ngrokError ?? "null"
-                let json = """
-                {"caller_ip":"\(callerIP)","devices":[\(devices)],"device_count":\(deviceCount),\
-                "ngrok":{"running":\(ngrokRunning),"url":"\(ngrokURL)","error":"\(ngrokError)"}}
-                """
-                channel.eventLoop.execute {
-                    theWriter.sendRawJSON(
-                        status: .ok, data: Data(json.utf8),
-                        channel: channel, corsOrigin: corsOrigin
-                    )
-                }
-            }
-            return
-        }
-        #endif
-
-        // WebSocket upgrade for terminal endpoints (auth happens on first WS frame).
-        if method == .GET && path.hasPrefix("/api/v1/terminal/") &&
-           head.headers["Upgrade"].first?.caseInsensitiveCompare("websocket") == .orderedSame {
-            handleWebSocketUpgrade(head: head, path: path, channel: channel, corsOrigin: corsOrigin)
-            return
-        }
-
-        // All other /api/ endpoints require Bearer auth.
-        if path.hasPrefix("/api/") {
-            let clientIP = currentClientIP
-            guard let token = RemoteAuthMiddleware.extractBearerToken(from: head) else {
-                writer.sendErrorJSON(
-                    status: .unauthorized,
-                    code: "AUTH_REQUIRED",
-                    message: "Authorization header with Bearer token is required.",
-                    channel: channel,
-                    corsOrigin: corsOrigin
-                )
-                return
-            }
-
-            let authSvc = authService
-            let apiRouter = self.apiRouter
-            let theWriter = writer
-
-            Task { @MainActor in
-                let result = authSvc.validateToken(token, clientIP: clientIP)
-                switch result {
-                case .failure(let error):
-                    let (status, code, message, retryAfter) =
-                        RemoteAuthMiddleware.authErrorResponse(error)
-                    let resp = ErrorResponse(error: ErrorDetail(code: code, message: message))
-                    let data = (try? theWriter.encoder.encode(resp)) ?? Data()
-                    channel.eventLoop.execute {
-                        theWriter.sendRawJSON(
-                            status: status,
-                            data: data,
-                            channel: channel,
-                            corsOrigin: corsOrigin,
-                            retryAfterSeconds: retryAfter
-                        )
-                    }
-
-                case .success(let device):
-                    apiRouter.routeAuthenticated(
-                        path: path,
-                        method: method,
-                        head: head,
-                        body: body,
-                        device: device,
-                        channel: channel,
-                        corsOrigin: corsOrigin
-                    )
-                }
-            }
-            return
-        }
-
-        writer.sendErrorJSON(
-            status: .notFound,
-            code: "NOT_FOUND",
-            message: "The requested resource was not found.",
-            channel: channel,
-            corsOrigin: corsOrigin
-        )
-    }
-
-    // MARK: - WebSocket Upgrade (RFC 6455)
-
-    /// Perform a manual WebSocket upgrade. NIO's `HTTPServerUpgradeHandler`
-    /// is one-shot and removes itself after the first non-upgrade request,
-    /// breaking HTTP/1.1 keep-alive connections where the WS upgrade comes
-    /// after page load. This method handles the upgrade directly.
-    private func handleWebSocketUpgrade(
-        head: HTTPRequestHead,
-        path: String,
-        channel: Channel,
-        corsOrigin: String?
-    ) {
-        let sessionIdStr = String(path.dropFirst("/api/v1/terminal/".count))
-        guard let sessionId = UUID(uuidString: sessionIdStr) else {
-            writer.sendErrorJSON(
-                status: .badRequest, code: "INVALID_SESSION",
-                message: "Invalid session ID.",
-                channel: channel, corsOrigin: corsOrigin
-            )
-            return
-        }
-
-        // SEC-H1: reject WS upgrade when at device cap. We read
-        // `activeBridges.count` via the server reference; if no server is
-        // wired in (preview/test) we skip the check.
-        if let server = serverRef {
-            // serverRef is @MainActor — hop briefly to read state, then bounce
-            // back to the event loop for the upgrade.
-            let theWriter = writer
-            Task { @MainActor in
-                let atCapacity = server.activeBridges.count >= RemoteAuthService.maxDevices
-                if atCapacity {
-                    channel.eventLoop.execute {
-                        theWriter.sendErrorJSON(
-                            status: .serviceUnavailable,
-                            code: "MAX_DEVICES_REACHED",
-                            message: "Maximum number of connected devices reached. Try again later.",
-                            channel: channel,
-                            corsOrigin: corsOrigin
-                        )
-                    }
-                    return
-                }
-                channel.eventLoop.execute { [weak self] in
-                    self?.performWebSocketUpgrade(
-                        head: head, sessionId: sessionId, channel: channel, corsOrigin: corsOrigin
-                    )
-                }
-            }
-            return
-        }
-
-        performWebSocketUpgrade(
-            head: head, sessionId: sessionId, channel: channel, corsOrigin: corsOrigin
-        )
-    }
-
-    private func performWebSocketUpgrade(
-        head: HTTPRequestHead,
-        sessionId: UUID,
-        channel: Channel,
-        corsOrigin: String?
-    ) {
-        guard let wsKey = head.headers["Sec-WebSocket-Key"].first else {
-            writer.sendErrorJSON(
-                status: .badRequest, code: "INVALID_REQUEST",
-                message: "Missing Sec-WebSocket-Key.",
-                channel: channel, corsOrigin: corsOrigin
-            )
-            return
-        }
-
-        // SEC-H2: threat model for transport security on WS upgrade.
-        //
-        // The server itself binds plain HTTP (TLS is terminated upstream when
-        // accessed via the ngrok HTTPS tunnel, or skipped entirely on
-        // loopback — see RemoteConnectionURLBuilder). Without TLS in front of
-        // us, an attacker with on-path access to a non-loopback hop could
-        // sniff/inject the auth token transported as the first WS text frame
-        // and hijack the session.
-        //
-        // Loopback (127.0.0.1 / ::1) is considered safe — no on-path
-        // attacker. For any other client IP we require evidence that an
-        // HTTPS hop terminated TLS upstream. ngrok always forwards the
-        // client-facing scheme in `X-Forwarded-Proto`; if it is missing or
-        // says "http", we refuse the upgrade with 403 so an honest client
-        // sees the failure and reconnects via wss://.
-        if !Self.isLoopback(clientIP: remoteAddress) {
-            let forwardedProto = head.headers["X-Forwarded-Proto"].first?.lowercased()
-                ?? head.headers["Forwarded"].first?
-                    .split(separator: ";")
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .first(where: { $0.lowercased().hasPrefix("proto=") })
-                    .map { String($0.dropFirst("proto=".count))
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "\"")).lowercased() }
-            if forwardedProto != "https" {
-                Logger.remoteControl.warning(
-                    "WS upgrade rejected: non-loopback client without HTTPS terminator (ip=\(self.remoteAddress, privacy: .public) proto=\(forwardedProto ?? "missing", privacy: .public))"
-                )
-                writer.sendErrorJSON(
-                    status: .forbidden, code: "TLS_REQUIRED",
-                    message: "WebSocket connections from non-loopback clients must be made over wss://.",
-                    channel: channel, corsOrigin: corsOrigin
-                )
-                return
-            }
-        }
-
-        let clientIP = remoteAddress
-        let authSvc = authService
-        let termSvc = terminalService
-        let idleTimeout = cachedIdleTimeoutMinutes
-        let requestedProtocol = head.headers["Sec-WebSocket-Protocol"].first
-        weak var server = serverRef
-
-        #if DEBUG
-        HTTPRequestRouter.wsLog("[WS] handleWebSocketUpgrade: session=\(sessionId) ip=\(clientIP)")
-        #endif
-
-        // Sec-WebSocket-Accept per RFC 6455 §4.2.2.
-        let magicGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-        let hash = Insecure.SHA1.hash(data: Data((wsKey + magicGUID).utf8))
-        let acceptValue = Data(hash).base64EncodedString()
-
-        let wsHandler = RemoteWebSocketHandler(
-            sessionId: sessionId,
-            deviceInfo: nil, // auth on first WS frame
-            serverRef: server,
-            terminalService: termSvc,
-            idleTimeoutMinutes: idleTimeout,
-            authService: authSvc,
-            clientIP: clientIP
-        )
-
-        channel.eventLoop.execute {
-            // Pause reads so incoming WS frames don't hit the HTTP decoder
-            // during the pipeline swap.
-            channel.setOption(ChannelOptions.autoRead, value: false).whenFailure { _ in }
-
-            var headers = HTTPHeaders()
-            headers.add(name: "Upgrade", value: "websocket")
-            headers.add(name: "Connection", value: "upgrade")
-            headers.add(name: "Sec-WebSocket-Accept", value: acceptValue)
-            // Only echo "vibestudio.v1" back — never arbitrary client-supplied protocol.
-            if requestedProtocol == "vibestudio.v1" {
-                headers.add(name: "Sec-WebSocket-Protocol", value: "vibestudio.v1")
-            }
-
-            let responseHead = HTTPResponseHead(
-                version: .http1_1, status: .switchingProtocols, headers: headers
-            )
-            channel.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
-            channel.writeAndFlush(self.wrapOutboundOut(.end(nil))).whenSuccess {
-                self.installWebSocketPipeline(channel: channel, handler: wsHandler)
-            }
-        }
-    }
-
-    /// Replace the HTTP pipeline with the WebSocket frame codec + handler.
-    private func installWebSocketPipeline(channel: Channel, handler: RemoteWebSocketHandler) {
-        #if DEBUG
-        HTTPRequestRouter.wsLog("[WS] installWebSocketPipeline: starting pipeline swap")
-        #endif
-
-        let el = channel.eventLoop
-        let pipeline = channel.pipeline
-
-        func removeByName(_ name: String) -> EventLoopFuture<Void> {
-            pipeline.removeHandler(name: name).flatMapError { _ in
-                el.makeSucceededVoidFuture()
-            }
-        }
-
-        removeByName("http_router").flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step1: router removed")
-            #endif
-            return removeByName("http_error")
-        }.flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step2: error handler removed")
-            #endif
-            return removeByName("http_decoder")
-        }.flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step3: decoder removed")
-            #endif
-            return removeByName("http_encoder")
-        }.flatMap { () -> EventLoopFuture<Void> in
-            #if DEBUG
-            HTTPRequestRouter.wsLog("[WS] step4: encoder removed — adding WS handlers")
-            #endif
-            return pipeline.addHandler(WebSocketFrameEncoder())
-        }.flatMap { () -> EventLoopFuture<Void> in
-            pipeline.addHandler(ByteToMessageHandler(WebSocketFrameDecoder()))
-        }.flatMap { () -> EventLoopFuture<Void> in
-            pipeline.addHandler(handler)
-        }.whenComplete { result in
-            switch result {
-            case .success:
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] pipeline swap COMPLETE — handler installed")
-                #endif
-                channel.setOption(ChannelOptions.autoRead, value: true).whenSuccess {
-                    channel.read()
-                }
-            case .failure(let error):
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] pipeline swap FAILED: \(error)")
-                #endif
-                channel.close(promise: nil)
-            }
-        }
-    }
-
-    // MARK: - Helpers
-
-    /// `true` when the captured TCP-level client IP is a loopback address.
-    /// Used by the WS upgrade path to decide whether HTTPS termination
-    /// upstream is required (SEC-H2).
-    private static func isLoopback(clientIP: String) -> Bool {
-        // IPv4 loopback is the entire 127.0.0.0/8 block.
-        if clientIP.hasPrefix("127.") { return true }
-        // IPv6 loopback canonical forms.
-        if clientIP == "::1" || clientIP == "0:0:0:0:0:0:0:1" { return true }
-        // IPv4-mapped IPv6 loopback ("::ffff:127.0.0.1").
-        if clientIP.lowercased().hasPrefix("::ffff:127.") { return true }
-        return false
-    }
-
-    // MARK: - CORS
-
-    /// Build a safe CORS origin value. Reflects the Origin header only when
-    /// it matches `localhost` / `127.0.0.1` / `[::1]` on any port, or the
-    /// exact current ngrok host. Wildcards are intentionally rejected.
-    private func allowedOrigin(from head: HTTPRequestHead) -> String? {
-        guard let origin = head.headers["Origin"].first,
-              let url = URL(string: origin),
-              let host = url.host else {
-            return nil
-        }
-        let allowedHosts: Set<String> = ["localhost", "127.0.0.1", "[::1]"]
-        if allowedHosts.contains(host) { return origin }
-        if let ngrokHost = ngrokHostRef.host, host == ngrokHost {
-            return origin
-        }
-        return nil
     }
 }

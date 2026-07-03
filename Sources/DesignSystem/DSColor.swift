@@ -7,29 +7,37 @@ import AppKit
 
 // MARK: - Hex Color Parsing
 
+/// sRGB color components (each in the `0...1` range) parsed from a hex string.
+private struct RGBAComponents {
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+    let alpha: CGFloat
+}
+
 /// Shared hex color parsing logic for `Color` and `NSColor` initializers.
 ///
 /// Supports 6-digit (`RRGGBB`) and 8-digit (`AARRGGBB`) formats.
 /// Returns `nil` for unsupported formats.
-private func parseHexComponents(_ hex: String) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat)? {
+private func parseHexComponents(_ hex: String) -> RGBAComponents? {
     let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
     var int: UInt64 = 0
     Scanner(string: cleaned).scanHexInt64(&int)
 
     switch cleaned.count {
     case 6:
-        return (
-            r: CGFloat((int >> 16) & 0xFF) / 255,
-            g: CGFloat((int >> 8) & 0xFF) / 255,
-            b: CGFloat(int & 0xFF) / 255,
-            a: 1.0
+        return RGBAComponents(
+            red: CGFloat((int >> 16) & 0xFF) / 255,
+            green: CGFloat((int >> 8) & 0xFF) / 255,
+            blue: CGFloat(int & 0xFF) / 255,
+            alpha: 1.0
         )
     case 8:
-        return (
-            r: CGFloat((int >> 16) & 0xFF) / 255,
-            g: CGFloat((int >> 8) & 0xFF) / 255,
-            b: CGFloat(int & 0xFF) / 255,
-            a: CGFloat((int >> 24) & 0xFF) / 255
+        return RGBAComponents(
+            red: CGFloat((int >> 16) & 0xFF) / 255,
+            green: CGFloat((int >> 8) & 0xFF) / 255,
+            blue: CGFloat(int & 0xFF) / 255,
+            alpha: CGFloat((int >> 24) & 0xFF) / 255
         )
     default:
         return nil
@@ -47,7 +55,7 @@ extension Color {
     /// - Parameter hex: Hex color string.
     init(hex: String) {
         if let c = parseHexComponents(hex) {
-            self.init(.sRGB, red: Double(c.r), green: Double(c.g), blue: Double(c.b), opacity: Double(c.a))
+            self.init(.sRGB, red: Double(c.red), green: Double(c.green), blue: Double(c.blue), opacity: Double(c.alpha))
         } else {
             self.init(.sRGB, red: 0, green: 0, blue: 0, opacity: 1)
         }
@@ -63,7 +71,7 @@ extension NSColor {
     /// - Parameter hex: Hex color string.
     convenience init(hex: String) {
         if let c = parseHexComponents(hex) {
-            self.init(srgbRed: c.r, green: c.g, blue: c.b, alpha: c.a)
+            self.init(srgbRed: c.red, green: c.green, blue: c.blue, alpha: c.alpha)
         } else {
             self.init(srgbRed: 0, green: 0, blue: 0, alpha: 1)
         }
@@ -344,24 +352,30 @@ extension DSColor {
     /// default text color.
     @MainActor
     static func syntaxNSColor(for kind: SyntaxTokenKind) -> NSColor? {
-        switch kind {
-        case .heading:              return nsAdaptiveColor(dark: "#79C0FF", light: "#0550AE")
-        case .bold:                 return nsAdaptiveColor(dark: "#E3C04B", light: "#9A6700")
-        case .italic:               return nsAdaptiveColor(dark: "#D2A8FF", light: "#8250DF")
-        case .inlineCode:           return nsAdaptiveColor(dark: "#FF7B72", light: "#CF222E")
-        case .codeBlockFence:       return nsAdaptiveColor(dark: "#8B949E", light: "#6E7781")
-        case .codeBlockBody:        return nsAdaptiveColor(dark: "#C9D1D9", light: "#24292F")
-        case .link:                 return nsAdaptiveColor(dark: "#58A6FF", light: "#0969DA")
-        case .linkURL:              return nsAdaptiveColor(dark: "#8B949E", light: "#6E7781")
-        case .blockquote:           return nsAdaptiveColor(dark: "#8B949E", light: "#6E7781")
-        case .listMarker:           return nsAdaptiveColor(dark: "#FF7B72", light: "#CF222E")
-        case .frontmatterDelimiter: return nsAdaptiveColor(dark: "#BC8CFF", light: "#8250DF")
-        case .frontmatterKey:       return nsAdaptiveColor(dark: "#79C0FF", light: "#0550AE")
-        case .frontmatterValue:     return nsAdaptiveColor(dark: "#A5D6FF", light: "#0A3069")
-        case .comment:              return nsAdaptiveColor(dark: "#6E7681", light: "#6E7781")
-        default:                    return nil
-        }
+        guard let hex = syntaxHexMap[kind] else { return nil }
+        return nsAdaptiveColor(dark: hex.dark, light: hex.light)
     }
+
+    /// Adaptive dark/light hex pairs per ``SyntaxTokenKind``.
+    ///
+    /// Table-driven replacement for a large `switch`; kinds absent from the
+    /// map fall back to the default text color (see ``syntaxNSColor(for:)``).
+    private static let syntaxHexMap: [SyntaxTokenKind: (dark: String, light: String)] = [
+        .heading: (dark: "#79C0FF", light: "#0550AE"),
+        .bold: (dark: "#E3C04B", light: "#9A6700"),
+        .italic: (dark: "#D2A8FF", light: "#8250DF"),
+        .inlineCode: (dark: "#FF7B72", light: "#CF222E"),
+        .codeBlockFence: (dark: "#8B949E", light: "#6E7781"),
+        .codeBlockBody: (dark: "#C9D1D9", light: "#24292F"),
+        .link: (dark: "#58A6FF", light: "#0969DA"),
+        .linkURL: (dark: "#8B949E", light: "#6E7781"),
+        .blockquote: (dark: "#8B949E", light: "#6E7781"),
+        .listMarker: (dark: "#FF7B72", light: "#CF222E"),
+        .frontmatterDelimiter: (dark: "#BC8CFF", light: "#8250DF"),
+        .frontmatterKey: (dark: "#79C0FF", light: "#0550AE"),
+        .frontmatterValue: (dark: "#A5D6FF", light: "#0A3069"),
+        .comment: (dark: "#6E7681", light: "#6E7781")
+    ]
 
     /// Creates an `NSColor` with a dynamic provider for dark/light appearance.
     private static func nsAdaptiveColor(dark: String, light: String) -> NSColor {

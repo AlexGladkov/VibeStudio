@@ -42,10 +42,6 @@ struct HTTPResponseWriter: Sendable {
     /// Shared JSON encoder configured for ISO-8601 dates.
     let encoder: JSONEncoder
 
-    init(encoder: JSONEncoder) {
-        self.encoder = encoder
-    }
-
     // MARK: - Security headers
 
     /// Append security headers common to all responses.
@@ -171,6 +167,7 @@ struct HTTPResponseWriter: Sendable {
     ) {
         var headers = HTTPHeaders()
         headers.add(name: "Content-Length", value: "0")
+        addSecurityHeaders(to: &headers, isHTML: false)
         if let origin = corsOrigin {
             headers.add(name: "Access-Control-Allow-Origin", value: origin)
             headers.add(name: "Vary", value: "Origin")
@@ -187,10 +184,11 @@ struct HTTPResponseWriter: Sendable {
             headers.add(name: "Access-Control-Allow-Origin", value: origin)
             headers.add(name: "Vary", value: "Origin")
             headers.add(name: "Access-Control-Allow-Methods", value: "GET, POST, DELETE, OPTIONS")
-            headers.add(name: "Access-Control-Allow-Headers", value: "Authorization, Content-Type, X-Request-Id")
+            headers.add(name: "Access-Control-Allow-Headers", value: "Authorization, Content-Type")
             headers.add(name: "Access-Control-Max-Age", value: "86400")
         }
         headers.add(name: "Content-Length", value: "0")
+        addSecurityHeaders(to: &headers, isHTML: false)
 
         let head = HTTPResponseHead(version: .http1_1, status: .noContent, headers: headers)
         Self.writeHead(channel, head)

@@ -14,14 +14,11 @@ struct TraceabilityPanelView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.navigationCoordinator) private var navigationCoordinator
 
-    @State private var vm: TraceabilityPanelViewModel?
+    @State private var vmBox = LazyStateObject<TraceabilityPanelViewModel>()
     @State private var selectedFile: String?
 
     private var viewModel: TraceabilityPanelViewModel {
-        if let existing = vm { return existing }
-        let created = TraceabilityPanelViewModel()
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { TraceabilityPanelViewModel() }
     }
 
     private var activeProject: Project? {
@@ -36,7 +33,9 @@ struct TraceabilityPanelView: View {
             Divider()
 
             if model.isLoading {
-                loadingView
+                loadingStateView
+            } else if let error = model.errorMessage {
+                errorStateView(message: error)
             } else if model.referencedFiles.isEmpty && model.specToFiles.isEmpty {
                 emptyStateView
             } else {
@@ -52,14 +51,6 @@ struct TraceabilityPanelView: View {
         .task(id: projectManager.activeProjectId) {
             if let project = activeProject {
                 await model.scan(at: project.path)
-            }
-        }
-        .onAppear {
-            if vm == nil {
-                vm = TraceabilityPanelViewModel()
-                if let project = activeProject {
-                    Task { await viewModel.scan(at: project.path) }
-                }
             }
         }
     }
@@ -214,31 +205,32 @@ struct TraceabilityPanelView: View {
         .padding(.bottom, DSSpacing.xs)
     }
 
-    // MARK: - Empty States
+    // MARK: - Panel States
 
-    private var loadingView: some View {
-        VStack {
-            Spacer()
-            ProgressView().scaleEffect(DSLayout.progressScaleMedium)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+    private var loadingStateView: some View {
+        PanelStateView(
+            kind: .loading,
+            icon: "ellipsis",
+            title: "Scanning specs…"
+        )
+    }
+
+    private func errorStateView(message: String) -> some View {
+        PanelStateView(
+            kind: .error,
+            icon: "exclamationmark.triangle",
+            title: "Failed to scan specs",
+            subtitle: message,
+            iconColor: DSColor.gitDeleted
+        )
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: DSSpacing.sm) {
-            Spacer()
-            Image(systemName: "link.badge.plus")
-                .font(DSFont.emptyStateIcon)
-                .foregroundStyle(DSColor.textMuted)
-            Text("No traceability links")
-                .font(DSFont.sidebarItem)
-                .foregroundStyle(DSColor.textMuted)
-            Text("Add @file: markers to specs")
-                .font(DSFont.sidebarItemSmall)
-                .foregroundStyle(DSColor.textDisabled)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        PanelStateView(
+            kind: .empty,
+            icon: "link.badge.plus",
+            title: "No traceability links",
+            subtitle: "Add @file: markers to specs"
+        )
     }
 }

@@ -67,9 +67,9 @@ final class BonjourAdvertiser: NSObject, NetServiceDelegate {
         _ sender: NetService,
         didNotPublish errorDict: [String: NSNumber]
     ) {
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             Logger.remoteControl.error("Bonjour: publish failed \(errorDict)")
-            self.isPublishing = false
+            self?.isPublishing = false
         }
     }
 }

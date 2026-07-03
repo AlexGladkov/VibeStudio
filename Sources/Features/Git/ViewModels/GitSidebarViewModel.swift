@@ -21,9 +21,15 @@ final class GitSidebarViewModel {
     // MARK: - Dependencies
 
     private let gitService: any GitServicing
-    private let aiCommitService: any AICommitServicing
     private let projectManager: any ProjectManaging
     private let revealInFinderUseCase: RevealInFinderUseCase
+
+    // MARK: - Sub-Domains
+
+    /// Commit-panel sub-domain (per-project commit input, commit execution,
+    /// AI commit-message generation). Held as a nested `@Observable` so view
+    /// bindings on `commit.commitSummaries` etc. remain observation-transparent.
+    let commit: GitCommitViewModel
 
     // MARK: - Git Multi-Project State
 
@@ -53,20 +59,6 @@ final class GitSidebarViewModel {
     /// Keys of the form "\(projectId):\(branchName)" for branches being operated on.
     var branchOperationsInProgress: Set<String> = []
 
-    // MARK: - Commit Panel State (per-project)
-
-    var commitSummaries: [UUID: String] = [:]
-    var commitDescriptions: [UUID: String] = [:]
-    var generatingAIProjects: Set<UUID> = []
-    var committingProjects: Set<UUID> = []
-    var commitPanelErrors: [UUID: String] = [:]
-
-    // MARK: - AI Diff Warning Dialog
-
-    var showAIDiffWarning = false
-    var pendingAIDiffProject: Project?
-    var pendingAIDiffText: String?
-
     // MARK: - Checkout Error Alert
 
     /// Unified git operation error (checkout, pull, push).
@@ -81,13 +73,21 @@ final class GitSidebarViewModel {
         revealInFinder: RevealInFinderUseCase? = nil
     ) {
         self.gitService = gitService
-        self.aiCommitService = aiCommitService
         self.projectManager = projectManager
         // `RevealInFinderUseCase()` is `@MainActor`-isolated, so it cannot
         // appear as a default value (callers may be nonisolated). The whole
         // VM is `@MainActor` though, so constructing it inside the init body
         // is safe.
         self.revealInFinderUseCase = revealInFinder ?? RevealInFinderUseCase()
+        self.commit = GitCommitViewModel(
+            gitService: gitService,
+            aiCommitService: aiCommitService
+        )
+        // After a commit, refresh git status/branches for the project. `weak`
+        // avoids a retain cycle (this VM strongly holds `commit`).
+        self.commit.onCommitted = { [weak self] project in
+            await self?.loadGitInfo(for: project)
+        }
     }
 
     // MARK: - Project Mutations
@@ -147,11 +147,7 @@ final class GitSidebarViewModel {
         remoteUnavailableProjects.remove(projectId)
         projectBranchErrors.removeValue(forKey: projectId)
         projectRemoteURLs.removeValue(forKey: projectId)
-        commitSummaries.removeValue(forKey: projectId)
-        commitDescriptions.removeValue(forKey: projectId)
-        generatingAIProjects.remove(projectId)
-        committingProjects.remove(projectId)
-        commitPanelErrors.removeValue(forKey: projectId)
+        commit.cleanup(projectId)
     }
 
     // MARK: - Git Info Loading
@@ -340,81 +336,4 @@ final class GitSidebarViewModel {
         }
     }
 
-    // MARK: - Commit Actions
-
-    func performCommit(for project: Project) async {
-        let summary = (commitSummaries[project.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !summary.isEmpty else {
-            commitPanelErrors[project.id] = "Commit summary cannot be empty"
-            return
-        }
-
-        let description = (commitDescriptions[project.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let fullMessage = description.isEmpty ? summary : "\(summary)\n\n\(description)"
-
-        committingProjects.insert(project.id)
-        commitPanelErrors.removeValue(forKey: project.id)
-        defer { committingProjects.remove(project.id) }
-
-        do {
-            try await gitService.stage(files: [], at: project.path)
-            try await gitService.commit(message: fullMessage, at: project.path)
-            commitSummaries.removeValue(forKey: project.id)
-            commitDescriptions.removeValue(forKey: project.id)
-            await loadGitInfo(for: project)
-        } catch let gitError as GitServiceError {
-            if case .commandFailed(_, _, let stderr) = gitError {
-                commitPanelErrors[project.id] = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                commitPanelErrors[project.id] = gitError.localizedDescription
-            }
-        } catch {
-            commitPanelErrors[project.id] = error.localizedDescription
-        }
-    }
-
-    /// First step of AI commit: get diff and show confirmation dialog.
-    func generateAICommitMessage(for project: Project) async {
-        commitPanelErrors.removeValue(forKey: project.id)
-
-        do {
-            let diff = try await gitService.headDiff(at: project.path)
-            guard !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                commitPanelErrors[project.id] = "No changes to analyze"
-                return
-            }
-
-            pendingAIDiffText = diff
-            pendingAIDiffProject = project
-            showAIDiffWarning = true
-        } catch {
-            commitPanelErrors[project.id] = "AI: \(error.localizedDescription)"
-        }
-    }
-
-    /// Called after the user confirms the AI diff warning dialog.
-    func sendAIDiff(_ diff: String, for project: Project) async {
-        generatingAIProjects.insert(project.id)
-        commitPanelErrors.removeValue(forKey: project.id)
-        defer { generatingAIProjects.remove(project.id) }
-
-        do {
-            let truncated = String(diff.prefix(AIConstants.maxDiffLength))
-            let result = try await aiCommitService.generateCommitMessage(for: truncated)
-
-            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
-            let lines = trimmed.components(separatedBy: "\n")
-            let summaryLine = lines.first?.trimmingCharacters(in: .whitespaces) ?? ""
-            let descPart = lines.dropFirst()
-                .drop(while: { $0.trimmingCharacters(in: .whitespaces).isEmpty })
-            let descText = Array(descPart).joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            commitSummaries[project.id] = summaryLine
-            commitDescriptions[project.id] = descText
-        } catch {
-            commitPanelErrors[project.id] = "AI: \(error.localizedDescription)"
-        }
-    }
 }

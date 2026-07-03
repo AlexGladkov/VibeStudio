@@ -21,6 +21,16 @@ import SwiftTerm
 /// - ``TerminalSessionStore`` -- view cache, session-project index.
 /// - ``TerminalActivityTracker`` -- debouncing, idle timers, activity states.
 /// - ``TerminalAppearanceManager`` -- fonts, colors, palette, env building.
+///
+/// The API surface is split across extension files for readability:
+/// - ``TerminalService+Session`` -- attach/detach, kill, split, query, input.
+/// - ``TerminalService+Callbacks`` -- appearance refresh, PTY callbacks, activity.
+///
+/// NOTE ON ACCESS LEVELS: several stored dependencies below are `internal`
+/// (no explicit modifier) rather than `private` because the extension files
+/// above live in separate source files and Swift's `private` is file-scoped.
+/// They are intentionally NOT public -- the type's public/observable API is
+/// unchanged.
 @Observable
 @MainActor
 final class TerminalService: TerminalSessionManaging {
@@ -28,7 +38,7 @@ final class TerminalService: TerminalSessionManaging {
     // MARK: - Constants
 
     /// Maximum number of terminal sessions per project.
-    private let maxSessionsPerProject = 8
+    let maxSessionsPerProject = 8
 
     // MARK: - Observable State
 
@@ -37,17 +47,17 @@ final class TerminalService: TerminalSessionManaging {
 
     // MARK: - Delegates
 
-    private let store = TerminalSessionStore()
-    private let appearance = TerminalAppearanceManager()
+    let store = TerminalSessionStore()
+    let appearance = TerminalAppearanceManager()
     /// ARCH-L3: initialised in `init` instead of `lazy var + _ = activityTracker`
     /// kludge. Required by `installCallbacks(...)` before any session exists,
     /// so eager init is correct.
-    @ObservationIgnored private let activityTracker: TerminalActivityTracker
+    @ObservationIgnored let activityTracker: TerminalActivityTracker
 
     // MARK: - Private State
 
     /// Continuation for the session events stream.
-    private let eventContinuation: AsyncStream<TerminalSessionEvent>.Continuation
+    let eventContinuation: AsyncStream<TerminalSessionEvent>.Continuation
 
     /// The session events stream.
     let sessionEvents: AsyncStream<TerminalSessionEvent>
@@ -59,7 +69,7 @@ final class TerminalService: TerminalSessionManaging {
     nonisolated(unsafe) private var fontObservationTask: Task<Void, Never>?
 
     /// General preferences (font size).
-    private let generalPreferences: GeneralPreferences
+    let generalPreferences: GeneralPreferences
 
     // MARK: - Init
 
@@ -259,237 +269,14 @@ final class TerminalService: TerminalSessionManaging {
         return session
     }
 
-    func attachView(to sessionId: UUID) throws -> NSView {
-        guard let view = store.view(for: sessionId) else {
-            throw TerminalSessionError.sessionNotFound(sessionId)
-        }
-        return view
-    }
-
-    func detachView(from sessionId: UUID) {
-        // Intentionally does NOT kill the PTY process.
-        // The view remains in the cache for re-attachment.
-    }
-
-    func resize(session sessionId: UUID, to size: TerminalSize) {
-        // ARCH-M8: PTY access funneled through `withProcess` — same guard
-        // as `sendInput` / `sendSignal` to avoid the implicit-unwrap crash
-        // documented in the helper.
-        withProcess(sessionId, label: "resize") { process in
-            let fd = process.childfd
-            guard fd >= 0 else { return }
-            var ws = winsize(
-                ws_row: UInt16(clamping: size.rows),
-                ws_col: UInt16(clamping: size.columns),
-                ws_xpixel: 0,
-                ws_ypixel: 0
-            )
-            _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: fd, windowSize: &ws)
-        }
-    }
-
-    func killSession(_ sessionId: UUID, force: Bool) {
-        guard let view = store.view(for: sessionId) else {
-            // View was already released by handleProcessExit (natural exit path).
-            removeSession(sessionId)
-            return
-        }
-
-        if force {
-            view.onRangeChanged = nil
-            view.onProcessExited = nil
-            sendSignal(to: view, signal: SIGKILL)
-            removeSession(sessionId)
-        } else {
-            sendSignal(to: view, signal: SIGTERM)
-            view.onRangeChanged = nil
-            view.onProcessExited = nil
-            let pid = view.process?.shellPid ?? 0
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(2))
-                guard let self else { return }
-                if pid > 0 && kill(pid, 0) == 0 {
-                    kill(pid, SIGKILL)
-                }
-                self.removeSession(sessionId)
-            }
-        }
-    }
-
-    func killAllSessions(for projectId: UUID) {
-        let sessionIds = sessionsByProject[projectId]?.map(\.id) ?? []
-        for id in sessionIds {
-            killSession(id, force: true)
-        }
-    }
-
-    // MARK: - TerminalSessionManaging: Split Panels
-
-    @discardableResult
-    func split(
-        _ sessionId: UUID,
-        direction: SplitDirection,
-        size: TerminalSize
-    ) throws -> TerminalSession {
-        guard let existingView = store.view(for: sessionId) else {
-            throw TerminalSessionError.sessionNotFound(sessionId)
-        }
-
-        let session = try createSession(
-            for: existingView.projectId,
-            shell: nil,
-            workingDirectory: nil,
-            size: size
-        )
-
-        updateSessionState(session.id) { s in
-            s.splitDirection = direction
-        }
-
-        return session
-    }
-
-    // MARK: - TerminalSessionManaging: Query
-
-    func session(for id: UUID) -> TerminalSession? {
-        guard let projectId = store.projectId(for: id) else { return nil }
-        return sessionsByProject[projectId]?.first(where: { $0.id == id })
-    }
-
-    func sessions(for projectId: UUID) -> [TerminalSession] {
-        sessionsByProject[projectId] ?? []
-    }
-
-    // MARK: - TerminalSessionManaging: Scrollback
-
-    func scrollbackContent(for sessionId: UUID) -> String? {
-        guard let view = store.view(for: sessionId),
-              view.window != nil else { return nil }
-        let terminal = view.getTerminal()
-        let data = terminal.getBufferAsData(kind: .active, encoding: .utf8)
-        let result = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (result?.isEmpty ?? true) ? nil : result
-    }
-
-    /// Returns the TaggedTerminalView for a session (if it exists).
-    /// Used by Remote Control to install `onLinesChanged` callback for streaming.
-    func terminalView(for sessionId: UUID) -> TaggedTerminalView? {
-        store.view(for: sessionId)
-    }
-
-    /// Returns the full terminal buffer content WITHOUT requiring the view
-    /// to be in a window hierarchy. Used by Remote Control to serve
-    /// scrollback to WebSocket clients.
-    func rawScrollbackContent(for sessionId: UUID) -> String? {
-        guard let view = store.view(for: sessionId) else { return nil }
-        let terminal = view.getTerminal()
-        let data = terminal.getBufferAsData(kind: .active, encoding: .utf8)
-        let result = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (result?.isEmpty ?? true) ? nil : result
-    }
-
-    // MARK: - TerminalSessionManaging: Input
-
-    func sendInput(_ text: String, to sessionId: UUID) {
-        withProcess(sessionId, label: "sendInput") { process in
-            #if DEBUG
-            // ARCH-M1: hot-path debug — keystroke-level. Keep only in
-            // Debug builds to avoid leaking input timing in Console.app.
-            Logger.terminal.debug("sendInput: running=\(process.running)")
-            #endif
-            let bytes = [UInt8](text.utf8)
-            process.send(data: bytes[...])
-        }
-    }
-
-    // MARK: - TerminalSessionManaging: Activity
-
-    /// Mark a project as seen by the user -- clears the yellow indicator.
-    func markProjectSeen(_ projectId: UUID) {
-        activityTracker.markProjectSeen(projectId, currentState: projectActivityStates[projectId])
-    }
-
-    // MARK: - Terminal Appearance
-
-    /// Re-apply theme colors to all currently live terminal views.
-    func refreshTerminalColors(for appAppearance: AppAppearance? = nil) {
-        appearance.refreshColors(for: store.allViews, appearance: appAppearance)
-        Logger.terminal.info("TerminalService: refreshed colors for \(self.store.viewCount) views")
-    }
-
-    /// Re-apply font size to all currently live terminal views.
-    private func refreshTerminalFont(size: CGFloat) {
-        appearance.refreshFont(for: store.allViews, size: size)
-        Logger.terminal.info("TerminalService: refreshed font size to \(size) for \(self.store.viewCount) views")
-    }
-
-    // MARK: - Private: Terminal Configuration
-
-    /// Install activity and process-exit callbacks on a terminal view.
-    private func installCallbacks(
-        on terminalView: TaggedTerminalView,
-        sessionId: UUID,
-        projectId: UUID
-    ) {
-        // SwiftTerm calls rangeChanged from updateDisplay(), dispatched on
-        // DispatchQueue.main. Using MainActor.assumeIsolated avoids flooding
-        // the executor with thousands of enqueued tasks per second.
-        terminalView.onRangeChanged = { [weak self] sid in
-            MainActor.assumeIsolated {
-                self?.handleActivity(sessionId: sid, projectId: projectId)
-            }
-        }
-
-        terminalView.onProcessExited = { [weak self] sid, exitCode in
-            MainActor.assumeIsolated {
-                self?.handleProcessExit(sessionId: sid, projectId: projectId, exitCode: exitCode)
-            }
-        }
-    }
-
-    // MARK: - Private: Process Management
-
-    /// Send a POSIX signal to the terminal process.
-    private func sendSignal(to view: TaggedTerminalView, signal sig: Int32) {
-        guard let process = view.process else { return }
-        let pid = process.shellPid
-        if pid > 0 {
-            kill(pid, sig)
-        }
-    }
-
-    /// Look up the live PTY view for `sessionId` and invoke `perform` with
-    /// its `LocalProcess` reference.
-    ///
-    /// ARCH-M8: replaces the previous copy-pasted guard pattern
-    /// (`store.view` → `view.process` → log warning) in `sendInput` /
-    /// `resize` / signal helpers. Returns silently when the view has been
-    /// removed or its PTY failed to spawn.
-    ///
-    /// - Parameters:
-    ///   - sessionId: Target session.
-    ///   - label: Short description used in the warning log line.
-    ///   - perform: Closure invoked with the live `LocalProcess`.
-    private func withProcess(
-        _ sessionId: UUID,
-        label: String,
-        perform: (LocalProcess) -> Void
-    ) {
-        guard let view = store.view(for: sessionId) else {
-            Logger.terminal.warning("\(label, privacy: .public): view not found for session \(sessionId)")
-            return
-        }
-        guard let process = view.process else {
-            Logger.terminal.warning("\(label, privacy: .public): process is nil for session \(sessionId)")
-            return
-        }
-        perform(process)
-    }
+    // MARK: - Internal: Session State Mutation
+    //
+    // These two writers mutate the `private(set)` observable state, so they
+    // MUST live in the primary declaration (Swift's `private(set)` setter is
+    // file-scoped). They are `internal` so the extension files can call them.
 
     /// Remove a session from internal tracking.
-    private func removeSession(_ sessionId: UUID) {
+    func removeSession(_ sessionId: UUID) {
         store.removeView(for: sessionId)
         activityTracker.removeSession(sessionId)
 
@@ -509,91 +296,11 @@ final class TerminalService: TerminalSessionManaging {
     }
 
     /// Update a session's state in the internal model.
-    private func updateSessionState(_ sessionId: UUID, _ mutate: (inout TerminalSession) -> Void) {
+    func updateSessionState(_ sessionId: UUID, _ mutate: (inout TerminalSession) -> Void) {
         guard let projectId = store.projectId(for: sessionId),
               var sessions = sessionsByProject[projectId],
               let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
         mutate(&sessions[index])
         sessionsByProject[projectId] = sessions
-    }
-
-    // MARK: - Private: Activity Handling
-
-    /// Handle activity detection from a terminal view.
-    private func handleActivity(sessionId: UUID, projectId: UUID) {
-        // Emit activity event for backward compatibility.
-        eventContinuation.yield(
-            .activityDetected(sessionId: sessionId, projectId: projectId)
-        )
-
-        // Delegate debouncing, state machine, and idle timers to the tracker.
-        activityTracker.handleActivity(
-            sessionId: sessionId,
-            projectId: projectId,
-            currentState: projectActivityStates[projectId],
-            promptChecker: { [weak self] sid in
-                guard let self else { return false }
-                let store = self.store
-                return self.activityTracker.isAtShellPrompt(
-                    sessionId: sid,
-                    viewProvider: { store.view(for: $0) }
-                )
-            }
-        )
-
-        // Update session state to hasActivity if not already.
-        updateSessionState(sessionId) { session in
-            if case .running = session.state {
-                session.state = .hasActivity
-            }
-        }
-    }
-
-    /// Handle process exit from a terminal view.
-    private func handleProcessExit(sessionId: UUID, projectId: UUID, exitCode: Int32) {
-        let isAgent = sessionsByProject[projectId]?.first(where: { $0.id == sessionId })?.isAgentSession ?? false
-        Logger.terminal.warning("handleProcessExit: session=\(sessionId) exitCode=\(exitCode) isAgent=\(isAgent, privacy: .public)")
-
-        // Capture terminal buffer so we can see what the agent printed before exiting.
-        if isAgent, let view = store.view(for: sessionId) {
-            let data = view.getTerminal().getBufferAsData(kind: .active, encoding: .utf8)
-            if let raw = String(data: data, encoding: .utf8) {
-                // Strip ANSI escape codes for readability in Console.app.
-                let clean = raw.replacingOccurrences(
-                    of: #"\x1B\[[0-9;]*[mGKHJABCDEFG]|\x1B\][^\x07]*\x07"#,
-                    with: "", options: .regularExpression
-                ).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !clean.isEmpty {
-                    Logger.terminal.warning("Agent exit output (exitCode=\(exitCode)):\n\(clean.prefix(3000), privacy: .private)")
-                }
-            }
-        }
-
-        // Nil callbacks immediately to stop further updates.
-        if let view = store.view(for: sessionId) {
-            view.onRangeChanged = nil
-            view.onProcessExited = nil
-        }
-        activityTracker.removeSession(sessionId)
-
-        // Emit event so ToolbarViewModel clears the running state.
-        eventContinuation.yield(
-            .processExited(sessionId: sessionId, projectId: projectId, exitCode: exitCode)
-        )
-        activityTracker.handleProcessExit(projectId: projectId, exitCode: exitCode)
-
-        if isAgent {
-            // Keep agent session visible for 10 s so the user can read any error
-            // output (e.g. "$PATH does not contain…"). Mark state as exited so
-            // TerminalAreaView keeps displaying it. Actual cleanup is deferred.
-            updateSessionState(sessionId) { s in s.state = .exited(code: exitCode) }
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(10))
-                self?.removeSession(sessionId)
-            }
-        } else {
-            // Shell sessions are removed immediately on exit.
-            removeSession(sessionId)
-        }
     }
 }

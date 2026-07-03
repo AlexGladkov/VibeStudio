@@ -100,17 +100,7 @@ struct BranchListView: View {
         let isOperating = gitSidebarVM.branchOperationsInProgress.contains("\(project.id):\(branch.name)")
 
         return HStack(spacing: DSSpacing.xs) {
-            // Current / loading indicator
-            if isOperating {
-                ProgressView()
-                    .scaleEffect(DSLayout.progressScaleTiny)
-                    .frame(width: DSSpacing.md, height: DSSpacing.md)
-            } else {
-                Image(systemName: isCurrent ? "checkmark" : "circle")
-                    .font(isCurrent ? DSFont.subGridCheckmark : DSFont.subGridDot)
-                    .foregroundStyle(isCurrent ? DSColor.gitAdded : DSColor.textDisabled)
-                    .frame(width: DSSpacing.md)
-            }
+            branchStatusIndicator(isOperating: isOperating, isCurrent: isCurrent)
 
             Image(systemName: "arrow.triangle.branch")
                 .font(DSFont.iconMD)
@@ -139,25 +129,46 @@ struct BranchListView: View {
             Task { await gitSidebarVM.checkout(branch: branch.name, project: project) }
         }
         .contextMenu {
-            Button {
-                Task { await gitSidebarVM.gitBranchPull(branch.name, isCurrent: isCurrent, project: project) }
-            } label: {
-                Label("Pull", systemImage: "arrow.down.circle")
-            }
+            branchContextMenu(branch: branch, isCurrent: isCurrent)
+        }
+    }
 
-            Button {
-                Task { await gitSidebarVM.gitBranchPush(branch.name, project: project) }
-            } label: {
-                Label("Push", systemImage: "arrow.up.circle")
-            }
+    /// Leading current/loading indicator for a branch row.
+    @ViewBuilder
+    private func branchStatusIndicator(isOperating: Bool, isCurrent: Bool) -> some View {
+        if isOperating {
+            ProgressView()
+                .scaleEffect(DSLayout.progressScaleTiny)
+                .frame(width: DSSpacing.md, height: DSSpacing.md)
+        } else {
+            Image(systemName: isCurrent ? "checkmark" : "circle")
+                .font(isCurrent ? DSFont.subGridCheckmark : DSFont.subGridDot)
+                .foregroundStyle(isCurrent ? DSColor.gitAdded : DSColor.textDisabled)
+                .frame(width: DSSpacing.md)
+        }
+    }
 
-            Divider()
+    /// Right-click menu for a local branch row: pull, push, create branch here.
+    @ViewBuilder
+    private func branchContextMenu(branch: GitBranch, isCurrent: Bool) -> some View {
+        Button {
+            Task { await gitSidebarVM.gitBranchPull(branch.name, isCurrent: isCurrent, project: project) }
+        } label: {
+            Label("Pull", systemImage: "arrow.down.circle")
+        }
 
-            Button {
-                branchCreationContext = BranchCreationContext(project: project, fromBranch: branch.name)
-            } label: {
-                Label("Create branch here", systemImage: "plus.circle")
-            }
+        Button {
+            Task { await gitSidebarVM.gitBranchPush(branch.name, project: project) }
+        } label: {
+            Label("Push", systemImage: "arrow.up.circle")
+        }
+
+        Divider()
+
+        Button {
+            branchCreationContext = BranchCreationContext(project: project, fromBranch: branch.name)
+        } label: {
+            Label("Create branch here", systemImage: "plus.circle")
         }
     }
 
@@ -188,12 +199,12 @@ struct BranchListView: View {
 
     private func remoteSectionSeparator() -> some View {
         HStack(spacing: DSSpacing.xs) {
-            Rectangle().fill(DSColor.borderSubtle).frame(height: 1)
+            ThinDivider()
             Text("origin")
                 .font(DSFont.iconMD)
                 .foregroundStyle(DSColor.textMuted)
                 .fixedSize()
-            Rectangle().fill(DSColor.borderSubtle).frame(height: 1)
+            ThinDivider()
         }
         .padding(.vertical, DSSpacing.xs)
     }

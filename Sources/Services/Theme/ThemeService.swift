@@ -18,7 +18,7 @@ import SwiftUI
 /// Observers use `@Observable` / `withObservationTracking` on `selectedAppearance`.
 @Observable
 @MainActor
-final class ThemeService: ThemeServicing {
+final class ThemeService {
 
     // MARK: - Stored State
 
@@ -48,7 +48,7 @@ final class ThemeService: ThemeServicing {
     /// `TerminalService`: `deinit` is non-isolated and we write only in `init`.
     nonisolated(unsafe) private var systemThemeObserver: NSObjectProtocol?
 
-    // MARK: - ThemeServicing: resolvedColorScheme
+    // MARK: - Resolved Color Scheme
 
     /// Always returns a concrete `.dark` or `.light` value.
     ///
@@ -105,7 +105,7 @@ final class ThemeService: ThemeServicing {
         }
     }
 
-    // MARK: - ThemeServicing
+    // MARK: - Appearance Control
 
     func setAppearance(_ appearance: AppAppearance) {
         selectedAppearance = appearance

@@ -15,7 +15,7 @@ import Foundation
 /// 1. Create a struct conforming to `SyntaxParsing & Sendable`.
 /// 2. Return file extensions in `supportedExtensions`.
 /// 3. Extend `SyntaxTokenKind` for any new token kinds.
-/// 4. Register via `SyntaxParserRegistering.register(_:)` at app startup.
+/// 4. Register via `SyntaxParserRegistry.register(_:)` at app startup.
 protocol SyntaxParsing: Sendable {
 
     /// File extensions handled by this parser (e.g. `["cs.md"]`, `["md"]`).

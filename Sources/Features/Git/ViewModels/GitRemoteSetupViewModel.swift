@@ -12,7 +12,7 @@ final class GitRemoteSetupViewModel {
 
     // MARK: - Constants
 
-    private static let dismissDelayMilliseconds: UInt64 = 800
+    private static let dismissDelayMilliseconds: Int = 800
 
     // MARK: - Input State
 
@@ -27,12 +27,13 @@ final class GitRemoteSetupViewModel {
 
     // MARK: - Dependencies
 
-    private let gitService: any GitServicing
+    // ISP: only addRemote(...) is used — narrowed to `GitRemoteOperating`.
+    private let gitService: any GitRemoteOperating
     private let project: Project
 
     // MARK: - Init
 
-    init(gitService: any GitServicing, project: Project) {
+    init(gitService: any GitRemoteOperating, project: Project) {
         self.gitService = gitService
         self.project = project
     }
@@ -53,7 +54,7 @@ final class GitRemoteSetupViewModel {
         do {
             try await gitService.addRemote(name: name, url: url, at: project.path)
             successMessage = "Remote '\(name)' added"
-            try? await Task.sleep(nanoseconds: Self.dismissDelayMilliseconds * 1_000_000)
+            try? await Task.sleep(for: .milliseconds(Self.dismissDelayMilliseconds))
             isAdding = false
             return true
         } catch {

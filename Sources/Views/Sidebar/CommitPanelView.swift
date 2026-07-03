@@ -18,9 +18,10 @@ struct CommitPanelView: View {
         let hasChanges = !(gitStatus?.stagedFiles.isEmpty ?? true)
             || !(gitStatus?.unstagedFiles.isEmpty ?? true)
             || !(gitStatus?.untrackedFiles.isEmpty ?? true)
-        let isGenerating = gitSidebarVM.generatingAIProjects.contains(project.id)
-        let isCommitting = gitSidebarVM.committingProjects.contains(project.id)
-        let summaryText = gitSidebarVM.commitSummaries[project.id] ?? ""
+        let commitVM = gitSidebarVM.commit
+        let isGenerating = commitVM.generatingAIProjects.contains(project.id)
+        let isCommitting = commitVM.committingProjects.contains(project.id)
+        let summaryText = commitVM.commitSummaries[project.id] ?? ""
         let charCount = summaryText.count
         let isOverLimit = charCount > GitConstants.commitSummaryMaxLength
 
@@ -52,8 +53,8 @@ struct CommitPanelView: View {
                     TextField(
                         "Commit summary",
                         text: Binding(
-                            get: { gitSidebarVM.commitSummaries[project.id] ?? "" },
-                            set: { gitSidebarVM.commitSummaries[project.id] = $0 }
+                            get: { commitVM.commitSummaries[project.id] ?? "" },
+                            set: { commitVM.commitSummaries[project.id] = $0 }
                         ),
                         axis: .vertical
                     )
@@ -65,7 +66,7 @@ struct CommitPanelView: View {
                     .opacity(hasChanges ? 1 : 0.35)
 
                     Button {
-                        Task { await gitSidebarVM.generateAICommitMessage(for: project) }
+                        Task { await commitVM.generateAICommitMessage(for: project) }
                     } label: {
                         if isGenerating {
                             ProgressView()
@@ -99,8 +100,8 @@ struct CommitPanelView: View {
                 TextField(
                     "Description (optional)",
                     text: Binding(
-                        get: { gitSidebarVM.commitDescriptions[project.id] ?? "" },
-                        set: { gitSidebarVM.commitDescriptions[project.id] = $0 }
+                        get: { commitVM.commitDescriptions[project.id] ?? "" },
+                        set: { commitVM.commitDescriptions[project.id] = $0 }
                     ),
                     axis: .vertical
                 )
@@ -120,7 +121,7 @@ struct CommitPanelView: View {
             )
 
             // Inline error
-            if let error = gitSidebarVM.commitPanelErrors[project.id] {
+            if let error = commitVM.commitPanelErrors[project.id] {
                 Text(error)
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.gitDeleted)
@@ -129,7 +130,7 @@ struct CommitPanelView: View {
 
             // Commit button
             Button {
-                Task { await gitSidebarVM.performCommit(for: project) }
+                Task { await commitVM.performCommit(for: project) }
             } label: {
                 ZStack {
                     if isCommitting {

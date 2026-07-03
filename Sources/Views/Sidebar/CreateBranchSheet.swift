@@ -13,17 +13,16 @@ struct CreateBranchSheet: View {
     @Environment(\.gitService) private var gitService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var vm: CreateBranchViewModel?
+    @State private var vmBox = LazyStateObject<CreateBranchViewModel>()
 
     private var viewModel: CreateBranchViewModel {
-        if let existing = vm { return existing }
-        let created = CreateBranchViewModel(
-            gitService: gitService,
-            project: project,
-            fromBranch: fromBranch
-        )
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve {
+            CreateBranchViewModel(
+                gitService: gitService,
+                project: project,
+                fromBranch: fromBranch
+            )
+        }
     }
 
     var body: some View {
@@ -108,14 +107,5 @@ struct CreateBranchSheet: View {
             idealHeight: DSLayout.sheetSmallHeight
         )
         .background(DSColor.surfaceOverlay)
-        .onAppear {
-            if vm == nil {
-                vm = CreateBranchViewModel(
-                    gitService: gitService,
-                    project: project,
-                    fromBranch: fromBranch
-                )
-            }
-        }
     }
 }

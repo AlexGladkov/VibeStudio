@@ -90,122 +90,77 @@ actor CodeSpeakProcessRunner {
                     return
                 }
 
-                // 3. Build allowlist-based environment
-                let allowedVars: Set<String> = [
-                    "HOME", "USER", "LOGNAME",
-                    "LANG", "LC_ALL", "LC_CTYPE",
-                    "TERM", "COLORTERM",
-                    "PATH", "SSH_AUTH_SOCK",
-                    "SHELL", "TMPDIR",
-                    "XDG_CONFIG_HOME", "XDG_DATA_HOME"
-                ]
-                let parentEnv = ProcessInfo.processInfo.environment
-                var processEnv: [String: String] = [:]
-                for key in allowedVars {
-                    if let value = parentEnv[key] {
-                        processEnv[key] = value
-                    }
-                }
-
-                // Ensure terminal capabilities and locale are always set.
-                processEnv["TERM"] = processEnv["TERM"] ?? "xterm-256color"
-                processEnv["LANG"] = processEnv["LANG"] ?? "en_US.UTF-8"
-
-                // Prepend trusted bin directories to PATH so codespeak can find
-                // its own binary, git, node, and other tools.
-                let trustedBins = SecurityConstants.trustedBinDirectories
-                let currentPath = processEnv["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
-                let existingParts = currentPath.split(separator: ":").map(String.init)
-                let missingBins = trustedBins.filter { !existingParts.contains($0) }
-                if !missingBins.isEmpty {
-                    processEnv["PATH"] = (missingBins + existingParts).joined(separator: ":")
-                }
-
-                // Inject API key after building the safe env.
-                processEnv["ANTHROPIC_API_KEY"] = apiKey
-                for (k, v) in env { processEnv[k] = v }
-
-                // 4. Configure and launch process
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: binaryPath)
-                process.arguments = args
-                process.currentDirectoryURL = directory
-                process.environment = processEnv
-
-                let pipe = Pipe()
-                let errorPipe = Pipe()
-                process.standardOutput = pipe
-                process.standardError = errorPipe
-
-                // 5. Stream stdout
-                let outHandle = pipe.fileHandleForReading
-                outHandle.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    guard !data.isEmpty else { return }
-                    if let text = String(data: data, encoding: .utf8) {
-                        for line in text.components(separatedBy: "\n") {
-                            let trimmed = line.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty {
-                                continuation.yield(.line(trimmed))
-                            }
-                        }
-                    }
-                }
-
-                // 6. Stream stderr
-                let errHandle = errorPipe.fileHandleForReading
-                errHandle.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    guard !data.isEmpty else { return }
-                    if let text = String(data: data, encoding: .utf8) {
-                        for line in text.components(separatedBy: "\n") {
-                            let trimmed = line.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty {
-                                continuation.yield(.line(trimmed))
-                            }
-                        }
-                    }
-                }
-
-                // 7. Launch and handle termination asynchronously
-                do {
-                    // terminationHandler fires on a Foundation background thread.
-                    // Capture only local `let` values; use Task for actor-isolated access.
-                    process.terminationHandler = { [weak self] proc in
-                        // Drain remaining data from pipes
-                        outHandle.readabilityHandler = nil
-                        errHandle.readabilityHandler = nil
-
-                        let remainingOut = outHandle.readDataToEndOfFile()
-                        if !remainingOut.isEmpty, let text = String(data: remainingOut, encoding: .utf8) {
-                            for line in text.components(separatedBy: "\n") {
-                                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                                if !trimmed.isEmpty { continuation.yield(.line(trimmed)) }
-                            }
-                        }
-                        let remainingErr = errHandle.readDataToEndOfFile()
-                        if !remainingErr.isEmpty, let text = String(data: remainingErr, encoding: .utf8) {
-                            for line in text.components(separatedBy: "\n") {
-                                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                                if !trimmed.isEmpty { continuation.yield(.line(trimmed)) }
-                            }
-                        }
-
-                        continuation.yield(.exitCode(proc.terminationStatus))
-                        continuation.finish()
-
-                        // Clear actor state via async hop
-                        Task { await self?.clearProcess(generation: myGen) }
-                    }
-
-                    try process.run()
-                    await self.setCurrentProcess(process, generation: myGen)
-                } catch {
-                    continuation.yield(.error("Failed to launch codespeak: \(error.localizedDescription)"))
-                    continuation.yield(.exitCode(1))
-                    continuation.finish()
-                }
+                // 3. Build allowlist-based environment, then configure + launch.
+                let processEnv = Self.buildProcessEnvironment(apiKey: apiKey, extra: env)
+                let config = LaunchConfig(
+                    binaryPath: binaryPath, args: args, directory: directory, env: processEnv
+                )
+                await self.launchProcess(config, continuation: continuation, generation: myGen)
             }
+        }
+    }
+
+    /// Immutable inputs needed to configure + spawn the `codespeak` subprocess.
+    private struct LaunchConfig {
+        let binaryPath: String
+        let args: [String]
+        let directory: URL
+        let env: [String: String]
+    }
+
+    /// Configure the `Process`, wire stdout/stderr streaming + the termination
+    /// handler, and launch it. Extracted from ``run(_:at:env:)`` to keep that
+    /// method under SwiftLint's `function_body_length` budget.
+    private func launchProcess(
+        _ config: LaunchConfig,
+        continuation: AsyncStream<CodeSpeakOutput>.Continuation,
+        generation myGen: UInt64
+    ) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: config.binaryPath)
+        process.arguments = config.args
+        process.currentDirectoryURL = config.directory
+        process.environment = config.env
+
+        let pipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = errorPipe
+
+        // Stream stdout + stderr as data arrives.
+        let outHandle = pipe.fileHandleForReading
+        outHandle.readabilityHandler = { handle in
+            Self.yieldLines(handle.availableData, into: continuation)
+        }
+        let errHandle = errorPipe.fileHandleForReading
+        errHandle.readabilityHandler = { handle in
+            Self.yieldLines(handle.availableData, into: continuation)
+        }
+
+        do {
+            // terminationHandler fires on a Foundation background thread.
+            // Capture only local `let` values; use Task for actor-isolated access.
+            process.terminationHandler = { [weak self] proc in
+                // Drain remaining data from pipes
+                outHandle.readabilityHandler = nil
+                errHandle.readabilityHandler = nil
+
+                Self.yieldLines(outHandle.readDataToEndOfFile(), into: continuation)
+                Self.yieldLines(errHandle.readDataToEndOfFile(), into: continuation)
+
+                continuation.yield(.exitCode(proc.terminationStatus))
+                continuation.finish()
+
+                // Clear actor state via async hop
+                Task { await self?.clearProcess(generation: myGen) }
+            }
+
+            try process.run()
+            setCurrentProcess(process, generation: myGen)
+        } catch {
+            continuation.yield(.error("Failed to launch codespeak: \(error.localizedDescription)"))
+            continuation.yield(.exitCode(1))
+            continuation.finish()
         }
     }
 
@@ -213,6 +168,67 @@ actor CodeSpeakProcessRunner {
     private func setCurrentProcess(_ process: Process, generation gen: UInt64) {
         guard gen == generation else { return }
         currentProcess = process
+    }
+
+    // MARK: - Private: Environment & Output Helpers
+
+    /// Build the allowlist-based subprocess environment for `codespeak`.
+    ///
+    /// Copies only trusted variables from the parent environment, guarantees
+    /// terminal/locale defaults, prepends trusted bin directories to `PATH`,
+    /// injects `ANTHROPIC_API_KEY`, then merges any caller-supplied `extra`.
+    private nonisolated static func buildProcessEnvironment(
+        apiKey: String,
+        extra: [String: String]
+    ) -> [String: String] {
+        let allowedVars: Set<String> = [
+            "HOME", "USER", "LOGNAME",
+            "LANG", "LC_ALL", "LC_CTYPE",
+            "TERM", "COLORTERM",
+            "PATH", "SSH_AUTH_SOCK",
+            "SHELL", "TMPDIR",
+            "XDG_CONFIG_HOME", "XDG_DATA_HOME"
+        ]
+        let parentEnv = ProcessInfo.processInfo.environment
+        var processEnv: [String: String] = [:]
+        for key in allowedVars {
+            if let value = parentEnv[key] {
+                processEnv[key] = value
+            }
+        }
+
+        // Ensure terminal capabilities and locale are always set.
+        processEnv["TERM"] = processEnv["TERM"] ?? "xterm-256color"
+        processEnv["LANG"] = processEnv["LANG"] ?? "en_US.UTF-8"
+
+        // Prepend trusted bin directories to PATH so codespeak can find
+        // its own binary, git, node, and other tools.
+        let trustedBins = SecurityConstants.trustedBinDirectories
+        let currentPath = processEnv["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let existingParts = currentPath.split(separator: ":").map(String.init)
+        let missingBins = trustedBins.filter { !existingParts.contains($0) }
+        if !missingBins.isEmpty {
+            processEnv["PATH"] = (missingBins + existingParts).joined(separator: ":")
+        }
+
+        // Inject API key after building the safe env.
+        processEnv["ANTHROPIC_API_KEY"] = apiKey
+        for (k, v) in extra { processEnv[k] = v }
+        return processEnv
+    }
+
+    /// Split raw pipe `data` into trimmed, non-empty lines and yield each as `.line`.
+    private nonisolated static func yieldLines(
+        _ data: Data,
+        into continuation: AsyncStream<CodeSpeakOutput>.Continuation
+    ) {
+        guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { return }
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                continuation.yield(.line(trimmed))
+            }
+        }
     }
 
     // MARK: - Private: API Key Resolution

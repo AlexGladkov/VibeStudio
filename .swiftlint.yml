@@ -7,22 +7,61 @@ excluded:
 
 identifier_name:
   excluded:
-    - c
-    - r
-    - g
+    # Single-char loop/closure/graphics locals
+    - a
     - b
+    - c
+    - g
     - h
+    - i
+    - j
+    - k
+    - m
+    - p
+    - r
+    - s
+    - v
     - w
     - x
     - y
     - z
+    # Idiomatic two-char abbreviations used across the codebase.
+    # fm=FileManager, vm=viewModel, ch=NIO channel, ts=timestamp, ip=address,
+    # tv=terminalView, vc=viewController, ws=webSocket, rc=remoteControl.
+    - bg
+    - ch
     - cs
+    - cv
     - cx
     - cy
     - dx
     - dy
+    - el
+    - fd
+    - fg
+    - fm
+    - gs
     - id
+    - ip
+    - lw
+    - ok
+    - op
+    - pb
+    - rc
+    - sa
     - to
+    - ts
+    - tv
+    - ui
+    - vc
+    - vm
+    - ws
+    # DesignSystem spacing/size tokens — public API (DSSpacing.md, DSRadius.lg …)
+    - lg
+    - md
+    - sm
+    - xl
+    - xs
 
 opt_in_rules:
   - empty_count

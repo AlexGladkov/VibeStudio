@@ -77,7 +77,9 @@ struct RestoreSessionUseCase {
                             workingDirectory: layout.workingDirectory ?? project.path
                         )
                     } catch {
-                        Logger.terminal.error("RestoreSessionUseCase: failed to restore terminal session: \(error.localizedDescription, privacy: .public)")
+                        Logger.terminal.error(
+                            "RestoreSessionUseCase: failed to restore terminal session: \(error.localizedDescription, privacy: .public)"
+                        )
                     }
                 }
             }

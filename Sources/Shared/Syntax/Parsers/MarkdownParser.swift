@@ -111,65 +111,88 @@ struct MarkdownParser: SyntaxParsing, Sendable {
         var i = 0
         while i < length {
             // Bold **text** or __text__
-            if i + 1 < length {
-                let pair = nsLine.substring(with: NSRange(location: i, length: 2))
-                if pair == "**" || pair == "__" {
-                    if let endIdx = findClosing(marker: pair, in: nsLine, from: i + 2) {
-                        let range = NSRange(
-                            location: lineRange.location + i,
-                            length: endIdx - i + 2
-                        )
-                        tokens.append(SyntaxToken(kind: .bold, range: range))
-                        i = endIdx + 2
-                        continue
-                    }
-                }
+            if let (token, next) = matchBold(at: i, in: nsLine, length: length, lineRange: lineRange) {
+                tokens.append(token)
+                i = next
+                continue
             }
 
-            // Italic *text* or _text_ (single char)
             let ch = nsLine.character(at: i)
-            if ch == 0x2A || ch == 0x5F { // * or _
-                let marker = String(UnicodeScalar(ch)!)
-                if let endIdx = findClosing(marker: marker, in: nsLine, from: i + 1) {
-                    let range = NSRange(
-                        location: lineRange.location + i,
-                        length: endIdx - i + 1
-                    )
-                    tokens.append(SyntaxToken(kind: .italic, range: range))
-                    i = endIdx + 1
-                    continue
-                }
+
+            // Italic *text* or _text_ (single char)
+            if let (token, next) = matchItalic(at: i, char: ch, in: nsLine, lineRange: lineRange) {
+                tokens.append(token)
+                i = next
+                continue
             }
 
             // Inline code `text`
-            if ch == 0x60 { // `
-                if let endIdx = findClosing(marker: "`", in: nsLine, from: i + 1) {
-                    let range = NSRange(
-                        location: lineRange.location + i,
-                        length: endIdx - i + 1
-                    )
-                    tokens.append(SyntaxToken(kind: .inlineCode, range: range))
-                    i = endIdx + 1
-                    continue
-                }
+            if let (token, next) = matchInlineCode(at: i, char: ch, in: nsLine, lineRange: lineRange) {
+                tokens.append(token)
+                i = next
+                continue
             }
 
             // Link [text](url)
-            if ch == 0x5B { // [
-                if let (linkRange, urlRange) = parseLinkAt(
-                    i, in: nsLine, lineRange: lineRange
-                ) {
-                    tokens.append(SyntaxToken(kind: .link, range: linkRange))
-                    tokens.append(SyntaxToken(kind: .linkURL, range: urlRange))
-                    i = urlRange.location - lineRange.location + urlRange.length
-                    continue
-                }
+            if let (linkTokens, next) = matchLink(at: i, char: ch, in: nsLine, lineRange: lineRange) {
+                tokens.append(contentsOf: linkTokens)
+                i = next
+                continue
             }
 
             i += 1
         }
 
         return tokens
+    }
+
+    /// Match `**bold**` / `__bold__` at `i`; returns the token and next index.
+    private func matchBold(
+        at i: Int, in nsLine: NSString, length: Int, lineRange: NSRange
+    ) -> (SyntaxToken, Int)? {
+        guard i + 1 < length else { return nil }
+        let pair = nsLine.substring(with: NSRange(location: i, length: 2))
+        guard pair == "**" || pair == "__" else { return nil }
+        guard let endIdx = findClosing(marker: pair, in: nsLine, from: i + 2) else { return nil }
+        let range = NSRange(location: lineRange.location + i, length: endIdx - i + 2)
+        return (SyntaxToken(kind: .bold, range: range), endIdx + 2)
+    }
+
+    /// Match `*italic*` / `_italic_` at `i`; returns the token and next index.
+    private func matchItalic(
+        at i: Int, char ch: unichar, in nsLine: NSString, lineRange: NSRange
+    ) -> (SyntaxToken, Int)? {
+        guard ch == 0x2A || ch == 0x5F else { return nil } // * or _
+        let marker = String(UnicodeScalar(ch)!)
+        guard let endIdx = findClosing(marker: marker, in: nsLine, from: i + 1) else { return nil }
+        let range = NSRange(location: lineRange.location + i, length: endIdx - i + 1)
+        return (SyntaxToken(kind: .italic, range: range), endIdx + 1)
+    }
+
+    /// Match `` `code` `` at `i`; returns the token and next index.
+    private func matchInlineCode(
+        at i: Int, char ch: unichar, in nsLine: NSString, lineRange: NSRange
+    ) -> (SyntaxToken, Int)? {
+        guard ch == 0x60 else { return nil } // `
+        guard let endIdx = findClosing(marker: "`", in: nsLine, from: i + 1) else { return nil }
+        let range = NSRange(location: lineRange.location + i, length: endIdx - i + 1)
+        return (SyntaxToken(kind: .inlineCode, range: range), endIdx + 1)
+    }
+
+    /// Match `[text](url)` at `i`; returns the link + URL tokens and next index.
+    private func matchLink(
+        at i: Int, char ch: unichar, in nsLine: NSString, lineRange: NSRange
+    ) -> ([SyntaxToken], Int)? {
+        guard ch == 0x5B else { return nil } // [
+        guard let (linkRange, urlRange) = parseLinkAt(i, in: nsLine, lineRange: lineRange) else { return nil }
+        let next = urlRange.location - lineRange.location + urlRange.length
+        return (
+            [
+                SyntaxToken(kind: .link, range: linkRange),
+                SyntaxToken(kind: .linkURL, range: urlRange)
+            ],
+            next
+        )
     }
 
     private func findClosing(

@@ -132,7 +132,7 @@ struct CodeSpeakSpecListColumn: View {
             Text("No specs found")
                 .font(DSFont.sidebarItemSmall)
                 .foregroundStyle(DSColor.textMuted)
-                .padding(.leading, 28) // 2x chevronFrameWidth
+                .padding(.leading, DSLayout.chevronFrameWidth * 2)
                 .padding(.vertical, DSSpacing.xs)
         } else {
             let failingSpecs = vm.specsVM.specFiles.filter { $0.status == .failing }
@@ -150,7 +150,7 @@ struct CodeSpeakSpecListColumn: View {
                     Text("All specs passing")
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.gitAdded)
-                        .padding(.leading, 28)
+                        .padding(.leading, DSLayout.chevronFrameWidth * 2)
                         .padding(.vertical, DSSpacing.xs)
                 }
             }

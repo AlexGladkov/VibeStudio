@@ -26,3 +26,31 @@ enum WSCloseCode {
     /// the connection has been idle longer than the configured threshold.
     static let heartbeatTimeout: UInt16 = 4004
 }
+
+/// Payload size limits enforced by Remote Control transport handlers.
+///
+/// Centralised so HTTP and WebSocket handlers share a single source of truth
+/// instead of duplicating magic byte counts.
+enum RemoteLimits {
+
+    /// Maximum accepted HTTP request body size (64 KB) for API requests.
+    static let maxRequestBodyBytes = 65_536
+
+    /// Maximum accepted PTY input payload size (4 KB) per WebSocket message.
+    static let maxPTYInputBytes = 4096
+}
+
+/// Timeout durations (in seconds) enforced by Remote Control WebSocket handlers.
+///
+/// Centralised so ``RemoteWebSocketHandler`` does not embed magic literals in
+/// `Task.sleep(for:)` calls.
+enum RemoteWSTimeouts {
+
+    /// Grace period for the client to send the auth frame before the
+    /// unauthenticated connection is closed.
+    static let authTimeoutSeconds = 10
+
+    /// Idle heartbeat interval; the connection is closed if no activity resets
+    /// the timer within this window.
+    static let heartbeatIntervalSeconds = 60
+}

@@ -1,9 +1,27 @@
 // MARK: - GitService
-// Actor-based git operations via subprocess.
+// Stateless git operations via subprocess.
 // All commands use argument arrays -- never shell interpolation.
 // macOS 14+, Swift 5.10
+//
+// This file holds the *core*: constants, initialisation, and the private
+// subprocess machinery (`runGit` + process helpers). Command groups live in
+// dedicated `extension GitService` files:
+//   * GitService+Status.swift  — status, ahead/behind, staging, status parsing
+//   * GitService+Diff.swift     — diff family, log, diff parsing
+//   * GitService+Branch.swift   — branch listing/switching, repo checks, validation
+//   * GitService+Remote.swift   — init, remotes, push/pull/fetch
+//   * GitService+Commit.swift   — commit
 
 import Foundation
+
+/// Buffer for incrementally draining a subprocess's stdout/stderr pipes.
+///
+/// A reference type so it can be captured by reference across `@Sendable`
+/// closures. All mutations happen on a serial `ioQueue` — no data races.
+private final class GitIOBuffer: @unchecked Sendable {
+    var stdout = Data()
+    var stderr = Data()
+}
 
 /// Stateless, thread-safe git CLI wrapper.
 ///
@@ -24,30 +42,10 @@ final class GitService: GitServicing, @unchecked Sendable {
     private let defaultTimeout: TimeInterval = 30
 
     /// Extended timeout for network operations like push/pull (seconds).
-    private let networkTimeout: TimeInterval = 120
-
-    /// Regex matching the subset of branch name characters we accept.
     ///
-    /// **Scope (ARCH-L4): ASCII-only by design.** A branch name containing
-    /// unicode (e.g. Cyrillic or emoji) will be rejected even though `git
-    /// check-ref-format --branch <name>` would consider it valid. The
-    /// trade-off favours injection-safety — every accepted character is
-    /// safe to splice into a shell-free `Process.arguments` array without
-    /// further escaping. If/when wider unicode is needed, the right
-    /// migration is to call `git check-ref-format --branch <name>` via a
-    /// strictly argument-array subprocess (no shell) and treat exit-code 0
-    /// as the allow-list.
-    ///
-    /// Disallowed characters of note: `;`, `&`, `|`, ` `, `~`, `^`, `:`,
-    /// `\`, `*`, `?`, `[`, the leading dash form `-...` (covered by the
-    /// explicit prefix check in ``validateBranchName(_:)``), and any
-    /// non-ASCII codepoint.
-    private static let validBranchPattern = /^[a-zA-Z0-9\/_\-\.@]+$/
-
-    /// Shared date formatter for parsing ISO 8601 commit dates.
-    /// L15: the previous closure form was equivalent to a direct `static let`
-    /// initialiser — simplified to remove the no-op configuration block.
-    private static let commitDateFormatter = ISO8601DateFormatter()
+    /// `internal` (not `private`) because the network command group lives in
+    /// `GitService+Remote.swift` and references it across files.
+    let networkTimeout: TimeInterval = 120
 
     // MARK: - Git Binary
 
@@ -64,390 +62,29 @@ final class GitService: GitServicing, @unchecked Sendable {
         self.gitPath = candidates.first { FileManager.default.isExecutableFile(atPath: $0) } ?? "/usr/bin/git"
     }
 
-    // MARK: - GitServicing: Status & Info
-
-    func status(at repository: URL) async throws -> GitStatus {
-        // Use porcelain v1 for simpler parsing (v2 is more complex and not needed).
-        let output = try await runGit(
-            ["status", "--porcelain=v1", "--branch"],
-            in: repository
-        )
-
-        return parseStatus(output)
-    }
-
-    func diff(file: String, staged: Bool, at repository: URL) async throws -> [GitDiffHunk] {
-        var args = ["diff"]
-        if staged { args.append("--cached") }
-        args.append("--")
-        args.append(file)
-
-        let output = try await runGit(args, in: repository)
-        return parseDiff(output)
-    }
-
-    func fullStagedDiff(at repository: URL) async throws -> String {
-        try await runGit(["diff", "--staged"], in: repository)
-    }
-
-    func headDiff(at repository: URL) async throws -> String {
-        // git diff HEAD shows all uncommitted changes (staged + unstaged) vs last commit.
-        // Falls back to staged-only for repos without any commits yet.
-        do {
-            return try await runGit(["diff", "HEAD"], in: repository)
-        } catch let error as GitServiceError {
-            if case .commandFailed = error {
-                // No commits yet — return staged diff only
-                return try await runGit(["diff", "--staged"], in: repository)
-            }
-            throw error
-        }
-    }
-
-    func diffStats(at repository: URL) async throws -> [String: GitDiffStat] {
-        // Merge unstaged and staged numstat results.
-        var result: [String: (added: Int, deleted: Int)] = [:]
-
-        func merge(_ output: String) {
-            for (path, stat) in parseNumstat(output) {
-                if let existing = result[path] {
-                    result[path] = (existing.added + stat.added, existing.deleted + stat.deleted)
-                } else {
-                    result[path] = stat
-                }
-            }
-        }
-
-        // Unstaged diff (vs index)
-        if let unstaged = try? await runGit(["diff", "--numstat"], in: repository) {
-            merge(unstaged)
-        }
-        // Staged diff (index vs HEAD, with fallback for empty repos)
-        let staged: String
-        do {
-            staged = try await runGit(["diff", "--cached", "--numstat"], in: repository)
-        } catch {
-            staged = (try? await runGit(["diff", "--numstat"], in: repository)) ?? ""
-        }
-        merge(staged)
-
-        return result.mapValues { GitDiffStat(added: $0.added, deleted: $0.deleted) }
-    }
-
-    /// Parse `git diff --numstat` output into a path→(added, deleted) dictionary.
-    ///
-    /// Each line has the form: `<added>\t<deleted>\t<path>`
-    /// Binary files show `-` for both counts and are skipped.
-    private func parseNumstat(_ output: String) -> [String: (added: Int, deleted: Int)] {
-        var dict: [String: (added: Int, deleted: Int)] = [:]
-        for line in output.split(separator: "\n", omittingEmptySubsequences: true) {
-            let parts = line.split(separator: "\t", maxSplits: 2)
-            guard parts.count == 3 else { continue }
-            guard let added = Int(parts[0]), let deleted = Int(parts[1]) else { continue }
-            let path = String(parts[2])
-            dict[path] = (added, deleted)
-        }
-        return dict
-    }
-
-    func initRepository(at path: URL) async throws {
-        try await runGit(["init"], in: path)
-    }
-
-    func addRemote(name: String, url: String, at repository: URL) async throws {
-        guard !name.isEmpty, !name.hasPrefix("-"), !name.contains(" "), !name.contains("..") else {
-            throw GitServiceError.commandFailed(command: "remote", exitCode: 1, stderr: "Invalid remote name: \(name)")
-        }
-        // Enhanced URL validation: must be a recognized git transport scheme
-        guard !url.isEmpty, !url.hasPrefix("-") else {
-            throw GitServiceError.commandFailed(command: "remote", exitCode: 1, stderr: "Invalid remote URL")
-        }
-        // Prevent dangerous git transport protocols (ext:: allows arbitrary command execution)
-        let forbiddenPrefixes = ["ext::", "fd::"]
-        guard !forbiddenPrefixes.contains(where: { url.lowercased().hasPrefix($0) }) else {
-            throw GitServiceError.commandFailed(command: "remote", exitCode: 1,
-                stderr: "Unsupported remote URL scheme: only https://, http://, git://, ssh://, git@, and local paths are allowed")
-        }
-        try await runGit(["remote", "add", name, url], in: repository)
-    }
-
-    func branches(at repository: URL) async throws -> [GitBranch] {
-        // Use separate commands for local and remote to correctly classify branches
-        // that contain '/' in their name (e.g. feature/my-thing is local, not remote).
-
-        // Step 1: local branches
-        let localOutput = try await runGit(
-            ["branch", "--list", "--format=%(refname:short)\t%(HEAD)"],
-            in: repository
-        )
-        var result: [GitBranch] = localOutput.components(separatedBy: .newlines)
-            .filter { !$0.isEmpty }
-            .compactMap { line -> GitBranch? in
-                let parts = line.components(separatedBy: "\t")
-                guard let name = parts.first, !name.isEmpty else { return nil }
-                let isCurrent = parts.count >= 2 && parts[1] == "*"
-                return GitBranch(name: name, isRemote: false, isCurrent: isCurrent)
-            }
-
-        // Step 2: remote tracking branches (local cache — no network call)
-        do {
-            let remoteOutput = try await runGit(
-                ["branch", "-r", "--list", "--format=%(refname:short)"],
-                in: repository
-            )
-            let remoteBranches = remoteOutput.components(separatedBy: .newlines)
-                .filter { !$0.isEmpty }
-                .compactMap { line -> GitBranch? in
-                    let name = line.trimmingCharacters(in: .whitespaces)
-                    // Skip remote HEAD aliases like origin/HEAD
-                    guard !name.isEmpty, !name.hasSuffix("/HEAD") else { return nil }
-                    return GitBranch(name: name, isRemote: true, isCurrent: false)
-                }
-            result.append(contentsOf: remoteBranches)
-        } catch {
-            // Remote refs unavailable — return local branches only.
-        }
-
-        return result
-    }
-
-    func log(limit: Int, at repository: URL) async throws -> [GitCommitInfo] {
-        let output = try await runGit(
-            ["log", "--format=%H\t%h\t%s\t%an\t%aI", "-n", "\(limit)"],
-            in: repository
-        )
-
-        return output.components(separatedBy: .newlines)
-            .filter { !$0.isEmpty }
-            .compactMap { line -> GitCommitInfo? in
-                let parts = line.components(separatedBy: "\t")
-                guard parts.count >= 5 else { return nil }
-                return GitCommitInfo(
-                    hash: parts[0],
-                    shortHash: parts[1],
-                    message: parts[2],
-                    author: parts[3],
-                    date: Self.commitDateFormatter.date(from: parts[4]) ?? .now
-                )
-            }
-    }
-
-    // MARK: - GitServicing: Staging
-
-    func stage(files: [String], at repository: URL) async throws {
-        if files.isEmpty {
-            try await runGit(["add", "-A"], in: repository)
-        } else {
-            var args = ["add", "--"]
-            args.append(contentsOf: files)
-            try await runGit(args, in: repository)
-        }
-    }
-
-    func unstage(files: [String], at repository: URL) async throws {
-        if files.isEmpty {
-            try await runGit(["restore", "--staged", "."], in: repository)
-        } else {
-            var args = ["restore", "--staged", "--"]
-            args.append(contentsOf: files)
-            try await runGit(args, in: repository)
-        }
-    }
-
-    // MARK: - GitServicing: Commit
-
-    @discardableResult
-    func commit(message: String, at repository: URL) async throws -> String {
-        guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw GitServiceError.commandFailed(
-                command: "commit",
-                exitCode: 1,
-                stderr: "Commit message cannot be empty"
-            )
-        }
-
-        let output = try await runGit(["commit", "-m", message], in: repository)
-
-        // Extract commit hash from output (first line usually contains it).
-        if let match = output.range(of: #"[0-9a-f]{7,40}"#, options: .regularExpression) {
-            return String(output[match])
-        }
-        return output
-    }
-
-    // MARK: - GitServicing: Remote
-
-    func push(remote: String, at repository: URL) async throws {
-        try validateBranchName(remote)
-        do {
-            try await runGit(["push", remote], in: repository, timeout: networkTimeout)
-        } catch let error as GitServiceError {
-            if case .commandFailed(_, _, let stderr) = error,
-               stderr.contains("rejected") {
-                throw GitServiceError.pushRejected(reason: stderr)
-            }
-            throw error
-        }
-    }
-
-    func pull(remote: String, at repository: URL) async throws {
-        try validateBranchName(remote)
-        do {
-            try await runGit(["pull", remote], in: repository, timeout: networkTimeout)
-        } catch let error as GitServiceError {
-            if case .commandFailed(_, _, let stderr) = error,
-               stderr.contains("CONFLICT") {
-                let files = stderr.components(separatedBy: .newlines)
-                    .filter { $0.contains("CONFLICT") }
-                throw GitServiceError.mergeConflict(files: files)
-            }
-            throw error
-        }
-    }
-
-    func fetch(remote: String, at repository: URL) async throws {
-        try validateBranchName(remote)
-        try await runGit(["fetch", remote], in: repository, timeout: networkTimeout)
-    }
-
-    func pushBranch(_ branch: String, remote: String, at repository: URL) async throws {
-        try validateBranchName(branch)
-        try validateBranchName(remote)
-        do {
-            // --set-upstream tracks the remote branch; harmless if tracking already exists.
-            // suppressCredentials=false so osxkeychain / SSH agent work normally.
-            try await runGit(["push", "--set-upstream", remote, branch],
-                             in: repository, timeout: networkTimeout, suppressCredentials: false)
-        } catch let error as GitServiceError {
-            if case .commandFailed(_, _, let stderr) = error, stderr.contains("rejected") {
-                throw GitServiceError.pushRejected(reason: stderr)
-            }
-            throw error
-        }
-    }
-
-    func pullBranch(_ branch: String, isCurrent: Bool, remote: String, at repository: URL) async throws {
-        try validateBranchName(branch)
-        try validateBranchName(remote)
-        if isCurrent {
-            do {
-                try await runGit(["pull", remote], in: repository,
-                                 timeout: networkTimeout, suppressCredentials: false)
-            } catch let error as GitServiceError {
-                if case .commandFailed(_, _, let stderr) = error, stderr.contains("CONFLICT") {
-                    let files = stderr.components(separatedBy: .newlines).filter { $0.contains("CONFLICT") }
-                    throw GitServiceError.mergeConflict(files: files)
-                }
-                throw error
-            }
-        } else {
-            try await runGit(["fetch", remote, "\(branch):\(branch)"],
-                             in: repository, timeout: networkTimeout, suppressCredentials: false)
-        }
-    }
-
-    func remoteURL(name: String, at repository: URL) async -> String? {
-        guard let output = try? await runGit(["remote", "get-url", name], in: repository) else {
-            return nil
-        }
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    func defaultRemote(for branch: String?, at repository: URL) async -> String {
-        // 1. Branch-specific remote from git config
-        if let branch = branch,
-           let r = try? await runGit(["config", "--get", "branch.\(branch).remote"], in: repository),
-           !r.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return r.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        // 2. First remote listed in the repo
-        if let remotes = try? await runGit(["remote"], in: repository),
-           let first = remotes.components(separatedBy: .newlines).first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) {
-            return first.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return "origin"
-    }
-
-    // MARK: - GitServicing: Branches
-
-    func checkout(branch: String, at repository: URL) async throws {
-        try validateBranchName(branch)
-        try await runGit(["switch", branch], in: repository)
-    }
-
-    func createBranch(name: String, from startPoint: String?, at repository: URL) async throws {
-        try validateBranchName(name)
-        var args = ["switch", "-c", name]
-        if let startPoint {
-            try validateBranchName(startPoint)
-            args.append(startPoint)
-        }
-        try await runGit(args, in: repository)
-    }
-
-    // MARK: - GitServicing: Utility
-
-    func isRepository(at path: URL) async -> Bool {
-        do {
-            try await runGit(
-                ["rev-parse", "--is-inside-work-tree"],
-                in: path
-            )
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    func repositoryRoot(for path: URL) async throws -> URL {
-        let output = try await runGit(
-            ["rev-parse", "--show-toplevel"],
-            in: path
-        )
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return URL(fileURLWithPath: trimmed)
-    }
-
-    // MARK: - Ahead/Behind (used by GitStatusPoller)
-
-    /// Get ahead/behind count relative to upstream.
-    ///
-    /// - Parameter repository: Repository root path.
-    /// - Returns: Tuple of (ahead, behind) counts.
-    func aheadBehind(at repository: URL) async throws -> (ahead: Int, behind: Int) {
-        let output = try await runGit(
-            ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
-            in: repository
-        )
-        let parts = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: "\t")
-        guard parts.count == 2,
-              let ahead = Int(parts[0]),
-              let behind = Int(parts[1]) else {
-            return (0, 0)
-        }
-        return (ahead, behind)
-    }
-
-    // MARK: - Private: Subprocess Execution
+    // MARK: - Subprocess Execution (shared by every command group)
 
     /// Execute a git command as a subprocess with strict argument-array invocation.
     ///
     /// **Security**: Never uses `/bin/sh -c`. Arguments are passed directly
     /// to the git binary via `Process.arguments`, preventing shell injection.
     ///
-    /// Uses `terminationHandler` instead of `waitUntilExit()` so the actor thread
-    /// is never blocked — multiple git commands can be in-flight concurrently.
+    /// Uses `terminationHandler` instead of `waitUntilExit()` so the calling
+    /// thread is never blocked — multiple git commands can be in-flight
+    /// concurrently.
+    ///
+    /// `internal` (not `private`): each command-group extension lives in its
+    /// own file and calls `runGit`, which requires module-internal visibility.
     ///
     /// - Parameters:
     ///   - args: Git subcommand and arguments (e.g., `["status", "--porcelain=v1"]`).
     ///   - dir: Working directory for the command.
     ///   - timeout: Maximum execution time in seconds.
+    ///   - suppressCredentials: When `true`, disables interactive credential prompts.
     /// - Returns: Standard output as a string.
     /// - Throws: ``GitServiceError`` on failure or timeout.
     @discardableResult
-    private func runGit(
+    func runGit(
         _ args: [String],
         in dir: URL,
         timeout: TimeInterval? = nil,
@@ -458,103 +95,46 @@ final class GitService: GitServicing, @unchecked Sendable {
         let gitBinary = self.gitPath
 
         return try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: gitBinary)
-            // Use `git -C <dir>` instead of setting currentDirectoryURL.
-            // Setting currentDirectoryURL causes the forked child process to call
-            // chdir(dir) BEFORE execve — while it still carries VibeStudio's process
-            // identity. That chdir into ~/Documents triggers a TCC dialog on every
-            // git subprocess call. With `-C dir` git itself (an Apple-signed binary)
-            // handles the chdir internally after exec, which does not trigger TCC.
-            process.arguments = ["-C", dir.path] + args
-
-            var env = ProcessInfo.processInfo.environment
-            if suppressCredentials {
-                // Non-network commands: prevent any interactive credential prompt.
-                env["GIT_TERMINAL_PROMPT"] = "0"
-                env["GIT_ASKPASS"] = "/usr/bin/true"
-            }
-            // Network commands (suppressCredentials=false) run with the full inherited
-            // environment so the system credential helper (osxkeychain / SSH agent) works.
-            process.environment = env
+            let process = Self.makeGitProcess(
+                gitBinary: gitBinary,
+                dir: dir,
+                args: args,
+                suppressCredentials: suppressCredentials
+            )
 
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
 
-            // IOBuffer is a class so it can be captured by reference across @Sendable closures.
-            // All mutations happen on ioQueue (serial) — no data races.
-            final class IOBuffer: @unchecked Sendable {
-                var stdout = Data()
-                var stderr = Data()
-            }
-            let buf = IOBuffer()
-            let ioQueue = DispatchQueue(label: "git.io.\(commandDesc)")
-
-            // Drain pipes incrementally to prevent deadlock when git output exceeds
-            // the OS pipe buffer (~64 KB). Without this, git blocks writing to the
-            // pipe, never exits, and the 30-second timeout fires.
-            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                ioQueue.async { buf.stdout.append(chunk) }
-            }
-            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                ioQueue.async { buf.stderr.append(chunk) }
-            }
+            let (buf, ioQueue) = Self.attachDrainingHandlers(
+                stdout: stdoutPipe,
+                stderr: stderrPipe,
+                label: commandDesc
+            )
 
             let timeoutItem = DispatchWorkItem { [weak process] in
                 process?.terminate()
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + effectiveTimeout, execute: timeoutItem)
 
-            // terminationHandler fires on a background thread when the process exits.
-            // This suspends the continuation asynchronously — the actor is NOT blocked
-            // while git is running, so concurrent git calls can interleave freely.
             process.terminationHandler = { proc in
                 timeoutItem.cancel()
-
-                // Disable handlers, then flush any bytes that arrived between the last
-                // readabilityHandler call and the process exit (ioQueue.sync ensures
-                // all prior ioQueue.async appends have completed before we read more).
-                stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                stderrPipe.fileHandleForReading.readabilityHandler = nil
-                ioQueue.sync {
-                    buf.stdout.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-                    buf.stderr.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                }
-
-                let stdout = String(data: buf.stdout, encoding: .utf8) ?? ""
-                let stderr = String(data: buf.stderr, encoding: .utf8) ?? ""
-
-                if proc.terminationReason == .uncaughtSignal {
-                    continuation.resume(
-                        throwing: GitServiceError.timeout(command: commandDesc, seconds: effectiveTimeout)
-                    )
-                    return
-                }
-
-                guard proc.terminationStatus == 0 else {
-                    if stderr.contains("not a git repository") {
-                        continuation.resume(
-                            throwing: GitServiceError.notARepository(path: dir)
-                        )
-                    } else {
-                        continuation.resume(
-                            throwing: GitServiceError.commandFailed(
-                                command: commandDesc,
-                                exitCode: proc.terminationStatus,
-                                stderr: stderr
-                            )
-                        )
-                    }
-                    return
-                }
-
-                continuation.resume(returning: stdout)
+                let (stdout, stderr) = Self.flush(
+                    buffer: buf,
+                    stdout: stdoutPipe,
+                    stderr: stderrPipe,
+                    queue: ioQueue
+                )
+                continuation.resume(with: GitService.gitResult(GitProcessOutcome(
+                    terminationReason: proc.terminationReason,
+                    exitStatus: proc.terminationStatus,
+                    stdout: stdout,
+                    stderr: stderr,
+                    commandDesc: commandDesc,
+                    timeout: effectiveTimeout,
+                    dir: dir
+                )))
             }
 
             do {
@@ -566,210 +146,113 @@ final class GitService: GitServicing, @unchecked Sendable {
         }
     }
 
-    // MARK: - Internal: Parsing (visible to tests)
-
-    /// Parse `git status --porcelain=v1 --branch` output.
+    /// Attach incremental readability handlers that drain both pipes into a
+    /// shared buffer on a serial queue.
     ///
-    /// Dispatches each line either to ``parseBranchLine(_:)`` (the leading
-    /// `## main...origin/main [ahead 2, behind 1]` line) or to
-    /// ``parseFileLine(_:into:into:into:)``. ARCH-M4: each helper stays
-    /// under 30 LOC.
-    func parseStatus(_ output: String) -> GitStatus {
-        var branch = ""
-        var staged: [GitFile] = []
-        var unstaged: [GitFile] = []
-        var untracked: [GitFile] = []
-        var ahead = 0
-        var behind = 0
+    /// Draining prevents deadlock when git output exceeds the OS pipe buffer
+    /// (~64 KB): without it, git blocks writing to the pipe, never exits, and
+    /// the timeout eventually fires.
+    private static func attachDrainingHandlers(
+        stdout stdoutPipe: Pipe,
+        stderr stderrPipe: Pipe,
+        label: String
+    ) -> (buffer: GitIOBuffer, queue: DispatchQueue) {
+        let buf = GitIOBuffer()
+        let ioQueue = DispatchQueue(label: "git.io.\(label)")
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            ioQueue.async { buf.stdout.append(chunk) }
+        }
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            ioQueue.async { buf.stderr.append(chunk) }
+        }
+        return (buf, ioQueue)
+    }
 
-        for line in output.components(separatedBy: .newlines) where !line.isEmpty {
-            if line.hasPrefix("##") {
-                let parsed = parseBranchLine(line)
-                branch = parsed.branch
-                ahead = parsed.ahead
-                behind = parsed.behind
-                continue
+    /// Disable the draining handlers and flush any trailing bytes, returning
+    /// the decoded stdout/stderr strings.
+    ///
+    /// `ioQueue.sync` guarantees all prior `ioQueue.async` appends completed
+    /// before the final `readDataToEndOfFile` read.
+    private static func flush(
+        buffer buf: GitIOBuffer,
+        stdout stdoutPipe: Pipe,
+        stderr stderrPipe: Pipe,
+        queue ioQueue: DispatchQueue
+    ) -> (stdout: String, stderr: String) {
+        stdoutPipe.fileHandleForReading.readabilityHandler = nil
+        stderrPipe.fileHandleForReading.readabilityHandler = nil
+        ioQueue.sync {
+            buf.stdout.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+            buf.stderr.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
+        }
+        let stdout = String(data: buf.stdout, encoding: .utf8) ?? ""
+        let stderr = String(data: buf.stderr, encoding: .utf8) ?? ""
+        return (stdout, stderr)
+    }
+
+    /// Configure the git `Process` (`-C dir` invocation + credential-prompt suppression).
+    ///
+    /// Uses `git -C <dir>` instead of setting `currentDirectoryURL`. Setting
+    /// `currentDirectoryURL` causes the forked child to `chdir(dir)` BEFORE
+    /// `execve` — while it still carries VibeStudio's process identity. That
+    /// `chdir` into `~/Documents` triggers a TCC dialog on every git subprocess
+    /// call. With `-C dir`, git itself (an Apple-signed binary) handles the
+    /// chdir internally after exec, which does not trigger TCC.
+    private static func makeGitProcess(
+        gitBinary: String,
+        dir: URL,
+        args: [String],
+        suppressCredentials: Bool
+    ) -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gitBinary)
+        process.arguments = ["-C", dir.path] + args
+
+        var env = ProcessInfo.processInfo.environment
+        if suppressCredentials {
+            // Non-network commands: prevent any interactive credential prompt.
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            env["GIT_ASKPASS"] = "/usr/bin/true"
+        }
+        // Network commands (suppressCredentials=false) run with the full inherited
+        // environment so the system credential helper (osxkeychain / SSH agent) works.
+        process.environment = env
+        return process
+    }
+
+    /// Immutable snapshot of a finished git subprocess.
+    ///
+    /// Folds the seven fields ``gitResult(_:)`` previously took as separate
+    /// parameters into a single value (fixes `function_parameter_count`).
+    private struct GitProcessOutcome {
+        let terminationReason: Process.TerminationReason
+        let exitStatus: Int32
+        let stdout: String
+        let stderr: String
+        let commandDesc: String
+        let timeout: TimeInterval
+        let dir: URL
+    }
+
+    /// Map a finished git process to success (stdout) or a ``GitServiceError``.
+    private static func gitResult(_ outcome: GitProcessOutcome) -> Result<String, Error> {
+        if outcome.terminationReason == .uncaughtSignal {
+            return .failure(GitServiceError.timeout(command: outcome.commandDesc, seconds: outcome.timeout))
+        }
+        guard outcome.exitStatus == 0 else {
+            if outcome.stderr.contains("not a git repository") {
+                return .failure(GitServiceError.notARepository(path: outcome.dir))
             }
-
-            parseFileLine(line, staged: &staged, unstaged: &unstaged, untracked: &untracked)
+            return .failure(GitServiceError.commandFailed(
+                command: outcome.commandDesc,
+                exitCode: outcome.exitStatus,
+                stderr: outcome.stderr
+            ))
         }
-
-        return GitStatus(
-            branch: branch,
-            aheadCount: ahead,
-            behindCount: behind,
-            stagedFiles: staged,
-            unstagedFiles: unstaged,
-            untrackedFiles: untracked
-        )
+        return .success(outcome.stdout)
     }
-
-    /// Parse the `## <branch>[...upstream] [ahead N, behind M]` header line.
-    ///
-    /// - Parameter line: The full header line including the leading `##`.
-    /// - Returns: The local branch name plus the ahead / behind counters
-    ///   (zero when absent).
-    func parseBranchLine(_ line: String) -> (branch: String, ahead: Int, behind: Int) {
-        let info = String(line.dropFirst(3))
-        let branch: String
-        if let dotRange = info.range(of: "...") {
-            branch = String(info[info.startIndex..<dotRange.lowerBound])
-        } else if let spaceRange = info.range(of: " ") {
-            branch = String(info[info.startIndex..<spaceRange.lowerBound])
-        } else {
-            branch = info
-        }
-
-        let ahead = parseTrailingNumber(in: info, after: #"ahead (\d+)"#)
-        let behind = parseTrailingNumber(in: info, after: #"behind (\d+)"#)
-        return (branch, ahead, behind)
-    }
-
-    /// Helper: extract the final whitespace-separated integer from the
-    /// regex match (or `0` when no match is found).
-    private func parseTrailingNumber(in haystack: String, after pattern: String) -> Int {
-        guard let match = haystack.range(of: pattern, options: .regularExpression) else { return 0 }
-        let numStr = haystack[match].components(separatedBy: " ").last ?? "0"
-        return Int(numStr) ?? 0
-    }
-
-    /// Parse a single porcelain status line (non-header) and append the
-    /// resulting `GitFile` to the relevant bucket.
-    func parseFileLine(
-        _ line: String,
-        staged: inout [GitFile],
-        unstaged: inout [GitFile],
-        untracked: inout [GitFile]
-    ) {
-        guard line.count >= 4 else { return }
-
-        let indexChar = line[line.startIndex]
-        let worktreeChar = line[line.index(after: line.startIndex)]
-        let filePath = String(line[line.index(line.startIndex, offsetBy: 3)...])
-
-        if indexChar == "?" {
-            untracked.append(GitFile(path: filePath, status: .untracked))
-            return
-        }
-
-        // Staged changes (index column).
-        if indexChar != " ", let status = parseFileStatus(indexChar) {
-            staged.append(GitFile(path: filePath, status: status))
-        }
-        // Unstaged changes (worktree column).
-        if worktreeChar != " ", worktreeChar != "?", let status = parseFileStatus(worktreeChar) {
-            unstaged.append(GitFile(path: filePath, status: status))
-        }
-    }
-
-    /// Map a single porcelain status character to ``GitFileStatus``.
-    func parseFileStatus(_ char: Character) -> GitFileStatus? {
-        switch char {
-        case "M": return .modified
-        case "A": return .added
-        case "D": return .deleted
-        case "R": return .renamed
-        case "C": return .copied
-        default: return nil
-        }
-    }
-
-    /// Parse unified diff output into hunks.
-    func parseDiff(_ output: String) -> [GitDiffHunk] {
-        var hunks: [GitDiffHunk] = []
-        var currentHeader = ""
-        var currentLines: [GitDiffLine] = []
-        var oldLine = 0
-        var newLine = 0
-
-        for line in output.components(separatedBy: .newlines) {
-            if line.hasPrefix("@@") {
-                // Save previous hunk if exists.
-                if !currentHeader.isEmpty {
-                    hunks.append(GitDiffHunk(header: currentHeader, lines: currentLines))
-                }
-                currentHeader = line
-                currentLines = []
-
-                // Parse hunk header for line numbers.
-                if let match = line.range(of: #"-(\d+)"#, options: .regularExpression) {
-                    oldLine = Int(line[match].dropFirst()) ?? 0
-                }
-                if let match = line.range(of: #"\+(\d+)"#, options: .regularExpression) {
-                    newLine = Int(line[match].dropFirst()) ?? 0
-                }
-                continue
-            }
-
-            guard !currentHeader.isEmpty else { continue }
-
-            if line.hasPrefix("+") {
-                currentLines.append(GitDiffLine(
-                    type: .addition,
-                    content: String(line.dropFirst()),
-                    oldLineNumber: nil,
-                    newLineNumber: newLine
-                ))
-                newLine += 1
-            } else if line.hasPrefix("-") {
-                currentLines.append(GitDiffLine(
-                    type: .deletion,
-                    content: String(line.dropFirst()),
-                    oldLineNumber: oldLine,
-                    newLineNumber: nil
-                ))
-                oldLine += 1
-            } else {
-                currentLines.append(GitDiffLine(
-                    type: .context,
-                    content: line.hasPrefix(" ") ? String(line.dropFirst()) : line,
-                    oldLineNumber: oldLine,
-                    newLineNumber: newLine
-                ))
-                oldLine += 1
-                newLine += 1
-            }
-        }
-
-        if !currentHeader.isEmpty {
-            hunks.append(GitDiffHunk(header: currentHeader, lines: currentLines))
-        }
-
-        return hunks
-    }
-
-    // MARK: - Internal: Validation (visible to tests)
-
-    /// Validate that a branch name does not contain dangerous characters.
-    ///
-    /// Prevents command injection via crafted branch names like
-    /// `--upload-pack=evil` or `; rm -rf /`.
-    ///
-    /// ARCH-L4: the explicit `contains(":")` / `contains("..")` /
-    /// `contains(" ")` / `contains("~")` / `contains("^")` /
-    /// `contains("\\")` checks that used to live here are removed —
-    /// ``validBranchPattern`` already rejects every one of those bytes
-    /// (the character class only permits `[a-zA-Z0-9 / _ - . @]`). We
-    /// keep:
-    ///   * `isEmpty` — pattern matches one-or-more
-    ///   * `hasPrefix("-")` — argv leading dash is interpreted as a flag
-    ///     even when the bytes are otherwise safe
-    ///   * `contains("..")` — `..` is two safe chars but the *sequence*
-    ///     creates a parent-dir traversal in ref names.
-    ///
-    /// - Parameter name: Branch or remote name to validate.
-    /// - Throws: ``GitServiceError.commandFailed`` if the name is invalid.
-    func validateBranchName(_ name: String) throws {
-        guard !name.isEmpty,
-              !name.hasPrefix("-"),
-              !name.contains(".."),
-              name.wholeMatch(of: Self.validBranchPattern) != nil else {
-            throw GitServiceError.commandFailed(
-                command: "validate",
-                exitCode: 1,
-                stderr: "Invalid branch name: \(name)"
-            )
-        }
-    }
-
 }

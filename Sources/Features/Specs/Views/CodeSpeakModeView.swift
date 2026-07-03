@@ -138,6 +138,12 @@ private struct CodeSpeakCoordinationModifier: ViewModifier {
     let csPreferences: CodeSpeakPreferences
 
     func body(content: Content) -> some View {
+        titlebarSync(applyBuildLifecycle(to: content))
+    }
+
+    /// Reset/reload on project switch + drive build lifecycle from toolbar and
+    /// preferences (run, stop, isRunning side effects, auto-build on save).
+    private func applyBuildLifecycle<V: View>(to content: V) -> some View {
         content
             // Project switch — reset editor state and reload trees.
             .onChange(of: activeProject?.id) { _, _ in
@@ -192,6 +198,11 @@ private struct CodeSpeakCoordinationModifier: ViewModifier {
                     await vm.runDefaultBuild(at: project.path, specURL: vm.selectedSpec?.url)
                 }
             }
+    }
+
+    /// Mirror editor selection/dirty state into the titlebar run bar.
+    private func titlebarSync<V: View>(_ content: V) -> some View {
+        content
             // Sync selected spec name to titlebar breadcrumb.
             .onChange(of: vm.selectedSpec) { _, spec in
                 navigationCoordinator.runBar.currentSpecName = spec?.name ?? ""

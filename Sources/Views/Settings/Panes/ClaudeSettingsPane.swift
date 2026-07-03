@@ -17,12 +17,9 @@ struct ClaudeSettingsPane: View {
 
     // MARK: ViewModel (lazy init)
 
-    @State private var vm: ClaudeSettingsPaneViewModel?
+    @State private var vmBox = LazyStateObject<ClaudeSettingsPaneViewModel>()
     private var viewModel: ClaudeSettingsPaneViewModel {
-        if let existing = vm { return existing }
-        let created = ClaudeSettingsPaneViewModel()
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { ClaudeSettingsPaneViewModel() }
     }
 
     // MARK: State -- Agents
@@ -84,35 +81,35 @@ struct ClaudeSettingsPane: View {
         }
         .sheet(item: $editingAgent) { agent in
             AgentEditorSheet(fileURL: agent.fileURL) {
-                vm?.loadAgents()
+                viewModel.loadAgents()
             }
         }
         .sheet(isPresented: $showNewAgent) {
             AgentEditorSheet(fileURL: nil) {
-                vm?.loadAgents()
+                viewModel.loadAgents()
             }
         }
         // MARK: Sheets -- Commands
         .sheet(item: $editingCommand) { cmd in
             CommandEditorSheet(fileURL: cmd.fileURL) {
-                vm?.loadCommands()
+                viewModel.loadCommands()
             }
         }
         .sheet(isPresented: $showNewCommand) {
             CommandEditorSheet(fileURL: nil) {
-                vm?.loadCommands()
+                viewModel.loadCommands()
             }
         }
         // MARK: Sheets -- Skills
         .sheet(item: $viewingSkill) { skill in
             SkillViewerSheet(skill: skill) {
-                vm?.loadSkills()
+                viewModel.loadSkills()
             }
         }
         // MARK: Alerts
         .alert("Удалить агента?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
             Button("Удалить", role: .destructive) {
-                vm?.deleteAgent(agent)
+                viewModel.deleteAgent(agent)
             }
             Button("Отмена", role: .cancel) {}
         } message: { agent in
@@ -120,7 +117,7 @@ struct ClaudeSettingsPane: View {
         }
         .alert("Удалить команду?", isPresented: $showDeleteCommandAlert, presenting: commandToDelete) { cmd in
             Button("Удалить", role: .destructive) {
-                vm?.deleteCommand(cmd)
+                viewModel.deleteCommand(cmd)
             }
             Button("Отмена", role: .cancel) {}
         } message: { cmd in
@@ -186,20 +183,9 @@ struct ClaudeSettingsPane: View {
             if model.agents.isEmpty {
                 emptyAgentsState
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.agents) { agent in
-                            agentRow(agent)
-                            if agent.id != model.agents.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.agents) { agent in
+                    agentRow(agent)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
-                .settingsCard()
             }
         }
     }
@@ -215,10 +201,8 @@ struct ClaudeSettingsPane: View {
     }
 
     private func agentRow(_ agent: AgentEntry) -> some View {
-        SettingsItemRow(
-            name: agent.name,
-            subtitle: agent.description.isEmpty ? nil : agent.description,
-            showDelete: true,
+        AgentRowView(
+            agent: agent,
             onEdit: { editingAgent = agent },
             onDelete: {
                 agentToDelete = agent
@@ -236,20 +220,9 @@ struct ClaudeSettingsPane: View {
             if model.commands.isEmpty {
                 emptyCommandsState
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.commands) { cmd in
-                            commandRow(cmd)
-                            if cmd.id != model.commands.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.commands, maxHeight: DSLayout.settingsListMaxHeightSmall) { cmd in
+                    commandRow(cmd)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightSmall)
-                .settingsCard()
             }
         }
     }
@@ -286,20 +259,9 @@ struct ClaudeSettingsPane: View {
             if model.skills.isEmpty {
                 emptySkillsState
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.skills) { skill in
-                            skillRow(skill)
-                            if skill.id != model.skills.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.skills, maxHeight: DSLayout.settingsListMaxHeightSmall) { skill in
+                    skillRow(skill)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightSmall)
-                .settingsCard()
             }
         }
     }

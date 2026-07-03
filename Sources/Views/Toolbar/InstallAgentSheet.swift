@@ -29,7 +29,12 @@ struct InstallAgentSheet: View {
             Divider().background(DSColor.borderDefault)
             footer
         }
-        .frame(minWidth: 400, idealWidth: 480, minHeight: 360, idealHeight: 420)
+        .frame(
+            minWidth: DSLayout.formSheetMinWidth,
+            idealWidth: DSLayout.formSheetIdealWidth,
+            minHeight: DSLayout.installSheetMinHeight,
+            idealHeight: DSLayout.installSheetIdealHeight
+        )
         .background(DSColor.surfaceOverlay)
     }
 

@@ -6,17 +6,6 @@
 import Foundation
 import OSLog
 
-// MARK: - QwenAgentEntry
-
-/// Parsed representation of a single agent markdown file from `~/.qwen/agents/`.
-struct QwenAgentEntry: Identifiable {
-    /// File URL used as stable identity.
-    let id: String
-    let fileURL: URL
-    let name: String
-    let description: String
-}
-
 // MARK: - QwenSettingsPaneViewModel
 
 /// Manages state for ``QwenSettingsPane``: global config probing and agent CRUD.
@@ -32,7 +21,7 @@ final class QwenSettingsPaneViewModel {
     var configExists: Bool = false
 
     /// Loaded agent entries from `~/.qwen/agents/`.
-    var agents: [QwenAgentEntry] = []
+    var agents: [AgentEntry] = []
 
     // MARK: - Constants
 
@@ -61,7 +50,7 @@ final class QwenSettingsPaneViewModel {
     /// Scans `~/.qwen/agents/` for markdown files and parses their frontmatter.
     func loadAgents() {
         agents = AgentDirectoryLoader.load(from: Self.agentsDirectoryURL) { url, fields in
-            QwenAgentEntry(
+            AgentEntry(
                 id: url.path,
                 fileURL: url,
                 name: fields.name.isEmpty ? url.deletingPathExtension().lastPathComponent : fields.name,
@@ -75,7 +64,7 @@ final class QwenSettingsPaneViewModel {
     /// Deletes the agent file from disk and reloads the agent list.
     ///
     /// - Parameter agent: The agent entry to remove.
-    func deleteAgent(_ agent: QwenAgentEntry) {
+    func deleteAgent(_ agent: AgentEntry) {
         do {
             try FileManager.default.removeItem(at: agent.fileURL)
         } catch {

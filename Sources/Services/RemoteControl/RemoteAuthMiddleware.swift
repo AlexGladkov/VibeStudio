@@ -7,6 +7,17 @@
 import Foundation
 import NIOHTTP1
 
+/// HTTP response fields derived from an ``AuthError``.
+///
+/// SEC-L16: ``retryAfterSeconds`` populates the `Retry-After` header for 429
+/// responses so honest clients back off without parsing the JSON body.
+struct AuthErrorResponse {
+    let status: HTTPResponseStatus
+    let code: String
+    let message: String
+    let retryAfterSeconds: Int?
+}
+
 /// Stateless helpers for parsing/translating auth state in HTTP requests.
 enum RemoteAuthMiddleware {
 
@@ -20,33 +31,40 @@ enum RemoteAuthMiddleware {
         return String(auth.dropFirst("Bearer ".count))
     }
 
-    /// Map an ``AuthError`` to (HTTP status, error code, human-readable
-    /// message, optional Retry-After seconds).
-    ///
-    /// SEC-L16: 429 responses must include a `Retry-After` header so honest
-    /// clients honour back-off without parsing the JSON body.
-    static func authErrorResponse(_ error: AuthError) -> (HTTPResponseStatus, String, String, Int?) {
+    /// Map an ``AuthError`` to the HTTP response fields describing it.
+    static func authErrorResponse(_ error: AuthError) -> AuthErrorResponse {
         switch error {
         case .invalidPin:
-            return (.unauthorized, "AUTH_PIN_INVALID", "Incorrect PIN.", nil)
+            return AuthErrorResponse(
+                status: .unauthorized, code: "AUTH_PIN_INVALID",
+                message: "Incorrect PIN.", retryAfterSeconds: nil)
         case .rateLimited(retryAfterSeconds: let seconds):
-            return (.tooManyRequests, "AUTH_LOCKOUT",
-                    "Too many failed attempts. Try again in \(seconds) seconds.",
-                    seconds)
+            return AuthErrorResponse(
+                status: .tooManyRequests, code: "AUTH_LOCKOUT",
+                message: "Too many failed attempts. Try again in \(seconds) seconds.",
+                retryAfterSeconds: seconds)
         case .globalLockout:
-            return (.tooManyRequests, "AUTH_LOCKOUT",
-                    "Server is locked due to excessive failed attempts.",
-                    Int(RemoteAuthService.rateLimitWindowSecondsPublic))
+            return AuthErrorResponse(
+                status: .tooManyRequests, code: "AUTH_LOCKOUT",
+                message: "Server is locked due to excessive failed attempts.",
+                retryAfterSeconds: Int(RemoteAuthService.rateLimitWindowSecondsPublic))
         case .invalidToken:
-            return (.unauthorized, "AUTH_TOKEN_INVALID", "Invalid or expired token.", nil)
+            return AuthErrorResponse(
+                status: .unauthorized, code: "AUTH_TOKEN_INVALID",
+                message: "Invalid or expired token.", retryAfterSeconds: nil)
         case .tokenExpired:
-            return (.unauthorized, "AUTH_TOKEN_EXPIRED", "Token has expired. Please re-authenticate.", nil)
+            return AuthErrorResponse(
+                status: .unauthorized, code: "AUTH_TOKEN_EXPIRED",
+                message: "Token has expired. Please re-authenticate.", retryAfterSeconds: nil)
         case .ipMismatch:
-            return (.forbidden, "AUTH_IP_MISMATCH", "Token was issued to a different IP address.", nil)
+            return AuthErrorResponse(
+                status: .forbidden, code: "AUTH_IP_MISMATCH",
+                message: "Token was issued to a different IP address.", retryAfterSeconds: nil)
         case .maxDevicesReached:
-            return (.serviceUnavailable, "MAX_DEVICES_REACHED",
-                    "Maximum number of connected devices reached. Try again later.",
-                    nil)
+            return AuthErrorResponse(
+                status: .serviceUnavailable, code: "MAX_DEVICES_REACHED",
+                message: "Maximum number of connected devices reached. Try again later.",
+                retryAfterSeconds: nil)
         }
     }
 }

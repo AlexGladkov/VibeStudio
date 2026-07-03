@@ -2,7 +2,6 @@
 // Presentation logic for the file viewer sheet.
 // macOS 14+, Swift 5.10
 
-import AppKit
 import Foundation
 import Observation
 

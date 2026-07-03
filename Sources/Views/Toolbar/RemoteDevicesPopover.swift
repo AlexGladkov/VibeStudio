@@ -74,7 +74,7 @@ struct RemoteDevicesPopover: View {
                 Spacer()
                 Circle()
                     .fill(remoteServer.isRunning ? DSColor.gitAdded : DSColor.actionStop)
-                    .frame(width: 6, height: 6)
+                    .frame(width: 6, height: 6) // intentional: micro status dot
                 Text(remoteServer.isRunning ? "Активен" : "Остановлен")
                     .font(DSFont.sidebarItemSmall)
                     .foregroundStyle(DSColor.textMuted)

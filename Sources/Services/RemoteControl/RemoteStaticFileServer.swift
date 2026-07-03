@@ -59,7 +59,7 @@ struct RemoteStaticFileServer: Sendable {
             return
         }
         let resolved = baseURL.appendingPathComponent(fileName).standardized
-        guard resolved.path.hasPrefix(baseURL.standardized.path) else {
+        guard Self.isPathWithinBase(fileName: fileName, baseURL: baseURL) else {
             writer.sendErrorJSON(
                 status: .forbidden, code: "FORBIDDEN",
                 message: "Access denied.",
@@ -76,6 +76,27 @@ struct RemoteStaticFileServer: Sendable {
             return
         }
         sendFile(data: data, contentType: contentType, fileName: fileName, channel: channel)
+    }
+
+    // MARK: - Path traversal guard (visible to tests)
+
+    /// Defense-in-depth path-traversal guard: `true` when `fileName` resolves
+    /// to a location inside `baseURL`.
+    ///
+    /// `URL.appendingPathComponent` neutralizes absolute paths (they become
+    /// sub-paths of `baseURL`), so the escape vector this actually blocks is
+    /// `..` traversal that climbs out of the base directory after
+    /// `standardized` collapses the segments.
+    ///
+    /// Pure function — unit-testable without a channel or on-disk file.
+    static func isPathWithinBase(fileName: String, baseURL: URL) -> Bool {
+        let resolved = baseURL.appendingPathComponent(fileName).standardized
+        let base = baseURL.standardized.path
+        // Require an exact match or a `/`-delimited descendant. A bare
+        // `hasPrefix(base)` would admit sibling directories whose name merely
+        // starts with `base` (e.g. `.../RemoteControlWebAssets` under a base of
+        // `.../RemoteControlWeb`) — same defect class as the home-dir check.
+        return resolved.path == base || resolved.path.hasPrefix(base + "/")
     }
 
     // MARK: - Private

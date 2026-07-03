@@ -3,7 +3,6 @@
 // macOS 14+, Swift 5.10
 
 import SwiftUI
-import AppKit
 import UniformTypeIdentifiers
 
 struct FileViewerSheet: View {
@@ -12,14 +11,11 @@ struct FileViewerSheet: View {
     let projectPath: URL
 
     @Environment(\.dismiss) private var dismiss
-    @State private var vm: FileViewerViewModel?
+    @State private var vmBox = LazyStateObject<FileViewerViewModel>()
     @State private var showFilePicker = false
 
     private var viewModel: FileViewerViewModel {
-        if let existing = vm { return existing }
-        let created = FileViewerViewModel(initialFile: initialFile)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { FileViewerViewModel(initialFile: initialFile) }
     }
 
     var body: some View {
@@ -31,11 +27,6 @@ struct FileViewerSheet: View {
         }
         .frame(width: model.sheetWidth, height: FileViewerConstants.sheetHeight)
         .background(DSColor.surfaceOverlay)
-        .onAppear {
-            if vm == nil {
-                vm = FileViewerViewModel(initialFile: initialFile)
-            }
-        }
         .fileImporter(
             isPresented: $showFilePicker,
             allowedContentTypes: [.item],
@@ -83,15 +74,7 @@ struct FileViewerSheet: View {
             .buttonStyle(.plain)
             .help("Copy content to clipboard")
 
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(DSFont.iconLG)
-                    .foregroundStyle(DSColor.textMuted)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
+            SheetCloseButton(action: { dismiss() })
         }
         .padding(.horizontal, DSSpacing.lg)
         .padding(.vertical, DSSpacing.sm)

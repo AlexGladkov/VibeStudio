@@ -19,13 +19,10 @@ struct AddProjectPopover: View {
     /// Called when the user wants to create a new project. `nil` hides the button.
     let onCreateNew: (() -> Void)?
 
-    @State private var vm: AddProjectViewModel?
+    @State private var vmBox = LazyStateObject<AddProjectViewModel>()
 
     private var viewModel: AddProjectViewModel {
-        if let existing = vm { return existing }
-        let created = AddProjectViewModel(projectManager: projectManager)
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { AddProjectViewModel(projectManager: projectManager) }
     }
 
     var body: some View {
@@ -47,13 +44,12 @@ struct AddProjectPopover: View {
         }
         .padding(.horizontal, DSSpacing.md)
         .padding(.vertical, DSSpacing.sm)
-        .frame(minWidth: 280, idealWidth: DSLayout.addProjectPopoverWidth, maxWidth: 360)
+        .frame(
+            minWidth: DSLayout.addProjectPopoverMinWidth,
+            idealWidth: DSLayout.addProjectPopoverWidth,
+            maxWidth: DSLayout.addProjectPopoverMaxWidth
+        )
         .background(DSColor.surfaceOverlay)
-        .onAppear {
-            if vm == nil {
-                vm = AddProjectViewModel(projectManager: projectManager)
-            }
-        }
     }
 
     // MARK: - Empty State
@@ -96,12 +92,12 @@ struct AddProjectPopover: View {
                     if model.openRecentProject(project) {
                         dismiss()
                     }
-                }) {
+                }, trailing: {
                     Text(project.lastOpened, format: .relative(presentation: .named))
                         .font(DSFont.sidebarItemSmall)
                         .foregroundStyle(DSColor.textSecondary)
                         .lineLimit(1)
-                }
+                })
             }
 
             if let err = model.openError {

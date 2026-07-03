@@ -42,116 +42,52 @@ struct SkillViewerSheet: View {
     // MARK: State
 
     @Environment(\.dismiss) private var dismiss
+    @State private var vmBox = LazyStateObject<FileEditorViewModel>()
 
-    @State private var content: String = ""
-    @State private var savedContent: String = ""
-    @State private var saveError: String?
+    private var vm: FileEditorViewModel {
+        vmBox.resolve {
+            FileEditorViewModel(fileURL: skill.skillFileURL, createsDirectory: false)
+        }
+    }
 
-    private var hasUnsavedChanges: Bool { content != savedContent }
+    private var title: String {
+        skill.name.isEmpty ? skill.directoryURL.lastPathComponent : skill.name
+    }
 
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            Divider().background(DSColor.borderDefault)
-            MarkdownEditorView(text: $content, isEditable: skill.isWritable)
-                .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
-            Divider().background(DSColor.borderDefault)
-            bottomBar
-        }
-        .frame(width: DSLayout.editorSheetWidth, height: DSLayout.editorSheetHeight)
-        .background(DSColor.surfaceDefault)
-        .onAppear(perform: load)
-    }
+        let model = vm
 
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        HStack(spacing: DSSpacing.sm) {
-            Text(skill.name.isEmpty ? skill.directoryURL.lastPathComponent : skill.name)
-                .font(DSFont.sheetTitle)
-                .foregroundStyle(DSColor.textPrimary)
-
-            if !skill.isWritable {
-                HStack(spacing: DSSpacing.xs) {
-                    Image(systemName: "lock.fill")
-                        .font(DSFont.iconMD)
-                        .foregroundStyle(DSColor.textMuted)
-
-                    Text("Только чтение")
-                        .font(DSFont.sidebarItemSmall)
-                        .foregroundStyle(DSColor.textMuted)
-                }
-            }
-
-            Spacer()
-
-            Button {
+        EditorSheetScaffold(
+            title: title,
+            readOnly: !skill.isWritable,
+            readOnlyMessage: "Скилл установлен через Homebrew, файл только для чтения",
+            hasUnsavedChanges: model.hasUnsavedChanges,
+            saveError: model.saveError,
+            minEditorHeight: 300,
+            content: Binding(get: { model.content }, set: { model.content = $0 }),
+            onClose: {
                 onDismiss?()
                 dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(DSFont.bodyMedium)
-                    .foregroundStyle(DSColor.textMuted)
+            },
+            onSave: {
+                if model.save() { onDismiss?() }
+            },
+            toolbarAccessory: {
+                if !skill.isWritable {
+                    HStack(spacing: DSSpacing.xs) {
+                        Image(systemName: "lock.fill")
+                            .font(DSFont.iconMD)
+                            .foregroundStyle(DSColor.textMuted)
+
+                        Text("Только чтение")
+                            .font(DSFont.sidebarItemSmall)
+                            .foregroundStyle(DSColor.textMuted)
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
-        }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.sm)
-        .background(DSColor.surfaceRaised)
-    }
-
-    // MARK: - Bottom Bar
-
-    private var bottomBar: some View {
-        HStack(spacing: DSSpacing.sm) {
-            if !skill.isWritable {
-                Text("Скилл установлен через Homebrew, файл только для чтения")
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.textMuted)
-            } else if let err = saveError {
-                Text(err)
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.gitDeleted)
-            } else if hasUnsavedChanges {
-                Text("Есть несохранённые изменения")
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.textMuted)
-            }
-
-            Spacer()
-
-            if skill.isWritable {
-                Button("Сохранить", action: save)
-                    .keyboardShortcut("s", modifiers: .command)
-                    .disabled(!hasUnsavedChanges)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-            }
-        }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.sm)
-        .background(DSColor.surfaceRaised)
-    }
-
-    // MARK: - File I/O
-
-    private func load() {
-        let text = (try? String(contentsOf: skill.skillFileURL, encoding: .utf8)) ?? ""
-        content = text
-        savedContent = text
-    }
-
-    private func save() {
-        saveError = nil
-        do {
-            try content.write(to: skill.skillFileURL, atomically: true, encoding: .utf8)
-            savedContent = content
-            onDismiss?()
-        } catch {
-            saveError = "Ошибка: \(error.localizedDescription)"
-        }
+        )
+        .onAppear { model.load() }
     }
 }

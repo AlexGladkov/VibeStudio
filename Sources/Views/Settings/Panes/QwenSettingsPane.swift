@@ -16,12 +16,9 @@ struct QwenSettingsPane: View {
 
     // MARK: ViewModel (lazy init)
 
-    @State private var vm: QwenSettingsPaneViewModel?
+    @State private var vmBox = LazyStateObject<QwenSettingsPaneViewModel>()
     private var viewModel: QwenSettingsPaneViewModel {
-        if let existing = vm { return existing }
-        let created = QwenSettingsPaneViewModel()
-        Task { @MainActor in vm = created }
-        return created
+        vmBox.resolve { QwenSettingsPaneViewModel() }
     }
 
     // MARK: State — Config
@@ -30,9 +27,9 @@ struct QwenSettingsPane: View {
 
     // MARK: State — Agents
 
-    @State private var editingAgent: QwenAgentEntry?
+    @State private var editingAgent: AgentEntry?
     @State private var showNewAgent = false
-    @State private var agentToDelete: QwenAgentEntry?
+    @State private var agentToDelete: AgentEntry?
     @State private var showDeleteAlert = false
 
     // MARK: - Body
@@ -64,7 +61,7 @@ struct QwenSettingsPane: View {
         }
         .sheet(
             isPresented: $showEditor,
-            onDismiss: { vm?.checkConfigExists() },
+            onDismiss: { viewModel.checkConfigExists() },
             content: {
                 TextFileEditorSheet(
                     fileURL: QwenSettingsPaneViewModel.qwenURL,
@@ -77,17 +74,17 @@ struct QwenSettingsPane: View {
             TextFileEditorSheet(
                 fileURL: agent.fileURL,
                 displayTitle: agent.name
-            ) { vm?.loadAgents() }
+            ) { viewModel.loadAgents() }
         }
         .sheet(isPresented: $showNewAgent) {
             TextFileEditorSheet(
                 fileURL: QwenSettingsPaneViewModel.agentsDirectoryURL.appendingPathComponent("new-agent.md"),
                 displayTitle: "Новый агент",
                 defaultContent: newAgentTemplate
-            ) { vm?.loadAgents() }
+            ) { viewModel.loadAgents() }
         }
         .alert("Удалить агента?", isPresented: $showDeleteAlert, presenting: agentToDelete) { agent in
-            Button("Удалить", role: .destructive) { vm?.deleteAgent(agent) }
+            Button("Удалить", role: .destructive) { viewModel.deleteAgent(agent) }
             Button("Отмена", role: .cancel) {}
         } message: { agent in
             Text("Файл «\(agent.fileURL.lastPathComponent)» будет удалён без возможности восстановления.")
@@ -122,20 +119,9 @@ struct QwenSettingsPane: View {
             if model.agents.isEmpty {
                 emptyAgentsState
             } else {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 0) {
-                        ForEach(model.agents) { agent in
-                            agentRow(agent)
-                            if agent.id != model.agents.last?.id {
-                                Divider()
-                                    .background(DSColor.borderSubtle)
-                                    .padding(.horizontal, DSSpacing.md)
-                            }
-                        }
-                    }
+                SettingsListCard(items: model.agents) { agent in
+                    agentRow(agent)
                 }
-                .frame(maxHeight: DSLayout.settingsListMaxHeightLarge)
-                .settingsCard()
             }
         }
     }
@@ -150,11 +136,9 @@ struct QwenSettingsPane: View {
         SettingsEmptyState(text: "Нет субагентов")
     }
 
-    private func agentRow(_ agent: QwenAgentEntry) -> some View {
-        SettingsItemRow(
-            name: agent.name,
-            subtitle: agent.description.isEmpty ? nil : agent.description,
-            showDelete: true,
+    private func agentRow(_ agent: AgentEntry) -> some View {
+        AgentRowView(
+            agent: agent,
             onEdit: { editingAgent = agent },
             onDelete: {
                 agentToDelete = agent
@@ -166,31 +150,10 @@ struct QwenSettingsPane: View {
     // MARK: - Auth Info Row
 
     private var authInfoRow: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Авторизация")
-                .font(DSFont.buttonLabel)
-                .foregroundStyle(DSColor.textSecondary)
-
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "info.circle")
-                    .font(DSFont.bodySmall)
-                    .foregroundStyle(DSColor.textMuted)
-
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text("Установите API-ключ DashScope через переменную окружения:")
-                        .font(DSFont.bodySmall)
-                        .foregroundStyle(DSColor.textMuted)
-
-                    Text("export DASHSCOPE_API_KEY=your-key")
-                        .font(DSFont.monoSmall)
-                        .foregroundStyle(DSColor.textSecondary)
-                }
-
-                Spacer()
-            }
-            .padding(DSSpacing.md)
-            .settingsCard()
-        }
+        SettingsAuthInfoRow(
+            hint: "Установите API-ключ DashScope через переменную окружения:",
+            envVar: "export DASHSCOPE_API_KEY=your-key"
+        )
     }
 
     // MARK: - Templates

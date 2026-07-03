@@ -13,24 +13,21 @@ import AppKit
 /// When the file does not exist yet a "Создать конфиг" button is offered.
 struct GeminiSettingsPane: View {
 
+    // MARK: ViewModel (lazy init)
+
+    @State private var vmBox = LazyStateObject<GeminiSettingsPaneViewModel>()
+    private var viewModel: GeminiSettingsPaneViewModel {
+        vmBox.resolve { GeminiSettingsPaneViewModel() }
+    }
+
     // MARK: State
 
     @State private var showEditor = false
-    @State private var configExists = false
-
-    // MARK: Constants
-
-    private static let settingsURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".gemini/settings.json")
-
-    private var displayPath: String {
-        Self.settingsURL.tildeAbbreviatedPath
-    }
 
     // MARK: - Body
 
     var body: some View {
+        let model = viewModel
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: DSSpacing.xl) {
                 Text("Gemini")
@@ -39,7 +36,7 @@ struct GeminiSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
-                settingsFileSection
+                settingsFileSection(model: model)
 
                 authInfoRow
             }
@@ -47,34 +44,34 @@ struct GeminiSettingsPane: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear(perform: checkConfigExists)
-        .sheet(isPresented: $showEditor, onDismiss: checkConfigExists) {
+        .onAppear { viewModel.checkConfigExists() }
+        .sheet(isPresented: $showEditor, onDismiss: { viewModel.checkConfigExists() }, content: {
             TextFileEditorSheet(
-                fileURL: Self.settingsURL,
+                fileURL: GeminiSettingsPaneViewModel.settingsURL,
                 displayTitle: "settings.json",
                 defaultContent: defaultSettings
             )
-        }
+        })
     }
 
     // MARK: - Settings File Section
 
-    private var settingsFileSection: some View {
+    private func settingsFileSection(model: GeminiSettingsPaneViewModel) -> some View {
         VStack(alignment: .leading, spacing: DSSpacing.sm) {
             Text("Конфиг")
                 .font(DSFont.buttonLabel)
                 .foregroundStyle(DSColor.textSecondary)
 
             SettingsConfigFileRow(
-                displayPath: displayPath,
-                configExists: configExists,
+                displayPath: model.displayPath,
+                configExists: model.configExists,
                 onReveal: {
-                    NSWorkspace.shared.activateFileViewerSelecting([Self.settingsURL])
+                    NSWorkspace.shared.activateFileViewerSelecting([GeminiSettingsPaneViewModel.settingsURL])
                 },
                 onEdit: { showEditor = true }
             )
 
-            if configExists {
+            if model.configExists {
                 settingsReferenceRow
             }
         }
@@ -96,37 +93,10 @@ struct GeminiSettingsPane: View {
     // MARK: - Auth Info Row
 
     private var authInfoRow: some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Авторизация")
-                .font(DSFont.buttonLabel)
-                .foregroundStyle(DSColor.textSecondary)
-
-            HStack(spacing: DSSpacing.sm) {
-                Image(systemName: "info.circle")
-                    .font(DSFont.bodySmall)
-                    .foregroundStyle(DSColor.textMuted)
-
-                VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                    Text("Установите API-ключ через переменную окружения:")
-                        .font(DSFont.bodySmall)
-                        .foregroundStyle(DSColor.textMuted)
-
-                    Text("export GEMINI_API_KEY=your-key")
-                        .font(DSFont.monoSmall)
-                        .foregroundStyle(DSColor.textSecondary)
-                }
-
-                Spacer()
-            }
-            .padding(DSSpacing.md)
-            .settingsCard()
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func checkConfigExists() {
-        configExists = FileManager.default.fileExists(atPath: Self.settingsURL.path)
+        SettingsAuthInfoRow(
+            hint: "Установите API-ключ через переменную окружения:",
+            envVar: "export GEMINI_API_KEY=your-key"
+        )
     }
 
     // MARK: - Default Settings

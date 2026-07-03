@@ -23,179 +23,63 @@ struct CommandEditorSheet: View {
     // MARK: State
 
     @Environment(\.dismiss) private var dismiss
+    @State private var vmBox = LazyStateObject<CommandEditorViewModel>()
 
-    @State private var content: String = ""
-    @State private var savedContent: String = ""
-    @State private var saveError: String?
-    @State private var filename: String = ""
+    private var vm: CommandEditorViewModel {
+        vmBox.resolve { CommandEditorViewModel(fileURL: fileURL) }
+    }
 
-    private var isNewFile: Bool { fileURL == nil }
-    private var hasUnsavedChanges: Bool { content != savedContent }
-
-    // MARK: Constants
-
-    private static let commandsDirectoryURL: URL = FileManager.default
-        .homeDirectoryForCurrentUser
-        .appendingPathComponent(".claude/commands")
-
-    private static let newCommandTemplate = "# Название команды\n\nОписание что делает команда...\n"
-
-    /// Characters allowed in a command filename.
-    private static let filenameRegex = /^[a-z0-9_\-]+$/
+    private var title: String {
+        if fileURL == nil { return "Новая команда" }
+        return fileURL?.deletingPathExtension().lastPathComponent ?? "Команда"
+    }
 
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
-            Divider().background(DSColor.borderDefault)
-            MarkdownEditorView(text: $content)
-                .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
-            Divider().background(DSColor.borderDefault)
-            bottomBar
-        }
-        .frame(width: DSLayout.editorSheetWidth, height: DSLayout.editorSheetHeight)
-        .background(DSColor.surfaceDefault)
-        .onAppear(perform: load)
-    }
+        let model = vm
 
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        HStack(spacing: DSSpacing.sm) {
-            if isNewFile {
-                Text("Новая команда")
-                    .font(DSFont.sheetTitle)
-                    .foregroundStyle(DSColor.textPrimary)
-
-                HStack(spacing: DSSpacing.xs) {
-                    TextField("имя-файла", text: $filename)
-                        .font(DSFont.monoSmall)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: DSLayout.settingsLabelWidthLong)
-
-                    Text(".md")
-                        .font(DSFont.monoSmall)
-                        .foregroundStyle(DSColor.textMuted)
+        EditorSheetScaffold(
+            title: title,
+            subtitle: fileURL?.tildeAbbreviatedPath,
+            hasUnsavedChanges: model.hasUnsavedChanges,
+            saveError: model.saveError,
+            minEditorHeight: 300,
+            content: Binding(get: { model.content }, set: { model.content = $0 }),
+            onClose: { dismiss() },
+            onSave: {
+                switch model.save() {
+                case .saved:
+                    onSaved?()
+                case .savedAndDismiss:
+                    onSaved?()
+                    dismiss()
+                case .none:
+                    break
                 }
-            } else {
-                Text(fileURL?.deletingPathExtension().lastPathComponent ?? "Команда")
-                    .font(DSFont.sheetTitle)
-                    .foregroundStyle(DSColor.textPrimary)
+            },
+            toolbarAccessory: {
+                if model.isNewFile {
+                    HStack(spacing: DSSpacing.xs) {
+                        TextField("имя-файла", text: Binding(get: { model.filename }, set: { model.filename = $0 }))
+                            .font(DSFont.monoSmall)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: DSLayout.settingsLabelWidthLong)
 
-                if let url = fileURL {
-                    Text(url.tildeAbbreviatedPath)
-                        .font(DSFont.monoSmall)
-                        .foregroundStyle(DSColor.textMuted)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                        Text(".md")
+                            .font(DSFont.monoSmall)
+                            .foregroundStyle(DSColor.textMuted)
+                    }
                 }
-            }
-
-            Spacer()
-
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(DSFont.bodyMedium)
-                    .foregroundStyle(DSColor.textMuted)
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.escape, modifiers: [])
-        }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.sm)
-        .background(DSColor.surfaceRaised)
-    }
-
-    // MARK: - Bottom Bar
-
-    private var bottomBar: some View {
-        HStack(spacing: DSSpacing.sm) {
-            if let err = saveError {
-                Text(err)
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.gitDeleted)
-            } else if hasUnsavedChanges {
-                Text("Есть несохранённые изменения")
-                    .font(DSFont.sidebarItemSmall)
-                    .foregroundStyle(DSColor.textMuted)
-            }
-
-            Spacer()
-
-            Button("Закрыть") {
-                dismiss()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            Button("Сохранить", action: save)
-                .keyboardShortcut("s", modifiers: .command)
-                .disabled(!hasUnsavedChanges)
-                .buttonStyle(.borderedProminent)
+            },
+            bottomAccessory: {
+                Button("Закрыть") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
                 .controlSize(.small)
-        }
-        .padding(.horizontal, DSSpacing.lg)
-        .padding(.vertical, DSSpacing.sm)
-        .background(DSColor.surfaceRaised)
-    }
-
-    // MARK: - File I/O
-
-    private func load() {
-        if let url = fileURL {
-            let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            content = text
-            savedContent = text
-        } else {
-            content = Self.newCommandTemplate
-            savedContent = ""
-        }
-    }
-
-    private func save() {
-        saveError = nil
-
-        if let url = fileURL {
-            // Editing existing file — overwrite in place.
-            do {
-                try content.write(to: url, atomically: true, encoding: .utf8)
-                savedContent = content
-                onSaved?()
-            } catch {
-                saveError = "Ошибка: \(error.localizedDescription)"
             }
-        } else {
-            // New command — validate filename, write new file.
-            let trimmed = filename.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else {
-                saveError = "Введите имя файла"
-                return
-            }
-            guard (try? Self.filenameRegex.wholeMatch(in: trimmed)) != nil else {
-                saveError = "Допустимы только строчные латинские буквы, цифры, дефис и подчёркивание"
-                return
-            }
-
-            let dir = Self.commandsDirectoryURL
-            let targetURL = dir.appendingPathComponent("\(trimmed).md")
-
-            guard !FileManager.default.fileExists(atPath: targetURL.path) else {
-                saveError = "Файл «\(trimmed).md» уже существует"
-                return
-            }
-
-            do {
-                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                try content.write(to: targetURL, atomically: true, encoding: .utf8)
-                savedContent = content
-                onSaved?()
-                dismiss()
-            } catch {
-                saveError = "Ошибка: \(error.localizedDescription)"
-            }
-        }
+        )
+        .onAppear { model.load() }
     }
 }

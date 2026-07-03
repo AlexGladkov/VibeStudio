@@ -51,11 +51,16 @@ final class TraceabilityPanelViewModel {
     /// True while scanning.
     private(set) var isLoading = false
 
+    /// Non-nil when the last scan failed (e.g. the spec directory could not be
+    /// enumerated). Drives the panel's error state.
+    private(set) var errorMessage: String?
+
     // MARK: - Scan
 
     /// Scan all `spec/*.cs.md` files for `@file:` markers.
     func scan(at projectRoot: URL) async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
 
         let specDir = projectRoot.appending(path: "spec")
@@ -99,6 +104,7 @@ final class TraceabilityPanelViewModel {
             }
         } catch {
             Logger.services.error("TraceabilityPanelViewModel: \(error.localizedDescription, privacy: .public)")
+            errorMessage = error.localizedDescription
         }
 
         specToFiles = newSpecToFiles

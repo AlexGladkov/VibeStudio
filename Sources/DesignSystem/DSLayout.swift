@@ -237,10 +237,21 @@ enum DSLayout {
     static let sheetLargeWidth: CGFloat = 900
     static let sheetLargeHeight: CGFloat = 600
 
+    /// Form-sheet width (install-agent wizard, new-project form).
+    static let formSheetMinWidth: CGFloat = 400
+    static let formSheetIdealWidth: CGFloat = 480
+    /// Install-agent wizard sheet height.
+    static let installSheetMinHeight: CGFloat = 360
+    static let installSheetIdealHeight: CGFloat = 420
+    /// New-project form sheet minimum height.
+    static let newProjectSheetMinHeight: CGFloat = 240
+
     // MARK: Popovers
 
-    /// Add project popover width.
+    /// Add project popover width (min / ideal / max).
+    static let addProjectPopoverMinWidth: CGFloat = 280
     static let addProjectPopoverWidth: CGFloat = 300
+    static let addProjectPopoverMaxWidth: CGFloat = 360
 
     // MARK: Forms
 

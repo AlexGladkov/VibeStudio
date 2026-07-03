@@ -176,31 +176,6 @@ struct DevicesListResponse: Codable {
     }
 }
 
-// MARK: - Health
-
-/// `GET /api/v1/health` response — enriched with runtime diagnostics.
-struct HealthResponse: Codable {
-    /// Always `"healthy"` when the server can serve requests.
-    let status: String
-    /// App version from `CFBundleShortVersionString`.
-    let version: String
-    /// Seconds elapsed since the server started accepting connections.
-    let uptimeSeconds: Int
-    /// Number of currently authenticated remote devices.
-    let connectedDevices: Int
-    /// Maximum allowed simultaneous devices (from `RemoteAuthService.maxDevices`).
-    let maxDevices: Int
-    /// TLS mode in use (currently always `"self-signed"`).
-    let tls: String
-
-    enum CodingKeys: String, CodingKey {
-        case status, version, tls
-        case uptimeSeconds = "uptime_seconds"
-        case connectedDevices = "connected_devices"
-        case maxDevices = "max_devices"
-    }
-}
-
 // MARK: - Server Status
 
 /// `GET /api/v1/status` response.
