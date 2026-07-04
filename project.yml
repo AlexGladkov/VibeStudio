@@ -42,7 +42,6 @@ targets:
       - path: Sources/Resources/ru.lproj
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio
         INFOPLIST_FILE: VibeStudio/Info.plist
         CODE_SIGN_ENTITLEMENTS: VibeStudio/VibeStudio.entitlements
         CODE_SIGN_IDENTITY: "-"
@@ -54,6 +53,18 @@ targets:
         SWIFT_STRICT_CONCURRENCY: targeted
         # TODO: Enable SWIFT_TREAT_WARNINGS_AS_ERRORS once Swift 6 concurrency warnings are resolved
         # SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+      configs:
+        # Debug uses a distinct bundle id + display name so the debug build
+        # does not clobber the installed production VibeStudio (separate
+        # LaunchServices registration, TCC consent, UserDefaults & Keychain
+        # domains). Product/executable name stays "VibeStudio" so the test
+        # host path (VibeStudioTests TEST_HOST) is unaffected.
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio.debug
+          APP_DISPLAY_NAME: "VibeStudio Debug"
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: tech.mobiledeveloper.vibestudio
+          APP_DISPLAY_NAME: VibeStudio
     dependencies:
       - package: SwiftTerm
       - package: swift-nio

@@ -9,10 +9,10 @@
 
     <!-- Bundle metadata -->
     <key>CFBundleName</key>
-    <string>VibeStudio</string>
+    <string>$(APP_DISPLAY_NAME)</string>
 
     <key>CFBundleDisplayName</key>
-    <string>VibeStudio</string>
+    <string>$(APP_DISPLAY_NAME)</string>
 
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
