@@ -45,6 +45,8 @@ struct CodexSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
+                versionSection
+
                 configSection(model: model)
 
                 memoriesSection(model: model)
@@ -85,6 +87,16 @@ struct CodexSettingsPane: View {
             Button("Cancel", role: .cancel) {}
         } message: { mem in
             Text("File \u{00AB}\(mem.filename)\u{00BB} will be permanently deleted.")
+        }
+    }
+
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SettingsSectionHeader(title: "Version")
+            AgentVersionRow(assistant: .codex)
+                .settingsCard()
         }
     }
 

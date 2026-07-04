@@ -53,6 +53,8 @@ struct ClaudeSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
+                versionSection
+
                 launchOptionsSection
 
                 fileRow(model: model)
@@ -122,6 +124,16 @@ struct ClaudeSettingsPane: View {
             Button("Cancel", role: .cancel) {}
         } message: { cmd in
             Text("File \u{00AB}\(cmd.filename)\u{00BB} will be permanently deleted.")
+        }
+    }
+
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SettingsSectionHeader(title: "Version")
+            AgentVersionRow(assistant: .claude)
+                .settingsCard()
         }
     }
 

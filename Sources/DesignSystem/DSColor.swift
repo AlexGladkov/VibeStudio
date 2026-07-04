@@ -252,6 +252,8 @@ enum DSColor {
     static let agentGemini    = Color(hex: "#4285F4")
     /// Qwen Code (purple).
     static let agentQwen      = Color(hex: "#6B3FA0")
+    /// Pi Coding Agent (magenta).
+    static let agentPi        = Color(hex: "#E0529C")
     /// CodeSpeak (Kotlin orange).
     static let agentCodeSpeak = Color(hex: "#E85D29")
 

@@ -23,6 +23,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     case codex
     case gemini
     case qwenCode
+    case pi
     case codeSpeak
 
     var id: String { rawValue }
@@ -35,6 +36,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return "codex"
         case .gemini:     return "gemini"
         case .qwenCode:   return "qwen"
+        case .pi:         return "pi"
         case .codeSpeak:  return "CodeSpeak"
         }
     }
@@ -47,6 +49,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return "codex"
         case .gemini:     return "gemini"
         case .qwenCode:   return "qwen"
+        case .pi:         return "pi"
         case .codeSpeak:  return "codespeak"
         }
     }
@@ -61,6 +64,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return []
         case .gemini:     return []
         case .qwenCode:   return []
+        case .pi:         return []
         case .codeSpeak:  return []
         }
     }
@@ -74,6 +78,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     var launchViaShellInput: Bool {
         switch self {
         case .opencode:  return true
+        case .pi:        return true
         case .codeSpeak: return true
         default:         return false
         }
@@ -90,6 +95,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return "codex\n"
         case .gemini:     return "gemini\n"
         case .qwenCode:   return "qwen\n"
+        case .pi:         return "pi\n"
         case .codeSpeak:  return "codespeak build\n"
         }
     }
@@ -116,6 +122,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return .ctrlC
         case .gemini:     return .ctrlC
         case .qwenCode:   return .ctrlC
+        case .pi:         return .ctrlC
         case .codeSpeak:  return .ctrlC
         }
     }
@@ -131,6 +138,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return "OPENAI_API_KEY"
         case .gemini:     return "GEMINI_API_KEY"
         case .qwenCode:   return "DASHSCOPE_API_KEY"
+        case .pi:         return nil              // provider-agnostic; auth configured via `pi` CLI
         case .codeSpeak:  return "ANTHROPIC_API_KEY"
         }
     }
@@ -143,6 +151,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
         case .codex:      return "npm install -g @openai/codex"
         case .gemini:     return "npm install -g @google/gemini-cli"
         case .qwenCode:   return "npm install -g @anthropic-ai/qwen-code"
+        case .pi:         return "npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
         case .codeSpeak:  return "uv tool install codespeak-cli"
         }
     }
@@ -162,6 +171,9 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
             return "Google Gemini CLI for AI-powered code assistance and generation."
         case .qwenCode:
             return "Alibaba's Qwen Code CLI for code generation and completion."
+        case .pi:
+            return "Provider-agnostic AI coding agent (Anthropic, OpenAI, Google, and 15+ "
+                + "others). Auth via API keys or OAuth, configured through the CLI."
         case .codeSpeak:
             return "Spec-driven AI coding tool. Runs codespeak build against your project specs."
         }
@@ -170,7 +182,7 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// Prerequisite runtime required before installation.
     var prerequisite: String? {
         switch self {
-        case .claude, .codex, .gemini, .qwenCode:
+        case .claude, .codex, .gemini, .qwenCode, .pi:
             return "Node.js 18+"
         case .opencode:
             return "Go 1.22+"
@@ -182,12 +194,29 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
     /// Command to verify the prerequisite is installed.
     var prerequisiteCheckCommand: String? {
         switch self {
-        case .claude, .codex, .gemini, .qwenCode:
+        case .claude, .codex, .gemini, .qwenCode, .pi:
             return "node --version"
         case .opencode:
             return "go version"
         case .codeSpeak:
             return "uv --version"
+        }
+    }
+
+    /// Shell command to update this agent to the latest version.
+    ///
+    /// Executed via `/bin/zsh -lc` (login shell) so that the full PATH
+    /// sourced by `.zprofile` (Homebrew, npm global, uv, go) is available.
+    /// All values are compile-time constants — no user input reaches the shell.
+    var updateCommand: String? {
+        switch self {
+        case .claude:     return "npm install -g @anthropic-ai/claude-code@latest"
+        case .opencode:   return "go install github.com/opencode-ai/opencode@latest"
+        case .codex:      return "npm install -g @openai/codex@latest"
+        case .gemini:     return "npm install -g @google/gemini-cli@latest"
+        case .qwenCode:   return "npm install -g @anthropic-ai/qwen-code@latest"
+        case .pi:         return "npm install -g --ignore-scripts @earendil-works/pi-coding-agent@latest"
+        case .codeSpeak:  return "uv tool upgrade codespeak-cli"
         }
     }
 
@@ -204,6 +233,10 @@ enum AIAssistant: String, CaseIterable, Identifiable, Sendable {
             return "Set your Gemini API key:\nexport GEMINI_API_KEY=your-key-here\n\nGet a key at: aistudio.google.com → API Keys"
         case .qwenCode:
             return "Set your DashScope API key:\nexport DASHSCOPE_API_KEY=your-key-here\n\nGet a key at: dashscope.console.aliyun.com"
+        case .pi:
+            return "Run `pi` and follow the prompts to configure a provider "
+                + "(API key or OAuth). Supports Anthropic, OpenAI, Google, and 15+ others.\n\n"
+                + "Docs: pi.dev"
         case .codeSpeak:
             return "1. Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh\n"
                 + "2. uv tool install codespeak-cli\n"

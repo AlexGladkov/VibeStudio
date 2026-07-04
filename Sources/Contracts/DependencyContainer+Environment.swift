@@ -42,6 +42,10 @@ private struct AgentAvailabilityKey: EnvironmentKey {
     @MainActor static let defaultValue: any AgentAvailabilityChecking = PreviewAgentAvailability()
 }
 
+private struct AgentVersionKey: EnvironmentKey {
+    @MainActor static let defaultValue: any AgentVersionChecking = PreviewAgentVersion()
+}
+
 private struct NavigationCoordinatorKey: EnvironmentKey {
     @MainActor static let defaultValue: AppNavigationCoordinator = AppNavigationCoordinator()
 }
@@ -117,6 +121,11 @@ extension EnvironmentValues {
     var agentAvailability: any AgentAvailabilityChecking {
         get { self[AgentAvailabilityKey.self] }
         set { self[AgentAvailabilityKey.self] = newValue }
+    }
+
+    var agentVersion: any AgentVersionChecking {
+        get { self[AgentVersionKey.self] }
+        set { self[AgentVersionKey.self] = newValue }
     }
 
     var navigationCoordinator: AppNavigationCoordinator {
@@ -318,4 +327,14 @@ private final class PreviewAgentAvailability: AgentAvailabilityChecking {
         availability[agent] ?? .notInstalled(installHint: agent.installHint)
     }
     func canLaunch(_ agent: AIAssistant) -> Bool { false }
+}
+
+@Observable
+@MainActor
+private final class PreviewAgentVersion: AgentVersionChecking {
+    func versionState(for agent: AIAssistant) -> AgentVersionState { .unknown }
+    func isUpdating(_ agent: AIAssistant) -> Bool { false }
+    func lastMessage(for agent: AIAssistant) -> String? { nil }
+    func refresh(_ agent: AIAssistant) {}
+    func update(_ agent: AIAssistant) {}
 }

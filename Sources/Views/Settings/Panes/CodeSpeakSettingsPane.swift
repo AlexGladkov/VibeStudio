@@ -23,6 +23,8 @@ struct CodeSpeakSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
+                versionSection
+
                 statusSection
                 behaviourSection
                 displaySection
@@ -41,6 +43,16 @@ struct CodeSpeakSettingsPane: View {
             let checker = CodeSpeakAuthChecker.shared
             isInstalled = checker.isCodeSpeakInstalled()
             hasAPIKey = checker.hasAuth()
+        }
+    }
+
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SettingsSectionHeader(title: "Version")
+            AgentVersionRow(assistant: .codeSpeak)
+                .settingsCard()
         }
     }
 

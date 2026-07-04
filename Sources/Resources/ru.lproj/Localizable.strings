@@ -242,3 +242,10 @@
 "Message" = "Сообщение";
 "Task name..." = "Название задачи…";
 "Describe the change..." = "Опишите изменение…";
+
+/* --- Agent version / update --- */
+"Version" = "Версия";
+"Update" = "Обновить";
+"Not installed" = "Не установлен";
+"Updated" = "Обновлено";
+"Update failed" = "Ошибка обновления";

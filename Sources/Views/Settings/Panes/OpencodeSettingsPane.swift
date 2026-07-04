@@ -40,6 +40,8 @@ struct OpencodeSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
+                versionSection
+
                 configDirectoryRow(model: model)
 
                 pluginsSection(model: model)
@@ -67,6 +69,16 @@ struct OpencodeSettingsPane: View {
             Button("Cancel", role: .cancel) {}
         } message: { plugin in
             Text("File \u{00AB}\(plugin.filename)\u{00BB} will be permanently deleted.")
+        }
+    }
+
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SettingsSectionHeader(title: "Version")
+            AgentVersionRow(assistant: .opencode)
+                .settingsCard()
         }
     }
 

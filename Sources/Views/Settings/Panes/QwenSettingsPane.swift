@@ -44,6 +44,8 @@ struct QwenSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
+                versionSection
+
                 fileRow(model: model)
 
                 agentsSection(model: model)
@@ -88,6 +90,16 @@ struct QwenSettingsPane: View {
             Button("Cancel", role: .cancel) {}
         } message: { agent in
             Text("File \u{00AB}\(agent.fileURL.lastPathComponent)\u{00BB} will be permanently deleted.")
+        }
+    }
+
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SettingsSectionHeader(title: "Version")
+            AgentVersionRow(assistant: .qwenCode)
+                .settingsCard()
         }
     }
 

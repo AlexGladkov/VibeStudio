@@ -36,6 +36,8 @@ struct GeminiSettingsPane: View {
 
                 Divider().background(DSColor.borderDefault)
 
+                versionSection
+
                 settingsFileSection(model: model)
 
                 authInfoRow
@@ -52,6 +54,16 @@ struct GeminiSettingsPane: View {
                 defaultContent: defaultSettings
             )
         })
+    }
+
+    // MARK: - Version
+
+    private var versionSection: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            SettingsSectionHeader(title: "Version")
+            AgentVersionRow(assistant: .gemini)
+                .settingsCard()
+        }
     }
 
     // MARK: - Settings File Section
