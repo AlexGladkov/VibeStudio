@@ -85,6 +85,15 @@ struct RootView: View {
                                         idealWidth: showSidebar ? DSLayout.sidebarDefaultWidth : 0,
                                         maxWidth: showSidebar ? DSLayout.sidebarMaxWidth : 0
                                     )
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear
+                                                .onAppear { navigationCoordinator.regularSidebarWidth = proxy.size.width }
+                                                .onChange(of: proxy.size.width) { _, newWidth in
+                                                    navigationCoordinator.regularSidebarWidth = newWidth
+                                                }
+                                        }
+                                    )
                                     .clipped()
 
                                 VStack(spacing: 0) {

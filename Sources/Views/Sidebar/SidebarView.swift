@@ -131,10 +131,7 @@ struct SidebarView: View {
 
             VerticalDivider()
 
-            VStack(spacing: 0) {
-                contentPanel
-                versionFooter
-            }
+            contentPanel
         }
         .frame(maxHeight: .infinity)
         .background(DSColor.surfaceRaised)
@@ -266,21 +263,6 @@ struct SidebarView: View {
         }
         .padding(.top, DSSpacing.sm)
         .frame(width: DSLayout.iconStripWidth)
-    }
-
-    // MARK: - Version Footer
-
-    /// Unobtrusive running-build indicator, pinned to the bottom of the
-    /// sidebar. Ghost-muted 9pt so it never competes with content but is
-    /// always there when you need to know which build is live.
-    private var versionFooter: some View {
-        Text(Bundle.main.appVersionDisplay)
-            .font(DSFont.badgeSmall)
-            .foregroundStyle(DSColor.textGhost)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.vertical, DSSpacing.xxs)
-            .help("Running build")
-            .textSelection(.enabled)
     }
 
     // MARK: - Content Panel

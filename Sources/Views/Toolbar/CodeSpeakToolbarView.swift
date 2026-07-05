@@ -45,9 +45,17 @@ struct CodeSpeakToolbarView: View {
         let box1Width = max(0, specsWidth - trafficLightsEnd)
 
         HStack(spacing: 0) {
-            // Box 1 — left panel placeholder (transparent)
+            // Box 1 — left panel placeholder (transparent). Overlaid with the
+            // running-build indicator pinned to its leading edge (right of the
+            // traffic-light buttons). Using an overlay keeps `box1Width`
+            // unchanged, so the centre breadcrumb alignment is preserved.
             Color.clear
                 .frame(width: box1Width)
+                .overlay(alignment: .leading) {
+                    AppVersionBadge()
+                        .frame(maxWidth: max(0, box1Width - DSSpacing.sm * 2), alignment: .leading)
+                        .padding(.leading, DSSpacing.sm)
+                }
 
             // Box 2 — centre: breadcrumb pinned to left of centre column
             HStack(spacing: DSSpacing.sm) {

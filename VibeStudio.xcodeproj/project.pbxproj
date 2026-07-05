@@ -318,6 +318,7 @@
 		F2DE64D9DA8486DB084197E2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 3615091EFEA07EF308A8AE98 /* SwiftTerm */; };
 		F33217EADAB3C386899A3958 /* PlayStopButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2772712CB3F7385F8B3A8931 /* PlayStopButton.swift */; };
 		F3AEF635F66D26C5B7ABAC25 /* RemoteAuthMiddlewareTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD02C42C2D103C290BFCFEC /* RemoteAuthMiddlewareTests.swift */; };
+		F3BE1AAA372B33318EA3C6AF /* AppVersionBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C0226E41C55A18B01CBF561 /* AppVersionBadge.swift */; };
 		F4CCE5FB1185ECB4F3CD4CC6 /* DSColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8070DE4B0771BAAEA65FC9A /* DSColor.swift */; };
 		F5A77F5E8066A2F17EBCA0CD /* AgentNameSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC121A99A1D8E170B7B8EC58 /* AgentNameSanitizerTests.swift */; };
 		F68602056DB8C9C3B95F9B53 /* TerminalSessionQuerying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518B82C8D790085E88248288 /* TerminalSessionQuerying.swift */; };
@@ -389,6 +390,7 @@
 		1AD231621D92A8A5E69BAC86 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		1B32B21E395405769DEBA66A /* AgentNameSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNameSanitizer.swift; sourceTree = "<group>"; };
 		1BE04E7A00994F62F41BFDC9 /* SpecModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecModelsTests.swift; sourceTree = "<group>"; };
+		1C0226E41C55A18B01CBF561 /* AppVersionBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionBadge.swift; sourceTree = "<group>"; };
 		1C14BB4E1B0F42A1DB0D3A62 /* FreeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTab.swift; sourceTree = "<group>"; };
 		1C515625DC84FC37E461C699 /* CodeSpeakSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSpeakSettingsPane.swift; sourceTree = "<group>"; };
 		1ED9CD40D1209823B8058F69 /* RemoteSessionBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSessionBridge.swift; sourceTree = "<group>"; };
@@ -1660,6 +1662,7 @@
 				30CCA79B744D75B581617A98 /* AgentLogos.swift */,
 				BC1AE57E3FA63D473CE12EB3 /* AheadBehindBadgeView.swift */,
 				A690F2F12639186A82C7FB29 /* AIAssistantIconView.swift */,
+				1C0226E41C55A18B01CBF561 /* AppVersionBadge.swift */,
 				51AA5CAFFBEAB587D7AAC0C9 /* DisclosureChevron.swift */,
 				4DF127F640B6AC49F319B8F2 /* PanelStateView.swift */,
 				2772712CB3F7385F8B3A8931 /* PlayStopButton.swift */,
@@ -1974,6 +1977,7 @@
 				58FD1FBD320D472385E79ED2 /* AppLifecycleCoordinator.swift in Sources */,
 				E02F4D88B327E5B9C3976A78 /* AppNavigationCoordinator.swift in Sources */,
 				F6B8C5D33DE41B96D6FF318F /* AppReadyState.swift in Sources */,
+				F3BE1AAA372B33318EA3C6AF /* AppVersionBadge.swift in Sources */,
 				AD0ABDAE8F79A8462BA769D1 /* AsyncObservation.swift in Sources */,
 				D9CB9564158ECC4EF37E2045 /* AuthEndpointRouter.swift in Sources */,
 				9FD3A5483055D384BCF3BC91 /* BonjourAdvertiser.swift in Sources */,
