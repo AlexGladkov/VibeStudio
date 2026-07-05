@@ -25,32 +25,8 @@ struct RegularToolbarView: View {
     @State private var showingRemotePopover = false
     @State private var showingQRPopover = false
 
-    /// Max width for the leading version badge: sidebar width minus the traffic
-    /// lights zone, the HStack leading padding, and a safety gap so the text
-    /// always stops short of the sidebar/content divider.
-    ///
-    /// The `trafficLightsEndFallback` here is an *approximation* of the toolbar
-    /// hosting view's real leading inset (`cachedLeadingInset` in
-    /// `WindowToolbarRemover`, measured from the live zoom-button frame). The
-    /// extra `lg` safety gap absorbs any difference so the badge never touches
-    /// the divider even if the real inset is a few points larger.
-    private var versionBadgeMaxWidth: CGFloat {
-        max(0, navigationCoordinator.regularSidebarWidth
-            - DSLayout.trafficLightsEndFallback
-            - DSSpacing.md      // HStack leading padding
-            - DSSpacing.lg)     // safety gap before the divider
-    }
-
     var body: some View {
         HStack(spacing: DSSpacing.sm) {
-            // Running-build indicator, pinned to the leading edge — i.e. right
-            // of the macOS traffic-light buttons (the hosting view's leading
-            // anchor is `trafficLightsEnd`). Clamped to the sidebar width so it
-            // never spills over the sidebar/content divider when the sidebar is
-            // dragged narrow (truncates tail-first instead).
-            AppVersionBadge()
-                .frame(maxWidth: versionBadgeMaxWidth, alignment: .leading)
-
             Spacer(minLength: 0)
 
             configPicker

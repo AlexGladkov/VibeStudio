@@ -36,7 +36,7 @@ struct UpdateSettingsPane: View {
                         .foregroundStyle(DSColor.textPrimary)
                         .frame(width: DSLayout.settingsLabelWidth, alignment: .leading)
 
-                    Text(updateService.currentVersion)
+                    Text(Bundle.main.appVersionDisplay)
                         .font(DSFont.sidebarItem)
                         .foregroundStyle(DSColor.textSecondary)
                         .monospacedDigit()

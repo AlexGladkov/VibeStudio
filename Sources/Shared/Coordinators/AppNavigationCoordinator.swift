@@ -46,20 +46,6 @@ final class AppNavigationCoordinator {
     /// breadcrumb never visibly jumps on first render before `GeometryReader` fires.
     var specsColumnWidth: CGFloat = DSLayout.codeSpeakSpecsColumnIdeal
 
-    /// Width of the Regular-mode sidebar column.
-    ///
-    /// Updated by `RootView` via `GeometryReader` so `RegularToolbarView` can
-    /// clamp the titlebar version badge to the sidebar width — keeping it right
-    /// of the traffic lights without ever spilling over the sidebar/content
-    /// divider when the sidebar is dragged narrow.
-    ///
-    /// Initialised to `sidebarMinWidth` (not default) so the clamp is
-    /// **fail-safe**: before/if the `GeometryReader` update reaches the toolbar's
-    /// separate `NSHostingView`, the badge is clamped to the narrowest possible
-    /// sidebar and can never overhang the divider. It only widens once the real
-    /// width is confirmed.
-    var regularSidebarWidth: CGFloat = DSLayout.sidebarMinWidth
-
     /// Update `currentMode` based on whether the active project is a CodeSpeak project.
     ///
     /// Called by `AppLifecycleCoordinator` whenever the active project changes.
