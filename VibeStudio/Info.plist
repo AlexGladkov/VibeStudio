@@ -87,6 +87,24 @@
     <key>NSRequiresAquaSystemAppearance</key>
     <false/>
 
+    <!-- ============================================================
+         Sparkle auto-update configuration
+         Appcast hosted on GitHub Pages; updates verified with EdDSA.
+         SUPublicEDKey is generated once via scripts/sparkle-keygen.sh
+         (private key stays in the login Keychain / CI secret).
+         ============================================================ -->
+    <key>SUFeedURL</key>
+    <string>https://alexgladkov.github.io/VibeStudio/appcast.xml</string>
+
+    <key>SUPublicEDKey</key>
+    <string>fTRMA+vy4NFD7ig8nbz7hQ4ibbJDcupGCHXBYcMRJTU=</string>
+
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+
     <!-- PLACEHOLDER: URL schemes for deep linking (future)
     <key>CFBundleURLTypes</key>
     <array>

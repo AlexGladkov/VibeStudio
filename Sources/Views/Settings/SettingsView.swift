@@ -106,6 +106,10 @@ struct SettingsView: View {
             Image(systemName: item.systemImage)
                 .font(DSFont.bodySmall)
                 .foregroundStyle(isSelected ? DSColor.accentPrimary : DSColor.textSecondary)
+        case .updates:
+            Image(systemName: item.systemImage)
+                .font(DSFont.bodySmall)
+                .foregroundStyle(isSelected ? DSColor.accentPrimary : DSColor.textSecondary)
         case .llmAssistant(let assistant):
             AIAssistantIconView(assistant: assistant, size: 14) // iconLG point size
                 .opacity(isSelected ? 1.0 : 0.6)
@@ -122,6 +126,8 @@ struct SettingsView: View {
                 GeneralSettingsPane()
             case .remoteControl:
                 RemoteControlSettingsPane()
+            case .updates:
+                UpdateSettingsPane()
             case .llmAssistant(let assistant):
                 LLMSettingsPane(assistant: assistant)
             }

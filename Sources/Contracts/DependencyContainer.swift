@@ -36,6 +36,11 @@ final class ServiceContainer {
     let aiCommitService: any AICommitServicing
     let gitStatusPoller: any GitStatusPolling
     let agentAvailability: any AgentAvailabilityChecking
+    /// In-app auto-update (Sparkle-backed).
+    ///
+    /// Injected as a plain `any` existential (like `gitService`): views only
+    /// trigger checks / read version, no `@Observable` property tracking needed.
+    let updateService: any UpdateServicing
     /// Startup readiness gate — prevents SwiftUI views from accessing TCC-protected
     /// directories before the user has granted consent.
     let appReadyState: AppReadyState
@@ -106,6 +111,7 @@ final class ServiceContainer {
         aiCommitService: any AICommitServicing,
         gitStatusPoller: any GitStatusPolling,
         agentAvailability: any AgentAvailabilityChecking,
+        updateService: any UpdateServicing,
         appReadyState: AppReadyState,
         navigationCoordinator: AppNavigationCoordinator,
         themeService: ThemeService,
@@ -126,6 +132,7 @@ final class ServiceContainer {
         self.aiCommitService = aiCommitService
         self.gitStatusPoller = gitStatusPoller
         self.agentAvailability = agentAvailability
+        self.updateService = updateService
         self.appReadyState = appReadyState
         self.navigationCoordinator = navigationCoordinator
         self.themeService = themeService
@@ -173,6 +180,7 @@ extension View {
             .environment(\.aiCommitService, container.aiCommitService)
             .environment(\.gitStatusPoller, container.gitStatusPoller)
             .environment(\.agentAvailability, container.agentAvailability)
+            .environment(\.updateService, container.updateService)
             .environment(container.appReadyState)
             // Inject navigationCoordinator via both styles:
             // - Observable-style (.environment(object)) ensures @Observable property tracking

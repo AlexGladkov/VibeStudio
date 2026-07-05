@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             aiCommitService: aiCommitService,
             gitStatusPoller: gitStatusPoller,
             agentAvailability: agentAvailabilityService,
+            updateService: updateService,
             appReadyState: appReadyState,
             navigationCoordinator: navigationCoordinator,
             themeService: themeService,
@@ -53,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var aiCommitService = AICommitService()
     private lazy var gitStatusPoller = GitStatusPoller(gitService: gitService)
     private lazy var agentAvailabilityService = AgentAvailabilityService()
+    private lazy var updateService = UpdateService()
     private let appReadyState = AppReadyState()
     private let navigationCoordinator = AppNavigationCoordinator()
     private lazy var themeService = ThemeService()

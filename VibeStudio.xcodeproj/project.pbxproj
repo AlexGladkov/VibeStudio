@@ -12,6 +12,7 @@
 		01B33C4E1800E6170B7F3508 /* APIKeyResolving.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69BD3DCB70F231D6152B82B2 /* APIKeyResolving.swift */; };
 		02CC892C6940D3E59B9FCF92 /* AIConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4E97835A993EC26995CBD7 /* AIConstants.swift */; };
 		030EA9B3334EF51DBE5E1E7F /* YAMLFrontmatterParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C004AE62EE748906A39B4FD /* YAMLFrontmatterParser.swift */; };
+		0333C17405E80E0D76FF9C99 /* BundleVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23BEC849688C6F8384BAFB49 /* BundleVersion.swift */; };
 		0345C243DF7FAE6C822AE6EE /* ToolbarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004914733FE0EEC07BC06142 /* ToolbarViewModel.swift */; };
 		038403B01FE728FE72C877FE /* MockGitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB4C1A1647BC2D99493A1721 /* MockGitService.swift */; };
 		03BD9561FC64C96A9A482B55 /* MockSessionPersisting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6109B6D99CF19AA9231786EF /* MockSessionPersisting.swift */; };
@@ -57,6 +58,7 @@
 		289F0A99C9DA68CD2288D7AC /* CodeSpeakProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E860D132CA2D931F53C57BF /* CodeSpeakProcessRunner.swift */; };
 		28C5007959593A0AA95438B4 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0308AFD60FC5D51B5266D037 /* KeychainHelper.swift */; };
 		28D927E3E321185D14783862 /* MarkdownParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2F84B89DC75AF1AE355746B /* MarkdownParser.swift */; };
+		293F3BAE38A4295DC7337DEE /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = BDAD4A1E72A91BD9F39D0AD9 /* Sparkle */; };
 		299796B7F68FFB23B0A16D01 /* SpecStatsParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64920EA407C59FA9103E3107 /* SpecStatsParserTests.swift */; };
 		299DB17943FB65E40AA7573A /* SyntaxTokenizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12079FF27B2A66966D689686 /* SyntaxTokenizerTests.swift */; };
 		2AA74AD4DE1FD1201F326994 /* RemoteAPIHandlers+Sessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAC5FD3F8E0B6DD16281477 /* RemoteAPIHandlers+Sessions.swift */; };
@@ -69,6 +71,7 @@
 		2E9BDD45C7B2D6B1B7C1C0C2 /* GitURLConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7052A0E84C674DE30C61B4E6 /* GitURLConverterTests.swift */; };
 		2EF9857CCC170AB2EFADC08E /* WebSocketHandler+Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = C057772B4CC79FC403E8ADB5 /* WebSocketHandler+Auth.swift */; };
 		2F94BE772808BFCD48945C8B /* RestoreSessionUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = E51CB0AE25A5EE6F7DC459B5 /* RestoreSessionUseCase.swift */; };
+		356CA3B1F7297D0706920958 /* UpdateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01141BEEB21EF6A732FF108 /* UpdateService.swift */; };
 		378346AA7F5EBEACD49DCD56 /* RemoteWSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7DF04476E5617B7AEC8B9D1 /* RemoteWSConstants.swift */; };
 		38E4D97623C8E6846A7F5B61 /* Errors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02C3AF3C8729EE55522007DE /* Errors.swift */; };
 		38F7CA8CB680914888CE0319 /* AgentEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A5030E9FDB693BEAA13705 /* AgentEntry.swift */; };
@@ -252,6 +255,7 @@
 		C609237B87AB7F7CBE39E8F1 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435D2AA86582ED053BD78FF9 /* RootView.swift */; };
 		C60DCB716212131085BBF60F /* FileViewerConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E27BBB0C382F21995BEBA38 /* FileViewerConstants.swift */; };
 		C6EB79ACF7D4D6D7419271CE /* HexColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 743A7CBC6786A9F1C6BCBB8B /* HexColorTests.swift */; };
+		C7768E19252BD6191720D0AD /* UpdateServicing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A15FCFDA798E9F8C0F4B0A /* UpdateServicing.swift */; };
 		C82FBBBCD62943D4B6A9CB2A /* InstallAgentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7655A4ABBF755653E9C14BB1 /* InstallAgentSheet.swift */; };
 		C83EB149B19BA96966BB1FFD /* DSFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 763C72775F2A167A1C0EB7EA /* DSFont.swift */; };
 		C9453097015228793540D47B /* LoopbackCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E4F12C9C1F61B963512FC2 /* LoopbackCheckTests.swift */; };
@@ -308,6 +312,7 @@
 		EFFDAA39A44385D49698EE89 /* AgentAvailabilityChecking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C48EAB10D339D6539A44834 /* AgentAvailabilityChecking.swift */; };
 		F07DD60245FC918FABF92556 /* SyntaxParserRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77333434DB3FBDF01AE115BB /* SyntaxParserRegistry.swift */; };
 		F09DFB7AAAB7EA9B0139AEBF /* ActivateFirstProjectUseCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0818C8FD48BA7A4750D67A7 /* ActivateFirstProjectUseCase.swift */; };
+		F0FF0B2079FB7109672AF28F /* UpdateSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AB176D1541DB862C09883B /* UpdateSettingsPane.swift */; };
 		F125866365F6A9AB260F6B4E /* QwenSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84F2227A474AF4A519DACB2 /* QwenSettingsPane.swift */; };
 		F274C6FDFC1867684B3F288D /* TerminalScrollbackAccessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 957B31518F2604BC73036AEC /* TerminalScrollbackAccessing.swift */; };
 		F2DE64D9DA8486DB084197E2 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 3615091EFEA07EF308A8AE98 /* SwiftTerm */; };
@@ -393,6 +398,7 @@
 		22C53DA1E49CF6265228DEA3 /* SettingsToggleRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsToggleRow.swift; sourceTree = "<group>"; };
 		22F7CFD253A3D2778D91E055 /* CreateBranchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateBranchSheet.swift; sourceTree = "<group>"; };
 		237DFCD7415921415E5B5327 /* GitServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitServicing.swift; sourceTree = "<group>"; };
+		23BEC849688C6F8384BAFB49 /* BundleVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleVersion.swift; sourceTree = "<group>"; };
 		241AF3EF47162218F10F879B /* TerminalInputSending.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalInputSending.swift; sourceTree = "<group>"; };
 		2426AD40279E3C1737739CCD /* SessionPersisting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionPersisting.swift; sourceTree = "<group>"; };
 		2772712CB3F7385F8B3A8931 /* PlayStopButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayStopButton.swift; sourceTree = "<group>"; };
@@ -412,6 +418,7 @@
 		338D729EBA3B4AD56B86728A /* TLSCertificateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLSCertificateManager.swift; sourceTree = "<group>"; };
 		34012FF65A96F2F6727ECF1A /* GitBranching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranching.swift; sourceTree = "<group>"; };
 		34D68FCAAFE55EA7775F2014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		36A15FCFDA798E9F8C0F4B0A /* UpdateServicing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateServicing.swift; sourceTree = "<group>"; };
 		36BAA8C93B438D96557F3D95 /* SpecBuildPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecBuildPanelView.swift; sourceTree = "<group>"; };
 		37901A7BDC86CA199A3B9491 /* LLMSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMSettingsPane.swift; sourceTree = "<group>"; };
 		37D6AE653104B16B6210E7B2 /* RemoteControlSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlSettingsPane.swift; sourceTree = "<group>"; };
@@ -550,6 +557,7 @@
 		9BCFFAB074C48E9360CEE23D /* FileDiffViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDiffViewModel.swift; sourceTree = "<group>"; };
 		9C0FE979401445A63E64D595 /* GitStatusQuerying.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusQuerying.swift; sourceTree = "<group>"; };
 		9F9AFC1A8E312D88FB2CDB79 /* VibeStudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VibeStudioTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A01141BEEB21EF6A732FF108 /* UpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateService.swift; sourceTree = "<group>"; };
 		A0427328956283D7DF356A83 /* AICommitServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICommitServiceTests.swift; sourceTree = "<group>"; };
 		A123D08B1D9CA2F62BB5C1B2 /* SettingsEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEmptyState.swift; sourceTree = "<group>"; };
 		A153E5591CE079C078858437 /* ProjectListItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectListItemView.swift; sourceTree = "<group>"; };
@@ -610,6 +618,7 @@
 		D4812923C431AA3F6081CC54 /* WebSocketHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketHandler.swift; sourceTree = "<group>"; };
 		D4C94ED43BD752CDC96E8E10 /* MIMETypeResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIMETypeResolver.swift; sourceTree = "<group>"; };
 		D4F30680A4E8BBDC18E3F3AE /* StyledInputModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyledInputModifier.swift; sourceTree = "<group>"; };
+		D5AB176D1541DB862C09883B /* UpdateSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateSettingsPane.swift; sourceTree = "<group>"; };
 		D5F817AAE0A74E366D850D95 /* GeminiSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiSettingsPane.swift; sourceTree = "<group>"; };
 		D60E61B49277033EB87577D1 /* SidebarSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarSectionHeader.swift; sourceTree = "<group>"; };
 		D776910E9746F97450F2CBB4 /* RemoteControlSettingsPaneViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteControlSettingsPaneViewModel.swift; sourceTree = "<group>"; };
@@ -683,6 +692,7 @@
 				633868AC7FF0BBBAB0997349 /* NIOSSL in Frameworks */,
 				FBF7B085C39C1877EA2E115C /* X509 in Frameworks */,
 				DEF83AC16CB1790855B72144 /* WebSocketKit in Frameworks */,
+				293F3BAE38A4295DC7337DEE /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1048,11 +1058,20 @@
 				7E82ECC14367AF605FBD8DC0 /* ProjectManaging.swift */,
 				2426AD40279E3C1737739CCD /* SessionPersisting.swift */,
 				6FE7FB6400C135E9A5438B8B /* TerminalSessionManaging.swift */,
+				36A15FCFDA798E9F8C0F4B0A /* UpdateServicing.swift */,
 				F780CBEEC511E26FBE8BEE2E /* Git */,
 				D791B4D3711075F6F6726D29 /* Syntax */,
 				34035F40F48F49BDBE3C5B51 /* Terminal */,
 			);
 			path = Contracts;
+			sourceTree = "<group>";
+		};
+		698EDCF056040B1651745551 /* Update */ = {
+			isa = PBXGroup;
+			children = (
+				A01141BEEB21EF6A732FF108 /* UpdateService.swift */,
+			);
+			path = Update;
 			sourceTree = "<group>";
 		};
 		69EBED448F4226D366E07721 /* Session */ = {
@@ -1084,6 +1103,7 @@
 		76B68FCC1498609334F91D76 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				23BEC849688C6F8384BAFB49 /* BundleVersion.swift */,
 				118276DE5E7C7AE506650EB0 /* Constants */,
 				A6E16272594FE9A70764132F /* Coordinators */,
 				FBD14C42054EBA37F8984DD2 /* Models */,
@@ -1253,6 +1273,7 @@
 				D84F2227A474AF4A519DACB2 /* QwenSettingsPane.swift */,
 				37D6AE653104B16B6210E7B2 /* RemoteControlSettingsPane.swift */,
 				DF47B3FD866923786F5241E0 /* RemoteControlSettingsPane+Ngrok.swift */,
+				D5AB176D1541DB862C09883B /* UpdateSettingsPane.swift */,
 			);
 			path = Panes;
 			sourceTree = "<group>";
@@ -1346,6 +1367,7 @@
 				EAFBDED5A99990D6B9064373 /* Security */,
 				2EECC56F8C14A8CBD58D09BF /* Terminal */,
 				DD1C9EAC86CFD021E41B23A4 /* Theme */,
+				698EDCF056040B1651745551 /* Update */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1812,6 +1834,7 @@
 				A9D87C8E6E28BFAF6B511787 /* NIOSSL */,
 				927DA81F61AC33DC3D421CB5 /* X509 */,
 				D9221D48D1F190315D2E52E4 /* WebSocketKit */,
+				BDAD4A1E72A91BD9F39D0AD9 /* Sparkle */,
 			);
 			productName = VibeStudio;
 			productReference = BA12055B013FFBC787CC7C71 /* VibeStudio.app */;
@@ -1838,6 +1861,7 @@
 			mainGroup = 9AC14D3B9800BE3817CF5CFD;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				16600EB47B7D4231B7AD0FA9 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				2180EC66AD1DDE3658FF3B35 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 				2D57E491EA20E67DB3C84D95 /* XCRemoteSwiftPackageReference "swift-certificates" */,
 				8F0BBA2C6121E89959AB0DED /* XCRemoteSwiftPackageReference "swift-nio" */,
@@ -1955,6 +1979,7 @@
 				9FD3A5483055D384BCF3BC91 /* BonjourAdvertiser.swift in Sources */,
 				DE5730F01E08EE877B1BE35E /* BranchListView.swift in Sources */,
 				AC6219C8EF61AD89D377908A /* BuildLineKind.swift in Sources */,
+				0333C17405E80E0D76FF9C99 /* BundleVersion.swift in Sources */,
 				B1F017B004B29B08566E325A /* CLIAgentPathResolver.swift in Sources */,
 				3C545B29654050136B38B5E2 /* CORSPolicy.swift in Sources */,
 				91358488E087F84FACFA1FB7 /* ClaudeEditorSheet.swift in Sources */,
@@ -2185,6 +2210,9 @@
 				46C53B0BB1221CAA5801ADFA /* TraceabilityPanelView.swift in Sources */,
 				55B2C20D10E118D5EF4F4AA2 /* TraceabilityPanelViewModel.swift in Sources */,
 				8F7B8BC5FF98205E658148E7 /* URLExtensions.swift in Sources */,
+				356CA3B1F7297D0706920958 /* UpdateService.swift in Sources */,
+				C7768E19252BD6191720D0AD /* UpdateServicing.swift in Sources */,
+				F0FF0B2079FB7109672AF28F /* UpdateSettingsPane.swift in Sources */,
 				3ECDF3D9F19DC3040174713B /* VibeStudioApp.swift in Sources */,
 				9BA90B7EC2A957AE34122507 /* ViewedFile.swift in Sources */,
 				2EF9857CCC170AB2EFADC08E /* WebSocketHandler+Auth.swift in Sources */,
@@ -2355,7 +2383,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.3.0;
+				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -2395,7 +2423,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.3.0;
+				MARKETING_VERSION = 0.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -2454,6 +2482,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		16600EB47B7D4231B7AD0FA9 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
 		2180EC66AD1DDE3658FF3B35 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
@@ -2526,6 +2562,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F44D39B15296495892D34DD6 /* XCRemoteSwiftPackageReference "swift-nio-ssl" */;
 			productName = NIOSSL;
+		};
+		BDAD4A1E72A91BD9F39D0AD9 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16600EB47B7D4231B7AD0FA9 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		CB54DD42DC34B8B72DCA4AE8 /* NIOHTTP1 */ = {
 			isa = XCSwiftPackageProductDependency;

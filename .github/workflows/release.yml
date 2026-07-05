@@ -1,7 +1,8 @@
 # ============================================================
 # VibeStudio — Release Pipeline
 # Triggers on push of version tags (v*).
-# Builds macOS app, creates DMG, publishes GitHub Release.
+# Builds → Developer ID sign → notarize → staple → DMG →
+# generate Sparkle appcast → publish GitHub Release + GitHub Pages feed.
 # ============================================================
 
 name: Release
@@ -11,14 +12,14 @@ on:
     tags:
       - 'v*'
 
-# Cancel redundant runs for the same tag
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: true
 
-# Minimal permissions — release creation requires contents:write
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 env:
   APP_NAME: VibeStudio
@@ -26,15 +27,18 @@ env:
   BUNDLE_ID: tech.mobiledeveloper.vibestudio
   MIN_MACOS: '14.0'
   XCODE_VERSION: '16.4'
+  # Public download location for DMGs (GitHub Releases) — used as the
+  # Sparkle appcast enclosure URL prefix.
+  DOWNLOAD_REPO: ${{ github.repository }}
 
 jobs:
   # ---------------------------------------------------------------
-  # Job 1: Build + Test + Archive + DMG
+  # Job 1: Build + Sign + Notarize + DMG + Appcast
   # ---------------------------------------------------------------
   build:
     name: Build & Package
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -59,51 +63,57 @@ jobs:
         run: brew install create-dmg
 
       - name: Resolve SPM dependencies
-        run: |
-          make resolve-deps
+        run: make resolve-deps
 
       - name: Run tests
-        run: |
-          make test
+        run: make test
 
-      - name: Build archive
-        run: |
-          make archive \
-            VERSION=${{ steps.version.outputs.version }} \
-            BUILD_NUMBER=${{ steps.version.outputs.build_number }}
-
-      - name: Export app bundle
+      # `make export` runs archive (unsigned) + exports the .app.
+      # NOTE: do NOT use `make dmg` afterwards — its `export` prerequisite is
+      # phony and would re-export a fresh UNSIGNED app over the signed one.
+      # We call create-dmg.sh directly after signing instead.
+      - name: Export app bundle (unsigned)
         run: |
           make export \
             VERSION=${{ steps.version.outputs.version }} \
             BUILD_NUMBER=${{ steps.version.outputs.build_number }}
 
-      - name: Create DMG
-        run: |
-          make dmg \
-            VERSION=${{ steps.version.outputs.version }} \
-            BUILD_NUMBER=${{ steps.version.outputs.build_number }}
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERT_PASSWORD }}
 
-      - name: Rename DMG with version
+      - name: Developer ID sign app (Sparkle-aware)
         run: |
-          mv build/VibeStudio.dmg \
-             "build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+          ./scripts/codesign-app.sh \
+            build/export/VibeStudio.app \
+            "${{ secrets.APPLE_SIGN_IDENTITY }}" \
+            VibeStudio/VibeStudio.entitlements
 
-      # PLACEHOLDER: Notarization step — uncomment when Apple Developer account is available
-      # - name: Notarize DMG
-      #   env:
-      #     NOTARIZE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      #     NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
-      #     NOTARIZE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-      #   run: |
-      #     xcrun notarytool submit \
-      #       "build/VibeStudio-${{ steps.version.outputs.version }}.dmg" \
-      #       --apple-id "${NOTARIZE_APPLE_ID}" \
-      #       --team-id "${NOTARIZE_TEAM_ID}" \
-      #       --password "${NOTARIZE_PASSWORD}" \
-      #       --wait
-      #     xcrun stapler staple \
-      #       "build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+      - name: Create DMG (from signed app)
+        run: |
+          ./scripts/create-dmg.sh \
+            build/export/VibeStudio.app \
+            "build/VibeStudio-${{ steps.version.outputs.version }}.dmg" \
+            "${{ steps.version.outputs.version }}"
+
+      - name: Notarize + staple DMG
+        env:
+          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ./scripts/notarize.sh "build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+
+      - name: Generate Sparkle appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          mkdir -p dist
+          cp "build/VibeStudio-${{ steps.version.outputs.version }}.dmg" dist/
+          ./scripts/generate-appcast.sh dist \
+            "https://github.com/${DOWNLOAD_REPO}/releases/download/${GITHUB_REF_NAME}/"
 
       - name: Compute DMG checksum
         id: checksum
@@ -121,8 +131,15 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Upload appcast artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast
+          path: dist/appcast.xml
+          if-no-files-found: error
+
   # ---------------------------------------------------------------
-  # Job 2: Create GitHub Release
+  # Job 2: Create GitHub Release (DMG asset)
   # ---------------------------------------------------------------
   release:
     name: Publish Release
@@ -164,7 +181,9 @@ jobs:
             ### Installation
             1. Download `VibeStudio-${{ steps.version.outputs.version }}.dmg`
             2. Open the DMG and drag VibeStudio to Applications
-            3. On first launch: right-click -> Open (bypass Gatekeeper for unsigned builds)
+
+            Already have VibeStudio? It will update itself automatically
+            (Sparkle) — or use **VibeStudio ▸ Check for Updates…**.
 
             ### System Requirements
             - macOS 14.0 (Sonoma) or later
@@ -175,6 +194,30 @@ jobs:
             SHA-256: ${{ steps.checksum.outputs.sha256 }}
             ```
 
-            > **Note:** This build is not notarized. For personal/development use only.
+            > Signed with Developer ID and notarized by Apple.
           files: |
             artifacts/VibeStudio-${{ steps.version.outputs.version }}.dmg
+
+  # ---------------------------------------------------------------
+  # Job 3: Publish Sparkle appcast to GitHub Pages
+  # ---------------------------------------------------------------
+  pages:
+    name: Publish Appcast
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download appcast artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: appcast
+          path: site/
+
+      - name: Deploy appcast to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
+          keep_files: true

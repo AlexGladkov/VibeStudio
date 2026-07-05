@@ -30,5 +30,15 @@ struct VibeStudioApp: App {
             width: DSLayout.windowDefaultWidth,
             height: DSLayout.windowDefaultHeight
         )
+        .commands {
+            // Standard macOS "Check for Updates…" item, placed in the app menu
+            // right after "About VibeStudio".
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") {
+                    appDelegate.container.updateService.checkForUpdates()
+                }
+                .disabled(!appDelegate.container.updateService.canCheckForUpdates)
+            }
+        }
     }
 }

@@ -26,7 +26,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var items: [SettingsItem] {
         switch self {
         case .general:
-            return [.appearance, .remoteControl]
+            return [.appearance, .remoteControl, .updates]
         case .llm:
             return AIAssistant.allCases.map { .llmAssistant($0) }
         }
@@ -39,6 +39,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
 enum SettingsItem: Hashable, Identifiable {
     case appearance
     case remoteControl
+    case updates
     case llmAssistant(AIAssistant)
 
     var id: String {
@@ -47,6 +48,8 @@ enum SettingsItem: Hashable, Identifiable {
             return "appearance"
         case .remoteControl:
             return "remoteControl"
+        case .updates:
+            return "updates"
         case .llmAssistant(let assistant):
             return "llm-\(assistant.rawValue)"
         }
@@ -57,6 +60,7 @@ enum SettingsItem: Hashable, Identifiable {
         switch self {
         case .appearance:        return .general
         case .remoteControl:     return .general
+        case .updates:           return .general
         case .llmAssistant:      return .llm
         }
     }
@@ -68,6 +72,8 @@ enum SettingsItem: Hashable, Identifiable {
             return "Appearance"
         case .remoteControl:
             return "Remote Control"
+        case .updates:
+            return "Updates"
         case .llmAssistant(let assistant):
             // Assistant names are proper nouns; not localized.
             return LocalizedStringKey(assistant.displayName.capitalized)
@@ -79,6 +85,7 @@ enum SettingsItem: Hashable, Identifiable {
         switch self {
         case .appearance:        return "folder.fill"
         case .remoteControl:     return "antenna.radiowaves.left.and.right"
+        case .updates:           return "arrow.down.circle"
         case .llmAssistant:      return "brain"
         }
     }

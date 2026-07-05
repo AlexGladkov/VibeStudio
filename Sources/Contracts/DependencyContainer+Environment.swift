@@ -42,6 +42,10 @@ private struct AgentAvailabilityKey: EnvironmentKey {
     @MainActor static let defaultValue: any AgentAvailabilityChecking = PreviewAgentAvailability()
 }
 
+private struct UpdateServiceKey: EnvironmentKey {
+    @MainActor static let defaultValue: any UpdateServicing = PreviewUpdateService()
+}
+
 private struct NavigationCoordinatorKey: EnvironmentKey {
     @MainActor static let defaultValue: AppNavigationCoordinator = AppNavigationCoordinator()
 }
@@ -117,6 +121,11 @@ extension EnvironmentValues {
     var agentAvailability: any AgentAvailabilityChecking {
         get { self[AgentAvailabilityKey.self] }
         set { self[AgentAvailabilityKey.self] = newValue }
+    }
+
+    var updateService: any UpdateServicing {
+        get { self[UpdateServiceKey.self] }
+        set { self[UpdateServiceKey.self] = newValue }
     }
 
     var navigationCoordinator: AppNavigationCoordinator {
@@ -284,6 +293,14 @@ private final class PreviewSessionPersistence: SessionPersisting {
     func pruneOrphanedScrollbacks(keeping activeSessionIds: Set<UUID>) async throws -> Int { 0 }
     var storageDirectory: URL { URL(fileURLWithPath: NSTemporaryDirectory()) }
     var currentSnapshotVersion: Int { 0 }
+}
+
+@MainActor
+private final class PreviewUpdateService: UpdateServicing {
+    var canCheckForUpdates: Bool { false }
+    var automaticallyChecksForUpdates: Bool = false
+    var currentVersion: String { "0.0.0" }
+    func checkForUpdates() {}
 }
 
 private final class PreviewAICommitService: AICommitServicing {

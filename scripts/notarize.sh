@@ -1,58 +1,46 @@
 #!/usr/bin/env bash
 # ============================================================
-# notarize.sh — PLACEHOLDER for Apple notarization
-# Requires: Apple Developer account, Xcode 14+ (notarytool)
+# notarize.sh — Notarize + staple a VibeStudio DMG
 #
-# Prerequisites:
-#   1. Store credentials: xcrun notarytool store-credentials "AC_PASSWORD" \
-#        --apple-id "you@email.com" --team-id "TEAMID" --password "app-specific-pwd"
-#   2. Code sign the .app with "Developer ID Application" identity
-#   3. Run this script on the DMG
+# Requires: Apple Developer account, Xcode 14+ (notarytool).
+# The DMG must contain an already Developer-ID-signed .app
+# (see scripts/codesign-app.sh).
 #
-# Usage: ./scripts/notarize.sh <dmg-path> <bundle-id>
+# Credentials — either a stored keychain profile:
+#     NOTARY_PROFILE=AC_PASSWORD
+# or explicit env vars (CI):
+#     NOTARIZE_APPLE_ID, NOTARIZE_TEAM_ID, NOTARIZE_PASSWORD
+#
+# Usage: ./scripts/notarize.sh <dmg-path>
 # ============================================================
 
 set -euo pipefail
 
-DMG_PATH="${1:?Usage: notarize.sh <dmg-path> <bundle-id>}"
-BUNDLE_ID="${2:?Usage: notarize.sh <dmg-path> <bundle-id>}"
+DMG_PATH="${1:?Usage: notarize.sh <dmg-path>}"
 
-echo "=============================================="
-echo "  NOTARIZATION — NOT CONFIGURED"
-echo "=============================================="
-echo ""
-echo "This script is a placeholder. To enable notarization:"
-echo ""
-echo "  1. Enroll in Apple Developer Program"
-echo "  2. Create an app-specific password at appleid.apple.com"
-echo "  3. Store credentials locally:"
-echo "     xcrun notarytool store-credentials \"AC_PASSWORD\" \\"
-echo "       --apple-id \"you@email.com\" \\"
-echo "       --team-id \"YOUR_TEAM_ID\" \\"
-echo "       --password \"your-app-specific-password\""
-echo ""
-echo "  4. Update Makefile CODE_SIGN_IDENTITY:"
-echo "     CODE_SIGN_IDENTITY := Developer ID Application: Your Name (TEAMID)"
-echo ""
-echo "  5. Uncomment the commands below in this script."
-echo ""
-echo "DMG path:  ${DMG_PATH}"
-echo "Bundle ID: ${BUNDLE_ID}"
-echo ""
+echo "==> Notarizing ${DMG_PATH}"
 
-# --- Uncomment when Apple Developer account is available ---
+if [ -n "${NOTARY_PROFILE:-}" ]; then
+    xcrun notarytool submit "${DMG_PATH}" \
+        --keychain-profile "${NOTARY_PROFILE}" \
+        --wait
+elif [ -n "${NOTARIZE_APPLE_ID:-}" ] && [ -n "${NOTARIZE_TEAM_ID:-}" ] && [ -n "${NOTARIZE_PASSWORD:-}" ]; then
+    xcrun notarytool submit "${DMG_PATH}" \
+        --apple-id "${NOTARIZE_APPLE_ID}" \
+        --team-id "${NOTARIZE_TEAM_ID}" \
+        --password "${NOTARIZE_PASSWORD}" \
+        --wait
+else
+    echo "Error: no notarization credentials." >&2
+    echo "Set NOTARY_PROFILE, or NOTARIZE_APPLE_ID + NOTARIZE_TEAM_ID + NOTARIZE_PASSWORD." >&2
+    exit 1
+fi
 
-# echo "Submitting for notarization..."
-# xcrun notarytool submit "${DMG_PATH}" \
-#     --keychain-profile "AC_PASSWORD" \
-#     --wait
+echo "==> Stapling notarization ticket"
+xcrun stapler staple "${DMG_PATH}"
 
-# echo "Stapling notarization ticket..."
-# xcrun stapler staple "${DMG_PATH}"
+echo "==> Verifying"
+xcrun stapler validate "${DMG_PATH}"
+spctl --assess --type open --context context:primary-signature -v "${DMG_PATH}" || true
 
-# echo "Verifying notarization..."
-# spctl --assess --type open --context context:primary-signature -v "${DMG_PATH}"
-
-# echo "Notarization complete."
-
-exit 0
+echo "notarize.sh: done."
