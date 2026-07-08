@@ -25,8 +25,18 @@ ARCHIVES_DIR="${1:?Usage: generate-appcast.sh <archives-dir> <download-url-prefi
 DOWNLOAD_PREFIX="${2:?Usage: generate-appcast.sh <archives-dir> <download-url-prefix>}"
 
 # Locate the generate_appcast tool from the resolved SPM artifacts.
-GEN=$(find build/DerivedData ~/Library/Developer/Xcode/DerivedData -type f \
-        -name generate_appcast -path "*sparkle*" 2>/dev/null | head -1)
+# Locate generate_appcast in the resolved SPM artifacts. Search only dirs that
+# exist and stop at the first match — avoids `set -e` tripping on a missing
+# search root, and avoids the `find | head` SIGPIPE that pipefail turns fatal.
+GEN=""
+for root in build/DerivedData "${HOME}/Library/Developer/Xcode/DerivedData"; do
+    [ -d "${root}" ] || continue
+    found=$(find "${root}" -type f -name generate_appcast -path "*sparkle*" -print -quit 2>/dev/null || true)
+    if [ -n "${found}" ]; then
+        GEN="${found}"
+        break
+    fi
+done
 
 if [ -z "${GEN}" ]; then
     echo "Error: generate_appcast not found. Run 'make resolve-deps' first." >&2
