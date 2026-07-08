@@ -100,11 +100,17 @@ jobs:
 
       - name: Notarize + staple DMG
         env:
-          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
-          NOTARIZE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARIZE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          # App Store Connect API key auth (robust for CI).
+          NOTARY_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          NOTARY_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
         run: |
+          # Materialise the .p8 private key from the base64 secret.
+          KEY_PATH="${RUNNER_TEMP}/AuthKey.p8"
+          echo "${APPLE_API_KEY_P8_BASE64}" | base64 --decode > "${KEY_PATH}"
+          export NOTARY_API_KEY_PATH="${KEY_PATH}"
           ./scripts/notarize.sh "build/VibeStudio-${{ steps.version.outputs.version }}.dmg"
+          rm -f "${KEY_PATH}"
 
       - name: Generate Sparkle appcast
         env:
