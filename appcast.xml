@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>VibeStudio</title>
+        <item>
+            <title>0.4.0</title>
+            <pubDate>Wed, 08 Jul 2026 10:06:21 +0000</pubDate>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/AlexGladkov/VibeStudio/releases/download/v0.4.0/VibeStudio-0.4.0.dmg" length="14833349" type="application/octet-stream" sparkle:edSignature="RQ3n3Ejbo6gdYH6AOYDpGr/npIXipH9bFc5KVGbkKB7mdy+SPIEwQDExBKk2bZFAUvXqRDBPBywOZ5LXdvc9BQ=="/>
+        </item>
+    </channel>
+</rss>
