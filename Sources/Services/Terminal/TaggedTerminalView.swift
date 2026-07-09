@@ -53,16 +53,31 @@ final class TaggedTerminalView: LocalProcessTerminalView {
         self.projectId = projectId
         super.init(frame: frame)
 
-        // Disable SwiftTerm's URL detection. Its default `.implicit` mode
-        // auto-detects plain-text URLs and opens them via `NSWorkspace` on a
-        // Cmd+click. During a window switch the activating click can carry the
-        // Command modifier, causing links to open by themselves — the
-        // `requestOpenLink` delegate default cannot be reliably overridden from
-        // a subclass (protocol-witness static dispatch), so we gate detection
-        // at the source instead. With `.none`, `getLink` returns nil, so both
-        // hover highlighting and click-to-open are fully suppressed.
-        // Switch to `.explicit` if deliberate OSC 8 hyperlinks are ever needed.
+        // Stop plain-text URLs from auto-opening in the browser when a window
+        // switch / tab activation click lands over a URL. The activating click
+        // often carries the Command modifier (Cmd+Tab, Cmd+click), which
+        // SwiftTerm's `mouseUp` treats as a deliberate link click.
+        //
+        // Two independent link paths exist in SwiftTerm and BOTH must be gated:
+        //
+        // 1. `linkReporting` — controls hover preview + motion link reporting
+        //    (`reportLink`). `.none` suppresses the hover URL bubble.
+        //
+        // 2. `linkHighlightMode` — controls the CLICK-to-open path
+        //    (`mouseUp` → `linkForClick` → `requestOpenLink`). This path
+        //    ignores `linkReporting` entirely, so `.none` alone does NOT stop
+        //    click-open. `linkForClick` gates on `linkVisibleForClick`, which
+        //    for `.alwaysWithModifier` returns `match.isExplicit && Command`.
+        //    Implicit (plain-text) URLs have `isExplicit == false`, so they can
+        //    never be opened by a click — killing the stray-activation-open bug.
+        //
+        // `requestOpenLink` itself cannot be overridden here: it is satisfied by
+        // a protocol-extension default (static witness dispatch), so a subclass
+        // override is never called. Gating via these two public knobs is the
+        // reliable fix. Only deliberate OSC 8 hyperlinks remain openable, and
+        // only with an explicit Command+click.
         linkReporting = .none
+        linkHighlightMode = .alwaysWithModifier
     }
 
     @available(*, unavailable)
