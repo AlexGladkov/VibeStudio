@@ -78,11 +78,108 @@ final class TaggedTerminalView: LocalProcessTerminalView {
         // only with an explicit Command+click.
         linkReporting = .none
         linkHighlightMode = .alwaysWithModifier
+
+        installWheelForwardingMonitor()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    deinit {
+        if let monitor = scrollMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
+
+    // MARK: - Mouse-wheel forwarding
+
+    /// Token for the local scroll-wheel monitor; removed in `deinit`.
+    ///
+    /// `nonisolated(unsafe)` so the `deinit` (which is non-isolated) can read it.
+    /// `NSEvent.removeMonitor` is safe to call from the main thread, where the
+    /// view is always deallocated.
+    private nonisolated(unsafe) var scrollMonitor: Any?
+
+    /// Make the scroll wheel work inside full-screen TUIs (claude / opencode)
+    /// by forwarding wheel ticks to the app as mouse-wheel events — exactly
+    /// what a real terminal (Terminal.app / iTerm2) does.
+    ///
+    /// SwiftTerm's own `scrollWheel` only scrolls its scrollback buffer, which
+    /// is empty on the alternate screen, so the wheel feels dead inside an
+    /// agent. `scrollWheel` is `public` (not `open`) in SwiftTerm and cannot be
+    /// overridden from this module, so we intercept the event with a local
+    /// monitor before it reaches the view.
+    ///
+    /// We only intervene when the app has enabled mouse tracking
+    /// (`mouseMode != .off`): then a wheel tick is sent as SGR/normal mouse
+    /// button 64 (up) / 65 (down) at the pointer cell, and the app scrolls its
+    /// own view. When mouse tracking is off we pass the event through untouched
+    /// — SwiftTerm's native scrollback keeps working and nothing is injected
+    /// into a keyboard-driven app (an earlier arrow-key approach wrongly walked
+    /// the prompt history, so it was removed).
+    ///
+    /// Known limitation: because the wheel event carries the pointer cell, some
+    /// TUIs (e.g. Claude Code) may move their input cursor toward that cell on
+    /// scroll. This is an accepted trade-off — scrolling inside the agent is
+    /// worth more than the occasional cursor nudge. Revisit if SwiftTerm exposes
+    /// the true cell metrics so we can match a real terminal exactly.
+    private func installWheelForwardingMonitor() {
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self else { return event }
+            return MainActor.assumeIsolated {
+                self.forwardWheel(event)
+            }
+        }
+    }
+
+    /// Returns `nil` to consume the event (forwarded to the app as a mouse-wheel
+    /// event) or the original `event` to let AppKit / SwiftTerm handle it.
+    private func forwardWheel(_ event: NSEvent) -> NSEvent? {
+        guard let terminal,
+              let window,
+              event.window === window,
+              event.deltaY != 0,
+              // Ignore inertial / momentum scrolling: after the fingers lift, the
+              // OS keeps emitting decaying scroll events. Forwarding those makes
+              // the app keep scrolling while the user has already moved to the
+              // keyboard, which reads as the cursor "jumping" mid-typing.
+              event.momentumPhase == [],
+              allowMouseReporting,
+              terminal.mouseMode != .off,
+              // Only on the alternate screen. On the normal buffer we never
+              // intervene, so SwiftTerm's native scrollback + draggable scroller
+              // keep working even if a tool enables mouse tracking.
+              terminal.isCurrentBufferAlternate else {
+            return event
+        }
+
+        // Only act when the pointer is actually over this terminal view.
+        let localPoint = convert(event.locationInWindow, from: nil)
+        guard bounds.contains(localPoint) else { return event }
+
+        // Approximate the cell under the pointer. `cellDimension` is internal to
+        // SwiftTerm, so derive it from bounds / grid size — for a wheel event the
+        // exact cell is not significant, apps scroll the focused pane regardless.
+        let cols = max(terminal.cols, 1)
+        let rows = max(terminal.rows, 1)
+        let cellW = max(bounds.width / CGFloat(cols), 1)
+        let cellH = max(bounds.height / CGFloat(rows), 1)
+        let col = min(max(0, Int(localPoint.x / cellW)), cols - 1)
+        // View is not flipped: terminal row 0 is at the top (high y).
+        let row = min(max(0, Int((bounds.height - localPoint.y) / cellH)), rows - 1)
+
+        // Wheel up = button 4 (Cb 64), wheel down = button 5 (Cb 65).
+        // Send exactly one wheel event per scroll event — matching real
+        // terminals. Multiplying by the delta over-scrolls and reads as jumpy.
+        let button = event.deltaY > 0 ? 4 : 5
+        let flags = terminal.encodeButton(
+            button: button, release: false, shift: false, meta: false, control: false
+        )
+        terminal.sendEvent(buttonFlags: flags, x: col, y: row)
+
+        return nil
     }
 
     // MARK: - Overrides
