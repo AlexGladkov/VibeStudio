@@ -79,7 +79,11 @@ final class TaggedTerminalView: LocalProcessTerminalView {
         linkReporting = .none
         linkHighlightMode = .alwaysWithModifier
 
-        installWheelForwardingMonitor()
+        // NOTE: The scroll-wheel monitor is NOT installed here.
+        // Installing it in `init` would make it fire for every window in the
+        // application — the monitor is process-global. Instead it is installed
+        // and removed in `viewDidMoveToWindow` so its lifetime matches the
+        // view's window attachment.
     }
 
     @available(*, unavailable)
@@ -88,19 +92,76 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     }
 
     deinit {
-        if let monitor = scrollMonitor {
-            NSEvent.removeMonitor(monitor)
+        // `deinit` is non-isolated. `NSEvent.removeMonitor` must be called on
+        // the main thread. If the view was already detached from its window
+        // (the common path) `scrollMonitor` is already nil and nothing happens.
+        // If for some reason deinit fires while still attached, dispatch to
+        // main async to call removeMonitor safely without a data race.
+        let monitor = scrollMonitor
+        if monitor != nil {
+            DispatchQueue.main.async {
+                NSEvent.removeMonitor(monitor as Any)
+            }
         }
     }
 
     // MARK: - Mouse-wheel forwarding
 
-    /// Token for the local scroll-wheel monitor; removed in `deinit`.
+    /// Token for the local scroll-wheel monitor.
     ///
-    /// `nonisolated(unsafe)` so the `deinit` (which is non-isolated) can read it.
-    /// `NSEvent.removeMonitor` is safe to call from the main thread, where the
-    /// view is always deallocated.
+    /// Installed in `viewDidMoveToWindow` when a window is assigned and
+    /// removed when the view leaves the window (or in `deinit` as a safety
+    /// net). `nonisolated(unsafe)` so `deinit` (non-isolated) can read it for
+    /// the safety-net dispatch. All writes are on the MainActor via
+    /// `viewDidMoveToWindow`, which AppKit always calls on the main thread.
     private nonisolated(unsafe) var scrollMonitor: Any?
+
+    /// Install the scroll-wheel monitor when the view enters a window, and
+    /// remove it when the view leaves. This binds the monitor's lifetime to
+    /// the window attachment rather than the object lifetime, preventing the
+    /// monitor from firing for unrelated windows.
+    ///
+    /// AppKit guarantees this method is called on the main thread.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        if window != nil {
+            // View is now in a window — install the monitor if not already present.
+            guard scrollMonitor == nil else { return }
+            scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+                guard let self else { return event }
+                return MainActor.assumeIsolated {
+                    self.forwardWheel(event)
+                }
+            }
+        } else {
+            // View left its window — remove the monitor immediately so it no
+            // longer fires while the view is detached (tab switch, dismantled).
+            if let monitor = scrollMonitor {
+                NSEvent.removeMonitor(monitor)
+                scrollMonitor = nil
+            }
+
+            // Clear display-related callbacks when the view leaves its window.
+            // The PTY process continues running (managed by TerminalService), so
+            // we must NOT clear `onProcessExited` — process exit is a terminal
+            // state that must be captured even while the view is off-screen.
+            //
+            // `onRangeChanged` / `onLinesChanged` / `onTitleChanged` are display
+            // callbacks: firing them into the old TerminalHostView container after
+            // dismantling would leak the old SwiftUI tree and cause redundant
+            // re-renders. They are reinstalled by `installCallbacks` on re-attach.
+            //
+            // `onRawData` is cleared so a detached view never feeds the active
+            // RemoteSessionBridge for a different window. RemoteBridgeRegistry
+            // reinstalls it via `registerBridge` after re-attach.
+            onRangeChanged = nil
+            onLinesChanged = nil
+            onTitleChanged = nil
+            onRawData = nil
+            // onProcessExited is intentionally kept — see above.
+        }
+    }
 
     /// Make the scroll wheel work inside full-screen TUIs (claude / opencode)
     /// by forwarding wheel ticks to the app as mouse-wheel events — exactly
@@ -125,21 +186,16 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     /// scroll. This is an accepted trade-off — scrolling inside the agent is
     /// worth more than the occasional cursor nudge. Revisit if SwiftTerm exposes
     /// the true cell metrics so we can match a real terminal exactly.
-    private func installWheelForwardingMonitor() {
-        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self else { return event }
-            return MainActor.assumeIsolated {
-                self.forwardWheel(event)
-            }
-        }
-    }
 
     /// Returns `nil` to consume the event (forwarded to the app as a mouse-wheel
     /// event) or the original `event` to let AppKit / SwiftTerm handle it.
     private func forwardWheel(_ event: NSEvent) -> NSEvent? {
-        guard let terminal,
-              let window,
-              event.window === window,
+        // Guard: the view must be attached to a window. `window` being nil means
+        // the view is in transition (being removed) — pass through to avoid acting
+        // on events for a different window that happens to be the key window.
+        guard let ownWindow = window,
+              let terminal,
+              event.window === ownWindow,
               event.deltaY != 0,
               // Ignore inertial / momentum scrolling: after the fingers lift, the
               // OS keeps emitting decaying scroll events. Forwarding those makes
@@ -156,8 +212,11 @@ final class TaggedTerminalView: LocalProcessTerminalView {
         }
 
         // Only act when the pointer is actually over this terminal view.
+        // Use `visibleRect` instead of `bounds` so that a partially-clipped
+        // view (e.g. inside a scroll view) doesn't consume wheel events outside
+        // its actually-visible area.
         let localPoint = convert(event.locationInWindow, from: nil)
-        guard bounds.contains(localPoint) else { return event }
+        guard visibleRect.contains(localPoint) else { return event }
 
         // Approximate the cell under the pointer. `cellDimension` is internal to
         // SwiftTerm, so derive it from bounds / grid size — for a wheel event the

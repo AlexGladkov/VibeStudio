@@ -100,5 +100,16 @@ struct TerminalHostView: NSViewRepresentable {
             NSLayoutConstraint.deactivate(subview.constraints)
             subview.removeFromSuperview()
         }
+        // NOTE: `dismantleNSView` is a static method and does not receive the
+        // SwiftUI environment, so we cannot call `terminalManager.detachView`
+        // directly. Callback teardown is handled by `TaggedTerminalView.viewDidMoveToWindow`
+        // (called by AppKit when `removeFromSuperview` above triggers window
+        // departure) which removes the scroll-wheel monitor, and by the
+        // `@Environment(\.terminalSessionManager)` owner's responsibility to
+        // call `detachView(from:)` when a session tab is deselected.
+        //
+        // The `TaggedTerminalView` subview is retained by `TerminalSessionStore`
+        // (the PTY cache) after removal from the view hierarchy, so the view's
+        // `deinit` does NOT fire here — only when the session is explicitly killed.
     }
 }

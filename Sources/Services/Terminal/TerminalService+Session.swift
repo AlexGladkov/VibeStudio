@@ -15,12 +15,54 @@ extension TerminalService {
         guard let view = store.view(for: sessionId) else {
             throw TerminalSessionError.sessionNotFound(sessionId)
         }
+
+        // Reinstall display callbacks that were cleared when the view left its
+        // previous window (see `TaggedTerminalView.viewDidMoveToWindow`). This
+        // covers the tab-switch re-attach path: the view was dismantled by the
+        // previous `TerminalHostView`, callbacks were cleared, and now a new
+        // `TerminalHostView.makeNSView` is creating a fresh container for it.
+        //
+        // `onProcessExited` is preserved across detach (not cleared by
+        // `viewDidMoveToWindow`) so we only need to restore the display callbacks.
+        // `onRawData` is intentionally NOT reinstalled here — `RemoteBridgeRegistry`
+        // is responsible for wiring it via `registerBridge` when an active bridge
+        // exists for this session.
+        guard let projectId = store.projectId(for: sessionId) else {
+            throw TerminalSessionError.sessionNotFound(sessionId)
+        }
+        installCallbacks(on: view, sessionId: sessionId, projectId: projectId)
+
         return view
     }
 
     func detachView(from sessionId: UUID) {
         // Intentionally does NOT kill the PTY process.
         // The view remains in the cache for re-attachment.
+        //
+        // Clear display-related callbacks while the view is not displayed. This
+        // prevents stale callbacks from firing during a tab switch (when the view
+        // is removed from the window but the PTY continues running). Callbacks
+        // are reinstalled by `attachView` → `installCallbacks` when the session
+        // is next attached to a window via `TerminalHostView.makeNSView`.
+        //
+        // `onProcessExited` is intentionally kept: process exit is a terminal-
+        // lifecycle event that must be delivered even while the view is detached.
+        // `TerminalService.handleProcessExit` will clear it once handled.
+        //
+        // `onRawData` is cleared: any active RemoteSessionBridge will reinstall
+        // it via `RemoteBridgeRegistry.registerBridge` after the view is
+        // re-attached to a window.
+        //
+        // NOTE: `TaggedTerminalView.viewDidMoveToWindow` also clears these
+        // callbacks when the view leaves its window, which is the primary
+        // teardown path. `detachView` is an explicit API for callers that
+        // know the session is being unloaded (e.g. the session manager).
+        guard let view = store.view(for: sessionId) else { return }
+        view.onRangeChanged = nil
+        view.onLinesChanged = nil
+        view.onTitleChanged = nil
+        view.onRawData = nil
+        // onProcessExited is intentionally preserved — see above.
     }
 
     // MARK: - Resize

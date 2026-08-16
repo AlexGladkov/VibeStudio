@@ -47,7 +47,29 @@ final class RemoteBridgeRegistry {
     /// Installs `onRawData` on the terminal view so unprocessed ANSI bytes
     /// flow to the WebSocket. Idempotent: re-registering the same bridge
     /// overwrites the previous entry.
+    ///
+    /// **BOLA guard:** the bridge's `sessionId` must correspond to a live session
+    /// tracked by `TerminalService`. If the session does not exist (e.g. a client
+    /// supplies a fabricated UUID to probe another user's PTY), the bridge is
+    /// rejected and the WebSocket will not receive any terminal output. Without
+    /// this check an authenticated device could connect to
+    /// `GET /api/v1/terminal/<any-uuid>` and silently receive raw PTY bytes from
+    /// any session — a Broken Object-Level Authorization (BOLA / IDOR) vulnerability.
     func registerBridge(_ bridge: RemoteSessionBridge) {
+        // BOLA / IDOR enforcement: verify the session exists in TerminalService
+        // before wiring any output callbacks. A valid auth token does NOT grant
+        // access to arbitrary session IDs — only live sessions are bridgeable.
+        guard terminalService.session(for: bridge.sessionId) != nil else {
+            Logger.remoteControl.error(
+                "RemoteBridgeRegistry.registerBridge REJECTED: session=\(bridge.sessionId) does not exist — possible BOLA probe by device=\(bridge.deviceId)"
+            )
+            // Detach immediately to prevent the bridge from being used in any
+            // partial state; the WebSocket handler will close the connection when
+            // `unregisterBridge` is not called and the idle timeout fires.
+            bridge.detach()
+            return
+        }
+
         activeBridges[bridge.deviceId] = bridge
 
         if let view = terminalService.terminalView(for: bridge.sessionId) {
@@ -64,8 +86,13 @@ final class RemoteBridgeRegistry {
                 }
             }
         } else {
+            // Session exists in TerminalService but view is not yet in the cache
+            // (e.g. the session was just created and the view has not been attached
+            // to a window yet). The bridge will receive output once the view is
+            // attached and `onRawData` can be installed. This is a benign transient
+            // state — the bridge's isStreaming guard prevents data loss.
             Logger.remoteControl.warning(
-                "RemoteBridgeRegistry.registerBridge: no terminal view for session=\(bridge.sessionId)"
+                "RemoteBridgeRegistry.registerBridge: no terminal view for session=\(bridge.sessionId) (view not yet attached to window)"
             )
         }
 
