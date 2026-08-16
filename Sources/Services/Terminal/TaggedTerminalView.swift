@@ -28,15 +28,12 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     /// Callback invoked when the terminal title changes (xterm escape sequence).
     var onTitleChanged: ((UUID, String) -> Void)?
 
-    /// Callback for incremental terminal output -- provides changed line range.
-    /// Used by RemoteSessionBridge to stream output to WebSocket clients.
-    /// Parameters: (sessionId, startY, endY)
-    var onLinesChanged: ((UUID, Int, Int) -> Void)?
-
     /// Callback for raw PTY output bytes -- used by RemoteSessionBridge
     /// to relay unprocessed terminal data to the WebSocket client.
     /// This preserves ANSI escape sequences so the remote xterm.js can
     /// correctly render colors, cursor movements, and scrolling.
+    /// Installed by `RemoteBridgeRegistry.registerBridge`; cleared by
+    /// `unregisterBridge` and when the view leaves its window.
     /// Parameters: (sessionId, rawBytes)
     var onRawData: ((UUID, ArraySlice<UInt8>) -> Void)?
 
@@ -147,16 +144,15 @@ final class TaggedTerminalView: LocalProcessTerminalView {
             // we must NOT clear `onProcessExited` — process exit is a terminal
             // state that must be captured even while the view is off-screen.
             //
-            // `onRangeChanged` / `onLinesChanged` / `onTitleChanged` are display
-            // callbacks: firing them into the old TerminalHostView container after
-            // dismantling would leak the old SwiftUI tree and cause redundant
-            // re-renders. They are reinstalled by `installCallbacks` on re-attach.
+            // `onRangeChanged` / `onTitleChanged` are display callbacks: firing
+            // them into the old TerminalHostView container after dismantling would
+            // leak the old SwiftUI tree and cause redundant re-renders. They are
+            // reinstalled by `installCallbacks` on re-attach.
             //
             // `onRawData` is cleared so a detached view never feeds the active
             // RemoteSessionBridge for a different window. RemoteBridgeRegistry
             // reinstalls it via `registerBridge` after re-attach.
             onRangeChanged = nil
-            onLinesChanged = nil
             onTitleChanged = nil
             onRawData = nil
             // onProcessExited is intentionally kept — see above.
@@ -262,7 +258,11 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     override func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
         super.rangeChanged(source: source, startY: startY, endY: endY)
         onRangeChanged?(sessionId)
-        onLinesChanged?(sessionId, startY, endY)
+        // NOTE: `onLinesChanged` was removed. PTY streaming to WebSocket clients
+        // is handled by `onRawData` (installed by RemoteBridgeRegistry), which
+        // delivers raw bytes via `dataReceived` before terminal emulation runs.
+        // `onLinesChanged` was never assigned a non-nil handler after the
+        // migration to `onRawData` and was a dead hot-path call (thousands/sec).
     }
 
     /// Handle process termination from SwiftTerm's `LocalProcessDelegate`.

@@ -142,7 +142,6 @@ extension TerminalService {
         if let view = store.view(for: sessionId) {
             view.onRangeChanged = nil
             view.onProcessExited = nil
-            view.onLinesChanged = nil
             view.onRawData = nil
             view.onTitleChanged = nil
         }

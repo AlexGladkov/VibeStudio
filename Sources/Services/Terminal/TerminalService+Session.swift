@@ -59,7 +59,6 @@ extension TerminalService {
         // know the session is being unloaded (e.g. the session manager).
         guard let view = store.view(for: sessionId) else { return }
         view.onRangeChanged = nil
-        view.onLinesChanged = nil
         view.onTitleChanged = nil
         view.onRawData = nil
         // onProcessExited is intentionally preserved — see above.
@@ -96,7 +95,6 @@ extension TerminalService {
         if force {
             view.onRangeChanged = nil
             view.onProcessExited = nil
-            view.onLinesChanged = nil
             view.onRawData = nil
             view.onTitleChanged = nil
             sendSignal(to: view, signal: SIGKILL)
@@ -105,7 +103,6 @@ extension TerminalService {
             sendSignal(to: view, signal: SIGTERM)
             view.onRangeChanged = nil
             view.onProcessExited = nil
-            view.onLinesChanged = nil
             view.onRawData = nil
             view.onTitleChanged = nil
             let pid = view.process?.shellPid ?? 0
@@ -177,7 +174,8 @@ extension TerminalService {
     }
 
     /// Returns the TaggedTerminalView for a session (if it exists).
-    /// Used by Remote Control to install `onLinesChanged` callback for streaming.
+    /// Used by Remote Control (`RemoteBridgeRegistry`) to install the `onRawData`
+    /// callback for raw PTY streaming to WebSocket clients.
     func terminalView(for sessionId: UUID) -> TaggedTerminalView? {
         store.view(for: sessionId)
     }

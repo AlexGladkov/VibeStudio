@@ -30,7 +30,7 @@ import os
 /// (which are `@MainActor`) are dispatched via `Task { @MainActor in }`.
 /// The `Channel` reference (Sendable) is cached; `ChannelHandlerContext`
 /// is NEVER captured across isolation boundaries.
-final class RemoteWebSocketHandler: ChannelInboundHandler {
+final class RemoteWebSocketHandler: ChannelInboundHandler, @unchecked Sendable {
 
     typealias InboundIn = WebSocketFrame
     typealias OutboundOut = WebSocketFrame
@@ -183,8 +183,16 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
                 idleTimeoutMinutes: idleTimeout
             )
             self?.setBridge(bridge)
-            bridge.startStreaming()
+            // Register BEFORE starting streaming so the BOLA guard in
+            // RemoteBridgeRegistry runs first. If the sessionId does not exist,
+            // `registerBridge` calls `bridge.detach()` + `bridge.closeTransport()`
+            // and returns without adding the bridge to `activeBridges`.
+            // Calling `startStreaming()` before `registerBridge()` would arm the
+            // idle timer for sessions that are about to be rejected — leaving a
+            // zombie socket open for up to `idleTimeoutMinutes` instead of closing
+            // the channel immediately on rejection.
             serverRef?.registerBridge(bridge)
+            bridge.startStreaming()
             RemoteAuditLog.deviceConnect(device: device, sessionId: sessionId)
         }
     }
@@ -306,8 +314,10 @@ final class RemoteWebSocketHandler: ChannelInboundHandler {
             buffer.writeInteger(WSCloseCode.heartbeatTimeout)
             buffer.writeString("Heartbeat timeout")
             let closeFrame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
-            channel.writeAndFlush(NIOAny(closeFrame)).whenComplete { _ in
-                channel.close(promise: nil)
+            channel.eventLoop.execute {
+                channel.writeAndFlush(closeFrame).whenComplete { _ in
+                    channel.close(promise: nil)
+                }
             }
         }
         // Atomic swap under lock — cancel any prior heartbeat task so a

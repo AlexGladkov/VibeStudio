@@ -51,10 +51,12 @@ final class RemoteBridgeRegistry {
     /// **BOLA guard:** the bridge's `sessionId` must correspond to a live session
     /// tracked by `TerminalService`. If the session does not exist (e.g. a client
     /// supplies a fabricated UUID to probe another user's PTY), the bridge is
-    /// rejected and the WebSocket will not receive any terminal output. Without
-    /// this check an authenticated device could connect to
-    /// `GET /api/v1/terminal/<any-uuid>` and silently receive raw PTY bytes from
-    /// any session — a Broken Object-Level Authorization (BOLA / IDOR) vulnerability.
+    /// rejected: `detach()` resets bridge-internal state and `closeTransport`
+    /// sends a WebSocket close frame and shuts the NIO channel immediately.
+    /// The bridge is NOT added to `activeBridges`. Without this check an
+    /// authenticated device could connect to `GET /api/v1/terminal/<any-uuid>`
+    /// and silently receive raw PTY bytes from any session — a Broken
+    /// Object-Level Authorization (BOLA / IDOR) vulnerability.
     func registerBridge(_ bridge: RemoteSessionBridge) {
         // BOLA / IDOR enforcement: verify the session exists in TerminalService
         // before wiring any output callbacks. A valid auth token does NOT grant
@@ -63,10 +65,14 @@ final class RemoteBridgeRegistry {
             Logger.remoteControl.error(
                 "RemoteBridgeRegistry.registerBridge REJECTED: session=\(bridge.sessionId) does not exist — possible BOLA probe by device=\(bridge.deviceId)"
             )
-            // Detach immediately to prevent the bridge from being used in any
-            // partial state; the WebSocket handler will close the connection when
-            // `unregisterBridge` is not called and the idle timeout fires.
+            // Reset bridge-internal state (cancels idle timer, clears streaming
+            // flag, drops pending output) then close the NIO channel so the TCP
+            // socket is freed immediately. Without `closeTransport` the only
+            // remaining close-path is the handler's heartbeat (60 s), enabling a
+            // resource-exhaustion DoS: each rejected connection with a valid token
+            // but fabricated sessionId occupies a live socket for up to 60 s.
             bridge.detach()
+            bridge.closeTransport(code: WSCloseCode.authRequired, reason: "Session not found")
             return
         }
 

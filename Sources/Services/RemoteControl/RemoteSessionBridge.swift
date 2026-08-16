@@ -10,8 +10,12 @@ import OSLog
 /// Bridges a single WebSocket connection to a terminal PTY session.
 ///
 /// Responsibilities:
-/// - Subscribe to terminal output via `TaggedTerminalView.onLinesChanged`
-///   and relay changed lines to the WebSocket client as binary frames.
+/// - Subscribe to terminal output via `TaggedTerminalView.onRawData`
+///   and relay raw PTY bytes to the WebSocket client as binary frames.
+///   (The legacy `onLinesChanged` callback is no longer used — it was
+///   replaced by `onRawData` to preserve ANSI escape sequences for xterm.js.
+///   `RemoteBridgeRegistry.registerBridge` installs `onRawData` after BOLA
+///   verification; `unregisterBridge` clears it on close.)
 /// - Relay client input to the terminal via `TerminalService.sendInput`.
 /// - Rate-limit client input to 120 messages/min.
 /// - Enforce idle timeout and clean up on detach.
@@ -88,6 +92,12 @@ final class RemoteSessionBridge {
     /// Whether streaming is active (prevents double-subscribe).
     private var isStreaming = false
 
+    /// Set to true by `detach()` to permanently disable streaming.
+    /// Once detached, `startStreaming()` becomes a no-op so that a late
+    /// `startStreaming()` call after a BOLA rejection cannot re-arm the idle
+    /// timer on a bridge whose NIO channel has already been closed.
+    private var isDetached = false
+
     // MARK: - Init
 
     /// Create a new session bridge.
@@ -116,16 +126,21 @@ final class RemoteSessionBridge {
 
     /// Begin streaming terminal output to the WebSocket client.
     ///
-    /// Subscribes to `TaggedTerminalView.onLinesChanged` for the session.
-    /// When lines change, reads the terminal buffer and sends as binary frames.
+    /// Sets the `isStreaming` flag so that ``handleRawData(_:)`` will forward
+    /// PTY bytes. The `onRawData` callback is installed separately by
+    /// `RemoteBridgeRegistry.registerBridge` after BOLA verification — only
+    /// sessions that pass the guard actually receive output.
+    ///
+    /// This method is a no-op if ``detach()`` has already been called, which
+    /// prevents a late `startStreaming()` invocation (after a BOLA rejection)
+    /// from re-arming the idle timer on a bridge whose NIO channel is already
+    /// closed.
     func startStreaming() {
-        guard !isStreaming else { return }
+        guard !isDetached, !isStreaming else { return }
         isStreaming = true
 
         resetIdleTimer()
 
-        // The `onLinesChanged` callback on TaggedTerminalView is installed
-        // by RemoteControlServer when registering this bridge.
         Logger.remoteControl.info(
             "RemoteSessionBridge: started streaming session=\(self.sessionId) device=\(self.deviceId)"
         )
@@ -228,8 +243,20 @@ final class RemoteSessionBridge {
 
     // MARK: - Cleanup
 
-    /// Detach from the terminal session and clean up all resources.
+    /// Detach from the terminal session and clean up all internal bridge state.
+    ///
+    /// Cancels the idle timer and pending output tasks, resets streaming state,
+    /// and permanently marks the bridge as detached so that any subsequent
+    /// ``startStreaming()`` call is a no-op. Does NOT close the underlying NIO
+    /// channel — callers that want to terminate the transport (e.g. BOLA
+    /// rejection, explicit disconnect) must call ``closeTransport(code:reason:)``
+    /// explicitly after `detach()`.
+    ///
+    /// `RemoteBridgeRegistry.unregisterBridge` is the canonical teardown path:
+    /// it calls `detach()` and then clears the `onRawData` callback on the
+    /// terminal view so no further PTY output reaches a dead bridge.
     func detach() {
+        isDetached = true
         isStreaming = false
         idleTimer?.cancel()
         idleTimer = nil
@@ -243,6 +270,22 @@ final class RemoteSessionBridge {
         )
     }
 
+    /// Close the underlying NIO channel with a WebSocket close frame.
+    ///
+    /// Used by rejection paths (BOLA guard, explicit disconnect) that need to
+    /// terminate the transport after calling ``detach()``. The idle timer close
+    /// path (``resetIdleTimer()``) also funnels through here.
+    ///
+    /// Idempotent: if `wsChannel` is already nil (channel already closed), this
+    /// is a no-op.
+    ///
+    /// - Parameters:
+    ///   - code: Application-defined WebSocket close code (RFC 6455 §7.4.2, range 4000-4999).
+    ///   - reason: Human-readable close reason string.
+    func closeTransport(code: UInt16, reason: String) {
+        closeWithCode(code, reason: reason)
+    }
+
     // MARK: - Private: WebSocket Output
 
     /// Send raw PTY bytes as a binary WebSocket frame.
@@ -254,7 +297,7 @@ final class RemoteSessionBridge {
         let frame = WebSocketFrame(fin: true, opcode: .binary, data: buffer)
 
         ch.eventLoop.execute {
-            ch.writeAndFlush(NIOAny(frame), promise: nil)
+            ch.writeAndFlush(frame, promise: nil)
         }
     }
 
@@ -267,7 +310,7 @@ final class RemoteSessionBridge {
         let frame = WebSocketFrame(fin: true, opcode: .text, data: buffer)
 
         ch.eventLoop.execute {
-            ch.writeAndFlush(NIOAny(frame), promise: nil)
+            ch.writeAndFlush(frame, promise: nil)
         }
     }
 
@@ -301,6 +344,9 @@ final class RemoteSessionBridge {
     }
 
     /// Close the WebSocket connection with a custom close code.
+    ///
+    /// Shared implementation used by both the idle-timer path and the public
+    /// ``closeTransport(code:reason:)`` method. Idempotent when `wsChannel` is nil.
     private func closeWithCode(_ code: UInt16, reason: String) {
         guard let ch = wsChannel else { return }
         var buffer = ch.allocator.buffer(capacity: 2 + reason.utf8.count)
@@ -309,7 +355,7 @@ final class RemoteSessionBridge {
         let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
 
         ch.eventLoop.execute {
-            ch.writeAndFlush(NIOAny(frame)).whenComplete { _ in
+            ch.writeAndFlush(frame).whenComplete { _ in
                 ch.close(promise: nil)
             }
         }
