@@ -1057,6 +1057,202 @@ class ThemeManager {
 }
 
 // ---------------------------------------------------------------------------
+// 6b. QuickActionsBar
+// ---------------------------------------------------------------------------
+
+/**
+ * Manages the Quick-Actions bar (Re-run · Pause · Clear · Kill).
+ *
+ * - Only shown when the authenticated device is the session owner.
+ * - Each button uses optimistic UI: disabled+spinner while awaiting control_ack.
+ * - control_ack ok=false → restore button state + show toast.
+ * - Kill: tap = SIGINT (soft), long-press ≥500ms = force-kill with confirm().
+ * - Buttons disabled when WS is offline.
+ * - Clear: client clears xterm only after receiving control_ack action=clear.
+ */
+class QuickActionsBar {
+  /**
+   * @param {HTMLElement} barEl
+   * @param {TerminalManager} terminalManager
+   */
+  constructor(barEl, terminalManager) {
+    this.bar = barEl;
+    this.tm = terminalManager;
+
+    this._pendingAction = null;
+    this._pendingTimeout = null;
+    this._killLongPressTimer = null;
+    this._toastTimer = null;
+
+    this._rerunBtn = barEl.querySelector('#action-rerun');
+    this._pauseBtn = barEl.querySelector('#action-pause');
+    this._clearBtn = barEl.querySelector('#action-clear');
+    this._killBtn  = barEl.querySelector('#action-kill');
+    this._spinner  = barEl.querySelector('#action-spinner');
+    this._toast    = barEl.querySelector('#action-toast');
+
+    /** @type {((data: string) => void)|null} WS send function injected by App */
+    this.sendWS = null;
+
+    this._bind();
+  }
+
+  // --- Public API ---
+
+  show() { this.bar.hidden = false; }
+  hide() { this.bar.hidden = true; }
+  setOffline() { this._setAllDisabled(true); }
+  setOnline()  { this._setAllDisabled(false); }
+
+  /**
+   * Handle an incoming control_ack from the server.
+   * @param {{ type:string, action:string, ok:boolean, reason?:string, code?:string }} msg
+   */
+  handleControlAck(msg) {
+    if (msg.action !== this._pendingAction) return;
+    this._clearPending();
+
+    if (!msg.ok) {
+      this._showToast(this._friendlyReason(msg));
+    } else if (msg.action === 'clear') {
+      // DoD #6: client clears xterm only after server ack (single source of truth).
+      this.tm.clear();
+    }
+  }
+
+  // --- Private ---
+
+  _bind() {
+    var self = this;
+
+    this._rerunBtn.addEventListener('click', function () {
+      self._sendControl('rerun', { type: 'rerun' });
+    });
+
+    this._pauseBtn.addEventListener('click', function () {
+      self._sendControl('pause', { type: 'pause' });
+    });
+
+    this._clearBtn.addEventListener('click', function () {
+      self._sendControl('clear', { type: 'clear' });
+    });
+
+    // Kill — touch: tap vs long-press
+    this._killBtn.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      self._killLongPressTimer = setTimeout(function () {
+        self._killLongPressTimer = null;
+        self._confirmForceKill();
+      }, 500);
+    }, { passive: false });
+
+    this._killBtn.addEventListener('touchend', function (e) {
+      e.preventDefault();
+      if (self._killLongPressTimer !== null) {
+        clearTimeout(self._killLongPressTimer);
+        self._killLongPressTimer = null;
+        self._sendControl('kill', { type: 'kill', force: false });
+      }
+    }, { passive: false });
+
+    this._killBtn.addEventListener('touchcancel', function () {
+      clearTimeout(self._killLongPressTimer);
+      self._killLongPressTimer = null;
+    });
+
+    // Kill — mouse fallback (desktop)
+    this._killBtn.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      self._killLongPressTimer = setTimeout(function () {
+        self._killLongPressTimer = null;
+        self._confirmForceKill();
+      }, 500);
+    });
+    this._killBtn.addEventListener('mouseup', function () {
+      if (self._killLongPressTimer !== null) {
+        clearTimeout(self._killLongPressTimer);
+        self._killLongPressTimer = null;
+        self._sendControl('kill', { type: 'kill', force: false });
+      }
+    });
+    this._killBtn.addEventListener('mouseleave', function () {
+      clearTimeout(self._killLongPressTimer);
+      self._killLongPressTimer = null;
+    });
+  }
+
+  _confirmForceKill() {
+    // eslint-disable-next-line no-alert
+    var confirmed = window.confirm(
+      'Force-kill will send SIGKILL to the process.\nThis cannot be undone. Continue?'
+    );
+    if (confirmed) {
+      this._sendControl('kill', { type: 'kill', force: true });
+    }
+  }
+
+  _sendControl(action, payload) {
+    if (this._pendingAction) return;
+    if (!this.sendWS) { this._showToast('Not connected.'); return; }
+
+    this._pendingAction = action;
+    this._setAllDisabled(true);
+    if (this._spinner) this._spinner.hidden = false;
+
+    this.sendWS(JSON.stringify(payload));
+
+    var self = this;
+    this._pendingTimeout = setTimeout(function () {
+      self._clearPending();
+      self._showToast('No response from server.');
+    }, 2000);
+  }
+
+  _clearPending() {
+    clearTimeout(this._pendingTimeout);
+    this._pendingTimeout = null;
+    this._pendingAction = null;
+    if (this._spinner) this._spinner.hidden = true;
+    this._setAllDisabled(false);
+  }
+
+  _setAllDisabled(disabled) {
+    var btns = [this._rerunBtn, this._pauseBtn, this._clearBtn, this._killBtn];
+    btns.forEach(function (btn) {
+      if (!btn) return;
+      btn.disabled = disabled;
+      if (disabled) { btn.setAttribute('aria-busy', 'true'); }
+      else           { btn.removeAttribute('aria-busy'); }
+    });
+  }
+
+  _showToast(message) {
+    if (!this._toast) return;
+    clearTimeout(this._toastTimer);
+    this._toast.textContent = message;
+    this._toast.classList.add('action-toast--visible');
+    var self = this;
+    this._toastTimer = setTimeout(function () {
+      self._toast.classList.remove('action-toast--visible');
+      self._toast.textContent = '';
+    }, 3000);
+  }
+
+  _friendlyReason(msg) {
+    var map = {
+      not_owner:         'Read-only: session owned by another device.',
+      rate_limited:      'Too many requests. Wait a moment.',
+      SESSION_NOT_FOUND: 'Session not found.',
+      NO_AGENT_SESSION:  'Re-run is only available for agent sessions.',
+      NO_STORED_COMMAND: 'Cannot re-run: no stored command for this session.',
+      RERUN_FAILED:      'Agent relaunch failed.',
+      CLEAR_FAILED:      'Terminal view not available for clearing.',
+    };
+    return map[msg.code || ''] || (msg.reason || 'Action failed.');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 7. App — Orchestrator
 // ---------------------------------------------------------------------------
 
@@ -1069,6 +1265,8 @@ const App = (function () {
   let terminalMgr;
   /** @type {SpecialKeysBar} */
   let keysBar;
+  /** @type {QuickActionsBar} */
+  let actionsBar;
 
   // DOM refs
   let pinScreen;
@@ -1212,6 +1410,7 @@ const App = (function () {
     pinScreen.hidden = false;
     terminalScreen.hidden = true;
     terminalMgr.disconnect();
+    if (actionsBar) actionsBar.hide();
     pinInput.reset();
   }
 
@@ -1226,6 +1425,14 @@ const App = (function () {
         terminalMgr,
         keyboardProxy
       );
+      actionsBar = new QuickActionsBar(
+        document.getElementById('actions-bar'),
+        terminalMgr
+      );
+      // Wire WS send closure — uses the ReconnectingWS inside terminalMgr.
+      actionsBar.sendWS = function (data) {
+        if (terminalMgr.ws) terminalMgr.ws.send(data);
+      };
     }
 
     // Fit after DOM is visible
@@ -1401,6 +1608,9 @@ const App = (function () {
     if (token) {
       terminalMgr.connect(sessionId, token);
     }
+
+    // Show the actions bar — owner-only (DoD: observer path handled below)
+    if (actionsBar) actionsBar.show();
   }
 
   async function handleProjectChange() {
@@ -1485,6 +1695,11 @@ const App = (function () {
         }
         break;
 
+      case 'control_ack':
+        // Route to QuickActionsBar for button state / xterm clear sync (DoD #6).
+        if (actionsBar) actionsBar.handleControlAck(msg);
+        break;
+
       case 'pong':
         // Could compute RTT: Date.now() - msg.ts
         break;
@@ -1518,12 +1733,15 @@ const App = (function () {
     switch (status) {
       case 'connected':
         statusLabel.textContent = 'Connected';
+        if (actionsBar) actionsBar.setOnline();
         break;
       case 'connecting':
         statusLabel.textContent = 'Connecting...';
+        if (actionsBar) actionsBar.setOffline();
         break;
       case 'disconnected':
         statusLabel.textContent = 'Disconnected';
+        if (actionsBar) actionsBar.setOffline();
         break;
     }
   }

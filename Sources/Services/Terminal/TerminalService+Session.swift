@@ -206,6 +206,76 @@ extension TerminalService {
         }
     }
 
+    // MARK: - Clear Scrollback
+
+    /// Clear the terminal scrollback buffer for a session.
+    ///
+    /// Resets the terminal emulator buffer via SwiftTerm's terminal `resetToInitialState()`.
+    /// The PTY process is NOT killed — the session stays alive and new output continues.
+    ///
+    /// Unlike `scrollbackContent(for:)`, this does NOT gate on `view.window != nil`
+    /// because clearing the buffer makes sense even when the view is off-screen:
+    /// new PTY output will fill a clean buffer. If the view is absent entirely (E14),
+    /// returns `false` so the caller can send a failure `control_ack`.
+    ///
+    /// - Parameter sessionId: Target session.
+    /// - Returns: `true` if the clear succeeded; `false` if the session was not found.
+    @discardableResult
+    func clearScrollback(for sessionId: UUID) -> Bool {
+        guard let view = store.view(for: sessionId) else {
+            Logger.terminal.warning("clearScrollback: view not found for session \(sessionId)")
+            return false
+        }
+        let terminal = view.getTerminal()
+        terminal.resetToInitialState()
+        Logger.terminal.info("clearScrollback: buffer reset for session \(sessionId)")
+        return true
+    }
+
+    // MARK: - Rerun Agent Session
+
+    /// Restart an agent session using the server-stored agent kind and working directory.
+    ///
+    /// Only applicable to sessions with `isAgentSession == true` and a non-nil `agentKind`.
+    /// The current agent process is force-killed and a new session is started with the
+    /// same parameters. The API key is resolved via `apiKeyResolver` (e.g. Keychain) —
+    /// NEVER from a WS payload (SEC-C2 invariant).
+    ///
+    /// - Parameters:
+    ///   - sessionId: The existing agent session to restart.
+    ///   - apiKeyResolver: Called with the agent to produce the API key value (from Keychain).
+    /// - Returns: The newly created `TerminalSession`, or `nil` on failure.
+    ///
+    /// Failure reasons (E9): session not found, not an agent session, no stored `agentKind`.
+    @discardableResult
+    func rerunAgentSession(
+        _ sessionId: UUID,
+        apiKeyResolver: @MainActor (AIAssistant) -> String?
+    ) -> TerminalSession? {
+        guard let projectId = store.projectId(for: sessionId),
+              let existing = sessionsByProject[projectId]?.first(where: { $0.id == sessionId }),
+              existing.isAgentSession,
+              let agent = existing.agentKind else {
+            Logger.terminal.warning("rerunAgentSession: not an agent session or agentKind missing: \(sessionId)")
+            return nil
+        }
+
+        let workingDir = existing.workingDirectory ?? NSHomeDirectory()
+        let apiKey = apiKeyResolver(agent)
+
+        // Force-kill the existing session to free the PTY. Callbacks are
+        // cleared inside killSession(force:true) — no double-clear needed.
+        killSession(sessionId, force: true)
+
+        // Relaunch the same agent in the same directory.
+        return startAgentSession(
+            agent: agent,
+            for: projectId,
+            workingDirectory: workingDir,
+            apiKeyValue: apiKey
+        )
+    }
+
     // MARK: - Activity
 
     /// Mark a project as seen by the user -- clears the yellow indicator.

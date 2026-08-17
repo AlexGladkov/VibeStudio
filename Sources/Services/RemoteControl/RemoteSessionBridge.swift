@@ -46,10 +46,24 @@ final class RemoteSessionBridge {
     /// Internal visibility so ``RemoteControlServer`` can broadcast through it.
     weak var wsChannel: Channel?
 
-    // MARK: - Private State
+    // MARK: - Internal State (control extensions)
 
     /// The terminal service for sending input and reading scrollback.
-    private let terminalService: TerminalService
+    /// Internal so `RemoteSessionBridge+Control` can call session methods.
+    let terminalService: TerminalService
+
+    /// Control-channel rate-limit counter. Separate quota from PTY-input
+    /// 120/min so that control commands cannot eat PTY budget and vice versa.
+    ///
+    /// Max: 10 control commands/min. Retry-after: 2 seconds.
+    var controlRateLimitCount: Int = 0
+    var controlRateLimitWindowStart: Date = .distantPast
+
+    /// Maximum control commands per minute (separate from PTY-input quota).
+    static let maxControlPerMinute = 10
+
+    /// Retry-after hint (ms) for control-channel rate-limit warnings.
+    static let controlRateLimitRetryAfterMs = 2000
 
     /// Idle timeout duration in minutes.
     private let idleTimeoutMinutes: Int
@@ -68,8 +82,9 @@ final class RemoteSessionBridge {
     /// Output throttle window (ms): batch rapid PTY reads into one WS frame.
     private static let outputThrottleMilliseconds = 16
 
-    /// Rate-limit sliding window duration (seconds).
-    private static let rateLimitWindowSeconds: TimeInterval = 60
+    /// Rate-limit sliding window duration (seconds). Shared by PTY-input and
+    /// control-channel rate limiters (same 60s window, different quota).
+    static let rateLimitWindowSeconds: TimeInterval = 60
 
     /// Retry-After hint (ms) sent with a rate-limit warning.
     private static let rateLimitRetryAfterMilliseconds = 500
@@ -327,10 +342,12 @@ final class RemoteSessionBridge {
         }
     }
 
-    // MARK: - Private: Idle Timeout
+    // MARK: - Internal: Idle Timeout
 
     /// Reset the idle timeout timer.
-    private func resetIdleTimer() {
+    /// Internal visibility so ``RemoteSessionBridge+Control`` can reset idle on
+    /// each control command (DoD: control activity counts as idle-timer reset).
+    func resetIdleTimer() {
         idleTimer?.cancel()
         let timeoutMinutes = idleTimeoutMinutes
         idleTimer = Task { @MainActor [weak self] in
