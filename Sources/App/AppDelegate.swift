@@ -108,6 +108,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // When the app is launched as an XCTest host the test runner injects
+        // the test bundle after applicationDidFinishLaunching returns.  Heavy
+        // startup work (TCC, NIO server, file-system watchers, git polling)
+        // races the XCTest handshake and causes the runner to time out without
+        // executing a single test.  Skip all of it in test context — the test
+        // bundle only needs the types, not the live services.
+        guard !AppLaunchEnvironment.isRunningHostedXCTest else { return }
+
         // Apply stored appearance before any view renders (no TCC needed for UserDefaults).
         themeService.applyStoredAppearance()
 
@@ -137,7 +145,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        // Keep the process alive when the test runner owns it — XCTest manages
+        // the lifecycle and does not open any windows.
+        !AppLaunchEnvironment.isRunningHostedXCTest
     }
 
 }

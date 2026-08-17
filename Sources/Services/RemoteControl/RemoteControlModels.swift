@@ -296,6 +296,106 @@ enum WSMessageType: String, Codable {
     case resize
     case ping
     case detach
+
+    // MARK: - Control Commands (Quick-Actions)
+
+    /// Kill the session process. Soft kill = SIGINT (reversible, tapping).
+    /// Force kill = SIGTERM → SIGKILL cascade (long-press on client).
+    case kill
+
+    /// Pause: sends Ctrl+Z (0x1A) to the PTY foreground job group.
+    /// Not a direct SIGTSTP — shell stops the current foreground job correctly.
+    case pause
+
+    /// Re-run the agent session (agent-sessions only). Server-side relaunch
+    /// using the stored command; API key from Keychain, never from payload.
+    case rerun
+
+    /// Clear the terminal scrollback buffer on the server. Client should
+    /// clear its local xterm buffer upon receiving the control_ack.
+    case clear
+}
+
+// MARK: - Control Command DTOs (Client -> Server)
+
+/// Client-to-server: kill the terminal session process.
+///
+/// - `force`: when `true` escalates from SIGTERM to SIGKILL (long-press path).
+///
+/// `sessionId` is intentionally ABSENT — the target session is always
+/// `bridge.sessionId` (BOLA protection: client cannot substitute a foreign UUID).
+struct WSKillMessage: Codable {
+    let type: WSMessageType
+    let force: Bool
+}
+
+/// Client-to-server: pause the terminal foreground job (Ctrl+Z to PTY).
+///
+/// `sessionId` omitted intentionally (BOLA protection, same as WSKillMessage).
+struct WSPauseMessage: Codable {
+    let type: WSMessageType
+}
+
+/// Client-to-server: re-run the agent session.
+///
+/// Applies only to agent-sessions. Server uses its own stored command +
+/// Keychain API key; no secrets may travel in this payload.
+///
+/// `sessionId` omitted intentionally (BOLA protection).
+struct WSRerunMessage: Codable {
+    let type: WSMessageType
+}
+
+/// Client-to-server: clear the terminal scrollback buffer.
+///
+/// `sessionId` omitted intentionally (BOLA protection).
+struct WSClearMessage: Codable {
+    let type: WSMessageType
+}
+
+// MARK: - Control Ack (Server -> Client)
+
+/// Server-to-client: acknowledgement for every control command.
+///
+/// On success: `ok = true`. On failure: `ok = false` with `reason` and `code`.
+/// For Clear actions: receipt of this ack is the signal for the client to
+/// clear its local xterm buffer (single source of truth = server).
+struct WSControlAckMessage: Codable {
+    let type: String
+    let action: String
+    let ok: Bool
+    let reason: String?
+    let code: String?
+    let retryAfterMs: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case type, action, ok, reason, code
+        case retryAfterMs = "retry_after_ms"
+    }
+
+    /// Create a success ack for a given action.
+    static func success(action: String) -> WSControlAckMessage {
+        WSControlAckMessage(
+            type: "control_ack",
+            action: action,
+            ok: true,
+            reason: nil,
+            code: nil,
+            retryAfterMs: nil
+        )
+    }
+
+    /// Create a failure ack for a given action.
+    static func failure(action: String, reason: String, code: String, retryAfterMs: Int? = nil) -> WSControlAckMessage {
+        WSControlAckMessage(
+            type: "control_ack",
+            action: action,
+            ok: false,
+            reason: reason,
+            code: code,
+            retryAfterMs: retryAfterMs
+        )
+    }
 }
 
 /// Client-to-server: authentication (must be first message after WS connect).

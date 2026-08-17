@@ -67,6 +67,43 @@
         </div>
       </div>
 
+      <!-- Quick-Actions Bar (session owner only) -->
+      <div class="actions-bar" id="actions-bar" hidden aria-label="Session quick actions" role="toolbar">
+        <button class="action-btn action-btn--rerun" id="action-rerun"
+                aria-label="Restart session"
+                title="Restart session (agent sessions only)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M2 7a5 5 0 1 0 1-3H1V2L-1 4l2 2V4.5h1.2A4 4 0 1 1 3 7H2z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="action-btn action-btn--pause" id="action-pause"
+                aria-label="Pause process"
+                title="Pause foreground process (Ctrl+Z)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="3" y="2" width="3" height="10" rx="1" fill="currentColor"/>
+            <rect x="8" y="2" width="3" height="10" rx="1" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="action-btn action-btn--clear" id="action-clear"
+                aria-label="Clear scrollback"
+                title="Clear terminal scrollback">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M1 3h12M5 3V2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1M3 3l.5 9h7l.5-9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="action-btn action-btn--kill" id="action-kill"
+                aria-label="Kill process / Hold to force kill"
+                title="Kill process (tap = SIGINT, hold = force SIGKILL)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <!-- Spinner shown while awaiting control_ack -->
+        <span class="action-spinner" id="action-spinner" hidden aria-hidden="true"></span>
+        <!-- Toast for error feedback -->
+        <span class="action-toast" id="action-toast" role="alert" aria-live="polite"></span>
+      </div>
+
       <!-- Terminal -->
       <div class="terminal-container" id="terminal-container"></div>
 

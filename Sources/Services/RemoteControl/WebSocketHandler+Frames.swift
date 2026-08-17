@@ -128,8 +128,39 @@ extension RemoteWebSocketHandler {
                 bridge?.detach()
             }
 
+        // MARK: Quick-Action Control Commands
+
+        case "kill":
+            handleKillMessage(jsonData: jsonData, bridge: bridge)
+
+        case "pause":
+            Task { @MainActor in
+                bridge?.handlePause()
+            }
+
+        case "rerun":
+            Task { @MainActor in
+                bridge?.handleRerun(apiKeyResolver: KeychainAPIKeyResolver())
+            }
+
+        case "clear":
+            Task { @MainActor in
+                bridge?.handleClear()
+            }
+
         default:
             Logger.remoteControl.debug("RemoteWebSocketHandler: unknown message type '\(type)'")
+        }
+    }
+
+    /// Decode and dispatch a `kill` control message.
+    private func handleKillMessage(jsonData: Data, bridge: RemoteSessionBridge?) {
+        guard let msg = try? decoder.decode(WSKillMessage.self, from: jsonData) else {
+            // E11: bad JSON — no-op (malformed control messages are silently ignored).
+            return
+        }
+        Task { @MainActor in
+            bridge?.handleKill(force: msg.force)
         }
     }
 

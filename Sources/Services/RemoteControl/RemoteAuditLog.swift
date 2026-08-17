@@ -88,6 +88,49 @@ enum RemoteAuditLog {
         )
     }
 
+    // MARK: - Control Commands (Quick-Actions)
+
+    /// Log a control command (kill/pause/rerun/clear) from a remote device.
+    ///
+    /// Only the action name and metadata are logged — payload contents are
+    /// NEVER logged (SEC-C2: payload may carry no secrets but consistent
+    /// policy avoids accidental future leakage if payload changes).
+    ///
+    /// - Parameters:
+    ///   - action: The control action name (e.g. "kill", "pause", "rerun", "clear").
+    ///   - deviceId: The device that sent the command.
+    ///   - sessionId: The terminal session targeted.
+    static func controlAction(action: String, deviceId: UUID, sessionId: UUID) {
+        Logger.remoteControl.info(
+            "[AUDIT] Control action=\(action, privacy: .public) device=\(deviceId) session=\(sessionId)"
+        )
+    }
+
+    /// Log a force-kill escalation (SIGTERM → SIGKILL). Logged at `.warning`
+    /// to distinguish it from a soft kill in audit trails and Console.app.
+    ///
+    /// - Parameters:
+    ///   - deviceId: The device that requested force-kill.
+    ///   - sessionId: The session that was force-killed.
+    static func forceKill(deviceId: UUID, sessionId: UUID) {
+        Logger.remoteControl.warning(
+            "[AUDIT] FORCE-KILL: device=\(deviceId) session=\(sessionId)"
+        )
+    }
+
+    /// Log a BOLA violation: control command attempted on a foreign session.
+    ///
+    /// - Parameters:
+    ///   - action: The control action that was denied.
+    ///   - deviceId: The device that attempted the command.
+    ///   - sessionId: The session the device attempted to control.
+    ///   - ownerDeviceId: The actual owner's device ID.
+    static func controlBOLADenied(action: String, deviceId: UUID, sessionId: UUID, ownerDeviceId: UUID) {
+        Logger.remoteControl.error(
+            "[AUDIT] BOLA denied action=\(action, privacy: .public) device=\(deviceId) session=\(sessionId) owner=\(ownerDeviceId)"
+        )
+    }
+
     // MARK: - Server Lifecycle
 
     /// Log the server being disabled due to a security policy violation.

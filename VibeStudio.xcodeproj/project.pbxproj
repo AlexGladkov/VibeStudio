@@ -237,6 +237,7 @@
 		B9C8F1D40D8F8A80D7B4B613 /* SpecBuildPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36BAA8C93B438D96557F3D95 /* SpecBuildPanelView.swift */; };
 		BA344F85B2EEAD6A5F8B8916 /* ProjectHeaderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B09577D3291FC14AD47E49 /* ProjectHeaderRow.swift */; };
 		BC7AC5120441869539B4BB2E /* RemoteControlPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97FB88BDFBD137924C6C5DC4 /* RemoteControlPreferences.swift */; };
+		BC817C5B2E8E3877A1E0C244 /* RemoteSessionBridge+Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A8E36A000D01EA803ED933F /* RemoteSessionBridge+Control.swift */; };
 		BC8A9AEB91094812BFD364BD /* LoopbackCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A97C32B6166175D999B704DB /* LoopbackCheck.swift */; };
 		BD7340432E24C6BFD6A60B2D /* RemoteControlServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC9D83DE65CC28E98FFC76EA /* RemoteControlServer.swift */; };
 		BE16D2AE5BCF126B439EC570 /* TerminalSessionManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FE7FB6400C135E9A5438B8B /* TerminalSessionManaging.swift */; };
@@ -263,6 +264,7 @@
 		C9453097015228793540D47B /* LoopbackCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E4F12C9C1F61B963512FC2 /* LoopbackCheckTests.swift */; };
 		C9BEC30BBDDD21105FD3C152 /* SpecStatusBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CB3D0DB717F29DDAB4B2CC /* SpecStatusBadgeView.swift */; };
 		C9CCC3266912C201C93C7908 /* NetworkUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91915EFF288D815F6E884A6C /* NetworkUtility.swift */; };
+		CADC2B885F94C14097DEDB90 /* QuickActionsControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9456A6E4CC908634BF4F5D12 /* QuickActionsControlTests.swift */; };
 		CBC47F4B0E79A7AC2A33410F /* SecurityConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A941CD6A6798519D62A44CE9 /* SecurityConstants.swift */; };
 		CD14926CB0CB0B3309690A1B /* ProjectListItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A153E5591CE079C078858437 /* ProjectListItemView.swift */; };
 		CDDF6EB576ED403E4717B7CB /* StaticFileRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 207D7305915931071F39E98A /* StaticFileRouter.swift */; };
@@ -388,6 +390,7 @@
 		17ED02C629023773CE643F0C /* AppReadyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReadyState.swift; sourceTree = "<group>"; };
 		19DB063FC608C5436B09AA24 /* BonjourAdvertiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BonjourAdvertiser.swift; sourceTree = "<group>"; };
 		19E4F12C9C1F61B963512FC2 /* LoopbackCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackCheckTests.swift; sourceTree = "<group>"; };
+		1A8E36A000D01EA803ED933F /* RemoteSessionBridge+Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RemoteSessionBridge+Control.swift"; sourceTree = "<group>"; };
 		1AD231621D92A8A5E69BAC86 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
 		1B32B21E395405769DEBA66A /* AgentNameSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentNameSanitizer.swift; sourceTree = "<group>"; };
 		1BE04E7A00994F62F41BFDC9 /* SpecModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpecModelsTests.swift; sourceTree = "<group>"; };
@@ -548,6 +551,7 @@
 		917F43F9A8A8CA1F116CAB2E /* GitStatusParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitStatusParserTests.swift; sourceTree = "<group>"; };
 		91915EFF288D815F6E884A6C /* NetworkUtility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkUtility.swift; sourceTree = "<group>"; };
 		938D9E8D305117C87E15C664 /* TerminalServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalServiceTests.swift; sourceTree = "<group>"; };
+		9456A6E4CC908634BF4F5D12 /* QuickActionsControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsControlTests.swift; sourceTree = "<group>"; };
 		94E2DA4973975FC8EEEE5B8B /* TabItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabItemView.swift; sourceTree = "<group>"; };
 		957B31518F2604BC73036AEC /* TerminalScrollbackAccessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalScrollbackAccessing.swift; sourceTree = "<group>"; };
 		95D921189F387A002D027FC6 /* RemoteAPIHandlers+Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RemoteAPIHandlers+Auth.swift"; sourceTree = "<group>"; };
@@ -938,6 +942,7 @@
 				B3DDC66F51AA807134BD6ABB /* CORSPolicyTests.swift */,
 				19E4F12C9C1F61B963512FC2 /* LoopbackCheckTests.swift */,
 				4594FABB4529E7A0492D2B34 /* MIMETypeResolverTests.swift */,
+				9456A6E4CC908634BF4F5D12 /* QuickActionsControlTests.swift */,
 				3CD02C42C2D103C290BFCFEC /* RemoteAuthMiddlewareTests.swift */,
 				F1B6898F0D334C7AF0D469E3 /* RemoteAuthServiceTests.swift */,
 				86248EED70ADB02787247CFB /* RemoteControlLifecycleTests.swift */,
@@ -1515,6 +1520,7 @@
 				4192C46BD467ED53297D498D /* RemoteControlServer+Observation.swift */,
 				C4DAEAA0D1E5497850257B22 /* RemoteServerMetadata.swift */,
 				1ED9CD40D1209823B8058F69 /* RemoteSessionBridge.swift */,
+				1A8E36A000D01EA803ED933F /* RemoteSessionBridge+Control.swift */,
 				FD2FC848740D8D48F56B81FC /* RemoteStaticFileCache.swift */,
 				5EC3E27E171E08F1C7903EEE /* RemoteStaticFileServer.swift */,
 				C7DF04476E5617B7AEC8B9D1 /* RemoteWSConstants.swift */,
@@ -1923,6 +1929,7 @@
 				03BD9561FC64C96A9A482B55 /* MockSessionPersisting.swift in Sources */,
 				B18C6301830DD69014AA0488 /* MockTerminalSessionManager.swift in Sources */,
 				1E0D6366A3F11D0829760CEB /* ProjectStoreTests.swift in Sources */,
+				CADC2B885F94C14097DEDB90 /* QuickActionsControlTests.swift in Sources */,
 				F3AEF635F66D26C5B7ABAC25 /* RemoteAuthMiddlewareTests.swift in Sources */,
 				4AE94850EF9698A8BCFD673F /* RemoteAuthServiceTests.swift in Sources */,
 				BF428DF38D1C80D1C29A57F1 /* RemoteControlLifecycleTests.swift in Sources */,
@@ -2131,6 +2138,7 @@
 				943016FA231035E0F00EEA7F /* RemoteDevicesPopover.swift in Sources */,
 				04E8CE67B1F2BAB3E2E5E846 /* RemoteQRPopover.swift in Sources */,
 				0014B761FE2DF83F5CB78124 /* RemoteServerMetadata.swift in Sources */,
+				BC817C5B2E8E3877A1E0C244 /* RemoteSessionBridge+Control.swift in Sources */,
 				FA8667C5CCA27F2B43C0F417 /* RemoteSessionBridge.swift in Sources */,
 				3B1745055F7C1EB93E7D3D48 /* RemoteStaticFileCache.swift in Sources */,
 				C0598397B50532698A079AAD /* RemoteStaticFileServer.swift in Sources */,
@@ -2384,7 +2392,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;
@@ -2424,7 +2432,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.4.1;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tech.mobiledeveloper.vibestudio;
 				SDKROOT = macosx;
 				SWIFT_STRICT_CONCURRENCY = targeted;

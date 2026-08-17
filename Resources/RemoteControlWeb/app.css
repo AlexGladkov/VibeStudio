@@ -572,6 +572,144 @@ input, select, textarea {
   margin: 0 var(--sp-xxs);
 }
 
+/* --- Quick-Actions Bar --- */
+
+/*
+ * Actions bar sits between the top-bar and the terminal.
+ * It is visible only when the authenticated device is the session owner.
+ * Order (L→R): Re-run · Pause · Clear · Kill (Kill rightmost — DoD).
+ *
+ * DS tokens used (no new colours outside design system):
+ *   actionRun  → --action-run
+ *   actionStop → --action-stop
+ *   indicatorWaiting → --indicator-waiting
+ *   textSecondary    → --text-secondary
+ */
+
+.actions-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-xs);
+  padding: var(--sp-xs) var(--sp-sm);
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.actions-bar[hidden] {
+  display: none;
+}
+
+/* Base style for all action buttons */
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease, opacity 0.12s ease, transform 0.1s ease;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.action-btn:active {
+  transform: scale(0.93);
+  background: var(--button-secondary-hover-bg);
+}
+
+.action-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--border-focus);
+}
+
+/* Disabled / pending state (awaiting control_ack) */
+.action-btn:disabled,
+.action-btn[aria-busy="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* Colour overrides per action — DS tokens only */
+.action-btn--rerun {
+  color: var(--action-run);
+}
+
+.action-btn--pause {
+  color: var(--indicator-waiting);
+}
+
+.action-btn--clear {
+  color: var(--text-secondary);
+}
+
+.action-btn--kill {
+  color: var(--action-stop);
+  border-color: rgba(248, 81, 73, 0.25);
+  background: var(--button-danger-bg);
+}
+
+.action-btn--kill:active {
+  background: rgba(61, 18, 20, 0.8);
+}
+
+/* Spinner (tiny rotate animation, shown on button during pending) */
+.action-spinner {
+  display: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+  margin-left: var(--sp-xs);
+}
+
+.action-spinner[hidden] {
+  display: none;
+}
+
+.action-spinner:not([hidden]) {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Toast text (inline, auto-fades after JS timeout) */
+.action-toast {
+  font-size: 11px;
+  font-family: var(--font-ui);
+  color: var(--indicator-error);
+  margin-left: var(--sp-xs);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.action-toast.action-toast--visible {
+  opacity: 1;
+}
+
+/* Push Kill to the right end */
+.action-btn--kill {
+  margin-left: auto;
+}
+
 /* --- Accessibility: Reduced Motion --- */
 
 @media (prefers-reduced-motion: reduce) {

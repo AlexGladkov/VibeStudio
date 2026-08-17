@@ -252,13 +252,16 @@ final class TerminalService: TerminalSessionManaging {
             currentDirectory: workingDirectory
         )
 
-        // Create session model -- marked as agent session.
+        // Create session model -- marked as agent session. Store agentKind and
+        // workingDirectory for server-side Re-run (SEC-C2: never from WS payload).
         let session = TerminalSession(
             id: sessionId,
             projectId: projectId,
             title: agent.displayName,
             state: .running,
-            isAgentSession: true
+            isAgentSession: true,
+            agentKind: agent,
+            workingDirectory: workingDirectory
         )
 
         // Store state.

@@ -99,13 +99,24 @@ struct TerminalSession: Identifiable, Sendable, Equatable {
     /// agent session exits the shell sessions reappear automatically.
     var isAgentSession: Bool
 
+    /// The AI agent kind that launched this session. Non-nil only when
+    /// `isAgentSession == true`. Used by Remote Control Re-run to relaunch
+    /// the same agent without re-specifying it from the client (SEC-C2).
+    var agentKind: AIAssistant?
+
+    /// Working directory the agent was launched in. Used by Re-run to restart
+    /// in the same directory. Stored server-side; never travels in WS payloads.
+    var workingDirectory: String?
+
     init(
         id: UUID = UUID(),
         projectId: UUID,
         title: String = "zsh",
         state: TerminalSessionState = .running,
         splitDirection: SplitDirection? = nil,
-        isAgentSession: Bool = false
+        isAgentSession: Bool = false,
+        agentKind: AIAssistant? = nil,
+        workingDirectory: String? = nil
     ) {
         self.id = id
         self.projectId = projectId
@@ -113,6 +124,8 @@ struct TerminalSession: Identifiable, Sendable, Equatable {
         self.state = state
         self.splitDirection = splitDirection
         self.isAgentSession = isAgentSession
+        self.agentKind = agentKind
+        self.workingDirectory = workingDirectory
     }
 }
 
