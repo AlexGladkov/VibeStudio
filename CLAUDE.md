@@ -24,3 +24,26 @@ Controls (`configPicker + playStopButton + ...`) позиционируются 
 Версия запущенного билда `vX.Y.Z (build)` показывается в **Settings ▸ Updates**
 (`UpdateSettingsPane`, строка «Current version»). Источник — `Bundle.appVersionDisplay`.
 НЕ в titlebar (наезжает на sidebar-разделитель при узком сайдбаре), НЕ в сайдбаре.
+
+## Agents
+
+Проект чисто Swift/macOS. Фаза Resolve в Workflow ОБЯЗАНА брать имена агентов РОВНО отсюда
+(не выдумывать `swift-architect`/`security-swift` и т.п. — их не существует).
+
+### Консилиум
+| Role        | Agent                          |
+|-------------|--------------------------------|
+| architect   | voltagent-lang:swift-expert    |
+| developer   | voltagent-lang:swift-expert    |
+| diagnostics | voltagent-lang:swift-expert    |
+| test        | voltagent-lang:swift-expert    |
+| api         | voltagent-core-dev:api-designer |
+| ui          | voltagent-core-dev:ui-designer |
+| frontend    | voltagent-lang:swift-expert    |
+| security    | voltagent-infra:security-engineer |
+| devops      | devops-orchestrator            |
+
+### Executing
+| Agent                       | Scope         |
+|-----------------------------|---------------|
+| voltagent-lang:swift-expert | **/*.swift    |
