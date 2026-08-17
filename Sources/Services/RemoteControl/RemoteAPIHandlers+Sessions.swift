@@ -38,6 +38,29 @@ extension RemoteAPIHandlers {
             )
             return
         }
+        // P0-3 fix (BOLA/IDOR): the previous guard only blocked scrollback when a
+        // *live bridge* for a different device existed. When `activeBridges` is
+        // empty (e.g. no device is currently connected) `foreignOwner` was nil and
+        // the handler served raw scrollback content to ANY authenticated device that
+        // guessed a valid `sessionId` — regardless of which project it belongs to.
+        //
+        // Fix: always verify the session's `projectId` against the one supplied in
+        // the URL *before* checking bridge ownership. If the IDs do not match we
+        // return 404 (not 403) to avoid leaking the existence of unrelated sessions.
+        guard let sessionProjectId = terminalService.session(for: sessionId)?.projectId,
+              sessionProjectId == projectId else {
+            let resp = ErrorResponse(
+                error: ErrorDetail(
+                    code: "SESSION_NOT_FOUND",
+                    message: "Session not found for the given project."
+                )
+            )
+            writer.sendEncodableResponse(
+                resp, status: .notFound, channel: channel, corsOrigin: corsOrigin
+            )
+            return
+        }
+
         let foreignOwner = server.activeBridges.values.first { bridge in
             bridge.sessionId == sessionId && bridge.deviceId != device.id
         }

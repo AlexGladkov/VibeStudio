@@ -89,18 +89,28 @@ extension RemoteWebSocketHandler {
             var buffer = channel.allocator.buffer(capacity: text.utf8.count)
             buffer.writeString(text)
             let frame = WebSocketFrame(fin: true, opcode: .text, data: buffer)
-            channel.writeAndFlush(NIOAny(frame), promise: nil)
+            channel.writeAndFlush(frame, promise: nil)
         }
     }
 
     /// Send error and close with custom code.
+    ///
+    /// P0-1 fix: all `channel.writeAndFlush` / `channel.close` calls MUST run on
+    /// the channel's event loop. Previously this function executed directly on
+    /// whatever thread the caller ran on (Swift cooperative pool when invoked from
+    /// `startAuthTimeout`, MainActor task when invoked from `handleAuthMessage`
+    /// failure path). Both are wrong — NIO requires serialisation on the event
+    /// loop. Wrapping the body in `channel.eventLoop.execute {}` matches the
+    /// pattern already used by `resetHeartbeat` and `RemoteSessionBridge.closeWithCode`.
     func sendErrorAndClose(code: UInt16, reason: String, channel: Channel) {
-        var buffer = channel.allocator.buffer(capacity: 2 + reason.utf8.count)
-        buffer.writeInteger(code)
-        buffer.writeString(reason)
-        let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
-        channel.writeAndFlush(NIOAny(frame)).whenComplete { _ in
-            channel.close(promise: nil)
+        channel.eventLoop.execute {
+            var buffer = channel.allocator.buffer(capacity: 2 + reason.utf8.count)
+            buffer.writeInteger(code)
+            buffer.writeString(reason)
+            let frame = WebSocketFrame(fin: true, opcode: .connectionClose, data: buffer)
+            channel.writeAndFlush(frame).whenComplete { _ in
+                channel.close(promise: nil)
+            }
         }
     }
 }

@@ -68,12 +68,12 @@ final class RemoteAuthService {
     /// Single source of truth for the token validity duration (4 hours).
     /// Both the public ``tokenTTL`` mirror and the private ``Constants/tokenTTL``
     /// derive from this so the value is never duplicated.
-    private static let _tokenTTLValue: TimeInterval = 4 * 60 * 60
+    nonisolated private static let _tokenTTLValue: TimeInterval = 4 * 60 * 60
 
     /// Single source of truth for the rate-limit window (5 minutes).
     /// Both the public ``rateLimitWindowSecondsPublic`` mirror and the private
     /// ``Constants/rateLimitWindowSeconds`` derive from this.
-    private static let _rateLimitWindowValue: TimeInterval = 5 * 60
+    nonisolated private static let _rateLimitWindowValue: TimeInterval = 5 * 60
 
     /// Token validity duration, exposed for HTTP layer use (`expiresAt` claim,
     /// `Retry-After` hints). Mirrors ``Constants/tokenTTL``.
@@ -123,6 +123,16 @@ final class RemoteAuthService {
 
     /// Called when the server should shut down due to excessive failed auth attempts.
     var onSecurityLockout: (() -> Void)?
+
+    /// Called when a token expires during validation so the server can perform
+    /// the canonical full teardown (bridge + auth) for the device.
+    ///
+    /// P0-2 fix: `validateToken` previously called only `removeDevice`, leaving
+    /// `activeBridges` with a stale entry (and the WS channel open). The server
+    /// wires this callback to `disconnect(_:)` which atomically removes BOTH
+    /// registries and closes the channel — matching the pattern in
+    /// `RemoteControlServer.disconnect(_:)`.
+    var onTokenExpired: ((_ deviceId: UUID) -> Void)?
 
     // MARK: - Private State
 
@@ -305,8 +315,20 @@ final class RemoteAuthService {
         guard now() < entry.expiresAt else {
             // Token expired -- remove it. Not counted as an attack signal:
             // honest clients hit this once their token TTL elapses.
+            // P0-2 fix: previously only `removeDevice` was called here, which
+            // cleaned `connectedDevices` but left `activeBridges` with a stale
+            // entry and the underlying WS channel open. Now we fire `onTokenExpired`
+            // so the server can drive the canonical full teardown (`disconnect(_:)`)
+            // which removes the bridge, revokes the device and closes the channel
+            // — keeping both registries in sync.
             tokens.removeValue(forKey: token)
-            removeDevice(entry.deviceId)
+            let expiredDeviceId = entry.deviceId
+            if onTokenExpired != nil {
+                onTokenExpired?(expiredDeviceId)
+            } else {
+                // Fallback when no server is wired (e.g. tests): clean auth state only.
+                removeDevice(expiredDeviceId)
+            }
             return .failure(.tokenExpired)
         }
 

@@ -244,6 +244,13 @@ final class RemoteControlServer {
         authService.onSecurityLockout = { [weak self] in
             self?.handleSecurityLockout()
         }
+        // P0-2 fix: wire the token-expiry callback so that when `validateToken`
+        // encounters an expired token it triggers the canonical full teardown
+        // (`disconnect(_:)`) rather than only clearing `connectedDevices`.
+        // This keeps `activeBridges` and `connectedDevices` in sync on expiry.
+        authService.onTokenExpired = { [weak self] deviceId in
+            self?.disconnect(deviceId)
+        }
         // ARCH-M9: `connectedDeviceCount` is now computed from
         // `activeBridges` — no longer set from
         // `RemoteAuthService.onDevicesChanged`. We still observe
@@ -281,6 +288,9 @@ final class RemoteControlServer {
         ngrok.stop()
         ngrokHostRef.set(nil)
         authService.revokeAllDevices()
+        // Clear callbacks so the auth service cannot call back into a stopped server.
+        authService.onSecurityLockout = nil
+        authService.onTokenExpired = nil
 
         sessionObservationTask?.cancel()
         sessionObservationTask = nil

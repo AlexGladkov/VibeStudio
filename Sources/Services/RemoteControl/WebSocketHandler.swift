@@ -208,11 +208,18 @@ final class RemoteWebSocketHandler: ChannelInboundHandler, @unchecked Sendable {
         let serverRef = self.serverRef
         let deviceId = deviceInfo?.id
 
+        // P0-2 fix: channelInactive previously called only `unregisterBridge`,
+        // leaving `authService.connectedDevices` with a stale zombie entry for
+        // the disconnected device. After 3 such cycles `validatePin` returned
+        // `maxDevicesReached` for 4 h (the token TTL). Now we mirror the canonical
+        // teardown already used by `RemoteControlServer.disconnect(_:)`: atomically
+        // clean BOTH registries in the same MainActor hop so the counts never diverge.
         Task { @MainActor in
             if let bridge {
                 serverRef?.unregisterBridge(bridge)
             }
             if let deviceId {
+                serverRef?.authService.revokeDevice(deviceId)
                 RemoteAuditLog.deviceDisconnect(deviceId: deviceId, reason: "connection_closed")
             }
         }
