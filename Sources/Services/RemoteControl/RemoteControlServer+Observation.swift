@@ -1,4 +1,5 @@
 // MARK: - RemoteControlServer+Observation
+// Iteration 9 split + Cost Tracker broadcast (Feature #2).
 // Iteration 9 split. The two long-lived observation loops (ngrok host tracking
 // + session-change broadcasting) extracted from ``RemoteControlServer`` to keep
 // the primary type body under SwiftLint's `type_body_length` budget.
@@ -13,6 +14,67 @@ import Foundation
 import OSLog
 
 extension RemoteControlServer {
+
+    // MARK: - Cost Update Observation
+
+    /// Watch `CostTrackerService.sessionCosts` for changes and broadcast
+    /// `cost_update` WebSocket messages to the session's bridge (BOLA:
+    /// only the bridge whose `sessionId` matches receives the message).
+    ///
+    /// Throttle: max 1 broadcast per 500ms to avoid flooding mobile clients.
+    func startCostObservation() {
+        guard let tracker = costTrackerService else { return }
+        _costObservationTask = Task { @MainActor [weak self, weak tracker] in
+            guard let self, let tracker else { return }
+            let encoder = JSONEncoder()
+            // Debounce: track last-sent snapshot per session to skip no-change wakeups.
+            var lastSent: [UUID: SessionCostSnapshot] = [:]
+
+            let stream = AsyncObservation.stream(emitInitial: false) { [weak tracker] () -> Int? in
+                guard let tracker else { return nil }
+                return tracker.sessionCosts.values.reduce(0) { $0 + $1.totalTokens }
+            }
+            for await _ in stream {
+                guard !Task.isCancelled else { return }
+                // 500ms throttle
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+
+                for (sessionId, snap) in tracker.sessionCosts {
+                    guard snap.totalTokens > 0 else { continue }
+                    // Skip if nothing changed since last broadcast for this session.
+                    if lastSent[sessionId] == snap { continue }
+                    lastSent[sessionId] = snap
+
+                    // Find project for this session (required by WSCostUpdateMessage).
+                    // Reverse-lookup via sessionsByProject (no direct projectId API on TerminalService).
+                    guard let projectId = self.terminalService.sessionsByProject.first(where: {
+                        $0.value.contains(where: { $0.id == sessionId })
+                    })?.key else { continue }
+
+                    let msg = WSCostUpdateMessage(
+                        type: "cost_update",
+                        sessionId: sessionId.uuidString,
+                        projectId: projectId.uuidString,
+                        promptTokens: snap.promptTokens,
+                        completionTokens: snap.completionTokens,
+                        totalTokens: snap.totalTokens,
+                        estimatedCostUsd: snap.costUSD,
+                        model: snap.model
+                    )
+                    if let data = try? encoder.encode(msg),
+                       let json = String(data: data, encoding: .utf8) {
+                        // BOLA: only send to the bridge attached to this session.
+                        self.broadcastToSession(sessionId, json: json)
+                        Logger.remoteControl.debug(
+                            "RemoteControlServer: cost_update broadcast session=\(sessionId, privacy: .public) tokens=\(snap.totalTokens, privacy: .public)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
 
     // MARK: - Ngrok Host Observation
 

@@ -29,7 +29,7 @@ extension TerminalService {
 
     // MARK: - Terminal Configuration
 
-    /// Install activity and process-exit callbacks on a terminal view.
+    /// Install activity, process-exit, and cost-tracker callbacks on a terminal view.
     func installCallbacks(
         on terminalView: TaggedTerminalView,
         sessionId: UUID,
@@ -47,6 +47,24 @@ extension TerminalService {
         terminalView.onProcessExited = { [weak self] sid, exitCode in
             MainActor.assumeIsolated {
                 self?.handleProcessExit(sessionId: sid, projectId: projectId, exitCode: exitCode)
+            }
+        }
+    }
+
+    /// Install the cost-tracking callback on an agent session view.
+    ///
+    /// Called by ``TerminalService`` after ``installCallbacks`` for sessions
+    /// where `isAgentSession == true`. Installing separately keeps the common
+    /// (shell) path free of cost-tracking overhead.
+    func installCostTrackingCallback(
+        on terminalView: TaggedTerminalView,
+        sessionId: UUID,
+        projectId: UUID,
+        costTracker: CostTrackerService
+    ) {
+        terminalView.onParsedOutput = { [weak costTracker] sid, slice in
+            MainActor.assumeIsolated {
+                costTracker?.feed(sessionId: sid, projectId: projectId, slice: slice)
             }
         }
     }
@@ -144,9 +162,13 @@ extension TerminalService {
             view.onProcessExited = nil
             view.onLinesChanged = nil
             view.onRawData = nil
+            view.onParsedOutput = nil
             view.onTitleChanged = nil
         }
         activityTracker.removeSession(sessionId)
+
+        // Reset cost tracker for this session on exit (E7: restarted agent begins fresh).
+        costTrackerService?.reset(for: sessionId)
 
         // Emit event so ToolbarViewModel clears the running state.
         eventContinuation.yield(

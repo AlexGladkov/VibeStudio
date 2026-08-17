@@ -28,6 +28,8 @@ struct RemoteAPIHandlers {
     weak var serverRef: RemoteControlServer?
     let writer: HTTPResponseWriter
     let metadata: RemoteServerMetadata
+    /// Optional — nil if cost tracker disabled at app level.
+    weak var costTrackerService: CostTrackerService?
 
     // NOTE: the remaining endpoints live in `RemoteAPIHandlers+Auth`,
     // `+Projects`, `+Devices` and `+Sessions` (Iteration 9 split).

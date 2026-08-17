@@ -56,6 +56,7 @@ extension TerminalService {
             view.onProcessExited = nil
             view.onLinesChanged = nil
             view.onRawData = nil
+            view.onParsedOutput = nil
             view.onTitleChanged = nil
             sendSignal(to: view, signal: SIGKILL)
             removeSession(sessionId)
@@ -65,6 +66,7 @@ extension TerminalService {
             view.onProcessExited = nil
             view.onLinesChanged = nil
             view.onRawData = nil
+            view.onParsedOutput = nil
             view.onTitleChanged = nil
             let pid = view.process?.shellPid ?? 0
             Task { @MainActor [weak self] in

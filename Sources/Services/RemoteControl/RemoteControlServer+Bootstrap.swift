@@ -38,6 +38,9 @@ extension RemoteControlServer {
         let staticCache: RemoteStaticFileCache
         let ngrokHostRef: NgrokHostRef
         let metadata: RemoteServerMetadata
+        /// Optional — passed to `RemoteAPIHandlers` for cost reconnect recovery.
+        /// Unowned reference — struct can't hold `weak`, caller must ensure lifetime.
+        var costTrackerService: CostTrackerService?
     }
 
     /// Build the shared child-channel initializer: HTTP pipeline + router.
@@ -58,6 +61,8 @@ extension RemoteControlServer {
         let prefs = config.preferences
         let idleTimeout = config.idleTimeoutMinutes
         let staticCache = config.staticCache
+        // Weak ref to avoid the returned @Sendable closure retaining the service.
+        weak var costTracker: CostTrackerService? = config.costTrackerService
         let ngrokRef = config.ngrokHostRef
         let appMetadata = config.metadata
 
@@ -76,7 +81,8 @@ extension RemoteControlServer {
                 serverRef: weakServer,
                 staticCache: staticCache,
                 ngrokHostRef: ngrokRef,
-                metadata: appMetadata
+                metadata: appMetadata,
+                costTrackerService: costTracker
             )
             return channel.pipeline.addHandler(encoder, name: "http_encoder").flatMap {
                 channel.pipeline.addHandler(decoder, name: "http_decoder")

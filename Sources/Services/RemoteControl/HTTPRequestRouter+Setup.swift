@@ -37,12 +37,13 @@ extension HTTPRequestRouter {
             metadata: RemoteServerMetadata,
             idleTimeoutMinutes: Int,
             decoder: JSONDecoder,
-            isoFormatter: ISO8601DateFormatter
+            isoFormatter: ISO8601DateFormatter,
+            costTrackerService: CostTrackerService? = nil
         ) {
             let writer = HTTPResponseWriter(encoder: HTTPRequestRouter.makeEncoder())
             let staticFileServer = RemoteStaticFileServer(cache: staticCache, writer: writer)
 
-            let handlers = RemoteAPIHandlers(
+            var handlers = RemoteAPIHandlers(
                 authService: authService,
                 terminalService: terminalService,
                 projectManager: projectManager,
@@ -51,6 +52,7 @@ extension HTTPRequestRouter {
                 writer: writer,
                 metadata: metadata
             )
+            handlers.costTrackerService = costTrackerService
 
             self.writer = writer
             self.staticFileServer = staticFileServer

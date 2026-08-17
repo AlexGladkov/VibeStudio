@@ -34,6 +34,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     private let projectManager: any ProjectManaging
     private let preferences: RemoteControlPreferences
     private weak var serverRef: RemoteControlServer?
+    /// Optional cost tracker — forwarded to ``RemoteAPIHandlers`` for reconnect recovery.
+    private weak var costTrackerService: CostTrackerService?
 
     /// Cached app metadata (Bundle.main snapshot from MainActor init).
     /// ARCH-H8: no Bundle.main access from NIO threads.
@@ -160,7 +162,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         serverRef: RemoteControlServer?,
         staticCache: RemoteStaticFileCache = .empty,
         ngrokHostRef: NgrokHostRef = NgrokHostRef(),
-        metadata: RemoteServerMetadata = RemoteServerMetadata(appVersion: RemoteServerMetadata.unknownVersion)
+        metadata: RemoteServerMetadata = RemoteServerMetadata(appVersion: RemoteServerMetadata.unknownVersion),
+        costTrackerService: CostTrackerService? = nil
     ) {
         self.authService = authService
         self.terminalService = terminalService
@@ -170,6 +173,7 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
         self.staticCache = staticCache
         self.corsPolicy = CORSPolicy(ngrokHostRef: ngrokHostRef)
         self.metadata = metadata
+        self.costTrackerService = costTrackerService
 
         // All immutable collaborators are wired up in one factory (see
         // ``HTTPRequestRouter+Setup``) to keep this initializer readable.
@@ -178,7 +182,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
             projectManager: projectManager, preferences: preferences,
             serverRef: serverRef, staticCache: staticCache, metadata: metadata,
             idleTimeoutMinutes: idleTimeoutMinutes, decoder: decoder,
-            isoFormatter: Self.isoFormatter
+            isoFormatter: Self.isoFormatter,
+            costTrackerService: costTrackerService
         )
         self.writer = parts.writer
         self.staticFileServer = parts.staticFileServer

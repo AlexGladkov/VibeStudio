@@ -35,6 +35,10 @@ final class ToolbarViewModel {
     /// Stored handles for cancellation in `deinit`.
     nonisolated(unsafe) private var sessionEventTask: Task<Void, Never>?
     nonisolated(unsafe) private var projectCleanupTask: Task<Void, Never>?
+    /// Throttle task for cost badge updates (max 1 update / 500ms).
+    nonisolated(unsafe) private var costUpdateTask: Task<Void, Never>?
+    /// Observation task that watches `CostTrackerService.sessionCosts` changes.
+    nonisolated(unsafe) private var costObservationTask: Task<Void, Never>?
 
     // MARK: - Dependencies
 
@@ -42,6 +46,16 @@ final class ToolbarViewModel {
     private let terminalManager: any TerminalSessionManaging
     let agentAvailability: any AgentAvailabilityChecking
     private let apiKeyResolver: any APIKeyResolving
+    private weak var costTrackerService: CostTrackerService?
+
+    // MARK: - Cost Badge State
+
+    /// Throttle window for cost badge updates (milliseconds).
+    private static let costUpdateThrottleMs = 500
+
+    /// Currently displayed cost snapshot for the active agent session.
+    /// Updated at most every `costUpdateThrottleMs` ms to avoid toolbar flicker.
+    private(set) var currentCostSnapshot: SessionCostSnapshot?
 
     // MARK: - Init
 
@@ -49,19 +63,26 @@ final class ToolbarViewModel {
         projectManager: any ProjectManaging,
         terminalManager: any TerminalSessionManaging,
         agentAvailability: any AgentAvailabilityChecking,
-        apiKeyResolver: any APIKeyResolving = KeychainAPIKeyResolver()
+        apiKeyResolver: any APIKeyResolving = KeychainAPIKeyResolver(),
+        costTrackerService: CostTrackerService? = nil
     ) {
         self.projectManager = projectManager
         self.terminalManager = terminalManager
         self.agentAvailability = agentAvailability
         self.apiKeyResolver = apiKeyResolver
+        self.costTrackerService = costTrackerService
         startProjectCleanupObservation()
         startSessionEventObservation()
+        if costTrackerService != nil {
+            startCostObservation()
+        }
     }
 
     deinit {
         sessionEventTask?.cancel()
         projectCleanupTask?.cancel()
+        costUpdateTask?.cancel()
+        costObservationTask?.cancel()
     }
 
     // MARK: - Cleanup
@@ -85,8 +106,38 @@ final class ToolbarViewModel {
                         Logger.ui.info("ToolbarViewModel: agent session \(sessionId) exited with code \(exitCode), clearing running state")
                         self.runningAssistants[projectId] = false
                         self.agentSessionIds.removeValue(forKey: projectId)
+                        // Keep cost snapshot visible for a few seconds after exit
+                        // (E8 — user can still read the final cost).
+                        // CostTrackerService resets on processExited; we keep the
+                        // last displayed snapshot for UI purposes.
+                        // After 10s clear it.
+                        Task { @MainActor [weak self] in
+                            try? await Task.sleep(for: .seconds(10))
+                            guard let self else { return }
+                            if self.agentSessionIds[projectId] == nil {
+                                self.currentCostSnapshot = nil
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    /// Watch `CostTrackerService.sessionCosts` for changes and schedule badge refresh.
+    /// Uses `AsyncObservation.stream` so updates are fully reactive without polling.
+    private func startCostObservation() {
+        guard let tracker = costTrackerService else { return }
+        costObservationTask = Task { @MainActor [weak self, weak tracker] in
+            guard let self, let tracker else { return }
+            let stream = AsyncObservation.stream(emitInitial: false) { [weak tracker] () -> Int? in
+                guard let tracker else { return nil }
+                // Touch the observed property inside the tracking closure.
+                return tracker.sessionCosts.values.reduce(0) { $0 + $1.totalTokens }
+            }
+            for await _ in stream {
+                guard !Task.isCancelled else { return }
+                self.scheduleCostUpdate()
             }
         }
     }
@@ -136,6 +187,39 @@ final class ToolbarViewModel {
               !urlString.isEmpty,
               let url = URL(string: urlString) else { return nil }
         return url
+    }
+
+    /// Agent session cost snapshot for the active project, throttled to 500ms updates.
+    ///
+    /// Returns `nil` when:
+    /// - No active project
+    /// - No agent session running
+    /// - No cost data yet parsed
+    var activeAgentCostSnapshot: SessionCostSnapshot? {
+        currentCostSnapshot
+    }
+
+    /// Schedule a throttled cost badge refresh.
+    /// Only one refresh task runs at a time (costUpdateTask).
+    func scheduleCostUpdate() {
+        guard costUpdateTask == nil else { return }
+        costUpdateTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(Self.costUpdateThrottleMs))
+            guard let self, !Task.isCancelled else { return }
+            self.costUpdateTask = nil
+            self.refreshCostSnapshot()
+        }
+    }
+
+    /// Immediately refresh the cost snapshot from the tracker.
+    func refreshCostSnapshot() {
+        guard let projectId = activeId,
+              let sessionId = agentSessionIds[projectId],
+              let tracker = costTrackerService else {
+            currentCostSnapshot = nil
+            return
+        }
+        currentCostSnapshot = tracker.snapshot(for: sessionId)
     }
 
     // MARK: - Actions

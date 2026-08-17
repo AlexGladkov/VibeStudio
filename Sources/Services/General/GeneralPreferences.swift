@@ -21,6 +21,10 @@ final class GeneralPreferences {
         static let confirmTabClose = "vs_confirm_tab_close"
         static let terminalFontSize = "vs_terminal_font_size"
         static let claudeSkipPermissions = "vs_claude_skip_permissions"
+        /// Feature flag: show cost tracker badge in toolbar. Default: true.
+        /// Gates UI display and WS broadcast only — parsing always runs.
+        /// Pro-gate placeholder: when licensing is added, this key is controlled externally.
+        static let costTrackerEnabled = "vs_cost_tracker_enabled"
     }
 
     // MARK: - Preferences
@@ -33,6 +37,15 @@ final class GeneralPreferences {
     /// Launch Claude with `--dangerously-skip-permissions`. Default: `false`.
     var claudeSkipPermissions: Bool {
         didSet { defaults.set(claudeSkipPermissions, forKey: Keys.claudeSkipPermissions) }
+    }
+
+    /// Show the cost tracker badge in the toolbar. Default: `true`.
+    ///
+    /// This flag gates only the UI display and WS broadcast — the parsing and
+    /// accumulation always runs so data is available instantly when re-enabled.
+    /// Future Pro-gate: set this externally via StoreKit receipt validation.
+    var costTrackerEnabled: Bool {
+        didSet { defaults.set(costTrackerEnabled, forKey: Keys.costTrackerEnabled) }
     }
 
     /// Terminal font size in points. Default: `13`. Range: 9…24.
@@ -54,6 +67,11 @@ final class GeneralPreferences {
 
         // claudeSkipPermissions defaults to false on first launch
         claudeSkipPermissions = defaults.bool(forKey: Keys.claudeSkipPermissions)
+
+        // costTrackerEnabled defaults to true on first launch (key absent → nil → true)
+        costTrackerEnabled = defaults.object(forKey: Keys.costTrackerEnabled) == nil
+            ? true
+            : defaults.bool(forKey: Keys.costTrackerEnabled)
 
         // terminalFontSize defaults to 13pt on first launch
         terminalFontSize = defaults.object(forKey: Keys.terminalFontSize) == nil

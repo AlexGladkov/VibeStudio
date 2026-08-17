@@ -82,6 +82,10 @@ private struct RemoteControlPreferencesKey: EnvironmentKey {
     @MainActor static let defaultValue: RemoteControlPreferences = RemoteControlPreferences()
 }
 
+private struct CostTrackerServiceKey: EnvironmentKey {
+    @MainActor static let defaultValue: CostTrackerService = CostTrackerService()
+}
+
 extension EnvironmentValues {
     var projectManager: any ProjectManaging {
         get { self[ProjectManagerKey.self] }
@@ -171,6 +175,11 @@ extension EnvironmentValues {
     var remoteControlPreferences: RemoteControlPreferences {
         get { self[RemoteControlPreferencesKey.self] }
         set { self[RemoteControlPreferencesKey.self] = newValue }
+    }
+
+    var costTrackerService: CostTrackerService {
+        get { self[CostTrackerServiceKey.self] }
+        set { self[CostTrackerServiceKey.self] = newValue }
     }
 }
 

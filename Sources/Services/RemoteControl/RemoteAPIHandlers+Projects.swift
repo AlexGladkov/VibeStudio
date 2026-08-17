@@ -190,7 +190,11 @@ extension RemoteAPIHandlers {
     /// terminal service + bridges.
     private func buildProjectResponse(project: Project, isActive: Bool) -> ProjectResponse {
         let sessions = terminalService.sessions(for: project.id).map { session in
-            SessionResponse(
+            // Populate optional cost fields for agent sessions (reconnect recovery).
+            let costSnap = session.isAgentSession
+                ? costTrackerService?.snapshot(for: session.id)
+                : nil
+            return SessionResponse(
                 id: session.id.uuidString,
                 title: session.title,
                 state: session.state.remoteAPIString,
@@ -200,7 +204,9 @@ extension RemoteAPIHandlers {
                 } ?? false,
                 attachedDeviceId: serverRef?.activeBridges.values.first {
                     $0.sessionId == session.id
-                }?.deviceId.uuidString
+                }?.deviceId.uuidString,
+                totalTokens: costSnap.map { $0.totalTokens > 0 ? $0.totalTokens : nil } ?? nil,
+                estimatedCostUsd: costSnap?.costUSD
             )
         }
         // SECURITY: expose only `lastPathComponent`, not full path.

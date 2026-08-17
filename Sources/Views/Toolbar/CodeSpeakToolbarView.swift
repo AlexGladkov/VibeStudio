@@ -27,6 +27,8 @@ struct CodeSpeakToolbarView: View {
     @Environment(\.projectManager) private var projectManager
     @Environment(\.codeSpeak) private var codeSpeak
     @Environment(\.remoteControlServer) private var remoteServer
+    @Environment(\.generalPreferences) private var generalPreferences
+    @Environment(\.costTrackerService) private var costTrackerService
     @Environment(AppNavigationCoordinator.self) private var navigationCoordinator
 
     @State private var showingProjectPicker = false
@@ -61,6 +63,7 @@ struct CodeSpeakToolbarView: View {
             // Box 3 — right: run controls
             HStack(spacing: DSSpacing.sm) {
                 runBar
+                costBadge
                 remoteQRButton
                 remoteIndicator
                 settingsButton
@@ -133,6 +136,18 @@ struct CodeSpeakToolbarView: View {
                 font: DSFont.smallButtonLabel,
                 background: .solid(stats.allPassing ? DSColor.diffAddedBg : DSColor.diffDeletedBg)
             )
+        }
+    }
+
+    // MARK: - Cost Badge
+
+    /// Token/cost badge for the active CodeSpeak agent session.
+    /// Uses `anyActiveSnapshot()` since CodeSpeak runs one agent at a time
+    /// and the ToolbarViewModel is not available in this view.
+    @ViewBuilder
+    private var costBadge: some View {
+        if generalPreferences.costTrackerEnabled && navigationCoordinator.runBar.isRunning {
+            CostBadgeView(snapshot: costTrackerService.anyActiveSnapshot())
         }
     }
 
