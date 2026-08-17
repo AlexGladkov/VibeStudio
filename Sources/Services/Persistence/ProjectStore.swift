@@ -161,7 +161,9 @@ final class ProjectStore: ProjectManaging {
         }
 
         mutate(&projects[index])
+        updateRecentHistory(projects[index])
         try save()
+        try saveRecents()
     }
 
     func moveProjects(from indices: IndexSet, to destination: Int) {

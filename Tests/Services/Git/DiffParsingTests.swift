@@ -36,7 +36,7 @@ final class DiffParsingTests: XCTestCase {
         +line2
         +line3
         """
-        let hunks = await sut.parseDiff(diffOutput)
+        let hunks = sut.parseDiff(diffOutput)
 
         XCTAssertEqual(hunks.count, 1)
         let lines = hunks[0].lines
@@ -83,34 +83,34 @@ final class DiffParsingTests: XCTestCase {
         +delta
          epsilon
         """
-        let hunks = await sut.parseDiff(diffOutput)
+        let hunks = sut.parseDiff(diffOutput)
 
         XCTAssertEqual(hunks.count, 2)
 
         // Hunk 1: context + deletion + addition (marker dropped).
-        let h1 = hunks[0].lines
-        XCTAssertEqual(h1.count, 3)
-        XCTAssertFalse(h1.contains { $0.content.contains("No newline") })
-        XCTAssertEqual(h1[0].oldLineNumber, 1)   // alpha
-        XCTAssertEqual(h1[1].oldLineNumber, 2)   // -beta
-        XCTAssertEqual(h1[2].newLineNumber, 2)   // +beta2
+        let header1 = hunks[0].lines
+        XCTAssertEqual(header1.count, 3)
+        XCTAssertFalse(header1.contains { $0.content.contains("No newline") })
+        XCTAssertEqual(header1[0].oldLineNumber, 1)   // alpha
+        XCTAssertEqual(header1[1].oldLineNumber, 2)   // -beta
+        XCTAssertEqual(header1[2].newLineNumber, 2)   // +beta2
 
         // Hunk 2 numbers derive from its own header — must be intact.
-        let h2 = hunks[1].lines
-        XCTAssertEqual(h2.count, 3)
-        XCTAssertEqual(h2[0].type, .context)
-        XCTAssertEqual(h2[0].content, "gamma")
-        XCTAssertEqual(h2[0].oldLineNumber, 10)
-        XCTAssertEqual(h2[0].newLineNumber, 10)
+        let header2 = hunks[1].lines
+        XCTAssertEqual(header2.count, 3)
+        XCTAssertEqual(header2[0].type, .context)
+        XCTAssertEqual(header2[0].content, "gamma")
+        XCTAssertEqual(header2[0].oldLineNumber, 10)
+        XCTAssertEqual(header2[0].newLineNumber, 10)
 
-        XCTAssertEqual(h2[1].type, .addition)
-        XCTAssertEqual(h2[1].content, "delta")
-        XCTAssertEqual(h2[1].newLineNumber, 11)
+        XCTAssertEqual(header2[1].type, .addition)
+        XCTAssertEqual(header2[1].content, "delta")
+        XCTAssertEqual(header2[1].newLineNumber, 11)
 
-        XCTAssertEqual(h2[2].type, .context)
-        XCTAssertEqual(h2[2].content, "epsilon")
-        XCTAssertEqual(h2[2].oldLineNumber, 11)
-        XCTAssertEqual(h2[2].newLineNumber, 12)
+        XCTAssertEqual(header2[2].type, .context)
+        XCTAssertEqual(header2[2].content, "epsilon")
+        XCTAssertEqual(header2[2].oldLineNumber, 11)
+        XCTAssertEqual(header2[2].newLineNumber, 12)
     }
 
     // MARK: - Malformed hunk header
@@ -124,7 +124,7 @@ final class DiffParsingTests: XCTestCase {
         +added line
          context line
         """
-        let hunks = await sut.parseDiff(diffOutput)
+        let hunks = sut.parseDiff(diffOutput)
 
         XCTAssertEqual(hunks.count, 1)
         let lines = hunks[0].lines

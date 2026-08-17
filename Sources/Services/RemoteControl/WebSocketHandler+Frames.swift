@@ -174,7 +174,7 @@ extension RemoteWebSocketHandler {
             var buffer = channel.allocator.buffer(capacity: pongString.utf8.count)
             buffer.writeString(pongString)
             let responseFrame = WebSocketFrame(fin: true, opcode: .text, data: buffer)
-            channel.writeAndFlush(NIOAny(responseFrame), promise: nil)
+            channel.writeAndFlush(responseFrame, promise: nil)
         }
     }
 }

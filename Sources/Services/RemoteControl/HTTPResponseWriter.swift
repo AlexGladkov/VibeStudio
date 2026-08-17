@@ -21,20 +21,19 @@ struct HTTPResponseWriter: Sendable {
 
     // MARK: - Outbound type bridging
     //
-    // NIO requires writes via `NIOAny.wrapOutboundOut`; that helper is only
-    // available on a `ChannelOutboundInvoker` typed with the matching outbound
-    // type. We wrap the writes manually so callers can hand us any `Channel`.
+    // NIO 2.99+ exposes generic writes that avoid wrapping values in `NIOAny`
+    // (whose sendability is deprecated under strict concurrency checking).
 
     private static func writeHead(_ channel: Channel, _ head: HTTPResponseHead) {
-        channel.write(NIOAny(HTTPServerResponsePart.head(head)), promise: nil)
+        channel.write(HTTPServerResponsePart.head(head), promise: nil)
     }
 
     private static func writeBody(_ channel: Channel, _ buffer: ByteBuffer) {
-        channel.write(NIOAny(HTTPServerResponsePart.body(.byteBuffer(buffer))), promise: nil)
+        channel.write(HTTPServerResponsePart.body(.byteBuffer(buffer)), promise: nil)
     }
 
     private static func writeEnd(_ channel: Channel) {
-        channel.writeAndFlush(NIOAny(HTTPServerResponsePart.end(nil)), promise: nil)
+        channel.writeAndFlush(HTTPServerResponsePart.end(nil), promise: nil)
     }
 
     // MARK: - JSON encoder

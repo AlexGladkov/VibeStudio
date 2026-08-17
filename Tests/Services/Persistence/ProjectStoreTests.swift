@@ -309,12 +309,17 @@ final class ProjectStoreTests: XCTestCase {
         let dirB = try makeFakeProjectDir(named: "NewProject")
 
         let projectA = try store.addProject(at: dirA)
-        _ = try store.addProject(at: dirB)
+        let projectB = try store.addProject(at: dirB)
 
         // Force projectA to have the latest lastOpened.
         try store.updateProject(projectA.id) { p in
             p.lastOpened = Date.distantFuture
         }
+
+        // `recentProjects` intentionally hides projects that are currently open,
+        // so remove them from the active project list before asserting history order.
+        try store.removeProject(projectB.id)
+        try store.removeProject(projectA.id)
 
         XCTAssertEqual(store.recentProjects.first?.id, projectA.id)
     }

@@ -19,7 +19,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseBranchName() async {
         let output = "## main\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "main")
         XCTAssertEqual(status.aheadCount, 0)
@@ -28,7 +28,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseBranchWithAheadBehind() async {
         let output = "## main...origin/main [ahead 2, behind 1]\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "main")
         XCTAssertEqual(status.aheadCount, 2)
@@ -37,7 +37,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseBranchWithAheadOnly() async {
         let output = "## feature/xyz...origin/feature/xyz [ahead 5]\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "feature/xyz")
         XCTAssertEqual(status.aheadCount, 5)
@@ -49,7 +49,7 @@ final class GitStatusParserTests: XCTestCase {
     /// `[ahead N, behind M]` token at the end, not the first textual match.
     func testParseBranchNameContainingAheadBehindKeyword() async {
         let output = "## feature/ahead-behind...origin/feature/ahead-behind [ahead 2, behind 3]\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "feature/ahead-behind")
         XCTAssertEqual(status.aheadCount, 2)
@@ -58,7 +58,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseBranchWithBehindOnly() async {
         let output = "## develop...origin/develop [behind 3]\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "develop")
         XCTAssertEqual(status.aheadCount, 0)
@@ -68,7 +68,7 @@ final class GitStatusParserTests: XCTestCase {
     func testParseDetachedHead() async {
         // Detached HEAD in porcelain v1: "## HEAD (no branch)"
         let output = "## HEAD (no branch)\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         // parseStatus extracts text before space: "HEAD"
         XCTAssertEqual(status.branch, "HEAD")
@@ -79,7 +79,7 @@ final class GitStatusParserTests: XCTestCase {
     func testParseBranchNoRemoteTracking() async {
         // Local-only branch without remote tracking info
         let output = "## my-local-branch\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "my-local-branch")
         XCTAssertEqual(status.aheadCount, 0)
@@ -90,7 +90,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseStagedModified() async {
         let output = "## main\nM  Sources/foo.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.stagedFiles.count, 1)
         XCTAssertEqual(status.stagedFiles.first?.path, "Sources/foo.swift")
@@ -101,7 +101,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseStagedAdded() async {
         let output = "## main\nA  NewFile.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.stagedFiles.count, 1)
         XCTAssertEqual(status.stagedFiles.first?.path, "NewFile.swift")
@@ -110,7 +110,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseStagedDeleted() async {
         let output = "## main\nD  OldFile.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.stagedFiles.count, 1)
         XCTAssertEqual(status.stagedFiles.first?.path, "OldFile.swift")
@@ -119,7 +119,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseStagedRenamed() async {
         let output = "## main\nR  old.swift -> new.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.stagedFiles.count, 1)
         XCTAssertEqual(status.stagedFiles.first?.status, .renamed)
@@ -129,7 +129,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseStagedCopied() async {
         let output = "## main\nC  source.swift -> copy.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.stagedFiles.count, 1)
         XCTAssertEqual(status.stagedFiles.first?.status, .copied)
@@ -139,7 +139,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseUnstagedModified() async {
         let output = "## main\n M Sources/foo.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertTrue(status.stagedFiles.isEmpty)
         XCTAssertEqual(status.unstagedFiles.count, 1)
@@ -149,7 +149,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseUnstagedDeleted() async {
         let output = "## main\n D Removed.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.unstagedFiles.count, 1)
         XCTAssertEqual(status.unstagedFiles.first?.status, .deleted)
@@ -159,7 +159,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseUntrackedFile() async {
         let output = "## main\n?? new-file.txt\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertTrue(status.stagedFiles.isEmpty)
         XCTAssertTrue(status.unstagedFiles.isEmpty)
@@ -170,7 +170,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testParseMultipleUntrackedFiles() async {
         let output = "## main\n?? file1.txt\n?? file2.txt\n?? dir/file3.txt\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.untrackedFiles.count, 3)
         XCTAssertEqual(status.untrackedFiles[0].path, "file1.txt")
@@ -183,7 +183,7 @@ final class GitStatusParserTests: XCTestCase {
     func testParseMixedStagedAndUnstaged() async {
         // File modified in both index (staged) and worktree (unstaged)
         let output = "## main\nMM Sources/foo.swift\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.stagedFiles.count, 1)
         XCTAssertEqual(status.stagedFiles.first?.status, .modified)
@@ -201,7 +201,7 @@ final class GitStatusParserTests: XCTestCase {
         ?? untracked.txt
 
         """
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "develop")
         XCTAssertEqual(status.aheadCount, 1)
@@ -214,7 +214,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testEmptyOutputOnlyBranch() async {
         let output = "## main\n"
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "main")
         XCTAssertTrue(status.stagedFiles.isEmpty)
@@ -225,7 +225,7 @@ final class GitStatusParserTests: XCTestCase {
 
     func testCompletelyEmptyOutput() async {
         let output = ""
-        let status = await sut.parseStatus(output)
+        let status = sut.parseStatus(output)
 
         XCTAssertEqual(status.branch, "")
         XCTAssertTrue(status.stagedFiles.isEmpty)
@@ -236,30 +236,30 @@ final class GitStatusParserTests: XCTestCase {
     // MARK: - parseFileStatus
 
     func testParseFileStatusCharacters() async {
-        let m = await sut.parseFileStatus("M")
+        let m = sut.parseFileStatus("M")
         XCTAssertEqual(m, .modified)
 
-        let a = await sut.parseFileStatus("A")
+        let a = sut.parseFileStatus("A")
         XCTAssertEqual(a, .added)
 
-        let d = await sut.parseFileStatus("D")
-        XCTAssertEqual(d, .deleted)
+        let dict = sut.parseFileStatus("D")
+        XCTAssertEqual(dict, .deleted)
 
-        let r = await sut.parseFileStatus("R")
+        let r = sut.parseFileStatus("R")
         XCTAssertEqual(r, .renamed)
 
-        let c = await sut.parseFileStatus("C")
+        let c = sut.parseFileStatus("C")
         XCTAssertEqual(c, .copied)
     }
 
     func testParseFileStatusUnknownCharReturnsNil() async {
-        let x = await sut.parseFileStatus("X")
+        let x = sut.parseFileStatus("X")
         XCTAssertNil(x)
 
-        let space = await sut.parseFileStatus(" ")
+        let space = sut.parseFileStatus(" ")
         XCTAssertNil(space)
 
-        let question = await sut.parseFileStatus("?")
+        let question = sut.parseFileStatus("?")
         XCTAssertNil(question)
     }
 
@@ -277,7 +277,7 @@ final class GitStatusParserTests: XCTestCase {
         +added line
         +another added line
         """
-        let hunks = await sut.parseDiff(diffOutput)
+        let hunks = sut.parseDiff(diffOutput)
 
         XCTAssertEqual(hunks.count, 1)
         XCTAssertTrue(hunks[0].header.hasPrefix("@@ -10,3 +10,4"))
@@ -323,7 +323,7 @@ final class GitStatusParserTests: XCTestCase {
         +bar
          baz
         """
-        let hunks = await sut.parseDiff(diffOutput)
+        let hunks = sut.parseDiff(diffOutput)
 
         XCTAssertEqual(hunks.count, 2)
         XCTAssertTrue(hunks[0].header.contains("-1,3 +1,3"))
@@ -331,7 +331,7 @@ final class GitStatusParserTests: XCTestCase {
     }
 
     func testParseDiffEmptyOutput() async {
-        let hunks = await sut.parseDiff("")
+        let hunks = sut.parseDiff("")
         XCTAssertTrue(hunks.isEmpty)
     }
 
@@ -342,7 +342,7 @@ final class GitStatusParserTests: XCTestCase {
         --- a/file.swift
         +++ b/file.swift
         """
-        let hunks = await sut.parseDiff(diffOutput)
+        let hunks = sut.parseDiff(diffOutput)
         XCTAssertTrue(hunks.isEmpty)
     }
 }

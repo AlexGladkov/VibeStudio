@@ -38,6 +38,7 @@ Packages/
 # --- IDE ---
 .idea/
 .vscode/
+.monet/
 *.swp
 *.swo
 *~

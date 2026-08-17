@@ -54,7 +54,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var aiCommitService = AICommitService()
     private lazy var gitStatusPoller = GitStatusPoller(gitService: gitService)
     private lazy var agentAvailabilityService = AgentAvailabilityService()
-    private lazy var updateService = UpdateService()
+    private lazy var updateService: any UpdateServicing = {
+        if AppLaunchEnvironment.isRunningHostedXCTest {
+            return DisabledUpdateService()
+        }
+        return UpdateService()
+    }()
     private let appReadyState = AppReadyState()
     private let navigationCoordinator = AppNavigationCoordinator()
     private lazy var themeService = ThemeService()
@@ -110,6 +115,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Apply stored appearance before any view renders (no TCC needed for UserDefaults).
         themeService.applyStoredAppearance()
+
+        if AppLaunchEnvironment.isRunningHostedXCTest {
+            // Hosted XCTest starts the real app process before the test runner
+            // connection is fully established. Keep startup synchronous and
+            // lightweight: no TCC probe, persisted project restore, PTY/git
+            // session restoration, remote HTTP/WS server, Sparkle updater, file
+            // watchers, or polling tasks before XCTest owns the process.
+            appReadyState.tccGranted = true
+            Logger.session.info("Hosted XCTest detected — heavy app startup is bypassed")
+            return
+        }
 
         // Load persisted project list (reads ~/Library/Application Support — no TCC).
         do {

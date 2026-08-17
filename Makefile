@@ -1,6 +1,6 @@
 # ============================================================
 # VibeStudio — Makefile
-# Targets: build, test, archive, dmg, notarize (placeholder), clean
+# Targets: build, test, archive, dmg, notarize (placeholder), clean, lint
 # ============================================================
 
 # --- Configuration -----------------------------------------------------------
@@ -46,13 +46,20 @@ XCODEBUILD := xcodebuild \
 
 # --- Targets ------------------------------------------------------------------
 
-.PHONY: all build test archive export dmg notarize clean help resolve-deps
+.PHONY: all build test archive export dmg notarize clean help lint resolve-deps
 
 all: dmg
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+lint: ## Run SwiftLint on Sources and Tests
+	@if command -v swiftlint > /dev/null 2>&1; then \
+		swiftlint lint --config .swiftlint.yml --strict Sources Tests; \
+	else \
+		echo "⚠️  SwiftLint not found, skipping lint"; \
+	fi
 
 resolve-deps: ## Resolve Swift Package Manager dependencies
 	$(XCODEBUILD) -resolvePackageDependencies
@@ -61,14 +68,26 @@ build: ## Build the application (debug or release)
 	$(XCODEBUILD) build
 
 test: ## Run unit tests
-	xcodebuild test \
-		-scheme $(SCHEME) \
-		-configuration Debug \
-		-derivedDataPath $(BUILD_DIR)/DerivedData \
-		-resultBundlePath $(BUILD_DIR)/TestResults.xcresult \
-		MACOSX_DEPLOYMENT_TARGET=$(MIN_MACOS) \
-		PRODUCT_BUNDLE_IDENTIFIER=$(BUNDLE_ID) \
-		| xcpretty --color
+	@/bin/bash -o pipefail -c ' \
+		rm -rf "$(BUILD_DIR)/TestResults.xcresult"; \
+		xcodebuild test \
+			-scheme $(SCHEME) \
+			-configuration Debug \
+			-destination 'platform=macOS' \
+			-parallel-testing-enabled NO \
+			-disable-concurrent-destination-testing \
+			-derivedDataPath "$(BUILD_DIR)/DerivedData" \
+			-resultBundlePath "$(BUILD_DIR)/TestResults.xcresult" \
+			MACOSX_DEPLOYMENT_TARGET=$(MIN_MACOS) \
+			2>&1 | { \
+				if command -v xcpretty >/dev/null 2>&1; then \
+					xcpretty --color; \
+				else \
+					echo "xcpretty not found; printing raw xcodebuild output"; \
+					cat; \
+				fi; \
+			} \
+	'
 
 archive: ## Create xcarchive for distribution
 	$(XCODEBUILD) archive \

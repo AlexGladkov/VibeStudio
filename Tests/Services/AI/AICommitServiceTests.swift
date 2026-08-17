@@ -83,7 +83,7 @@ final class AICommitServiceTests: XCTestCase {
         let errors: [(AICommitServiceError, String)] = [
             (.missingAPIKey, "ANTHROPIC_API_KEY not set in environment"),
             (.apiError(statusCode: 429), "Anthropic API returned status 429"),
-            (.invalidResponseFormat, "Invalid API response format"),
+            (.invalidResponseFormat, "Invalid API response format")
         ]
 
         for (error, expectedSubstring) in errors {

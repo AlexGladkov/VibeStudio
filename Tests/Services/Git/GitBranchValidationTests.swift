@@ -18,89 +18,89 @@ final class GitBranchValidationTests: XCTestCase {
     // MARK: - Valid Branch Names
 
     func testValidSimpleBranch() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("main") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("main") }
     }
 
     func testValidFeatureBranch() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("feature/my-thing") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("feature/my-thing") }
     }
 
     func testValidReleaseBranch() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("release/1.0.0") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("release/1.0.0") }
     }
 
     func testValidFixBranch() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("fix/bug-123") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("fix/bug-123") }
     }
 
     func testValidBranchWithDots() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("v1.2.3") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("v1.2.3") }
     }
 
     func testValidBranchWithAt() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("user@feature") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("user@feature") }
     }
 
     func testValidOriginRemoteName() async {
-        await assertDoesNotThrow { try await self.sut.validateBranchName("origin") }
+        await assertDoesNotThrow { try self.sut.validateBranchName("origin") }
     }
 
     // MARK: - Invalid Branch Names
 
     func testInvalidBranchStartsWithDash() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("--evil-flag") }
+        await assertThrowsGitError { try self.sut.validateBranchName("--evil-flag") }
     }
 
     func testInvalidBranchWithSpaces() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("branch with spaces") }
+        await assertThrowsGitError { try self.sut.validateBranchName("branch with spaces") }
     }
 
     func testInvalidBranchDoubleDots() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("ref..other") }
+        await assertThrowsGitError { try self.sut.validateBranchName("ref..other") }
     }
 
     func testInvalidBranchTilde() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("ref~1") }
+        await assertThrowsGitError { try self.sut.validateBranchName("ref~1") }
     }
 
     func testInvalidBranchCaret() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("ref^1") }
+        await assertThrowsGitError { try self.sut.validateBranchName("ref^1") }
     }
 
     func testInvalidBranchColon() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("ref:other") }
+        await assertThrowsGitError { try self.sut.validateBranchName("ref:other") }
     }
 
     func testInvalidBranchBackslash() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("ref\\other") }
+        await assertThrowsGitError { try self.sut.validateBranchName("ref\\other") }
     }
 
     func testEmptyBranchName() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("") }
+        await assertThrowsGitError { try self.sut.validateBranchName("") }
     }
 
     func testInvalidBranchWithSpecialChars() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("branch!name") }
+        await assertThrowsGitError { try self.sut.validateBranchName("branch!name") }
     }
 
     func testInvalidBranchSemicolon() async {
         // Injection attempt: "main; rm -rf /"
-        await assertThrowsGitError { try await self.sut.validateBranchName("main; rm -rf /") }
+        await assertThrowsGitError { try self.sut.validateBranchName("main; rm -rf /") }
     }
 
     func testInvalidBranchDollarSign() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("$HOME") }
+        await assertThrowsGitError { try self.sut.validateBranchName("$HOME") }
     }
 
     func testInvalidBranchBackticks() async {
-        await assertThrowsGitError { try await self.sut.validateBranchName("`whoami`") }
+        await assertThrowsGitError { try self.sut.validateBranchName("`whoami`") }
     }
 
     // MARK: - Error Type Verification
 
     func testInvalidBranchThrowsCommandFailed() async {
         do {
-            try await sut.validateBranchName("--evil")
+            try sut.validateBranchName("--evil")
             XCTFail("Expected error to be thrown")
         } catch let error as GitServiceError {
             if case .commandFailed(let command, let exitCode, let stderr) = error {

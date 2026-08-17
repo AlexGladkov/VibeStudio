@@ -274,7 +274,7 @@ final class SessionStoreTests: XCTestCase {
     // MARK: - currentSnapshotVersion
 
     func testCurrentSnapshotVersionIsOne() async {
-        let version = await store.currentSnapshotVersion
+        let version = store.currentSnapshotVersion
         XCTAssertEqual(version, 1)
     }
 

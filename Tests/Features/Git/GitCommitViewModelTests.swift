@@ -25,9 +25,9 @@ final class GitCommitViewModelTests: XCTestCase {
 
     private func makeSUT(
         git: MockGitService = MockGitService(),
-        ai: MockAICommitService = MockAICommitService()
+        aiService: MockAICommitService = MockAICommitService()
     ) -> GitCommitViewModel {
-        GitCommitViewModel(gitService: git, aiCommitService: ai)
+        GitCommitViewModel(gitService: git, aiCommitService: aiService)
     }
 
     // MARK: - Empty Summary Guard
@@ -162,9 +162,9 @@ final class GitCommitViewModelTests: XCTestCase {
 
     func testSendAIDiffSplitsSummaryAndDescription() async {
         let git = MockGitService()
-        let ai = MockAICommitService()
-        await ai.setGenerateResult(.success("feat: add feature\n\nThis is body line1\nbody line2"))
-        let sut = makeSUT(git: git, ai: ai)
+        let aiService = MockAICommitService()
+        await aiService.setGenerateResult(.success("feat: add feature\n\nThis is body line1\nbody line2"))
+        let sut = makeSUT(git: git, aiService: aiService)
         let project = makeProject()
 
         await sut.sendAIDiff("some diff", for: project)
@@ -176,14 +176,14 @@ final class GitCommitViewModelTests: XCTestCase {
 
     func testSendAIDiffTruncatesToMaxDiffLength() async {
         let git = MockGitService()
-        let ai = MockAICommitService()
-        let sut = makeSUT(git: git, ai: ai)
+        let aiService = MockAICommitService()
+        let sut = makeSUT(git: git, aiService: aiService)
         let project = makeProject()
         let oversized = String(repeating: "x", count: AIConstants.maxDiffLength + 1_000)
 
         await sut.sendAIDiff(oversized, for: project)
 
-        let sentDiff = await ai.lastDiff
+        let sentDiff = await aiService.lastDiff
         XCTAssertEqual(sentDiff?.count, AIConstants.maxDiffLength, "diff payload must be truncated before the API call")
     }
 }

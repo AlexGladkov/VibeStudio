@@ -65,6 +65,23 @@ enum FileTreeBuilder {
         let maxDepth: Int?
     }
 
+    private static func gitRelativePath(for url: URL, root: URL) -> String? {
+        let rootPaths = [root.path, root.resolvingSymlinksInPath().path]
+        let filePaths = [url.path, url.resolvingSymlinksInPath().path]
+
+        for filePath in filePaths {
+            for rootPath in rootPaths {
+                let normalizedRootPath = rootPath.hasSuffix("/") ? String(rootPath.dropLast()) : rootPath
+                let prefix = normalizedRootPath + "/"
+                if filePath.hasPrefix(prefix) {
+                    return String(filePath.dropFirst(prefix.count))
+                }
+            }
+        }
+
+        return nil
+    }
+
     private static func buildLevel(
         at directory: URL,
         context: BuildContext,
@@ -121,11 +138,8 @@ enum FileTreeBuilder {
                 )
                 directories.append(.directory(entry))
             } else {
-                let relativePath = url.path.replacingOccurrences(
-                    of: context.root.path + "/",
-                    with: ""
-                )
-                let gitStatus = context.gitMap[relativePath]
+                let relativePath = gitRelativePath(for: url, root: context.root)
+                let gitStatus = relativePath.flatMap { context.gitMap[$0] }
                 let entry = FileEntry(path: url, gitStatus: gitStatus)
                 files.append(.file(entry))
             }

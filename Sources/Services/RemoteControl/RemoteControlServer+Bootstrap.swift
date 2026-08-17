@@ -11,15 +11,33 @@
 // macOS 14+, Swift 5.10
 
 import Foundation
-import NIOCore
-import NIOPosix
-import NIOHTTP1
-import NIOSSL
+@preconcurrency import NIOCore
+@preconcurrency import NIOPosix
+@preconcurrency import NIOHTTP1
+@preconcurrency import NIOSSL
+
+private final class UncheckedSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+}
+
+private final class WeakRemoteControlServerBox: @unchecked Sendable {
+    weak var value: RemoteControlServer?
+
+    init(_ value: RemoteControlServer?) {
+        self.value = value
+    }
+}
+
+extension HTTPRequestRouter: @unchecked Sendable {}
 
 extension RemoteControlServer {
 
     /// Listen backlog for the server socket (max pending connection queue).
-    private static let tcpBacklog: Int32 = 16
+    nonisolated private static let tcpBacklog: Int32 = 16
 
     /// Immutable per-connection dependencies handed to every
     /// ``HTTPRequestRouter`` a listening channel spawns.
@@ -51,10 +69,10 @@ extension RemoteControlServer {
         config: RouterRuntimeConfig,
         serverRef: RemoteControlServer?
     ) -> @Sendable (Channel) -> EventLoopFuture<Void> {
-        weak var weakServer = serverRef
+        let weakServer = WeakRemoteControlServerBox(serverRef)
         let authSvc = config.authService
         let termSvc = config.terminalService
-        let projMgr = config.projectManager
+        let projMgr = UncheckedSendableBox(config.projectManager)
         let prefs = config.preferences
         let idleTimeout = config.idleTimeoutMinutes
         let staticCache = config.staticCache
@@ -62,28 +80,31 @@ extension RemoteControlServer {
         let appMetadata = config.metadata
 
         return { channel in
-            let encoder = HTTPResponseEncoder()
-            let decoder = ByteToMessageHandler(
-                HTTPRequestDecoder(leftOverBytesStrategy: .forwardBytes)
-            )
-            let errorHandler = HTTPServerProtocolErrorHandler()
-            let router = HTTPRequestRouter(
-                authService: authSvc,
-                terminalService: termSvc,
-                projectManager: projMgr,
-                preferences: prefs,
-                idleTimeoutMinutes: idleTimeout,
-                serverRef: weakServer,
-                staticCache: staticCache,
-                ngrokHostRef: ngrokRef,
-                metadata: appMetadata
-            )
-            return channel.pipeline.addHandler(encoder, name: "http_encoder").flatMap {
-                channel.pipeline.addHandler(decoder, name: "http_decoder")
-            }.flatMap {
-                channel.pipeline.addHandler(errorHandler, name: "http_error")
-            }.flatMap {
-                channel.pipeline.addHandler(router, name: "http_router")
+            channel.eventLoop.makeCompletedFuture {
+                try channel.pipeline.syncOperations.addHandler(
+                    HTTPResponseEncoder(), name: "http_encoder"
+                )
+                try channel.pipeline.syncOperations.addHandler(
+                    ByteToMessageHandler(HTTPRequestDecoder(leftOverBytesStrategy: .forwardBytes)),
+                    name: "http_decoder"
+                )
+                try channel.pipeline.syncOperations.addHandler(
+                    HTTPServerProtocolErrorHandler(), name: "http_error"
+                )
+                try channel.pipeline.syncOperations.addHandler(
+                    HTTPRequestRouter(
+                        authService: authSvc,
+                        terminalService: termSvc,
+                        projectManager: projMgr.value,
+                        preferences: prefs,
+                        idleTimeoutMinutes: idleTimeout,
+                        serverRef: weakServer.value,
+                        staticCache: staticCache,
+                        ngrokHostRef: ngrokRef,
+                        metadata: appMetadata
+                    ),
+                    name: "http_router"
+                )
             }
         }
     }
@@ -152,8 +173,11 @@ extension RemoteControlServer {
                 ChannelOptions.socketOption(.so_reuseaddr), value: 1
             )
             .childChannelInitializer { channel in
-                let sslHandler = NIOSSLServerHandler(context: sslContext)
-                return channel.pipeline.addHandler(sslHandler).flatMap {
+                channel.eventLoop.makeCompletedFuture {
+                    try channel.pipeline.syncOperations.addHandler(
+                        NIOSSLServerHandler(context: sslContext)
+                    )
+                }.flatMap {
                     configureChildChannel(channel)
                 }
             }

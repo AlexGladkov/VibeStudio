@@ -95,7 +95,7 @@ actor CodeSpeakProcessRunner {
                 let config = LaunchConfig(
                     binaryPath: binaryPath, args: args, directory: directory, env: processEnv
                 )
-                await self.launchProcess(config, continuation: continuation, generation: myGen)
+                self.launchProcess(config, continuation: continuation, generation: myGen)
             }
         }
     }

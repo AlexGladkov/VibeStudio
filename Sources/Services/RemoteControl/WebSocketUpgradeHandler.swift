@@ -14,9 +14,9 @@
 
 import CryptoKit
 import Foundation
-import NIOCore
-import NIOHTTP1
-import NIOWebSocket
+@preconcurrency import NIOCore
+@preconcurrency import NIOHTTP1
+@preconcurrency import NIOWebSocket
 import OSLog
 
 /// Performs manual WebSocket upgrades for the Remote Control terminal endpoints.
@@ -28,7 +28,7 @@ import OSLog
 /// **Threading model:** invoked on the NIO event-loop thread. The only hop to
 /// `@MainActor` is the SEC-H1 device-cap read, which bounces back to the event
 /// loop before touching the channel pipeline.
-final class WebSocketUpgradeHandler {
+final class WebSocketUpgradeHandler: @unchecked Sendable {
 
     // MARK: - Dependencies (immutable)
 
@@ -269,8 +269,8 @@ final class WebSocketUpgradeHandler {
             let responseHead = HTTPResponseHead(
                 version: .http1_1, status: .switchingProtocols, headers: headers
             )
-            channel.write(NIOAny(HTTPServerResponsePart.head(responseHead)), promise: nil)
-            channel.writeAndFlush(NIOAny(HTTPServerResponsePart.end(nil))).whenSuccess {
+            channel.write(HTTPServerResponsePart.head(responseHead), promise: nil)
+            channel.writeAndFlush(HTTPServerResponsePart.end(nil)).whenSuccess {
                 self.installPipeline(channel: channel, handler: handler)
             }
         }
@@ -282,6 +282,28 @@ final class WebSocketUpgradeHandler {
         HTTPRequestRouter.wsLog("[WS] installWebSocketPipeline: starting pipeline swap")
         #endif
 
+        makePipelineSwapFuture(channel: channel, handler: handler).whenComplete { result in
+            switch result {
+            case .success:
+                #if DEBUG
+                HTTPRequestRouter.wsLog("[WS] pipeline swap COMPLETE — handler installed")
+                #endif
+                channel.setOption(ChannelOptions.autoRead, value: true).whenSuccess {
+                    channel.read()
+                }
+            case .failure(let error):
+                #if DEBUG
+                HTTPRequestRouter.wsLog("[WS] pipeline swap FAILED: \(error)")
+                #endif
+                channel.close(promise: nil)
+            }
+        }
+    }
+
+    private func makePipelineSwapFuture(
+        channel: Channel,
+        handler: RemoteWebSocketHandler
+    ) -> EventLoopFuture<Void> {
         let el = channel.eventLoop
         let pipeline = channel.pipeline
 
@@ -291,7 +313,7 @@ final class WebSocketUpgradeHandler {
             }
         }
 
-        removeByName("http_router").flatMap { () -> EventLoopFuture<Void> in
+        return removeByName("http_router").flatMap { () -> EventLoopFuture<Void> in
             #if DEBUG
             HTTPRequestRouter.wsLog("[WS] step1: router removed")
             #endif
@@ -310,25 +332,16 @@ final class WebSocketUpgradeHandler {
             #if DEBUG
             HTTPRequestRouter.wsLog("[WS] step4: encoder removed — adding WS handlers")
             #endif
-            return pipeline.addHandler(WebSocketFrameEncoder())
+            return el.makeCompletedFuture {
+                try pipeline.syncOperations.addHandler(WebSocketFrameEncoder())
+            }
         }.flatMap { () -> EventLoopFuture<Void> in
-            pipeline.addHandler(ByteToMessageHandler(WebSocketFrameDecoder()))
+            el.makeCompletedFuture {
+                try pipeline.syncOperations.addHandler(ByteToMessageHandler(WebSocketFrameDecoder()))
+            }
         }.flatMap { () -> EventLoopFuture<Void> in
-            pipeline.addHandler(handler)
-        }.whenComplete { result in
-            switch result {
-            case .success:
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] pipeline swap COMPLETE — handler installed")
-                #endif
-                channel.setOption(ChannelOptions.autoRead, value: true).whenSuccess {
-                    channel.read()
-                }
-            case .failure(let error):
-                #if DEBUG
-                HTTPRequestRouter.wsLog("[WS] pipeline swap FAILED: \(error)")
-                #endif
-                channel.close(promise: nil)
+            el.makeCompletedFuture {
+                try pipeline.syncOperations.addHandler(handler)
             }
         }
     }
