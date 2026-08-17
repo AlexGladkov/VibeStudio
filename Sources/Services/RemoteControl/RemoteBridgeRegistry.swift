@@ -149,4 +149,14 @@ final class RemoteBridgeRegistry {
             bridge.sendTextMessage(json)
         }
     }
+
+    /// Broadcast a JSON text message ONLY to bridges attached to a specific session.
+    ///
+    /// Used for cost_update messages — prevents devices on other sessions from
+    /// receiving another session's activity data (BOLA protection).
+    func broadcastToSession(_ sessionId: UUID, json: String) {
+        for (_, bridge) in activeBridges where bridge.sessionId == sessionId {
+            bridge.sendTextMessage(json)
+        }
+    }
 }

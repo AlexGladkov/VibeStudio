@@ -43,4 +43,7 @@ extension Logger {
 
     /// Settings panes: file enumeration, config parsing, auth status probing.
     static let settings = Logger(subsystem: subsystem, category: "Settings")
+
+    /// Agent cost tracker: token counts and cost estimation (numbers only — no PTY text).
+    static let costTracker = Logger(subsystem: subsystem, category: "CostTracker")
 }

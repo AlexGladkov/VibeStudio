@@ -101,6 +101,13 @@ final class ServiceContainer {
     /// Concrete `@Observable` type for the same reason as `generalPreferences`.
     let remoteControlPreferences: RemoteControlPreferences
 
+    /// Agent cost tracker — accumulates token usage and estimated cost per agent session.
+    ///
+    /// Concrete `@Observable` type for SwiftUI observation tracking.
+    /// Cost data is stored here rather than in `TerminalSession` to avoid
+    /// triggering `sessionsChanged` broadcasts on every token update.
+    let costTrackerService: CostTrackerService
+
     init(
         projectManager: any ProjectManaging,
         terminalSessionManager: any TerminalSessionManaging,
@@ -121,7 +128,8 @@ final class ServiceContainer {
         csPreferences: CodeSpeakPreferences,
         generalPreferences: GeneralPreferences,
         remoteControlServer: RemoteControlServer,
-        remoteControlPreferences: RemoteControlPreferences
+        remoteControlPreferences: RemoteControlPreferences,
+        costTrackerService: CostTrackerService
     ) {
         self.projectManager = projectManager
         self.terminalSessionManager = terminalSessionManager
@@ -143,6 +151,7 @@ final class ServiceContainer {
         self.generalPreferences = generalPreferences
         self.remoteControlServer = remoteControlServer
         self.remoteControlPreferences = remoteControlPreferences
+        self.costTrackerService = costTrackerService
     }
 }
 
@@ -197,6 +206,8 @@ extension View {
             .environment(\.generalPreferences, container.generalPreferences)
             .environment(\.remoteControlServer, container.remoteControlServer)
             .environment(\.remoteControlPreferences, container.remoteControlPreferences)
+            .environment(container.costTrackerService)
+            .environment(\.costTrackerService, container.costTrackerService)
     }
 }
 

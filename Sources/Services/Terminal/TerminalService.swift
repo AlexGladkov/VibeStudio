@@ -54,6 +54,10 @@ final class TerminalService: TerminalSessionManaging {
     /// so eager init is correct.
     @ObservationIgnored let activityTracker: TerminalActivityTracker
 
+    /// Cost tracker for agent sessions. Set by DI after construction
+    /// (avoids circular init dependency between TerminalService and CostTrackerService).
+    weak var costTrackerService: CostTrackerService?
+
     // MARK: - Private State
 
     /// Continuation for the session events stream.
@@ -231,6 +235,16 @@ final class TerminalService: TerminalSessionManaging {
 
         appearance.configure(terminalView, fontSize: generalPreferences.terminalFontSize)
         installCallbacks(on: terminalView, sessionId: sessionId, projectId: projectId)
+
+        // Install cost-tracking callback for agent sessions.
+        if let tracker = costTrackerService {
+            installCostTrackingCallback(
+                on: terminalView,
+                sessionId: sessionId,
+                projectId: projectId,
+                costTracker: tracker
+            )
+        }
 
         // Build environment for the agent via the allowlist-based builder.
         // All agents use the same restricted environment -- agent-specific API

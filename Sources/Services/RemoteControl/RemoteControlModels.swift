@@ -63,6 +63,10 @@ struct GitInfoResponse: Codable {
 }
 
 /// Session summary returned in project and session detail endpoints.
+///
+/// `totalTokens` and `estimatedCostUsd` are optional and populated only for
+/// agent sessions where cost data is available. Old clients that decode this
+/// struct will silently ignore the new optional fields (backward-compatible).
 struct SessionResponse: Codable {
     let id: String
     let title: String
@@ -70,12 +74,39 @@ struct SessionResponse: Codable {
     let isAgent: Bool
     let hasRemoteAttachment: Bool
     let attachedDeviceId: String?
+    /// Accumulated token count for the session; nil when not an agent session
+    /// or no usage has been parsed yet.
+    let totalTokens: Int?
+    /// Estimated USD cost; nil when model pricing unknown or no data yet.
+    let estimatedCostUsd: Double?
+
+    init(
+        id: String,
+        title: String,
+        state: String,
+        isAgent: Bool,
+        hasRemoteAttachment: Bool,
+        attachedDeviceId: String?,
+        totalTokens: Int? = nil,
+        estimatedCostUsd: Double? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.state = state
+        self.isAgent = isAgent
+        self.hasRemoteAttachment = hasRemoteAttachment
+        self.attachedDeviceId = attachedDeviceId
+        self.totalTokens = totalTokens
+        self.estimatedCostUsd = estimatedCostUsd
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, title, state
         case isAgent = "is_agent"
         case hasRemoteAttachment = "has_remote_attachment"
         case attachedDeviceId = "attached_device_id"
+        case totalTokens = "total_tokens"
+        case estimatedCostUsd = "estimated_cost_usd"
     }
 }
 
@@ -504,5 +535,38 @@ struct WSRateLimitedMessage: Codable {
     enum CodingKeys: String, CodingKey {
         case type, message
         case retryAfterMs = "retry_after_ms"
+    }
+}
+
+/// Server-to-client: agent session cost update.
+///
+/// Sent to mobile clients so they can display real-time token/cost counters
+/// without polling. Addressed to bridges whose `sessionId` matches.
+///
+/// **Protocol contract:** Clients MUST silently ignore unknown `type` values
+/// for forward compatibility (old clients receiving this message must not crash).
+///
+/// `estimatedCostUsd` is `nil` when the model is not in the local pricing table.
+/// Clients should display `$?` rather than `$0.00` in that case.
+struct WSCostUpdateMessage: Codable {
+    let type: String
+    let sessionId: String
+    let projectId: String
+    let promptTokens: Int
+    let completionTokens: Int
+    let totalTokens: Int
+    /// Estimated USD cost; nil when model pricing is unknown.
+    let estimatedCostUsd: Double?
+    /// Agent model string, if parseable from CLI output.
+    let model: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type, model
+        case sessionId = "session_id"
+        case projectId = "project_id"
+        case promptTokens = "prompt_tokens"
+        case completionTokens = "completion_tokens"
+        case totalTokens = "total_tokens"
+        case estimatedCostUsd = "estimated_cost_usd"
     }
 }

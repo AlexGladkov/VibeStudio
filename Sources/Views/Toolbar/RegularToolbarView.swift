@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Trailing-aligned toolbar shown in Regular mode (non-CodeSpeak projects).
 ///
-/// Layout: `[ assistant ▾ ]  [ ▶/■ ]  [ globe ]  [ qr ]  [ devices ]  [ gear ]  [ sidebar.right ]`
+/// Layout: `[ assistant ▾ ]  [ ▶/■ ]  [ $cost · Xtok ]  [ globe ]  [ qr ]  [ devices ]  [ gear ]  [ sidebar.right ]`
 ///
 /// State lives in `ToolbarViewModel` (selected assistant, isRunning, project URL)
 /// and `AppNavigationCoordinator` (settings sheet, changes panel visibility).
@@ -17,6 +17,7 @@ struct RegularToolbarView: View {
 
     @Environment(\.openURL) private var openURL
     @Environment(\.remoteControlServer) private var remoteServer
+    @Environment(\.generalPreferences) private var generalPreferences
     @Environment(AppNavigationCoordinator.self) private var navigationCoordinator
 
     let model: ToolbarViewModel
@@ -31,6 +32,7 @@ struct RegularToolbarView: View {
 
             configPicker
             playStopButton
+            costBadge
             openInBrowserButton
 
             remoteQRButton
@@ -87,6 +89,15 @@ struct RegularToolbarView: View {
             } else {
                 model.startAssistant()
             }
+        }
+    }
+
+    // MARK: - Cost Badge
+
+    @ViewBuilder
+    private var costBadge: some View {
+        if generalPreferences.costTrackerEnabled && model.isRunning {
+            CostBadgeView(snapshot: model.activeAgentCostSnapshot)
         }
     }
 

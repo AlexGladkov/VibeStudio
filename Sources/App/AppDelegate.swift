@@ -20,7 +20,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The dependency injection container holding all live service instances.
     /// Accessed by ``VibeStudioApp`` to inject into the SwiftUI environment.
     private(set) lazy var container: ServiceContainer = {
-        ServiceContainer(
+        // Wire cost tracker into terminal service BEFORE building the container,
+        // so that startAgentSession (called later) finds the tracker installed.
+        terminalService.costTrackerService = costTrackerService
+        // Wire cost tracker into remote control server for reconnect recovery
+        // (GET /api/v1/projects includes cost fields on sessions).
+        remoteControlServer.costTrackerService = costTrackerService
+        return ServiceContainer(
             projectManager: projectStore,
             terminalSessionManager: terminalService,
             terminalService: terminalService,
@@ -40,7 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             csPreferences: csPreferences,
             generalPreferences: generalPreferences,
             remoteControlServer: remoteControlServer,
-            remoteControlPreferences: remoteControlPreferences
+            remoteControlPreferences: remoteControlPreferences,
+            costTrackerService: costTrackerService
         )
     }()
 
@@ -68,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var csPreferences = CodeSpeakPreferences()
     private lazy var generalPreferences = GeneralPreferences()
     private lazy var remoteControlPreferences = RemoteControlPreferences()
+    private lazy var costTrackerService = CostTrackerService()
     private lazy var remoteAuthService = RemoteAuthService()
     private lazy var remoteControlServer = RemoteControlServer(
         authService: remoteAuthService,

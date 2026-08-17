@@ -70,6 +70,8 @@ final class RemoteControlServer {
     private(set) var preferences: RemoteControlPreferences
     private(set) var terminalService: TerminalService
     private(set) var projectManager: any ProjectManaging
+    /// Optional — populated after `AppDelegate` wires it post-init.
+    weak var costTrackerService: CostTrackerService?
     private let bonjour: BonjourAdvertiser
     /// Ngrok tunnel service. `internal` so ``RemoteControlServer+Observation``
     /// can observe its `tunnelURL`.
@@ -117,6 +119,10 @@ final class RemoteControlServer {
     /// Observation task that keeps `ngrokHostRef` in sync with the tunnel URL.
     /// `internal` so ``RemoteControlServer+Observation`` can own it.
     nonisolated(unsafe) var ngrokHostObservationTask: Task<Void, Never>?
+
+    /// Observation task for `cost_update` WS broadcasts.
+    /// `internal` so ``RemoteControlServer+Observation`` can own it.
+    nonisolated(unsafe) var _costObservationTask: Task<Void, Never>?
 
     /// Shared ngrok host reference passed to all HTTPRequestRouter instances.
     /// `internal` so ``RemoteControlServer+Observation`` can update it.
@@ -168,6 +174,7 @@ final class RemoteControlServer {
     deinit {
         sessionObservationTask?.cancel()
         ngrokHostObservationTask?.cancel()
+        _costObservationTask?.cancel()
     }
 
     // MARK: - Server Lifecycle
@@ -189,12 +196,13 @@ final class RemoteControlServer {
         let staticCache = RemoteStaticFileCache.load()
         self.staticCache = staticCache
 
-        let config = RouterRuntimeConfig(
+        var config = RouterRuntimeConfig(
             authService: authService, terminalService: terminalService,
             projectManager: projectManager, preferences: preferences,
             idleTimeoutMinutes: preferences.idleTimeoutMinutes,
             staticCache: staticCache, ngrokHostRef: ngrokHostRef, metadata: metadata
         )
+        config.costTrackerService = costTrackerService
         // `weakSelf` is re-weakened inside the configurator (see
         // ``makeChildChannelConfigurator``) so the router's `serverRef` stays
         // weak and no retain cycle forms through the bootstrap-held initializer.
@@ -241,6 +249,7 @@ final class RemoteControlServer {
         startedAt = Date()
         startSessionObservation()
         startNgrokHostObservation()
+        startCostObservation()
         authService.onSecurityLockout = { [weak self] in
             self?.handleSecurityLockout()
         }
@@ -383,6 +392,11 @@ final class RemoteControlServer {
     /// Broadcast a JSON text message to all active bridges.
     func broadcastTextMessage(_ json: String) {
         bridgeRegistry.broadcastTextMessage(json)
+    }
+
+    /// Broadcast to bridges for a specific session only (BOLA protection).
+    func broadcastToSession(_ sessionId: UUID, json: String) {
+        bridgeRegistry.broadcastToSession(sessionId, json: json)
     }
 
     // Long-lived observation loops live in ``RemoteControlServer+Observation``.

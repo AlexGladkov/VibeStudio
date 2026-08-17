@@ -37,6 +37,12 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     /// Parameters: (sessionId, rawBytes)
     var onRawData: ((UUID, ArraySlice<UInt8>) -> Void)?
 
+    /// Second parallel callback for PTY output bytes — used by CostTrackerService
+    /// to parse usage/cost lines without interfering with onRawData / RemoteBridgeRegistry.
+    /// Called AFTER onRawData, before super.dataReceived.
+    /// Parameters: (sessionId, rawBytes)
+    var onParsedOutput: ((UUID, ArraySlice<UInt8>) -> Void)?
+
     // MARK: - Init
 
     /// Create a tagged terminal view for a specific session and project.
@@ -248,6 +254,9 @@ final class TaggedTerminalView: LocalProcessTerminalView {
     override func dataReceived(slice: ArraySlice<UInt8>) {
         // ARCH-C1: NSLog removed — was called per PTY chunk (thousands/sec).
         onRawData?(sessionId, slice)
+        // Second parallel channel for cost tracking — called AFTER onRawData,
+        // before super.dataReceived. Does NOT affect onRawData/RemoteBridgeRegistry.
+        onParsedOutput?(sessionId, slice)
         super.dataReceived(slice: slice)
     }
 

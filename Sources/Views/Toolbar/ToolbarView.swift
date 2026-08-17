@@ -23,6 +23,7 @@ struct ToolbarView: View {
     @Environment(\.terminalSessionManager) private var terminalManager
     @Environment(\.agentAvailability) private var agentAvailability
     @Environment(\.freeTabStore) private var freeTabStore
+    @Environment(\.costTrackerService) private var costTrackerService
     // Observable-style injection — required for currentMode reactive tracking.
     @Environment(AppNavigationCoordinator.self) private var navigationCoordinator
 
@@ -36,7 +37,8 @@ struct ToolbarView: View {
             ToolbarViewModel(
                 projectManager: projectManager,
                 terminalManager: terminalManager,
-                agentAvailability: agentAvailability
+                agentAvailability: agentAvailability,
+                costTrackerService: costTrackerService
             )
         }
     }
