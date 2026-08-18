@@ -202,6 +202,10 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - ChannelInboundHandler
 
     func channelActive(context: ChannelHandlerContext) {
+        // P2-8: assert we are on the owning event loop before touching
+        // mutable per-connection state (`remoteAddress`). This enforces the
+        // `@unchecked Sendable` contract at runtime.
+        context.eventLoop.assertInEventLoop()
         if let remoteAddr = context.channel.remoteAddress {
             switch remoteAddr {
             case .v4(let addr): remoteAddress = addr.host
@@ -213,6 +217,8 @@ final class HTTPRequestRouter: ChannelInboundHandler, RemovableChannelHandler {
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        // P2-8: enforce event-loop exclusivity for `requestHead`/`requestBody`.
+        context.eventLoop.assertInEventLoop()
         let part = unwrapInboundIn(data)
 
         switch part {

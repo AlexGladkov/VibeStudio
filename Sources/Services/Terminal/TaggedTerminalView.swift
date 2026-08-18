@@ -347,8 +347,17 @@ final class TerminalFocusHelper: NSView {
         super.mouseDown(with: event)
     }
 
+    // P2-7: The previous override unconditionally returned `nil`, which told
+    // AppKit "no view here" for every hit test. AppKit only dispatches
+    // `mouseDown` to a view when `hitTest` returns a non-nil result, so the
+    // override was making `makeFirstResponder` unreachable — the very purpose
+    // of this class.
+    //
+    // Fix: return `self` (the standard NSView default behaviour) so AppKit
+    // correctly routes mouse-down events to this view and `makeFirstResponder`
+    // is called. The overlay itself is transparent (no drawing), so
+    // returning `self` does not intercept visual interactions.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        // Pass through -- let the terminal view handle all events.
-        return nil
+        bounds.contains(convert(point, from: superview)) ? self : super.hitTest(point)
     }
 }

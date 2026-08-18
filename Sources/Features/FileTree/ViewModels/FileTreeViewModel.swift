@@ -4,6 +4,7 @@
 
 import Foundation
 import Observation
+import os
 
 /// Manages the file tree state for a project directory.
 ///
@@ -23,9 +24,13 @@ final class FileTreeViewModel {
 
     // MARK: - Private State
 
-    // `nonisolated(unsafe)` so `deinit` (nonisolated on a @MainActor type) can
-    // cancel the task. `Task.cancel()` is safe to call from any context.
-    private nonisolated(unsafe) var rebuildTask: Task<Void, Never>?
+    /// P1-3: Protected by a lock so `deinit` (nonisolated) can safely cancel
+    /// without racing against a `@MainActor` assignment to the slot.
+    private let rebuildTaskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+    nonisolated private var rebuildTask: Task<Void, Never>? {
+        get { rebuildTaskLock.withLock { $0 } }
+        set { rebuildTaskLock.withLock { $0 = newValue } }
+    }
     private let debounceMilliseconds: Int = 500
 
     // MARK: - Init

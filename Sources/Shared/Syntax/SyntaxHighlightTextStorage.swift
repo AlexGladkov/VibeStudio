@@ -3,6 +3,7 @@
 // macOS 14+, Swift 5.10
 
 import AppKit
+import os
 
 /// `NSTextStorage` subclass that applies syntax highlighting via a
 /// ``SyntaxParsing`` implementation on every text mutation.
@@ -56,9 +57,15 @@ final class SyntaxHighlightTextStorage: NSTextStorage {
     /// does not re-schedule a redundant highlight pass.
     private var isApplyingHighlight = false
 
-    /// Handle for the current highlighting task — cancelled when a new edit
-    /// arrives or the storage is deallocated.
-    nonisolated(unsafe) private var highlightTask: Task<Void, Never>?
+    /// P1-3: Handle for the current highlighting task behind a lock so `deinit`
+    /// (nonisolated, since NSTextStorage is not @MainActor itself) can safely
+    /// cancel without racing a `@MainActor` slot write.
+    private let highlightTaskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+    // `nonisolated` so the nonisolated `deinit` can cancel; the lock makes access safe.
+    nonisolated private var highlightTask: Task<Void, Never>? {
+        get { highlightTaskLock.withLock { $0 } }
+        set { highlightTaskLock.withLock { $0 = newValue } }
+    }
 
     deinit {
         highlightTask?.cancel()

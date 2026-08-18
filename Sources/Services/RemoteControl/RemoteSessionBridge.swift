@@ -113,6 +113,11 @@ final class RemoteSessionBridge {
     /// timer on a bridge whose NIO channel has already been closed.
     private var isDetached = false
 
+    /// P2-5: Callback invoked on every terminal input event so
+    /// ``RemoteBridgeRegistry`` can notify ``RemoteAuthService`` to update
+    /// `lastActivity` for this device.
+    var onInputActivity: ((UUID) -> Void)?
+
     // MARK: - Init
 
     /// Create a new session bridge.
@@ -218,6 +223,9 @@ final class RemoteSessionBridge {
 
         // Relay to PTY.
         terminalService.sendInput(data, to: sessionId)
+
+        // P2-5: Notify the registry so lastActivity is refreshed for this device.
+        onInputActivity?(deviceId)
 
         // Audit log (byte length only -- NEVER log content, which may contain secrets).
         RemoteAuditLog.terminalInput(

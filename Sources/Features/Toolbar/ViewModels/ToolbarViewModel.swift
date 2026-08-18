@@ -5,6 +5,7 @@
 import Foundation
 import Observation
 import OSLog
+import os
 
 /// Manages state and business logic for the run-configuration toolbar.
 ///
@@ -32,13 +33,34 @@ final class ToolbarViewModel {
 
     // MARK: - Background Tasks
 
-    /// Stored handles for cancellation in `deinit`.
-    nonisolated(unsafe) private var sessionEventTask: Task<Void, Never>?
-    nonisolated(unsafe) private var projectCleanupTask: Task<Void, Never>?
+    /// P1-3: Background observation/throttle tasks protected by a lock so
+    /// `deinit` (nonisolated) can cancel safely without racing `@MainActor` writes.
+    private struct BackgroundTasks: @unchecked Sendable {
+        var sessionEvent: Task<Void, Never>?
+        var projectCleanup: Task<Void, Never>?
+        var costUpdate: Task<Void, Never>?
+        var costObservation: Task<Void, Never>?
+    }
+    private let taskLock = OSAllocatedUnfairLock(initialState: BackgroundTasks())
+
+    nonisolated private var sessionEventTask: Task<Void, Never>? {
+        get { taskLock.withLock { $0.sessionEvent } }
+        set { taskLock.withLock { $0.sessionEvent = newValue } }
+    }
+    nonisolated private var projectCleanupTask: Task<Void, Never>? {
+        get { taskLock.withLock { $0.projectCleanup } }
+        set { taskLock.withLock { $0.projectCleanup = newValue } }
+    }
     /// Throttle task for cost badge updates (max 1 update / 500ms).
-    nonisolated(unsafe) private var costUpdateTask: Task<Void, Never>?
+    nonisolated private var costUpdateTask: Task<Void, Never>? {
+        get { taskLock.withLock { $0.costUpdate } }
+        set { taskLock.withLock { $0.costUpdate = newValue } }
+    }
     /// Observation task that watches `CostTrackerService.sessionCosts` changes.
-    nonisolated(unsafe) private var costObservationTask: Task<Void, Never>?
+    nonisolated private var costObservationTask: Task<Void, Never>? {
+        get { taskLock.withLock { $0.costObservation } }
+        set { taskLock.withLock { $0.costObservation = newValue } }
+    }
 
     // MARK: - Dependencies
 

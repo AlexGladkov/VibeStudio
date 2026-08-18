@@ -5,6 +5,7 @@
 
 import Foundation
 import Observation
+import os
 
 /// Periodically polls git status for the active project.
 ///
@@ -44,14 +45,32 @@ final class GitStatusPoller: GitStatusPolling {
     // ISP: only status(at:) / aheadBehind(at:) are used — the narrowest
     // sub-protocol that covers both is `GitStatusQuerying`.
     private let gitService: any GitStatusQuerying
-    // nonisolated(unsafe): deinit is nonisolated and must cancel this task.
-    // Safe because deinit only runs when no other references exist.
-    nonisolated(unsafe) private var pollingTask: Task<Void, Never>?
-    // Stored handle for the last refreshNow() task so rapid calls cancel the prior one.
-    // nonisolated(unsafe): deinit must cancel this alongside pollingTask.
-    nonisolated(unsafe) private var refreshTask: Task<Void, Never>?
+
+    /// P1-3: Polling and refresh tasks behind a lock so `deinit` (nonisolated)
+    /// can cancel without racing `@MainActor` assignments.
+    private struct PollingState: @unchecked Sendable {
+        var pollingTask: Task<Void, Never>?
+        var refreshTask: Task<Void, Never>?
+    }
+    private let pollingLock = OSAllocatedUnfairLock(initialState: PollingState())
+
+    nonisolated private var pollingTask: Task<Void, Never>? {
+        get { pollingLock.withLock { $0.pollingTask } }
+        set { pollingLock.withLock { $0.pollingTask = newValue } }
+    }
+    nonisolated private var refreshTask: Task<Void, Never>? {
+        get { pollingLock.withLock { $0.refreshTask } }
+        set { pollingLock.withLock { $0.refreshTask = newValue } }
+    }
+
     private var currentRepository: URL?
     private var consecutiveErrors: Int = 0
+    /// P2-6: Set to `true` when a `refreshNow()` call arrives while `isPolling`
+    /// is active. The in-progress poll checks this flag on completion and
+    /// schedules one more cycle, ensuring FSEvents bursts are never silently
+    /// dropped (previously the `guard !isPolling else { return }` in `poll()`
+    /// caused stale git-status after a burst of file-system events).
+    private var pendingRefresh: Bool = false
 
     // MARK: - Init
 
@@ -98,9 +117,18 @@ final class GitStatusPoller: GitStatusPolling {
 
     /// Trigger an immediate refresh (e.g., on file system change).
     ///
-    /// Cancels any pending refresh task so rapid file-save bursts coalesce
-    /// into a single poll instead of accumulating Tasks on the MainActor.
+    /// **P2-6 fix:** If a poll cycle is already in progress (`isPolling`),
+    /// the request is no longer silently dropped. Instead, `pendingRefresh`
+    /// is set so the active `poll()` schedules one more cycle on completion.
+    /// This prevents a stale git-status after rapid FSEvents bursts where
+    /// the last event would have landed inside an active poll window.
     func refreshNow() {
+        if isPolling {
+            // Poll in progress — record the pending request. poll() will
+            // consume it and re-run once the current cycle completes.
+            pendingRefresh = true
+            return
+        }
         refreshTask?.cancel()
         refreshTask = Task { @MainActor [weak self] in
             await self?.poll()
@@ -110,6 +138,10 @@ final class GitStatusPoller: GitStatusPolling {
     // MARK: - Private
 
     /// Execute a single poll cycle.
+    ///
+    /// **P2-6:** After completing, checks `pendingRefresh`. If set, runs one
+    /// more cycle immediately to honour any `refreshNow()` calls that arrived
+    /// while this cycle was in progress.
     private func poll() async {
         guard let repository = currentRepository else { return }
         guard !isPolling else { return }
@@ -143,6 +175,16 @@ final class GitStatusPoller: GitStatusPolling {
         } catch {
             self.lastError = error
             self.consecutiveErrors += 1
+        }
+
+        // P2-6: Consume any pending refresh request that arrived during this
+        // cycle and schedule one more poll if needed.
+        if pendingRefresh {
+            pendingRefresh = false
+            refreshTask?.cancel()
+            refreshTask = Task { @MainActor [weak self] in
+                await self?.poll()
+            }
         }
     }
 

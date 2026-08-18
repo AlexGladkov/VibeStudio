@@ -35,16 +35,35 @@ final class ProjectStore: ProjectManaging {
     var activeProjectId: UUID? {
         didSet {
             // Update lastOpened timestamp for the newly active project.
-            if let id = activeProjectId,
-               let index = projects.firstIndex(where: { $0.id == id }) {
-                projects[index].lastOpened = .now
-                // Mirror into recent history.
-                updateRecentHistory(projects[index])
+            guard let id = activeProjectId,
+                  let index = projects.firstIndex(where: { $0.id == id }) else { return }
+
+            projects[index].lastOpened = .now
+            // Mirror into recent history.
+            updateRecentHistory(projects[index])
+
+            // P1-2: Perform disk I/O off the MainActor, matching the pattern
+            // used in SessionStore. The previous synchronous `Data.write(.atomic)`
+            // blocked the run loop on every project switch — including remote
+            // `handleActivateProject` / `handleOpenProject` calls which arrive
+            // on the MainActor via `Task { @MainActor }` from NIO threads.
+            // Capture the data to serialize before leaving the actor.
+            let projectsSnapshot = projects
+            let historySnapshot = recentHistory
+            let storageURL = self.storageURL
+            let recentsURL = self.recentsURL
+            Task.detached(priority: .utility) {
                 do {
-                    try save()
-                    try saveRecents()
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                    let projectData = try encoder.encode(projectsSnapshot)
+                    let historyData = try encoder.encode(historySnapshot)
+                    try projectData.write(to: storageURL, options: .atomic)
+                    try historyData.write(to: recentsURL, options: .atomic)
                 } catch {
-                    Logger.persistence.error("Failed to save after activeProjectId change: \(error)")
+                    Logger.persistence.error(
+                        "Failed to save after activeProjectId change: \(error.localizedDescription, privacy: .public)"
+                    )
                 }
             }
         }

@@ -34,6 +34,13 @@ private final class WeakRemoteControlServerBox: @unchecked Sendable {
 
 extension HTTPRequestRouter: @unchecked Sendable {}
 
+// The `@unchecked Sendable` conformance on `HTTPRequestRouter` is justified
+// because `requestHead` and `requestBody` are per-connection mutable state that
+// is ONLY ever read or written from the owning NIO event-loop thread.
+// `preconditionInEventLoop()` / `assertInEventLoop()` guards in `channelRead`,
+// `channelActive`, and `errorCaught` enforce this at runtime (P2-8).
+extension HTTPRequestRouter: @unchecked Sendable {}
+
 extension RemoteControlServer {
 
     /// Listen backlog for the server socket (max pending connection queue).

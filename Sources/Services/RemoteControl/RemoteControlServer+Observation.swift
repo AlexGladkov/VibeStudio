@@ -115,6 +115,20 @@ extension RemoteControlServer {
 
     /// Observe `TerminalService.sessionsByProject` and broadcast
     /// `sessions_changed` messages to all connected WebSocket clients.
+    ///
+    /// **P1-8 fix:** Two complementary optimisations prevent the previous
+    /// O(sessions² × bridges) fan-out on every @Observable wakeup:
+    ///
+    /// 1. **Per-project payload cache (`lastSentJSON`):** Before broadcasting,
+    ///    the encoded JSON for each project is compared to the last value sent
+    ///    for that project. Identical payloads are dropped, so state-neutral
+    ///    re-observations (e.g. activity-tracker ticks that don't change any
+    ///    session field) produce zero WebSocket frames.
+    ///
+    /// 2. **O(1) secondary index:** The `sessionId → bridge` lookup now uses
+    ///    `bridgeRegistry.bridge(forSession:)` instead of the previous
+    ///    `activeBridges.values.first { $0.sessionId == id }` linear scan,
+    ///    reducing the inner-loop cost from O(n) to O(1).
     func startSessionObservation() {
         sessionObservationTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -129,29 +143,25 @@ extension RemoteControlServer {
             )
             // Reused across every wakeup — see `sessionsEncoder` declaration.
             let encoder = self.sessionsEncoder
-            // NOTE: broadcast still fans out to ALL projects/bridges on any
-            // change (O(sessions×bridges)). Scoping the broadcast to only the
-            // mutated project would require diffing `sessionsByProject`, which
-            // risks the observation semantics; left as-is. After W2#1 the wakeup
-            // frequency drops sharply (no per-tick re-writes), so this loop now
-            // fires only on real session add/remove/state transitions.
+            // P1-8: per-project payload cache — avoids re-broadcasting when the
+            // @Observable wakeup fires but session data didn't actually change.
+            var lastSentJSON: [UUID: String] = [:]
+
             for await _ in stream {
                 guard !Task.isCancelled else { return }
 
                 // Sessions changed — broadcast to all bridges.
                 for (projectId, sessions) in terminalService.sessionsByProject {
+                    // P1-7: O(1) lookup via secondary index.
                     let sessionResponses = sessions.map { session in
-                        SessionResponse(
+                        let attachedBridge = self.bridgeRegistry.bridge(forSession: session.id)
+                        return SessionResponse(
                             id: session.id.uuidString,
                             title: session.title,
                             state: session.state.remoteAPIString,
                             isAgent: session.isAgentSession,
-                            hasRemoteAttachment: self.activeBridges.values.contains {
-                                $0.sessionId == session.id
-                            },
-                            attachedDeviceId: self.activeBridges.values.first {
-                                $0.sessionId == session.id
-                            }?.deviceId.uuidString
+                            hasRemoteAttachment: attachedBridge != nil,
+                            attachedDeviceId: attachedBridge?.deviceId.uuidString
                         )
                     }
                     let msg = WSSessionsChangedMessage(
@@ -159,11 +169,18 @@ extension RemoteControlServer {
                         projectId: projectId.uuidString,
                         sessions: sessionResponses
                     )
-                    if let data = try? encoder.encode(msg),
-                       let json = String(data: data, encoding: .utf8) {
-                        self.broadcastTextMessage(json)
-                    }
+                    guard let data = try? encoder.encode(msg),
+                          let json = String(data: data, encoding: .utf8) else { continue }
+
+                    // P1-8: suppress no-op broadcasts.
+                    if lastSentJSON[projectId] == json { continue }
+                    lastSentJSON[projectId] = json
+                    self.broadcastTextMessage(json)
                 }
+
+                // Remove stale cache entries for projects that no longer have sessions.
+                let activeProjectIds = Set(terminalService.sessionsByProject.keys)
+                lastSentJSON = lastSentJSON.filter { activeProjectIds.contains($0.key) }
             }
         }
     }

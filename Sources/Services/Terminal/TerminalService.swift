@@ -6,6 +6,7 @@
 import AppKit
 import Observation
 import OSLog
+import os
 import SwiftTerm
 
 /// Manages PTY terminal sessions and their SwiftTerm views.
@@ -66,11 +67,27 @@ final class TerminalService: TerminalSessionManaging {
     /// The session events stream.
     let sessionEvents: AsyncStream<TerminalSessionEvent>
 
+    /// P1-3: Bundled long-running observation tasks protected by a lock so
+    /// `deinit` (nonisolated) can safely cancel without racing `@MainActor`
+    /// writes. Replaces the previous `nonisolated(unsafe)` slots.
+    private struct AppearanceTasks: @unchecked Sendable {
+        var theme: Task<Void, Never>?
+        var font: Task<Void, Never>?
+    }
+    @ObservationIgnored
+    private let appearanceTaskLock = OSAllocatedUnfairLock(initialState: AppearanceTasks())
+
     /// Long-running task observing `ThemeService.selectedAppearance`.
-    nonisolated(unsafe) private var themeObservationTask: Task<Void, Never>?
+    nonisolated private var themeObservationTask: Task<Void, Never>? {
+        get { appearanceTaskLock.withLock { $0.theme } }
+        set { appearanceTaskLock.withLock { $0.theme = newValue } }
+    }
 
     /// Long-running task observing `GeneralPreferences.terminalFontSize`.
-    nonisolated(unsafe) private var fontObservationTask: Task<Void, Never>?
+    nonisolated private var fontObservationTask: Task<Void, Never>? {
+        get { appearanceTaskLock.withLock { $0.font } }
+        set { appearanceTaskLock.withLock { $0.font = newValue } }
+    }
 
     /// General preferences (font size).
     let generalPreferences: GeneralPreferences
@@ -204,16 +221,29 @@ final class TerminalService: TerminalSessionManaging {
         workingDirectory: String,
         apiKeyValue: String?
     ) -> TerminalSession? {
-        // Remove any lingering exited agent sessions before launching a new one
-        // to avoid HSplitView showing a dead panel alongside the new session.
-        let exitedIds = (sessionsByProject[projectId] ?? [])
-            .filter { s in s.isAgentSession && { if case .exited = s.state { return true }; return false }() }
-            .map(\.id)
-        exitedIds.forEach { removeSession($0) }
+        // P1-4 fix: Do NOT remove .exited agent sessions here.
+        //
+        // The previous call to removeSession() bypassed the 10-second grace
+        // window established in handleProcessExit — the user's last output
+        // (e.g. "$PATH does not contain…") would disappear instantly when the
+        // agent was restarted within the grace window. The deferred removeSession
+        // in handleProcessExit already handles cleanup after 10 s; we must not
+        // race it with an early eviction here.
+        //
+        // For the session limit (guard below): .exited sessions are already
+        // counted in the array but are ephemeral. Excluding them from the cap
+        // prevents a "session limit reached" error while a grace-period session
+        // is still visible — the new session will coexist briefly and the old
+        // one will clean itself up within 10 s.
 
-        // Enforce session limit per project.
+        // Enforce session limit per project — excluding .exited sessions from
+        // the count so a grace-window agent does not block a new launch.
         let existing = sessionsByProject[projectId] ?? []
-        guard existing.count < maxSessionsPerProject else {
+        let activeCount = existing.filter { session in
+            if case .exited = session.state { return false }
+            return true
+        }.count
+        guard activeCount < maxSessionsPerProject else {
             Logger.terminal.warning("startAgentSession: session limit reached for project \(projectId)")
             return nil
         }

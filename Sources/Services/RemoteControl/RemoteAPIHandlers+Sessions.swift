@@ -38,15 +38,11 @@ extension RemoteAPIHandlers {
             )
             return
         }
-        // P0-3 fix (BOLA/IDOR): the previous guard only blocked scrollback when a
-        // *live bridge* for a different device existed. When `activeBridges` is
-        // empty (e.g. no device is currently connected) `foreignOwner` was nil and
-        // the handler served raw scrollback content to ANY authenticated device that
-        // guessed a valid `sessionId` — regardless of which project it belongs to.
-        //
-        // Fix: always verify the session's `projectId` against the one supplied in
-        // the URL *before* checking bridge ownership. If the IDs do not match we
-        // return 404 (not 403) to avoid leaking the existence of unrelated sessions.
+        // P0-3 fix (BOLA/IDOR): always verify the session's `projectId` against
+        // the one supplied in the URL BEFORE checking bridge ownership. When no
+        // bridge is attached the old foreign-owner check passed, so any device
+        // could read scrollback of another project by guessing a sessionId.
+        // 404 (not 403) on mismatch to avoid leaking unrelated-session existence.
         guard let sessionProjectId = terminalService.session(for: sessionId)?.projectId,
               sessionProjectId == projectId else {
             let resp = ErrorResponse(
@@ -61,10 +57,11 @@ extension RemoteAPIHandlers {
             return
         }
 
-        let foreignOwner = server.activeBridges.values.first { bridge in
-            bridge.sessionId == sessionId && bridge.deviceId != device.id
-        }
-        if foreignOwner != nil {
+        // P1-7: O(1) foreign-owner check via the secondary session index
+        // (replaces the previous O(n) `activeBridges.values.first { ... }` scan).
+        let attachedBridge = server.bridgeRegistry.bridge(forSession: sessionId)
+        let hasForeignOwner = attachedBridge.map { $0.deviceId != device.id } ?? false
+        if hasForeignOwner {
             let resp = ErrorResponse(
                 error: ErrorDetail(
                     code: "SESSION_NOT_OWNED",

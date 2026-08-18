@@ -10,6 +10,7 @@ import NIOCore
 import NIOPosix
 import Observation
 import OSLog
+import os
 import UserNotifications
 
 // WebSocket upgrade is handled manually in HTTPRequestRouter (not via NIO's
@@ -80,7 +81,9 @@ final class RemoteControlServer {
     // MARK: - Components (ARCH-H7)
 
     /// Bridge registry — owns `activeBridges`, register/unregister/broadcast.
-    private let bridgeRegistry: RemoteBridgeRegistry
+    /// `internal` so extension files and API handlers can call
+    /// `bridge(forSession:)` for O(1) BOLA checks (P1-7).
+    let bridgeRegistry: RemoteBridgeRegistry
 
     /// Pre-loaded static file cache + baseURL captured on MainActor.
     /// Created on `start()` so unit tests / previews never pay the cost.
@@ -112,13 +115,34 @@ final class RemoteControlServer {
     /// Timestamp when the server was started (for uptime calculation).
     private var startedAt: Date?
 
+    /// P1-3: Bundled long-running observation tasks protected by an
+    /// `OSAllocatedUnfairLock` so that `deinit` (nonisolated) can safely
+    /// cancel them without racing against `@MainActor` writes.
+    ///
+    /// The previous `nonisolated(unsafe)` slots allowed ARC to release
+    /// the server from a NIO thread simultaneously with a `@MainActor`
+    /// assignment to the slot, creating an unguarded data race. The lock
+    /// eliminates that race at O(1) cost (unfair spinlock; no syscall on
+    /// the uncontended fast path).
+    private struct ObservationTasks: @unchecked Sendable {
+        var session: Task<Void, Never>?
+        var ngrokHost: Task<Void, Never>?
+    }
+    private let observationLock = OSAllocatedUnfairLock(initialState: ObservationTasks())
+
     /// Observation task for session changes broadcast.
     /// `internal` so ``RemoteControlServer+Observation`` can own it.
-    nonisolated(unsafe) var sessionObservationTask: Task<Void, Never>?
+    nonisolated var sessionObservationTask: Task<Void, Never>? {
+        get { observationLock.withLock { $0.session } }
+        set { observationLock.withLock { $0.session = newValue } }
+    }
 
     /// Observation task that keeps `ngrokHostRef` in sync with the tunnel URL.
     /// `internal` so ``RemoteControlServer+Observation`` can own it.
-    nonisolated(unsafe) var ngrokHostObservationTask: Task<Void, Never>?
+    nonisolated var ngrokHostObservationTask: Task<Void, Never>? {
+        get { observationLock.withLock { $0.ngrokHost } }
+        set { observationLock.withLock { $0.ngrokHost = newValue } }
+    }
 
     /// Observation task for `cost_update` WS broadcasts.
     /// `internal` so ``RemoteControlServer+Observation`` can own it.
@@ -153,8 +177,15 @@ final class RemoteControlServer {
         self.projectManager = projectManager
         self.bonjour = BonjourAdvertiser()
         self.ngrok = NgrokTunnelService()
-        self.bridgeRegistry = RemoteBridgeRegistry(terminalService: terminalService)
+        let registry = RemoteBridgeRegistry(terminalService: terminalService)
+        self.bridgeRegistry = registry
         self.metadata = RemoteServerMetadata.current()
+
+        // P2-5: Wire input-activity notifications from the bridge registry
+        // through to the auth service so lastActivity stays current.
+        registry.onInputActivity = { [weak authService] deviceId in
+            authService?.touchActivity(for: deviceId)
+        }
     }
 
     /// Convenience init for previews and SwiftUI environment key defaults.

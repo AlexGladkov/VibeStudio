@@ -15,6 +15,11 @@ struct RemoteDevice: Identifiable, Codable {
     let displayName: String
     let ipAddress: String
     let connectedAt: Date
+    /// Timestamp of the most recent terminal input sent by this device.
+    /// Updated by ``RemoteAuthService.touchActivity(for:)`` on every
+    /// PTY input event from the corresponding ``RemoteSessionBridge``.
+    /// Defaults to `connectedAt` so the initial value is always non-nil.
+    var lastActivity: Date
 }
 
 /// Internal token storage entry -- not exposed to clients.
@@ -251,7 +256,8 @@ final class RemoteAuthService {
             id: deviceId,
             displayName: displayName,
             ipAddress: clientIP,
-            connectedAt: issuedAt
+            connectedAt: issuedAt,
+            lastActivity: issuedAt
         )
 
         let entry = TokenEntry(
@@ -352,6 +358,20 @@ final class RemoteAuthService {
     }
 
     // MARK: - Device Management
+
+    /// Update the `lastActivity` timestamp for an authenticated device.
+    ///
+    /// P2-5: Called by ``RemoteBridgeRegistry`` (via ``RemoteControlServer``)
+    /// on every terminal input event so the device list reflects real
+    /// activity rather than always showing `connectedAt`. A stale
+    /// `lastActivity == connectedAt` for every device previously made it
+    /// impossible to distinguish active from zombie sessions.
+    func touchActivity(for deviceId: UUID) {
+        guard let index = connectedDevices.firstIndex(where: { $0.id == deviceId }) else {
+            return
+        }
+        connectedDevices[index].lastActivity = now()
+    }
 
     /// Revoke a specific device's access and remove its token.
     func revokeDevice(_ deviceId: UUID) {

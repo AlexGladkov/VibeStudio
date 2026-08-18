@@ -188,23 +188,25 @@ extension RemoteAPIHandlers {
 
     /// Build a `ProjectResponse` with session info derived from the active
     /// terminal service + bridges.
+    ///
+    /// P1-7: Uses the O(1) `bridge(forSession:)` index instead of the
+    /// previous O(n) `activeBridges.values.first { $0.sessionId == id }`
+    /// linear scan.
     private func buildProjectResponse(project: Project, isActive: Bool) -> ProjectResponse {
         let sessions = terminalService.sessions(for: project.id).map { session in
             // Populate optional cost fields for agent sessions (reconnect recovery).
             let costSnap = session.isAgentSession
                 ? costTrackerService?.snapshot(for: session.id)
                 : nil
+            // P1-7: O(1) attachment lookup via secondary index.
+            let attachedBridge = serverRef?.bridgeRegistry.bridge(forSession: session.id)
             return SessionResponse(
                 id: session.id.uuidString,
                 title: session.title,
                 state: session.state.remoteAPIString,
                 isAgent: session.isAgentSession,
-                hasRemoteAttachment: serverRef?.activeBridges.values.contains {
-                    $0.sessionId == session.id
-                } ?? false,
-                attachedDeviceId: serverRef?.activeBridges.values.first {
-                    $0.sessionId == session.id
-                }?.deviceId.uuidString,
+                hasRemoteAttachment: attachedBridge != nil,
+                attachedDeviceId: attachedBridge?.deviceId.uuidString,
                 totalTokens: costSnap.map { $0.totalTokens > 0 ? $0.totalTokens : nil } ?? nil,
                 estimatedCostUsd: costSnap?.costUSD
             )

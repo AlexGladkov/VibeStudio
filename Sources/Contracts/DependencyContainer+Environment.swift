@@ -240,7 +240,7 @@ private final class PreviewTerminalSessionManager: TerminalSessionManaging {
     var sessionEvents: AsyncStream<TerminalSessionEvent> {
         AsyncStream(TerminalSessionEvent.self) { $0.finish() }
     }
-    func scrollbackContent(for sessionId: UUID) -> String? { nil }
+    func rawScrollbackContent(for sessionId: UUID) -> String? { nil }
     func sendInput(_ text: String, to sessionId: UUID) {}
     func markProjectSeen(_ projectId: UUID) {}
     @discardableResult

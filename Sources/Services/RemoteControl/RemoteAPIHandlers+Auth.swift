@@ -55,9 +55,19 @@ extension RemoteAPIHandlers {
             case .success(let tokenResponse):
                 // SECURITY: never log token material.
                 Logger.remoteControl.debug("auth success ip=\(clientIP, privacy: .public)")
+                // P2-3: Derive expiresAt from the issuedAt timestamp stored in
+                // the device's connectedAt field rather than computing a fresh
+                // Date() after the MainActor hop. The previous code produced a
+                // small drift (MainActor queue latency) that diverged from the
+                // server's internal token expiry (TokenEntry.expiresAt = issuedAt + TTL).
+                // handleAuthValidate already uses connectedAt correctly; this
+                // change aligns both endpoints.
+                let expiresAt = tokenResponse.device.connectedAt.addingTimeInterval(
+                    RemoteAuthService.tokenTTL
+                )
                 let resp = AuthTokenResponseDTO(
                     token: tokenResponse.token,
-                    expiresAt: Date().addingTimeInterval(RemoteAuthService.tokenTTL),
+                    expiresAt: expiresAt,
                     deviceId: tokenResponse.device.id.uuidString
                 )
                 theWriter.sendEncodableResponse(

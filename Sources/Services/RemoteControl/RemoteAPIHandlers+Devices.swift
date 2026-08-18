@@ -17,12 +17,14 @@ extension RemoteAPIHandlers {
             // SEC-M3: never expose peer device IPs — only the caller's own IP
             // is returned, so clients can still display "Connected from <ip>"
             // for themselves without leaking the broader device topology.
+            // P2-5: use the real lastActivity instead of the stale connectedAt
+            // placeholder, so zombie sessions are visible to clients.
             return DeviceResponse(
                 deviceId: dev.id.uuidString,
                 ip: isSelf ? dev.ipAddress : nil,
                 userAgent: dev.displayName,
                 connectedSince: dev.connectedAt,
-                lastActivity: dev.connectedAt,
+                lastActivity: dev.lastActivity,
                 attachedSessions: [],
                 isSelf: isSelf
             )

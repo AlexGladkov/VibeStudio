@@ -165,16 +165,6 @@ extension TerminalService {
 
     // MARK: - Scrollback
 
-    func scrollbackContent(for sessionId: UUID) -> String? {
-        guard let view = store.view(for: sessionId),
-              view.window != nil else { return nil }
-        let terminal = view.getTerminal()
-        let data = terminal.getBufferAsData(kind: .active, encoding: .utf8)
-        let result = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (result?.isEmpty ?? true) ? nil : result
-    }
-
     /// Returns the TaggedTerminalView for a session (if it exists).
     /// Used by Remote Control (`RemoteBridgeRegistry`) to install the `onRawData`
     /// callback for raw PTY streaming to WebSocket clients.

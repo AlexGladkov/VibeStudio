@@ -18,6 +18,12 @@ import OSLog
 /// observe `activeBridges` directly (e.g. badge count, attached-device
 /// indicators). Bridge mutations are always on MainActor; the underlying
 /// `RemoteSessionBridge` handles its own NIO hop for WebSocket writes.
+///
+/// **Index invariant (P1-7):** `sessionIdToBridge` is always kept in
+/// sync with `activeBridges`. Every mutation that adds or removes an entry
+/// in `activeBridges` MUST mirror that change in `sessionIdToBridge`.
+/// This gives O(1) `sessionId → bridge` lookup used by BOLA checks and
+/// session listings, removing the previous O(n) linear scan.
 @Observable
 @MainActor
 final class RemoteBridgeRegistry {
@@ -28,11 +34,19 @@ final class RemoteBridgeRegistry {
     /// BOLA enforcement, session listings, status) and SwiftUI views.
     private(set) var activeBridges: [UUID: RemoteSessionBridge] = [:]
 
+    /// Secondary index: session ID → bridge for O(1) `sessionId`-based
+    /// lookups. Always kept in sync with `activeBridges`.
+    private(set) var sessionIdToBridge: [UUID: RemoteSessionBridge] = [:]
+
     // MARK: - Dependencies
 
     /// Required so we can install / clear `onRawData` on the terminal view
     /// associated with each bridge.
     private let terminalService: TerminalService
+
+    /// Optional callback invoked whenever a bridge handles terminal input.
+    /// Used by RemoteAuthService to track `lastActivity` per device (P2-5).
+    var onInputActivity: ((UUID) -> Void)?
 
     // MARK: - Init
 
@@ -57,6 +71,11 @@ final class RemoteBridgeRegistry {
     /// authenticated device could connect to `GET /api/v1/terminal/<any-uuid>`
     /// and silently receive raw PTY bytes from any session — a Broken
     /// Object-Level Authorization (BOLA / IDOR) vulnerability.
+    ///
+    /// **P1-6 fix:** if a bridge already exists for this `deviceId`, the old
+    /// bridge is fully evicted (detached + `onRawData` cleared + removed from
+    /// both indices) before the new one takes its place — preventing a leaked
+    /// idle-timer Task and stale `onRawData` callbacks on the terminal view.
     func registerBridge(_ bridge: RemoteSessionBridge) {
         // BOLA / IDOR enforcement: verify the session exists in TerminalService
         // before wiring any output callbacks. A valid auth token does NOT grant
@@ -65,21 +84,23 @@ final class RemoteBridgeRegistry {
             Logger.remoteControl.error(
                 "RemoteBridgeRegistry.registerBridge REJECTED: session=\(bridge.sessionId) does not exist — possible BOLA probe by device=\(bridge.deviceId)"
             )
-            // Reset bridge-internal state (cancels idle timer, clears streaming
-            // flag, drops pending output) then close the NIO channel so the TCP
-            // socket is freed immediately. Without `closeTransport` the only
-            // remaining close-path is the handler's heartbeat (60 s), enabling a
-            // resource-exhaustion DoS: each rejected connection with a valid token
-            // but fabricated sessionId occupies a live socket for up to 60 s.
+            // Reset bridge-internal state then close the NIO channel immediately
+            // (avoids a 60 s heartbeat-only close-path DoS on rejected connections).
             bridge.detach()
             bridge.closeTransport(code: WSCloseCode.authRequired, reason: "Session not found")
             return
         }
 
+        // P1-6: evict existing bridge for the same deviceId before registering.
+        if let old = activeBridges[bridge.deviceId], old !== bridge {
+            _evict(old)
+        }
+
         activeBridges[bridge.deviceId] = bridge
+        sessionIdToBridge[bridge.sessionId] = bridge   // P1-7: maintain index
 
         if let view = terminalService.terminalView(for: bridge.sessionId) {
-            view.onRawData = { [weak bridge] _, slice in
+            view.onRawData = { [weak self, weak bridge] _, slice in
                 guard let bridge else { return }
                 // SwiftTerm delivers `dataReceived` on the MAIN thread (its
                 // LocalProcess is created with `dispatchQueue: .main`), so we are
@@ -90,6 +111,11 @@ final class RemoteBridgeRegistry {
                 Task { @MainActor in
                     bridge.handleRawData(slice)
                 }
+            }
+            // P2-5: hook input path to update lastActivity via bridge's input
+            // notification, wired through the registry's callback.
+            bridge.onInputActivity = { [weak self] deviceId in
+                self?.onInputActivity?(deviceId)
             }
         } else {
             // Session exists in TerminalService but view is not yet in the cache
@@ -110,15 +136,23 @@ final class RemoteBridgeRegistry {
     /// Unregister a session bridge (called on WebSocket close).
     ///
     /// Detaches the bridge, clears the `onRawData` callback on the terminal
-    /// view, and removes the entry from `activeBridges`.
+    /// view, and removes the entry from both `activeBridges` and
+    /// `sessionIdToBridge`.
     func unregisterBridge(_ bridge: RemoteSessionBridge) {
-        bridge.detach()
-
-        if let view = terminalService.terminalView(for: bridge.sessionId) {
-            view.onRawData = nil
+        // Only remove the entries if they still point to THIS bridge — a newer
+        // bridge for the same device/session may have already taken the slot
+        // (P1-6: the eviction path in registerBridge already cleaned up before
+        // the new bridge was inserted, so this guard is a belt-and-braces check
+        // against stale `channelInactive` callbacks arriving after re-register).
+        if activeBridges[bridge.deviceId] === bridge {
+            activeBridges.removeValue(forKey: bridge.deviceId)
+        }
+        if sessionIdToBridge[bridge.sessionId] === bridge {
+            sessionIdToBridge.removeValue(forKey: bridge.sessionId)
         }
 
-        activeBridges.removeValue(forKey: bridge.deviceId)
+        _evict(bridge)
+
         Logger.remoteControl.info(
             "Bridge unregistered: device=\(bridge.deviceId) session=\(bridge.sessionId)"
         )
@@ -127,18 +161,32 @@ final class RemoteBridgeRegistry {
     /// Detach all bridges and clear the registry. Called on server stop.
     func detachAll() {
         for (_, bridge) in activeBridges {
-            bridge.detach()
+            _evict(bridge)
         }
         activeBridges.removeAll()
+        sessionIdToBridge.removeAll()
     }
 
     /// Remove a specific device's bridge without going through the bridge
     /// instance directly (used by the public `disconnect(_:)` API).
     func removeBridge(forDevice deviceId: UUID) {
         if let bridge = activeBridges[deviceId] {
-            bridge.detach()
             activeBridges.removeValue(forKey: deviceId)
+            if sessionIdToBridge[bridge.sessionId] === bridge {
+                sessionIdToBridge.removeValue(forKey: bridge.sessionId)
+            }
+            _evict(bridge)
         }
+    }
+
+    // MARK: - Lookup (P1-7: O(1) secondary index)
+
+    /// Find the bridge for a session ID in O(1) using the secondary index.
+    ///
+    /// Replaces all previous `activeBridges.values.first { $0.sessionId == id }`
+    /// linear scans in the HTTP handlers and observation loop.
+    func bridge(forSession sessionId: UUID) -> RemoteSessionBridge? {
+        sessionIdToBridge[sessionId]
     }
 
     // MARK: - Broadcast
@@ -157,6 +205,18 @@ final class RemoteBridgeRegistry {
     func broadcastToSession(_ sessionId: UUID, json: String) {
         for (_, bridge) in activeBridges where bridge.sessionId == sessionId {
             bridge.sendTextMessage(json)
+        }
+    }
+
+    // MARK: - Private
+
+    /// Perform the low-level detach + terminal cleanup for a bridge without
+    /// touching the index dictionaries. Callers are responsible for updating
+    /// `activeBridges` and `sessionIdToBridge` before or after calling this.
+    private func _evict(_ bridge: RemoteSessionBridge) {
+        bridge.detach()
+        if let view = terminalService.terminalView(for: bridge.sessionId) {
+            view.onRawData = nil
         }
     }
 }

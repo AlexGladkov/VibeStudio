@@ -145,7 +145,9 @@ final class MockTerminalSessionManager: TerminalSessionManaging {
 
     // MARK: - TerminalScrollbackAccessing
 
-    func scrollbackContent(for sessionId: UUID) -> String? {
+    // P2-4: scrollbackContent(for:) removed from protocol; protocol now
+    // requires rawScrollbackContent(for:) only.
+    func rawScrollbackContent(for sessionId: UUID) -> String? {
         nil
     }
 }
