@@ -21,7 +21,7 @@ DMG_OUTPUT      := $(BUILD_DIR)/$(APP_NAME).dmg
 
 # Version — read from project.yml (single source of truth); override from CI: make build VERSION=1.0.0 BUILD_NUMBER=42
 VERSION         ?= $(shell grep 'MARKETING_VERSION:' project.yml | head -1 | sed 's/.*: *"\(.*\)"/\1/' | tr -d ' ')
-BUILD_NUMBER    ?= 1
+BUILD_NUMBER    ?= $(shell grep 'CURRENT_PROJECT_VERSION:' project.yml | head -1 | sed 's/.*: *"\(.*\)"/\1/' | tr -d ' ')
 
 # Signing — for unsigned MVP builds
 CODE_SIGN_IDENTITY ?= -
