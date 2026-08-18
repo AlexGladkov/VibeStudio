@@ -3,12 +3,12 @@
     <channel>
         <title>VibeStudio</title>
         <item>
-            <title>0.4.1</title>
-            <pubDate>Fri, 10 Jul 2026 15:34:50 +0000</pubDate>
-            <sparkle:version>17</sparkle:version>
-            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+            <title>0.5.0</title>
+            <pubDate>Tue, 18 Aug 2026 09:16:33 +0000</pubDate>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/AlexGladkov/VibeStudio/releases/download/v0.4.1/VibeStudio-0.4.1.dmg" length="14836415" type="application/octet-stream" sparkle:edSignature="EQnRpGvW53mX61HQaMknu3Lza4hUYweSU+5N9zmfmsRCdqcBvsmZTVrNryL/p6sKWrWTDOoHEKMEfNlv1Q0iCw=="/>
+            <enclosure url="https://github.com/AlexGladkov/VibeStudio/releases/download/v0.5.0/VibeStudio-0.5.0.dmg" length="14965761" type="application/octet-stream" sparkle:edSignature="4mT/49HpoQfXEiPtw3sNdfryScrC4xGvSRx1RrxyMKStMeJpChFXZoe2MBo31sm25LS6Sl90sg6nMytgN0zUDA=="/>
         </item>
     </channel>
 </rss>
